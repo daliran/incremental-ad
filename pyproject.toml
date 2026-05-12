@@ -21,7 +21,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/incremental-ad"]
+packages = ["src/incremental_ad"]
 
 [tool.uv.sources]
 torch = [

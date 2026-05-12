@@ -1,0 +1,31 @@
+from argparse import ArgumentParser
+from dataclasses import dataclass
+from typing import Literal
+
+OptimizerType = Literal["adamw"]
+SchedulerType = Literal["cosine", "constant"]
+
+
+@dataclass
+class TrainingConfig:
+    epochs: int
+    patience: int
+    batch_size: int
+    optimizer: OptimizerType
+    weight_decay: float
+    learning_rate: float
+    grad_clip: float
+    scheduler: SchedulerType
+    warmup_ratio: float
+
+
+def add_args(parser: ArgumentParser) -> None:
+    parser.add_argument("--train-epochs", type=int, required=True)
+    parser.add_argument("--train-patience", type=int, required=True)
+    parser.add_argument("--train-batch-size", type=int, required=True)
+    parser.add_argument("--train-optimizer", choices=["adamw"], required=True)
+    parser.add_argument("--train-weight-decay", type=float, required=True)
+    parser.add_argument("--train-learning-rate", type=float, required=True)
+    parser.add_argument("--train-grad-clip", type=float, required=True)
+    parser.add_argument("--train-scheduler", choices=["cosine", "constant"], required=True)
+    parser.add_argument("--train-warmup-ratio", type=float, required=True)

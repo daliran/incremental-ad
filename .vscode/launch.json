@@ -9,11 +9,39 @@
             "name": "Python Debugger: Python File",
             "type": "debugpy",
             "request": "launch",
-            "module": "incremental-ad.main",
+            "module": "incremental_ad.main",
             "cwd": "${workspaceFolder}",
             "env": { "PYTHONPATH": "${workspaceFolder}/src" },
             "justMyCode": false,
             "args": [
+                // --- Dispatch ---
+                "--dataset", "swat",
+                "--model", "mae_tx",
+
+                // --- SWaT dataset ---
+                "--swat-window-len", "100",
+                "--swat-stride", "1",
+                "--swat-normalization", "standard",
+
+                // --- MAE transformer model ---
+                "--mae-tx-d-model", "256",
+                "--mae-tx-patch-len", "10",
+                "--mae-tx-encoder-layers", "4",
+                "--mae-tx-encoder-heads", "8",
+                "--mae-tx-decoder-layers", "2",
+                "--mae-tx-decoder-heads", "4",
+                "--mae-tx-mask-ratio", "0.75",
+
+                // --- Training ---
+                "--train-epochs", "100",
+                "--train-patience", "10",
+                "--train-batch-size", "64",
+                "--train-optimizer", "adamw",
+                "--train-weight-decay", "0.05",
+                "--train-learning-rate", "1e-4",
+                "--train-grad-clip", "1.0",
+                "--train-scheduler", "cosine",
+                "--train-warmup-ratio", "0.1"
             ]
         }
     ]

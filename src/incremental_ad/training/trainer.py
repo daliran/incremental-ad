@@ -1,6 +1,8 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from typing import Literal
+
+from incremental_ad.core.cli import pluck
 
 OptimizerType = Literal["adamw"]
 SchedulerType = Literal["cosine", "constant"]
@@ -27,5 +29,12 @@ def add_args(parser: ArgumentParser) -> None:
     parser.add_argument("--train-weight-decay", type=float, required=True)
     parser.add_argument("--train-learning-rate", type=float, required=True)
     parser.add_argument("--train-grad-clip", type=float, required=True)
-    parser.add_argument("--train-scheduler", choices=["cosine", "constant"], required=True)
+    parser.add_argument(
+        "--train-scheduler", choices=["cosine", "constant"], required=True
+    )
     parser.add_argument("--train-warmup-ratio", type=float, required=True)
+
+
+def make_config(args: Namespace) -> TrainingConfig:
+    fields = pluck(args, "train")
+    return TrainingConfig(**fields)

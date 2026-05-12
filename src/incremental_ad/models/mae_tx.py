@@ -1,5 +1,7 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
+
+from incremental_ad.core.cli import pluck
 
 
 @dataclass
@@ -23,3 +25,8 @@ def add_args(parser: ArgumentParser) -> None:
     parser.add_argument("--mae-tx-decoder-layers", type=int, required=True)
     parser.add_argument("--mae-tx-decoder-heads", type=int, required=True)
     parser.add_argument("--mae-tx-mask-ratio", type=float, required=True)
+
+
+def make_config(args: Namespace) -> MaeTxConfig:
+    fields = pluck(args, "mae_tx")
+    return MaeTxConfig(**fields)

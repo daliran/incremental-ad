@@ -1,0 +1,40 @@
+[project]
+name = "incremental-ad"
+version = "0.1.0"
+description = "Thesis project for AIE master degree"
+authors = [{ name = "Davide Della Casa Venturelli", email = "davide.dellacasaventurelli@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.11, <3.14"
+dependencies = [
+    "torch",
+    "numpy",
+    "scikit-learn",
+    "matplotlib",
+    "pandas",
+    "datasets",
+    "tqdm",
+    "wandb"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/incremental-ad"]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu121", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu124", marker = "sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true

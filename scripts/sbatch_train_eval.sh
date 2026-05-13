@@ -50,7 +50,7 @@ python -m incremental_ad.main \
     --device auto \
     --dataset swat \
     --model mae_tx \
-    --swat-window-len 1024s \
+    --swat-window-len 1024 \
     --swat-stride 50 \
     --swat-normalization standard \
     --mae-tx-d-model 256 \

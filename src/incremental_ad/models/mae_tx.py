@@ -18,6 +18,7 @@ class MaeTxConfig:
 
 
 def add_args(parser: ArgumentParser) -> None:
+    """Adds the specific argparser arguments."""
     parser.add_argument("--mae-tx-d-model", type=int, required=True)
     parser.add_argument("--mae-tx-patch-len", type=int, required=True)
     parser.add_argument("--mae-tx-encoder-layers", type=int, required=True)
@@ -28,5 +29,6 @@ def add_args(parser: ArgumentParser) -> None:
 
 
 def make_config(args: Namespace) -> MaeTxConfig:
+    """Extracts the arguments from the argparse namespace and creates the dataclass."""
     fields = pluck(args, "mae_tx")
     return MaeTxConfig(**fields)

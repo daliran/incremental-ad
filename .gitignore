@@ -185,4 +185,5 @@ fabric.properties
 .idea
 
 # project specific
-wandb/
+hf_cache/
+runs/

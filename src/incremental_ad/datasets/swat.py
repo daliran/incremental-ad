@@ -10,15 +10,14 @@ HF_DATASET_NAME = "SWaT"
 
 Normalization = Literal["standard", "none"]
 
-
 @dataclass
 class SWaTConfig:
     window_len: int
     stride: int
     normalization: Normalization
 
-
 def add_args(parser: ArgumentParser) -> None:
+    """Adds the specific argparser arguments."""
     parser.add_argument("--swat-window-len", type=int, required=True)
     parser.add_argument("--swat-stride", type=int, required=True)
     parser.add_argument(
@@ -27,5 +26,6 @@ def add_args(parser: ArgumentParser) -> None:
 
 
 def make_config(args: Namespace) -> SWaTConfig:
+    """Extracts the arguments from the argparse namespace and creates the dataclass."""
     fields = pluck(args, "swat")
     return SWaTConfig(**fields)

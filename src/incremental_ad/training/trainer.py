@@ -10,6 +10,7 @@ SchedulerType = Literal["cosine", "constant"]
 
 @dataclass
 class TrainingConfig:
+    seed: int
     epochs: int
     patience: int
     batch_size: int
@@ -22,6 +23,8 @@ class TrainingConfig:
 
 
 def add_args(parser: ArgumentParser) -> None:
+    """Adds the specific argparser arguments."""
+    parser.add_argument("--train-seed", type=int, required=True)
     parser.add_argument("--train-epochs", type=int, required=True)
     parser.add_argument("--train-patience", type=int, required=True)
     parser.add_argument("--train-batch-size", type=int, required=True)
@@ -36,5 +39,6 @@ def add_args(parser: ArgumentParser) -> None:
 
 
 def make_config(args: Namespace) -> TrainingConfig:
+    """Extracts the arguments from the argparse namespace and creates the dataclass."""
     fields = pluck(args, "train")
     return TrainingConfig(**fields)

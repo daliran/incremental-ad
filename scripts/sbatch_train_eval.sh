@@ -50,24 +50,24 @@ python -m incremental_ad.main \
     --device auto \
     --dataset swat \
     --model mae_tx \
-    --swat-window-len 100 \
-    --swat-stride 1 \
+    --swat-window-len 1024s \
+    --swat-stride 50 \
     --swat-normalization standard \
     --mae-tx-d-model 256 \
     --mae-tx-patch-len 10 \
-    --mae-tx-encoder-layers 4 \
-    --mae-tx-encoder-heads 8 \
-    --mae-tx-decoder-layers 2 \
-    --mae-tx-decoder-heads 4 \
-    --mae-tx-mask-ratio 0.75 \
+    --mae-tx-encoder-layers 2 \
+    --mae-tx-encoder-heads 2 \
+    --mae-tx-decoder-layers 1 \
+    --mae-tx-decoder-heads 2 \
+    --mae-tx-mask-ratio 0.90 \
     --train-seed 42 \
-    --train-epochs 100 \
-    --train-patience 10 \
+    --train-epochs 300 \
+    --train-patience 30 \
     --train-batch-size 64 \
     --train-optimizer adamw \
-    --train-weight-decay 0.05 \
+    --train-weight-decay 1e-2 \
     --train-learning-rate 1e-4 \
-    --train-grad-clip 1.0 \
+    --train-grad-clip 0.5 \
     --train-scheduler cosine \
     --train-warmup-ratio 0.1
 

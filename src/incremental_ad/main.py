@@ -2,14 +2,17 @@ import argparse
 import logging
 import os
 import platform
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
+
+import wandb
 
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
 from incremental_ad.core.run import save_config_snapshot, setup_run_dir
 from incremental_ad.core.seed import set_rng_state, set_seed
+from incremental_ad.core.tracking import init_wandb
 from incremental_ad.datasets import swat
 from incremental_ad.models import mae_tx
 from incremental_ad.training import evaluator, trainer
@@ -94,14 +97,31 @@ def run_train() -> None:
         train_cfg=train_cfg,
     )
 
-    print(f"Run dir: {run_dir}")
-    print(f"Op: {global_cfg.op}")
-    print(f"Device: {device}")
-    print(f"Dataset: {args.dataset} -> {dataset_cfg}")
-    print(f"Model:   {args.model} -> {model_cfg}")
-    print(f"Train:   {train_cfg}")
+    # Init wandb.
+    init_wandb(
+        group=run_id,
+        job_type="train",
+        name=run_id,
+        config={
+            "dataset_name": args.dataset,
+            "dataset": asdict(dataset_cfg),
+            "model_name": args.model,
+            "model": asdict(model_cfg),
+            "train": asdict(train_cfg),
+        },
+    )
 
-    # TODO dispatch to trainer.train(...)
+    try:
+        print(f"Run dir: {run_dir}")
+        print(f"Op: {global_cfg.op}")
+        print(f"Device: {device}")
+        print(f"Dataset: {args.dataset} -> {dataset_cfg}")
+        print(f"Model:   {args.model} -> {model_cfg}")
+        print(f"Train:   {train_cfg}")
+
+        # TODO dispatch to trainer.train(...)
+    finally:
+        wandb.finish()
 
 
 def run_resume() -> None:
@@ -140,7 +160,7 @@ def run_resume() -> None:
     train_cfg = trainer.TrainingConfig(**ckpt_cfgs["train"])
 
     # Define the run directory and the run id.
-    run_dir, _ = setup_run_dir(global_cfg.experiment_name)
+    run_dir, run_id = setup_run_dir(global_cfg.experiment_name)
 
     # Set the wandb directory under the specific run.
     os.environ["WANDB_DIR"] = str(run_dir)
@@ -154,15 +174,34 @@ def run_resume() -> None:
     if ckpt.get("rng_state"):
         set_rng_state(ckpt["rng_state"])
 
-    print(f"Run dir: {run_dir}")
-    print(f"Op: {global_cfg.op}")
-    print(f"Device: {device}")
-    print(f"Dataset: {dataset_name} -> {dataset_cfg}")
-    print(f"Model:   {model_name} -> {model_cfg}")
-    print(f"Train:   {train_cfg}")
-    print(f"Resuming from epoch {ckpt['epoch']}")
+    # Init wandb.
+    # In this context the continuation creates a separate group.
+    init_wandb(
+        group=run_id,
+        job_type="train",
+        name=run_id,
+        config={
+            "dataset_name": dataset_name,
+            "dataset": asdict(dataset_cfg),
+            "model_name": model_name,
+            "model": asdict(model_cfg),
+            "train": asdict(train_cfg),
+            "resumed_from": ckpt["run_id"],
+        },
+    )
 
-    # TODO dispatch to trainer.train(...) with resume
+    try:
+        print(f"Run dir: {run_dir}")
+        print(f"Op: {global_cfg.op}")
+        print(f"Device: {device}")
+        print(f"Dataset: {dataset_name} -> {dataset_cfg}")
+        print(f"Model:   {model_name} -> {model_cfg}")
+        print(f"Train:   {train_cfg}")
+        print(f"Resuming from epoch {ckpt['epoch']}")
+
+        # TODO dispatch to trainer.train(...) with resume
+    finally:
+        wandb.finish()
 
 
 def run_eval() -> None:
@@ -204,7 +243,7 @@ def run_eval() -> None:
     model_cfg = MODELS[model_name][2](**ckpt_cfgs["model"])
 
     # Define the run directory and the run id.
-    run_dir, _ = setup_run_dir(global_cfg.experiment_name)
+    run_dir, run_id = setup_run_dir(global_cfg.experiment_name)
 
     # Set the wandb directory under the specific run.
     os.environ["WANDB_DIR"] = str(run_dir)
@@ -215,14 +254,33 @@ def run_eval() -> None:
     # Sets the seed.
     set_seed(eval_cfg.seed)
 
-    print(f"Run dir: {run_dir}")
-    print(f"Op: {global_cfg.op}")
-    print(f"Device: {device}")
-    print(f"Dataset: {dataset_name} -> {dataset_cfg}")
-    print(f"Model:   {model_name} -> {model_cfg}")
-    print(f"Eval:    {eval_cfg}")
+    # Init wandb.
+    # In this context the group will be the same used during training.
+    init_wandb(
+        group=ckpt["wandb_group"],
+        job_type="eval",
+        name=run_id,
+        config={
+            "dataset_name": dataset_name,
+            "dataset": asdict(dataset_cfg),
+            "model_name": model_name,
+            "model": asdict(model_cfg),
+            "eval": asdict(eval_cfg),
+            "train_run_id": ckpt["run_id"],
+        },
+    )
 
-    # TODO dispatch to evaluator.evaluate(...)
+    try:
+        print(f"Run dir: {run_dir}")
+        print(f"Op: {global_cfg.op}")
+        print(f"Device: {device}")
+        print(f"Dataset: {dataset_name} -> {dataset_cfg}")
+        print(f"Model:   {model_name} -> {model_cfg}")
+        print(f"Eval:    {eval_cfg}")
+
+        # TODO dispatch to evaluator.evaluate(...)
+    finally:
+        wandb.finish()
 
 
 def dispatch() -> None:

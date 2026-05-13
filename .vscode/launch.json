@@ -13,7 +13,11 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/runs"
+                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "WANDB_MODE": "disabled",
+                "WANDB_PROJECT": "incremental_ad",
+                "WANDB_ENTITY": "kirrel-research"
+
             },
             "justMyCode": true,
             "args": [
@@ -60,7 +64,10 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/runs"
+                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "WANDB_MODE": "disabled",
+                "WANDB_PROJECT": "incremental_ad",
+                "WANDB_ENTITY": "kirrel-research"
             },
             "justMyCode": true,
             "args": [
@@ -79,7 +86,10 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/runs"
+                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "WANDB_MODE": "disabled",
+                "WANDB_PROJECT": "incremental_ad",
+                "WANDB_ENTITY": "kirrel-research"
             },
             "justMyCode": true,
             "args": [

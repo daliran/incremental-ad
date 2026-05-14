@@ -11,11 +11,12 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
-class MaeTxConfig:
-    d_model: int
+class MaeTxConfig: 
     patch_len: int
+    encoder_embed_dim: int
     encoder_layers: int
     encoder_heads: int
+    decoder_embed_dim: int
     decoder_layers: int
     decoder_heads: int
     mask_ratio: float
@@ -23,10 +24,11 @@ class MaeTxConfig:
 
 def add_args(parser: ArgumentParser) -> None:
     """Adds the specific argparser arguments."""
-    parser.add_argument("--mae-tx-d-model", type=int, required=True)
     parser.add_argument("--mae-tx-patch-len", type=int, required=True)
+    parser.add_argument("--mae-tx-encoder-embed-dim", type=int, required=True)
     parser.add_argument("--mae-tx-encoder-layers", type=int, required=True)
     parser.add_argument("--mae-tx-encoder-heads", type=int, required=True)
+    parser.add_argument("--mae-tx-decoder-embed-dim", type=int, required=True)
     parser.add_argument("--mae-tx-decoder-layers", type=int, required=True)
     parser.add_argument("--mae-tx-decoder-heads", type=int, required=True)
     parser.add_argument("--mae-tx-mask-ratio", type=float, required=True)
@@ -132,7 +134,7 @@ class AEDecoder(nn.Module):
         self.output_projection = nn.Linear(d_model, patch_len * n_features)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x.shape = (batch size, visible + masked tokens, transformer depth).
+        # x.shape = (batch size, visible + masked tokens, decoder depth).
         # encoder_out.shape = (batch size, visible + masked tokens, transformer depth).
         encoder_out = self.transformer_encoder(x)
 
@@ -155,34 +157,40 @@ class MAETransformer(nn.Module):
             raise ValueError("The number of patches needs to be > 0")
 
         self.patch_embedding_layer = nn.Linear(
-            self.config.patch_len * self.n_features, self.config.d_model
+            self.config.patch_len * self.n_features, self.config.encoder_embed_dim
         )
 
-        # (batch size, number of patches, transformer depth).
+        # (batch size, number of patches, encoder depth).
         # Each token in the sequence gets a different positional encoding but this positional encoding is the same across all batches.
         # This starts random instead of zeros because having different values per position helps the model to learn that the positions are different.
         self.encoder_positional_encoding = nn.Parameter(
-            torch.randn(1, self.n_patches, self.config.d_model)
+            torch.randn(1, self.n_patches, self.config.encoder_embed_dim)
         )
 
+        # (batch size, number of patches, decoder depth).
         self.decoder_positional_encoding = nn.Parameter(
-            torch.randn(1, self.n_patches, self.config.d_model)
+            torch.randn(1, self.n_patches, self.config.decoder_embed_dim)
         )
 
         # ("batch size", "number of patches", transformer depth).
         # Learned token used as a place older for the masked tokens in the decoder input.
-        self.decoder_mask_token = nn.Parameter(torch.zeros(1, 1, self.config.d_model))
+        self.decoder_mask_token = nn.Parameter(torch.zeros(1, 1, self.config.decoder_embed_dim))
 
         self.encoder = AEEncoder(
-            d_model=self.config.d_model,
+            d_model=self.config.encoder_embed_dim,
             n_head=self.config.encoder_heads,
             n_layer=self.config.encoder_layers,
+        )
+
+        # Used to project the encoder output from encoder_embed_dim to decoder_embed_dim before passing to the decoder.
+        self.encoder_to_decoder = nn.Linear(
+            self.config.encoder_embed_dim, self.config.decoder_embed_dim
         )
 
         self.decoder = AEDecoder(
             patch_len=self.config.patch_len,
             n_features=n_features,
-            d_model=self.config.d_model,
+            d_model=self.config.decoder_embed_dim,
             n_head=self.config.decoder_heads,
             n_layer=self.config.decoder_layers,
         )
@@ -216,8 +224,8 @@ class MAETransformer(nn.Module):
 
         batch_size = encoder_output.size(0)
 
-        # decoder_mask_token.shape = (1, 1, transformer depth).
-        # all_tokens.shape = (batch size, number of patches, transformer depth).
+        # decoder_mask_token.shape = (1, 1, decoder depth).
+        # all_tokens.shape = (batch size, number of patches, decoder depth).
         # create an input tensor where all tokens are mask tokens.
         all_tokens = self.decoder_mask_token.repeat(batch_size, self.n_patches, 1)
 
@@ -234,7 +242,10 @@ class MAETransformer(nn.Module):
         encoder_input = self.build_encoder_input(tokens, unmask_indices)
         encoder_output = self.encoder(encoder_input)
 
-        decoder_input = self.build_decoder_input(encoder_output, unmask_indices)
+        # projects the encoder input to the decoder output embed dim
+        encoder_output_d = self.encoder_to_decoder(encoder_output)
+
+        decoder_input = self.build_decoder_input(encoder_output_d, unmask_indices)
         decoder_output = self.decoder(decoder_input)
 
         return decoder_output, tokens
@@ -256,7 +267,7 @@ def compute_anomaly_scores(
     patch_len: int,
     n_features: int,
 ) -> torch.Tensor:
-    
+
     # (batch_size, n_patches, patch_len * n_features).
     error = F.mse_loss(average_prediction, ground_truth, reduction="none")
 

@@ -53,10 +53,11 @@ python -m incremental_ad.main \
     --swat-window-len 100 \
     --swat-stride 50 \
     --swat-normalization standard \
-    --mae-tx-d-model 256 \
     --mae-tx-patch-len 10 \
+    --mae-tx-encoder-embed-dim 256 \
     --mae-tx-encoder-layers 2 \
     --mae-tx-encoder-heads 2 \
+    --mae-tx-decoder-embed-dim 128 \
     --mae-tx-decoder-layers 1 \
     --mae-tx-decoder-heads 2 \
     --mae-tx-mask-ratio 0.90 \

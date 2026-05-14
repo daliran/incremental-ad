@@ -105,18 +105,21 @@ class AEEncoder(nn.Module):
     def __init__(self, d_model: int, n_head: int, n_layer: int) -> None:
         super().__init__()
 
+        # apply norm_first to follow the modern pre-norm convention.
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=n_head, batch_first=True
+            d_model=d_model, nhead=n_head, batch_first=True, norm_first=True
         )
 
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer, num_layers=n_layer
         )
 
+        # final LayerNorm required in the pre-norm convention.
+        self.norm = nn.LayerNorm(d_model)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x.shape = (batch size, visible tokens, transformer depth).
-        out = self.transformer_encoder(x)
-        return out
+        # x.shape = (batch size, visible tokens, encoder depth).
+        return self.norm(self.transformer_encoder(x))
 
 
 class AEDecoder(nn.Module):
@@ -125,25 +128,25 @@ class AEDecoder(nn.Module):
     ) -> None:
         super().__init__()
 
+        # apply norm_first to follow the modern pre norm convention.
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=n_head, batch_first=True
+            d_model=d_model, nhead=n_head, batch_first=True, norm_first=True
         )
 
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer, num_layers=n_layer
         )
 
+        # final LayerNorm required in the pre-norm convention.
+        self.norm = nn.LayerNorm(d_model)
+
         self.output_projection = nn.Linear(d_model, patch_len * n_features)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x.shape = (batch size, visible + masked tokens, decoder depth).
-        # encoder_out.shape = (batch size, visible + masked tokens, transformer depth).
-        encoder_out = self.transformer_encoder(x)
-
-        # projection_out.shape = (batch size, visible + masked tokens, patch length * features).
-        # This is converting back from the embedding space to the input space.
-        projection_out = self.output_projection(encoder_out)
-        return projection_out
+        # x.shape = (batch size, n_patches, decoder depth).
+        # projection_out.shape = (batch size, n_patches, patch length * features).
+        norm = self.norm(self.transformer_encoder(x))
+        return self.output_projection(norm)
 
 
 # number_of_patches = time_series_length // self.config.patch_len.

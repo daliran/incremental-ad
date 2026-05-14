@@ -50,7 +50,7 @@ python -m incremental_ad.main \
     --device auto \
     --dataset swat \
     --model mae_tx \
-    --swat-window-len 1024 \
+    --swat-window-len 100 \
     --swat-stride 50 \
     --swat-normalization standard \
     --mae-tx-d-model 256 \
@@ -78,6 +78,10 @@ python -m incremental_ad.main \
     --experiment-name ${EXPERIMENT}_eval \
     --device auto \
     --checkpoint $RUNS_ROOT/${EXPERIMENT}_${SLURM_JOB_ID}/checkpoints/best.pt \
+    --dataset swat \
+    --swat-window-len 100 \
+    --swat-stride 1 \
+    --swat-normalization standard \
     --eval-seed 0 \
     --eval-split test
 

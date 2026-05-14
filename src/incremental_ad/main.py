@@ -215,6 +215,14 @@ def run_eval() -> None:
     # Add eval op specific args.
     parser.add_argument("--checkpoint", type=Path, required=True)
 
+    # Dataset can differ from training.
+    parser.add_argument("--dataset", choices=DATASETS, required=True)
+
+    known, _ = parser.parse_known_args()
+
+    # Add the args for the specific dataset.
+    DATASETS[known.dataset][0](parser)
+
     # Add the evaluator specific args.
     evaluator.add_args(parser)
 
@@ -228,18 +236,17 @@ def run_eval() -> None:
     # Load eval config.
     eval_cfg = evaluator.make_config(args)
 
+    # Load dataset config.
+    dataset_cfg = DATASETS[args.dataset][1](args)
+
     # Load checkpoint.
     ckpt = checkpoint.load_checkpoint(args.checkpoint)
 
     # Get config embedded in the checkpoint.
     ckpt_cfgs = ckpt["configs"]
 
-    # Load the dataset and model names from the checkpoint.
-    dataset_name = ckpt_cfgs["dataset_name"]
+    # Load the model name and config from the checkpoint.
     model_name = ckpt_cfgs["model_name"]
-
-    # Load dataset and model config from the checkpoint.
-    dataset_cfg = DATASETS[dataset_name][2](**ckpt_cfgs["dataset"])
     model_cfg = MODELS[model_name][2](**ckpt_cfgs["model"])
 
     # Define the run directory and the run id.
@@ -261,7 +268,7 @@ def run_eval() -> None:
         job_type="eval",
         name=run_id,
         config={
-            "dataset_name": dataset_name,
+            "dataset_name": args.dataset,
             "dataset": asdict(dataset_cfg),
             "model_name": model_name,
             "model": asdict(model_cfg),
@@ -274,7 +281,7 @@ def run_eval() -> None:
         print(f"Run dir: {run_dir}")
         print(f"Op: {global_cfg.op}")
         print(f"Device: {device}")
-        print(f"Dataset: {dataset_name} -> {dataset_cfg}")
+        print(f"Dataset: {args.dataset} -> {dataset_cfg}")
         print(f"Model:   {model_name} -> {model_cfg}")
         print(f"Eval:    {eval_cfg}")
 

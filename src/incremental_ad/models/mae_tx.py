@@ -1,6 +1,7 @@
 import logging
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 
@@ -45,13 +46,11 @@ def create_mask(
     number_of_masked_tokens = int(number_of_patches * mask_ratio)
 
     if number_of_masked_tokens <= 0:
-        raise ValueError(
-            f"mask_ratio {mask_ratio} provides no masked tokens"
-        )
+        raise ValueError(f"mask_ratio {mask_ratio} provides no masked tokens")
 
     # check if due to masking, at least an unmasked token is returned.
     number_of_unmasked_tokens = number_of_patches - number_of_masked_tokens
-    
+
     if number_of_unmasked_tokens <= 0:
         raise ValueError(f"mask_ratio {mask_ratio} leaves no unmasked tokens")
 
@@ -214,7 +213,7 @@ class MAETransformer(nn.Module):
     def build_decoder_input(
         self, encoder_output: torch.Tensor, unmask_indices: torch.Tensor
     ) -> torch.Tensor:
-         
+
         batch_size = encoder_output.size(0)
 
         # decoder_mask_token.shape = (1, 1, transformer depth).
@@ -222,7 +221,7 @@ class MAETransformer(nn.Module):
         # create an input tensor where all tokens are mask tokens.
         all_tokens = self.decoder_mask_token.repeat(batch_size, self.n_patches, 1)
 
-        # set the encoder output tokens into the correct sequence position by using the unmask_indices. 
+        # set the encoder output tokens into the correct sequence position by using the unmask_indices.
         set_by_mask(all_tokens, unmask_indices, encoder_output)
 
         return all_tokens + self.decoder_positional_encoding
@@ -239,3 +238,33 @@ class MAETransformer(nn.Module):
         decoder_output = self.decoder(decoder_input)
 
         return decoder_output, tokens
+
+
+def compute_training_loss(
+    prediction: torch.Tensor, ground_truth: torch.Tensor, mask_indices: torch.Tensor
+) -> torch.Tensor:
+    ground_truth_patches = get_by_mask(ground_truth, mask_indices)
+    predicted_patches = get_by_mask(prediction, mask_indices)
+
+    # (1) single tensor value.
+    return F.mse_loss(predicted_patches, ground_truth_patches, reduction="mean")
+
+
+def compute_anomaly_scores(
+    average_prediction: torch.Tensor,
+    ground_truth: torch.Tensor,
+    patch_len: int,
+    n_features: int,
+) -> torch.Tensor:
+    
+    # (batch_size, n_patches, patch_len * n_features).
+    error = F.mse_loss(average_prediction, ground_truth, reduction="none")
+
+    batch_size, n_patches, _ = error.shape
+
+    # (batch_size, time_len, n_features).
+    error = error.reshape(batch_size, n_patches * patch_len, n_features)
+
+    # (batch_size, time_len)
+    # Mean over features gives a scalar score per timestep.
+    return error.mean(dim=-1)

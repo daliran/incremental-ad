@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
-class MaeTxConfig: 
+class MaeTxConfig:
     patch_len: int
     encoder_embed_dim: int
     encoder_layers: int
@@ -20,6 +20,7 @@ class MaeTxConfig:
     decoder_layers: int
     decoder_heads: int
     mask_ratio: float
+    patch_norm: bool
 
 
 def add_args(parser: ArgumentParser) -> None:
@@ -32,6 +33,7 @@ def add_args(parser: ArgumentParser) -> None:
     parser.add_argument("--mae-tx-decoder-layers", type=int, required=True)
     parser.add_argument("--mae-tx-decoder-heads", type=int, required=True)
     parser.add_argument("--mae-tx-mask-ratio", type=float, required=True)
+    parser.add_argument("--mae-tx-patch-norm", action="store_true")
 
 
 def make_config(args: Namespace) -> MaeTxConfig:
@@ -174,7 +176,9 @@ class MAETransformer(nn.Module):
 
         # ("batch size", "number of patches", transformer depth).
         # Learned token used as a place older for the masked tokens in the decoder input.
-        self.decoder_mask_token = nn.Parameter(torch.zeros(1, 1, self.config.decoder_embed_dim))
+        self.decoder_mask_token = nn.Parameter(
+            torch.zeros(1, 1, self.config.decoder_embed_dim)
+        )
 
         self.encoder = AEEncoder(
             d_model=self.config.encoder_embed_dim,
@@ -195,7 +199,7 @@ class MAETransformer(nn.Module):
             n_layer=self.config.decoder_layers,
         )
 
-    def tokenize(self, x: torch.Tensor) -> torch.Tensor:
+    def _tokenize(self, x: torch.Tensor) -> torch.Tensor:
         # x.shape = (batch size, time series length, time series features).
         batch_size = x.size(0)
 
@@ -209,7 +213,7 @@ class MAETransformer(nn.Module):
 
         return tokens
 
-    def build_encoder_input(
+    def _build_encoder_input(
         self, tokens: torch.Tensor, unmask_indices: torch.Tensor
     ) -> torch.Tensor:
         token_embeddings = (
@@ -218,7 +222,7 @@ class MAETransformer(nn.Module):
         visible_tokens = get_by_mask(token_embeddings, unmask_indices)
         return visible_tokens
 
-    def build_decoder_input(
+    def _build_decoder_input(
         self, encoder_output: torch.Tensor, unmask_indices: torch.Tensor
     ) -> torch.Tensor:
 
@@ -237,45 +241,63 @@ class MAETransformer(nn.Module):
     def forward(
         self, x: torch.Tensor, unmask_indices: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        tokens = self.tokenize(x)
+        tokens = self._tokenize(x)
 
-        encoder_input = self.build_encoder_input(tokens, unmask_indices)
+        encoder_input = self._build_encoder_input(tokens, unmask_indices)
         encoder_output = self.encoder(encoder_input)
 
         # projects the encoder input to the decoder output embed dim
         encoder_output_d = self.encoder_to_decoder(encoder_output)
 
-        decoder_input = self.build_decoder_input(encoder_output_d, unmask_indices)
+        decoder_input = self._build_decoder_input(encoder_output_d, unmask_indices)
         decoder_output = self.decoder(decoder_input)
 
         return decoder_output, tokens
 
+    def _normalize_patches(self, patches: torch.Tensor) -> torch.Tensor:
+        # Normalize each patch independently on the last dimension.
+        # (batch_size, n_patches, patch_len * n_features).
+        mean = patches.mean(dim=-1, keepdim=True)
+        var = patches.var(dim=-1, keepdim=True)
+        return (patches - mean) / (var + 1e-6).sqrt()
 
-def compute_training_loss(
-    prediction: torch.Tensor, ground_truth: torch.Tensor, mask_indices: torch.Tensor
-) -> torch.Tensor:
-    ground_truth_patches = get_by_mask(ground_truth, mask_indices)
-    predicted_patches = get_by_mask(prediction, mask_indices)
+    def compute_training_loss(
+        self,
+        prediction: torch.Tensor,
+        ground_truth: torch.Tensor,
+        mask_indices: torch.Tensor,
+    ) -> torch.Tensor:
+        ground_truth_patches = get_by_mask(ground_truth, mask_indices)
+        predicted_patches = get_by_mask(prediction, mask_indices)
 
-    # (1) single tensor value.
-    return F.mse_loss(predicted_patches, ground_truth_patches, reduction="mean")
+        # when this is enabled patch level normalization for the ground truth patch.
+        # this allows the model to focus on the shape and not on the magnitude of the values.
+        # this is important even after global normalization.
+        if self.config.patch_norm:
+            ground_truth_patches = self._normalize_patches(ground_truth_patches)
 
+        # (1) single tensor value.
+        return F.mse_loss(predicted_patches, ground_truth_patches, reduction="mean")
 
-def compute_anomaly_scores(
-    average_prediction: torch.Tensor,
-    ground_truth: torch.Tensor,
-    patch_len: int,
-    n_features: int,
-) -> torch.Tensor:
+    def compute_anomaly_scores(
+        self,
+        average_prediction: torch.Tensor,
+        ground_truth: torch.Tensor,
+    ) -> torch.Tensor:
 
-    # (batch_size, n_patches, patch_len * n_features).
-    error = F.mse_loss(average_prediction, ground_truth, reduction="none")
+        # necessary to replicate the same normalization as in training.
+        if self.config.patch_norm:
+            ground_truth = self._normalize_patches(ground_truth)
 
-    batch_size, n_patches, _ = error.shape
+        # (batch_size, n_patches, patch_len * n_features).
+        error = F.mse_loss(average_prediction, ground_truth, reduction="none")
 
-    # (batch_size, time_len, n_features).
-    error = error.reshape(batch_size, n_patches * patch_len, n_features)
+        batch_size, n_patches, _ = error.shape
 
-    # (batch_size, time_len)
-    # Mean over features gives a scalar score per timestep.
-    return error.mean(dim=-1)
+        # (batch_size, time_len, n_features).
+        error = error.reshape(
+            batch_size, n_patches * self.config.patch_len, self.n_features
+        )
+
+        # (batch_size, time_len) — mean over features gives a scalar score per timestep.
+        return error.mean(dim=-1)

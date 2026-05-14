@@ -107,7 +107,7 @@ class AEEncoder(nn.Module):
 
         # apply norm_first to follow the modern pre-norm convention.
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=n_head, batch_first=True, norm_first=True
+            d_model=d_model, nhead=n_head, dim_feedforward=4*d_model, batch_first=True, norm_first=True
         )
 
         self.transformer_encoder = nn.TransformerEncoder(
@@ -130,7 +130,7 @@ class AEDecoder(nn.Module):
 
         # apply norm_first to follow the modern pre norm convention.
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=n_head, batch_first=True, norm_first=True
+            d_model=d_model, nhead=n_head, dim_feedforward=4*d_model, batch_first=True, norm_first=True
         )
 
         self.transformer_encoder = nn.TransformerEncoder(

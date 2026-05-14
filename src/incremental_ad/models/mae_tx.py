@@ -270,6 +270,8 @@ class MAETransformer(nn.Module):
         ground_truth: torch.Tensor,
         mask_indices: torch.Tensor,
     ) -> torch.Tensor:
+        
+        # the training loss is calculated between masked patches/tokens.
         ground_truth_patches = get_by_mask(ground_truth, mask_indices)
         predicted_patches = get_by_mask(prediction, mask_indices)
 

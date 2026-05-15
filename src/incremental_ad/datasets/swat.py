@@ -2,6 +2,8 @@ from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from typing import Literal
 
+from torch.utils.data import Dataset
+
 from incremental_ad.core.cli import pluck
 
 # --- Constants ---
@@ -11,11 +13,13 @@ N_FEATURES = 51
 
 Normalization = Literal["standard", "none"]
 
+
 @dataclass
 class SWaTConfig:
     window_len: int
     stride: int
     normalization: Normalization
+
 
 def add_args(parser: ArgumentParser) -> None:
     """Adds the specific argparser arguments."""
@@ -30,3 +34,8 @@ def make_config(args: Namespace) -> SWaTConfig:
     """Extracts the arguments from the argparse namespace and creates the dataclass."""
     fields = pluck(args, "swat")
     return SWaTConfig(**fields)
+
+
+def load(config: SWaTConfig) -> tuple[Dataset, Dataset]:
+    """Returns (train_dataset, val_dataset)."""
+    raise NotImplementedError

@@ -4,11 +4,12 @@ import os
 import platform
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 import wandb
 from torch.utils.data import DataLoader
 
+from incremental_ad import model_dataset_factory as factory
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
 from incremental_ad.core.run import save_config_snapshot, setup_run_dir
@@ -25,16 +26,11 @@ NUM_WORKERS = 0 if platform.system() == "Windows" else 4
 
 # Registry entries.
 DATASETS = {
-    "swat": (swat.add_args, swat.make_config, swat.SWaTConfig, swat.N_FEATURES),
+    "swat": (swat.add_args, swat.make_config, swat.SWaTConfig),
 }
 
 MODELS = {
-    "mae_tx": (
-        mae_tx.add_args,
-        mae_tx.make_config,
-        mae_tx.MaeTxConfig,
-        mae_tx.build_model,
-    ),
+    "mae_tx": (mae_tx.add_args, mae_tx.make_config, mae_tx.MaeTxConfig),
 }
 
 Op = Literal["train", "resume", "eval"]
@@ -127,15 +123,28 @@ def run_train() -> None:
         log.info(f"Model:   {args.model} -> {model_cfg}")
         log.info(f"Train:   {train_cfg}")
 
-        # TODO: build train_loader, val_loader from dataset_cfg
-        train_loader = cast(DataLoader, None)
-        val_loader = cast(DataLoader, None)
+        # build the model and the datasets based on the selected model-dataset pair
+        result = factory.build(
+            model_name=args.model,
+            dataset_name=args.dataset,
+            model_cfg=model_cfg,
+            dataset_cfg=dataset_cfg,
+        )
 
-        n_features = DATASETS[args.dataset][3]
+        model = result.model.to(device)
 
-        # builds the model
-        model = MODELS[args.model][3](dataset_cfg.window_len, n_features, model_cfg).to(
-            device
+        train_loader = DataLoader(
+            result.train_dataset,
+            batch_size=train_cfg.batch_size,
+            shuffle=True,
+            num_workers=NUM_WORKERS,
+        )
+
+        val_loader = DataLoader(
+            result.val_dataset,
+            batch_size=train_cfg.batch_size,
+            shuffle=False,
+            num_workers=NUM_WORKERS,
         )
 
         t = trainer.Trainer(
@@ -234,15 +243,28 @@ def run_resume() -> None:
         log.info(f"Train:   {train_cfg}")
         log.info(f"Resuming from epoch {ckpt['epoch']}")
 
-        # TODO: build train_loader, val_loader from dataset_cfg
-        train_loader = cast(DataLoader, None)
-        val_loader = cast(DataLoader, None)
+        # build the model and the datasets based on the selected model-dataset pair
+        result = factory.build(
+            model_name=model_name,
+            dataset_name=dataset_name,
+            model_cfg=model_cfg,
+            dataset_cfg=dataset_cfg,
+        )
 
-        n_features = DATASETS[dataset_name][3]
+        model = result.model.to(device)
 
-        # builds the model
-        model = MODELS[model_name][3](dataset_cfg.window_len, n_features, model_cfg).to(
-            device
+        train_loader = DataLoader(
+            result.train_dataset,
+            batch_size=train_cfg.batch_size,
+            shuffle=True,
+            num_workers=NUM_WORKERS,
+        )
+
+        val_loader = DataLoader(
+            result.val_dataset,
+            batch_size=train_cfg.batch_size,
+            shuffle=False,
+            num_workers=NUM_WORKERS,
         )
 
         t = trainer.Trainer(

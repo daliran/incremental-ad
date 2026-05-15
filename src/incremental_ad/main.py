@@ -390,8 +390,10 @@ def run_eval() -> None:
 
         e = evaluator.Evaluator(
             model=model,
-            loader=eval_loader,
             device=device,
+            loader=eval_loader,
+            run_dir=run_dir,
+            run_id=run_id,
             config=eval_cfg,
         )
 

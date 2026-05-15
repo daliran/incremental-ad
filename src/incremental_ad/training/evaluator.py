@@ -1,6 +1,7 @@
 import logging
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 import torch
@@ -38,17 +39,23 @@ class Evaluator:
     def __init__(
         self,
         model: BaseModel,
-        loader: DataLoader,
         device: torch.device,
+        loader: DataLoader,
+        run_dir: Path,
+        run_id: str,
         config: EvalConfig,
     ) -> None:
         self.model = model
-        self.loader = loader
         self.device = device
+        self.loader = loader
+        self.run_dir = run_dir
+        self.run_id = run_id
         self.config = config
 
     def load_checkpoint(self, ckpt: dict) -> None:
+
         self.model.load_state_dict(ckpt["model_state"])
+
         log.info(
             f"Loaded checkpoint from epoch {ckpt['epoch']} "
             f"(best_val_loss={ckpt['metrics']['best_val_loss']:.6f})"

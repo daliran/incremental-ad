@@ -6,6 +6,8 @@ from torch.utils.data import Dataset
 
 from incremental_ad.core.cli import pluck
 
+Split = Literal["val", "test"]
+
 # --- Constants ---
 HF_DATASET_PATH = "thuml/Time-Series-Library"
 HF_DATASET_NAME = "SWaT"
@@ -36,6 +38,11 @@ def make_config(args: Namespace) -> SWaTConfig:
     return SWaTConfig(**fields)
 
 
-def load(config: SWaTConfig) -> tuple[Dataset, Dataset]:
+def load_train(config: SWaTConfig) -> tuple[Dataset, Dataset]:
     """Returns (train_dataset, val_dataset)."""
+    raise NotImplementedError
+
+
+def load_eval(config: SWaTConfig, split: Split) -> Dataset:
+    """Returns the dataset for the requested evaluation split."""
     raise NotImplementedError

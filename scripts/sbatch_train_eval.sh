@@ -85,6 +85,7 @@ python -m incremental_ad.main \
     --swat-stride 1 \
     --swat-normalization standard \
     --eval-seed 0 \
-    --eval-split test
+    --eval-split test \
+    --eval-batch-size 512
 
 echo "Finished at: $(date)"

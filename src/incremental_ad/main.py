@@ -124,7 +124,7 @@ def run_train() -> None:
         log.info(f"Train:   {train_cfg}")
 
         # build the model and the datasets based on the selected model-dataset pair
-        result = factory.build(
+        result = factory.build_for_training(
             model_name=args.model,
             dataset_name=args.dataset,
             model_cfg=model_cfg,
@@ -244,7 +244,7 @@ def run_resume() -> None:
         log.info(f"Resuming from epoch {ckpt['epoch']}")
 
         # build the model and the datasets based on the selected model-dataset pair
-        result = factory.build(
+        result = factory.build_for_training(
             model_name=model_name,
             dataset_name=dataset_name,
             model_cfg=model_cfg,
@@ -371,7 +371,34 @@ def run_eval() -> None:
         log.info(f"Model:   {model_name} -> {model_cfg}")
         log.info(f"Eval:    {eval_cfg}")
 
-        # TODO dispatch to evaluator.evaluate(...)
+        result = factory.build_for_eval(
+            model_name=model_name,
+            dataset_name=args.dataset,
+            model_cfg=model_cfg,
+            dataset_cfg=dataset_cfg,
+            split=eval_cfg.split,
+        )
+
+        model = result.model.to(device)
+
+        eval_loader = DataLoader(
+            result.eval_dataset,
+            batch_size=eval_cfg.batch_size,
+            shuffle=False,
+            num_workers=NUM_WORKERS,
+        )
+
+        e = evaluator.Evaluator(
+            model=model,
+            loader=eval_loader,
+            device=device,
+            config=eval_cfg,
+        )
+
+        e.load_checkpoint(ckpt)
+
+        e.evaluate()
+
     finally:
         wandb.finish()
 

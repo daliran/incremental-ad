@@ -162,7 +162,10 @@ class Trainer:
         progress = tqdm(self.train_loader, desc=f"Epoch {epoch} [train]", leave=False)
 
         for batch in progress:
+
+            # load the batch data into the device
             batch = batch.to(self.device)
+
             self.optimizer.zero_grad()
 
             # computes loss (forward)

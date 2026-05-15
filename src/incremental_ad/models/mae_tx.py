@@ -330,3 +330,9 @@ class MAETransformer(BaseModel):
         mean = patches.mean(dim=-1, keepdim=True)
         var = patches.var(dim=-1, keepdim=True)
         return (patches - mean) / (var + 1e-6).sqrt()
+
+
+# Moved at the bottom because it needs the model to be definend first
+def build_model(seq_len: int, n_features: int, config: MaeTxConfig) -> MAETransformer:
+    n_patches = seq_len // config.patch_len
+    return MAETransformer(n_patches=n_patches, n_features=n_features, config=config)

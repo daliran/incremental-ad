@@ -7,6 +7,7 @@ from incremental_ad.core.cli import pluck
 # --- Constants ---
 HF_DATASET_PATH = "thuml/Time-Series-Library"
 HF_DATASET_NAME = "SWaT"
+N_FEATURES = 51
 
 Normalization = Literal["standard", "none"]
 

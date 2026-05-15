@@ -4,9 +4,10 @@ import os
 import platform
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 import wandb
+from torch.utils.data import DataLoader
 
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
@@ -17,16 +18,23 @@ from incremental_ad.datasets import swat
 from incremental_ad.models import mae_tx
 from incremental_ad.training import evaluator, trainer
 
+log = logging.getLogger(__name__)
+
 # Number of worker used by the data loader.
 NUM_WORKERS = 0 if platform.system() == "Windows" else 4
 
 # Registry entries.
 DATASETS = {
-    "swat": (swat.add_args, swat.make_config, swat.SWaTConfig),
+    "swat": (swat.add_args, swat.make_config, swat.SWaTConfig, swat.N_FEATURES),
 }
 
 MODELS = {
-    "mae_tx": (mae_tx.add_args, mae_tx.make_config, mae_tx.MaeTxConfig),
+    "mae_tx": (
+        mae_tx.add_args,
+        mae_tx.make_config,
+        mae_tx.MaeTxConfig,
+        mae_tx.build_model,
+    ),
 }
 
 Op = Literal["train", "resume", "eval"]
@@ -112,14 +120,41 @@ def run_train() -> None:
     )
 
     try:
-        print(f"Run dir: {run_dir}")
-        print(f"Op: {global_cfg.op}")
-        print(f"Device: {device}")
-        print(f"Dataset: {args.dataset} -> {dataset_cfg}")
-        print(f"Model:   {args.model} -> {model_cfg}")
-        print(f"Train:   {train_cfg}")
+        log.info(f"Run dir: {run_dir}")
+        log.info(f"Op: {global_cfg.op}")
+        log.info(f"Device: {device}")
+        log.info(f"Dataset: {args.dataset} -> {dataset_cfg}")
+        log.info(f"Model:   {args.model} -> {model_cfg}")
+        log.info(f"Train:   {train_cfg}")
 
-        # TODO dispatch to trainer.train(...)
+        # TODO: build train_loader, val_loader from dataset_cfg
+        train_loader = cast(DataLoader, None)
+        val_loader = cast(DataLoader, None)
+
+        n_features = DATASETS[args.dataset][3]
+
+        # builds the model
+        model = MODELS[args.model][3](dataset_cfg.window_len, n_features, model_cfg).to(
+            device
+        )
+
+        t = trainer.Trainer(
+            model=model,
+            run_dir=run_dir,
+            device=device,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            config=train_cfg,
+            run_id=run_id,
+            wandb_group=run_id,
+            dataset_name=args.dataset,
+            dataset_cfg=dataset_cfg,
+            model_name=args.model,
+            model_cfg=model_cfg,
+        )
+
+        t.train()
+
     finally:
         wandb.finish()
 
@@ -191,15 +226,44 @@ def run_resume() -> None:
     )
 
     try:
-        print(f"Run dir: {run_dir}")
-        print(f"Op: {global_cfg.op}")
-        print(f"Device: {device}")
-        print(f"Dataset: {dataset_name} -> {dataset_cfg}")
-        print(f"Model:   {model_name} -> {model_cfg}")
-        print(f"Train:   {train_cfg}")
-        print(f"Resuming from epoch {ckpt['epoch']}")
+        log.info(f"Run dir: {run_dir}")
+        log.info(f"Op: {global_cfg.op}")
+        log.info(f"Device: {device}")
+        log.info(f"Dataset: {dataset_name} -> {dataset_cfg}")
+        log.info(f"Model:   {model_name} -> {model_cfg}")
+        log.info(f"Train:   {train_cfg}")
+        log.info(f"Resuming from epoch {ckpt['epoch']}")
 
-        # TODO dispatch to trainer.train(...) with resume
+        # TODO: build train_loader, val_loader from dataset_cfg
+        train_loader = cast(DataLoader, None)
+        val_loader = cast(DataLoader, None)
+
+        n_features = DATASETS[dataset_name][3]
+
+        # builds the model
+        model = MODELS[model_name][3](dataset_cfg.window_len, n_features, model_cfg).to(
+            device
+        )
+
+        t = trainer.Trainer(
+            model=model,
+            run_dir=run_dir,
+            device=device,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            config=train_cfg,
+            run_id=run_id,
+            wandb_group=run_id,
+            dataset_name=dataset_name,
+            dataset_cfg=dataset_cfg,
+            model_name=model_name,
+            model_cfg=model_cfg,
+        )
+
+        t.load_checkpoint(ckpt)
+
+        t.train()
+
     finally:
         wandb.finish()
 
@@ -278,12 +342,12 @@ def run_eval() -> None:
     )
 
     try:
-        print(f"Run dir: {run_dir}")
-        print(f"Op: {global_cfg.op}")
-        print(f"Device: {device}")
-        print(f"Dataset: {args.dataset} -> {dataset_cfg}")
-        print(f"Model:   {model_name} -> {model_cfg}")
-        print(f"Eval:    {eval_cfg}")
+        log.info(f"Run dir: {run_dir}")
+        log.info(f"Op: {global_cfg.op}")
+        log.info(f"Device: {device}")
+        log.info(f"Dataset: {args.dataset} -> {dataset_cfg}")
+        log.info(f"Model:   {model_name} -> {model_cfg}")
+        log.info(f"Eval:    {eval_cfg}")
 
         # TODO dispatch to evaluator.evaluate(...)
     finally:

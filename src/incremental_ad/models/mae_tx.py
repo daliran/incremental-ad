@@ -1,11 +1,13 @@
 import logging
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 from incremental_ad.core.cli import pluck
+from incremental_ad.models.base_model import BaseModel
 
 log = logging.getLogger(__name__)
 
@@ -107,7 +109,11 @@ class AEEncoder(nn.Module):
 
         # apply norm_first to follow the modern pre-norm convention.
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=n_head, dim_feedforward=4*d_model, batch_first=True, norm_first=True
+            d_model=d_model,
+            nhead=n_head,
+            dim_feedforward=4 * d_model,
+            batch_first=True,
+            norm_first=True,
         )
 
         self.transformer_encoder = nn.TransformerEncoder(
@@ -130,7 +136,11 @@ class AEDecoder(nn.Module):
 
         # apply norm_first to follow the modern pre norm convention.
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=n_head, dim_feedforward=4*d_model, batch_first=True, norm_first=True
+            d_model=d_model,
+            nhead=n_head,
+            dim_feedforward=4 * d_model,
+            batch_first=True,
+            norm_first=True,
         )
 
         self.transformer_encoder = nn.TransformerEncoder(
@@ -150,7 +160,7 @@ class AEDecoder(nn.Module):
 
 
 # number_of_patches = time_series_length // self.config.patch_len.
-class MAETransformer(nn.Module):
+class MAETransformer(BaseModel):
     def __init__(self, n_patches: int, n_features: int, config: MaeTxConfig) -> None:
         super().__init__()
 
@@ -241,7 +251,7 @@ class MAETransformer(nn.Module):
 
         return all_tokens + self.decoder_positional_encoding
 
-    def forward(
+    def _forward(
         self, x: torch.Tensor, unmask_indices: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         tokens = self._tokenize(x)
@@ -257,20 +267,27 @@ class MAETransformer(nn.Module):
 
         return decoder_output, tokens
 
-    def _normalize_patches(self, patches: torch.Tensor) -> torch.Tensor:
-        # Normalize each patch independently on the last dimension.
-        # (batch_size, n_patches, patch_len * n_features).
-        mean = patches.mean(dim=-1, keepdim=True)
-        var = patches.var(dim=-1, keepdim=True)
-        return (patches - mean) / (var + 1e-6).sqrt()
+    def training_step(self, batch: torch.Tensor) -> torch.Tensor:
 
-    def compute_training_loss(
+        batch_size = batch.size(0)
+
+        mask_indices, unmask_indices = create_mask(
+            batch_size, self.n_patches, self.config.mask_ratio, batch.device
+        )
+
+        decoder_output, tokens = self._forward(batch, unmask_indices)
+
+        loss = self._compute_training_loss(decoder_output, tokens, mask_indices)
+
+        return loss
+
+    def _compute_training_loss(
         self,
         prediction: torch.Tensor,
         ground_truth: torch.Tensor,
         mask_indices: torch.Tensor,
     ) -> torch.Tensor:
-        
+
         # the training loss is calculated between masked patches/tokens.
         ground_truth_patches = get_by_mask(ground_truth, mask_indices)
         predicted_patches = get_by_mask(prediction, mask_indices)
@@ -284,7 +301,7 @@ class MAETransformer(nn.Module):
         # (1) single tensor value.
         return F.mse_loss(predicted_patches, ground_truth_patches, reduction="mean")
 
-    def compute_anomaly_scores(
+    def _compute_anomaly_scores(
         self,
         average_prediction: torch.Tensor,
         ground_truth: torch.Tensor,
@@ -306,3 +323,10 @@ class MAETransformer(nn.Module):
 
         # (batch_size, time_len) — mean over features gives a scalar score per timestep.
         return error.mean(dim=-1)
+
+    def _normalize_patches(self, patches: torch.Tensor) -> torch.Tensor:
+        # Normalize each patch independently on the last dimension.
+        # (batch_size, n_patches, patch_len * n_features).
+        mean = patches.mean(dim=-1, keepdim=True)
+        var = patches.var(dim=-1, keepdim=True)
+        return (patches - mean) / (var + 1e-6).sqrt()

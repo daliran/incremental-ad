@@ -44,6 +44,7 @@
                 "--mae-tx-decoder-heads", "2",
                 "--mae-tx-mask-ratio", "0.90",
                 "--mae-tx-patch-norm",
+                "--mae-tx-n-eval-passes", "10",
 
                 // --- Training ---
                 "--train-seed", "42",

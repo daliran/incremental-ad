@@ -112,6 +112,7 @@ def _prepare_dataset(
     log.info(f"Normalization: {config.normalization}")
 
     if scaler is not None:
+        # standard scaler computes normalization per feature by default, this is not global.
         train_scaled = scaler.fit_transform(train_samples.values)
         test_scaled = scaler.transform(test_samples.values)
     else:

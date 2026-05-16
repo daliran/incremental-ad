@@ -23,6 +23,7 @@ class MaeTxConfig:
     decoder_heads: int
     mask_ratio: float
     patch_norm: bool
+    n_eval_passes: int
 
 
 def add_args(parser: ArgumentParser) -> None:
@@ -36,6 +37,7 @@ def add_args(parser: ArgumentParser) -> None:
     parser.add_argument("--mae-tx-decoder-heads", type=int, required=True)
     parser.add_argument("--mae-tx-mask-ratio", type=float, required=True)
     parser.add_argument("--mae-tx-patch-norm", action="store_true")
+    parser.add_argument("--mae-tx-n-eval-passes", type=int, required=True)
 
 
 def make_config(args: Namespace) -> MaeTxConfig:
@@ -267,6 +269,13 @@ class MAETransformer(BaseModel):
 
         return decoder_output, tokens
 
+    def _normalize_patches(self, patches: torch.Tensor) -> torch.Tensor:
+        # Normalize each patch independently on the last dimension.
+        # (batch_size, n_patches, patch_len * n_features).
+        mean = patches.mean(dim=-1, keepdim=True)
+        var = patches.var(dim=-1, keepdim=True)
+        return (patches - mean) / (var + 1e-6).sqrt()
+
     def training_step(self, batch: torch.Tensor) -> torch.Tensor:
 
         batch_size = batch.size(0)
@@ -292,7 +301,7 @@ class MAETransformer(BaseModel):
         ground_truth_patches = get_by_mask(ground_truth, mask_indices)
         predicted_patches = get_by_mask(prediction, mask_indices)
 
-        # when this is enabled patch level normalization for the ground truth patch.
+        # enables patch level normalization for the ground truth patches.
         # this allows the model to focus on the shape and not on the magnitude of the values.
         # this is important even after global normalization.
         if self.config.patch_norm:
@@ -301,35 +310,86 @@ class MAETransformer(BaseModel):
         # (1) single tensor value.
         return F.mse_loss(predicted_patches, ground_truth_patches, reduction="mean")
 
-    def _compute_anomaly_scores(
-        self,
-        average_prediction: torch.Tensor,
-        ground_truth: torch.Tensor,
-    ) -> torch.Tensor:
+    def eval_step(self, batch: torch.Tensor) -> torch.Tensor:
+        #Note: at eval, the stride used in the dataset is 1.
 
-        # necessary to replicate the same normalization as in training.
-        if self.config.patch_norm:
-            ground_truth = self._normalize_patches(ground_truth)
+        batch_size = batch.size(0)
 
-        # (batch_size, n_patches, patch_len * n_features).
-        error = F.mse_loss(average_prediction, ground_truth, reduction="none")
+        # (batch_size, masked patches).
+        # token level reconstruction error.
+        # since multiple forward passes are run, the masks used can be different.
+        # this tensors keep track of the visited tokens the relative accumulated error. 
+        token_error_sum = torch.zeros(batch_size, self.n_patches, device=batch.device)
 
-        batch_size, n_patches, _ = error.shape
-
-        # (batch_size, time_len, n_features).
-        error = error.reshape(
-            batch_size, n_patches * self.config.patch_len, self.n_features
+        # (batch_size, masked patches).
+        # tensors which keeps track how many time a token has been masked.
+        # this is used to calculate the average token level reconstruction using token level information.
+        token_error_counts = torch.zeros(
+            batch_size, self.n_patches, device=batch.device
         )
 
-        # (batch_size, time_len) — mean over features gives a scalar score per timestep.
-        return error.mean(dim=-1)
+        for _ in range(self.config.n_eval_passes):
 
-    def _normalize_patches(self, patches: torch.Tensor) -> torch.Tensor:
-        # Normalize each patch independently on the last dimension.
-        # (batch_size, n_patches, patch_len * n_features).
-        mean = patches.mean(dim=-1, keepdim=True)
-        var = patches.var(dim=-1, keepdim=True)
-        return (patches - mean) / (var + 1e-6).sqrt()
+            mask_indices, unmask_indices = create_mask(
+                batch_size, self.n_patches, self.config.mask_ratio, batch.device
+            )
+
+            decoder_output, tokens = self._forward(batch, unmask_indices)
+
+            # fills the error sum and error counts tensors.
+            self._accumulate_errors(
+                decoder_output,
+                tokens,
+                mask_indices,
+                token_error_sum,
+                token_error_counts,
+            )
+    
+        # (batch_size, masked patches).
+        # average token error considering each token accumulated error and the number of times the token appeared.
+        # the clamp is used to avoid division by 0 in case a token is never visited.
+        mean_token_errors = token_error_sum / token_error_counts.clamp(min=1)
+
+        # (batch_size).
+        # average reconstruction error of all tokens in a batch/sequence.
+        # this is basically a single anomaly score per window.
+
+        # with a single forward pass this would have been:
+        # errors = F.mse_loss(predicted_patches, ground_truth_patches, reduction="none").mean(dim=-1)
+        # score = errors.mean(dim=-1)
+
+        return mean_token_errors.mean(dim=-1)
+
+    def _accumulate_errors(
+        self,
+        prediction: torch.Tensor,
+        ground_truth: torch.Tensor,
+        mask_indices: torch.Tensor,
+        token_error_sum: torch.Tensor,
+        token_error_counts: torch.Tensor,
+    ) -> None:
+        
+        ground_truth_patches = get_by_mask(ground_truth, mask_indices)
+        predicted_patches = get_by_mask(prediction, mask_indices)
+
+        # is this needed?
+        if self.config.patch_norm:
+            ground_truth_patches = self._normalize_patches(ground_truth_patches)
+
+        # (batch_size, masked patches, patch_len * n_features) -> (batch_size, masked patches).
+        # reconstruction error per patch/token.
+        errors = F.mse_loss(
+            predicted_patches, ground_truth_patches, reduction="none"
+        ).mean(dim=-1)
+
+        # Adds the error value in the tensor at the location of the mask indices.
+        token_error_sum.scatter_add_(1, mask_indices, errors)
+
+        # sets 1 if there is error, 0 otherwise.
+        visited_tokens = torch.ones_like(errors)
+
+        # Adds the increment value in the tensor at the location of the mask indices.
+        token_error_counts.scatter_add_(1, mask_indices, visited_tokens)
 
 
 # Moved at the bottom because it needs the model to be definend first

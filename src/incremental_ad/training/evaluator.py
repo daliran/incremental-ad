@@ -68,4 +68,9 @@ class Evaluator:
         raise NotImplementedError
 
     def _evaluate_test(self) -> None:
+
+        # IMPORTANT!
+        # Point-wise and event-wise metrics require the dataset stride to be 1.
+        # With stride > 1, gaps appear in the per-timestep score sequence and those metrics become invalid.
+
         raise NotImplementedError

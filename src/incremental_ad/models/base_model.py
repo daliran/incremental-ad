@@ -8,3 +8,7 @@ class BaseModel(torch.nn.Module, ABC):
     @abstractmethod
     def training_step(self, batch: torch.Tensor) -> torch.Tensor:
         pass
+
+    @abstractmethod
+    def eval_step(self, batch: torch.Tensor) -> torch.Tensor:
+        pass

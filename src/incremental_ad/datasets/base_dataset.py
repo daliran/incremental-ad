@@ -1,7 +1,10 @@
 from abc import ABC
+from typing import Literal
 
 import torch
 from torch.utils.data import Dataset
+
+Split = Literal["val", "test"]
 
 
 class BaseDataset(Dataset, ABC):

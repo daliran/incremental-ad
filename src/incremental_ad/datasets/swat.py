@@ -9,11 +9,9 @@ from sklearn.preprocessing import StandardScaler
 import torch
 
 from incremental_ad.core.cli import pluck
-from incremental_ad.datasets.base_dataset import BaseDataset
+from incremental_ad.datasets.base_dataset import BaseDataset, Split
 
 log = logging.getLogger(__name__)
-
-Split = Literal["val", "test"]
 
 # --- Constants ---
 HF_DATASET_PATH = "thuml/Time-Series-Library"

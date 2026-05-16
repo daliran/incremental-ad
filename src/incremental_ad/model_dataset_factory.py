@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
 from incremental_ad.datasets import swat
-from incremental_ad.datasets.base_dataset import BaseDataset
-from incremental_ad.datasets.swat import Split, SWaTConfig
+from incremental_ad.datasets.base_dataset import BaseDataset, Split
+from incremental_ad.datasets.swat import SWaTConfig
 from incremental_ad.models import mae_tx
 from incremental_ad.models.mae_tx import MaeTxConfig, MAETransformer
 from incremental_ad.models.base_model import BaseModel

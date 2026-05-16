@@ -2,17 +2,14 @@ import logging
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
-
 import torch
 from torch.utils.data import DataLoader
 
 from incremental_ad.core.cli import pluck
+from incremental_ad.datasets.base_dataset import Split
 from incremental_ad.models.base_model import BaseModel
 
 log = logging.getLogger(__name__)
-
-Split = Literal["val", "test"]
 
 
 @dataclass

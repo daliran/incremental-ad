@@ -78,7 +78,7 @@
                 "--op", "resume",
                 "--experiment-name", "dev_resume",
                 "--device", "auto",
-                "--checkpoint", "runs/dev_20260513_XXXXXX/checkpoints/last.pt"
+                "--checkpoint", "${input:resumeCheckpoint}"
             ]
         },
         {
@@ -101,7 +101,7 @@
                 "--experiment-name", "dev_eval",
                 "--device", "auto",
                 "--dataset", "swat",
-                "--checkpoint", "runs/dev_20260513_XXXXXX/checkpoints/best.pt",
+                "--checkpoint", "${input:evalCheckpoint}",
 
                  // --- SWaT dataset ---
                 "--swat-window-len", "100",
@@ -114,6 +114,20 @@
                 "--eval-split", "test",
                 "--eval-batch-size", "512"
             ]
+        }
+    ],
+    "inputs": [
+        {
+            "id": "resumeCheckpoint",
+            "type": "promptString",
+            "description": "Checkpoint to resume from (relative to workspace)",
+            "default": "runs/dev/checkpoints/last.pt"
+        },
+        {
+            "id": "evalCheckpoint",
+            "type": "promptString",
+            "description": "Checkpoint to evaluate (relative to workspace)",
+            "default": "runs/dev/checkpoints/best.pt"
         }
     ]
 }

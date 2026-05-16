@@ -214,6 +214,21 @@ class MAETransformer(BaseModel):
             n_layer=self.config.decoder_layers,
         )
 
+        self._log_architecture()
+
+    def _log_architecture(self) -> None:
+        n_masked = int(self.n_patches * self.config.mask_ratio)
+        n_visible = self.n_patches - n_masked
+        raw_token_dim = self.config.patch_len * self.n_features
+        n_params = sum(p.numel() for p in self.parameters())
+
+        log.info("MAETransformer architecture:")
+        log.info(f"  Sequence   : {self.n_patches} patches × {self.config.patch_len} timesteps × {self.n_features} features → raw token dim {raw_token_dim}")
+        log.info(f"  Masking    : {n_masked} masked / {n_visible} visible (ratio={self.config.mask_ratio})")
+        log.info(f"  Encoder    : dim={self.config.encoder_embed_dim}, layers={self.config.encoder_layers}, heads={self.config.encoder_heads}  (sees {n_visible} tokens)")
+        log.info(f"  Decoder    : dim={self.config.decoder_embed_dim}, layers={self.config.decoder_layers}, heads={self.config.decoder_heads}  (sees {self.n_patches} tokens)")
+        log.info(f"  Parameters : {n_params:,}")
+
     def _tokenize(self, x: torch.Tensor) -> torch.Tensor:
         # x.shape = (batch size, time series length, time series features).
         batch_size = x.size(0)

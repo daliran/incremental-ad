@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 
-from torch.utils.data import Dataset
-
 from incremental_ad.datasets import swat
+from incremental_ad.datasets.base_dataset import BaseDataset
 from incremental_ad.datasets.swat import Split, SWaTConfig
 from incremental_ad.models import mae_tx
 from incremental_ad.models.mae_tx import MaeTxConfig, MAETransformer
@@ -12,8 +11,8 @@ from incremental_ad.models.base_model import BaseModel
 @dataclass
 class BuildResult:
     model: BaseModel
-    train_dataset: Dataset
-    val_dataset: Dataset
+    train_dataset: BaseDataset
+    val_dataset: BaseDataset
 
 
 def build_for_training(
@@ -51,7 +50,7 @@ def _build_swat_mae_tx(model_cfg: MaeTxConfig, dataset_cfg: SWaTConfig) -> Build
 @dataclass
 class EvalBuildResult:
     model: BaseModel
-    eval_dataset: Dataset
+    eval_dataset: BaseDataset
 
 
 def build_for_eval(

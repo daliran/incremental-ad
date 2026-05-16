@@ -53,6 +53,7 @@ python -m incremental_ad.main \
     --swat-window-len 100 \
     --swat-stride 50 \
     --swat-normalization standard \
+    --swat-val-ratio 0.15 \
     --mae-tx-patch-len 10 \
     --mae-tx-encoder-embed-dim 256 \
     --mae-tx-encoder-layers 2 \
@@ -84,6 +85,7 @@ python -m incremental_ad.main \
     --swat-window-len 100 \
     --swat-stride 1 \
     --swat-normalization standard \
+    --swat-val-ratio 0.15 \
     --eval-seed 0 \
     --eval-split test \
     --eval-batch-size 512

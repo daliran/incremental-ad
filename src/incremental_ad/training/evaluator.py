@@ -201,7 +201,16 @@ class Evaluator:
 
     def _eval_point_adjusted(self, scores: np.ndarray, labels: np.ndarray) -> dict:
         # Sweep all exact threshold candidates, applying PA at each step.
-        _, _, thresholds = precision_recall_curve(labels, scores)
+        _, _, all_thresholds = precision_recall_curve(labels, scores)
+
+        # Downsample to at most 500 candidates: the PA-F1 curve is smooth so
+        # evenly-spaced sampling loses negligible accuracy while avoiding O(N²).
+        n_candidates = 500
+        if len(all_thresholds) > n_candidates:
+            idx = np.linspace(0, len(all_thresholds) - 1, n_candidates, dtype=int)
+            thresholds = all_thresholds[idx]
+        else:
+            thresholds = all_thresholds
 
         best: dict = {"f1": -1.0, "precision": 0.0, "recall": 0.0}
 

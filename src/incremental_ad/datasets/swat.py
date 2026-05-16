@@ -53,10 +53,8 @@ class SwatDataset(BaseDataset):
         stride: int,
         labels: torch.Tensor | None = None,
     ):
-        super().__init__(labels=labels)
+        super().__init__(window_size=window_size, stride=stride, labels=labels)
         self.data = data
-        self.window_size = window_size
-        self.stride = stride
 
     def __len__(self) -> int:
         return max(0, (len(self.data) - self.window_size) // self.stride) + 1
@@ -133,7 +131,9 @@ def _prepare_dataset(
     train_data_split = train_data[:train_size]
     val_data_split = train_data[train_size:]
 
-    log.info(f"Split — train: {train_size} timesteps, val: {val_size} timesteps, test: {len(test_data)} timesteps")
+    log.info(
+        f"Split — train: {train_size} timesteps, val: {val_size} timesteps, test: {len(test_data)} timesteps"
+    )
 
     return train_data_split, val_data_split, test_data, test_labels_tensor
 
@@ -164,4 +164,3 @@ def load_eval(config: SWaTConfig, split: Split) -> SwatDataset:
     log.info(f"Eval split '{split}': {len(dataset)} windows")
 
     return dataset
-

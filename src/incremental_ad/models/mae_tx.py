@@ -311,14 +311,14 @@ class MAETransformer(BaseModel):
         return F.mse_loss(predicted_patches, ground_truth_patches, reduction="mean")
 
     def eval_step(self, batch: torch.Tensor) -> torch.Tensor:
-        #Note: at eval, the stride used in the dataset is 1.
+        # Note: at eval, the stride used in the dataset is 1.
 
         batch_size = batch.size(0)
 
         # (batch_size, masked patches).
         # token level reconstruction error.
         # since multiple forward passes are run, the masks used can be different.
-        # this tensors keep track of the visited tokens the relative accumulated error. 
+        # this tensors keep track of the visited tokens the relative accumulated error.
         token_error_sum = torch.zeros(batch_size, self.n_patches, device=batch.device)
 
         # (batch_size, masked patches).
@@ -344,7 +344,7 @@ class MAETransformer(BaseModel):
                 token_error_sum,
                 token_error_counts,
             )
-    
+
         # (batch_size, masked patches).
         # average token error considering each token accumulated error and the number of times the token appeared.
         # the clamp is used to avoid division by 0 in case a token is never visited.
@@ -368,7 +368,7 @@ class MAETransformer(BaseModel):
         token_error_sum: torch.Tensor,
         token_error_counts: torch.Tensor,
     ) -> None:
-        
+
         ground_truth_patches = get_by_mask(ground_truth, mask_indices)
         predicted_patches = get_by_mask(prediction, mask_indices)
 

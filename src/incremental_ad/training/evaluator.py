@@ -325,7 +325,8 @@ def _find_best_f1_threshold(scores: np.ndarray, labels: np.ndarray) -> float:
     """Exact best-F1 threshold derived from the precision-recall curve (O(N log N))."""
     precision, recall, thresholds = precision_recall_curve(labels, scores)
     denom = precision[:-1] + recall[:-1]
-    f1s = np.where(denom > 0, 2 * precision[:-1] * recall[:-1] / denom, 0.0)
+    f1s = np.zeros_like(denom)
+    np.divide(2 * precision[:-1] * recall[:-1], denom, out=f1s, where=denom > 0)
     return float(thresholds[np.argmax(f1s)])
 
 

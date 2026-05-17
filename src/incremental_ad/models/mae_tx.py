@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from incremental_ad.core.cli import pluck
+from incremental_ad.core.cli import pluck, str_to_bool
 from incremental_ad.models.base_model import BaseModel
 
 log = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ def add_args(parser: ArgumentParser) -> None:
     parser.add_argument("--mae-tx-decoder-layers", type=int, required=True)
     parser.add_argument("--mae-tx-decoder-heads", type=int, required=True)
     parser.add_argument("--mae-tx-mask-ratio", type=float, required=True)
-    parser.add_argument("--mae-tx-patch-norm", action="store_true")
+    parser.add_argument("--mae-tx-patch-norm", type=str_to_bool, required=True)
     parser.add_argument("--mae-tx-n-eval-passes", type=int, required=True)
 
 

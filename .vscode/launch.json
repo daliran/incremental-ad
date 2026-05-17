@@ -35,15 +35,15 @@
                 "--swat-val-ratio", "0.15",
 
                 // --- MAE transformer model ---
-                "--mae-tx-patch-len", "10",
+                "--mae-tx-patch-len", "5",
                 "--mae-tx-encoder-embed-dim", "256",
                 "--mae-tx-encoder-layers", "2",
                 "--mae-tx-encoder-heads", "2",
                 "--mae-tx-decoder-embed-dim", "128",
                 "--mae-tx-decoder-layers", "1",
                 "--mae-tx-decoder-heads", "2",
-                "--mae-tx-mask-ratio", "0.90",
-                "--mae-tx-patch-norm",
+                "--mae-tx-patch-norm", "false",
+                "--mae-tx-mask-ratio", "0.8",
                 "--mae-tx-n-eval-passes", "10",
 
                 // --- Training ---

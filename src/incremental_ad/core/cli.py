@@ -1,5 +1,14 @@
-from argparse import Namespace
+from argparse import ArgumentTypeError, Namespace
 from typing import Any
+
+
+def str_to_bool(v: str) -> bool:
+    """Argparse type for explicit boolean flags ('true' / 'false')."""
+    if v.lower() == "true":
+        return True
+    if v.lower() == "false":
+        return False
+    raise ArgumentTypeError(f"Expected 'true' or 'false', got '{v}'")
 
 
 def pluck(args: Namespace, prefix: str) -> dict[str, Any]:

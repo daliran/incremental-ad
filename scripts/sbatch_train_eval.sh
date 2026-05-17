@@ -61,8 +61,8 @@ python -m incremental_ad.main \
     --mae-tx-decoder-embed-dim 128 \
     --mae-tx-decoder-layers 1 \
     --mae-tx-decoder-heads 2 \
+    --mae-tx-patch-norm false \
     --mae-tx-mask-ratio 0.90 \
-    --mae-tx-patch-norm \
     --mae-tx-n-eval-passes 10 \
     --train-seed 42 \
     --train-epochs 300 \

@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from incremental_ad import model_dataset_factory as factory
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
-from incremental_ad.core.run import save_config_snapshot, setup_run_dir
+from incremental_ad.core.run import save_config_snapshot, save_eval_snapshot, setup_run_dir
 from incremental_ad.core.seed import set_rng_state, set_seed
 from incremental_ad.core.tracking import init_wandb
 from incremental_ad.datasets import swat
@@ -337,6 +337,16 @@ def run_eval() -> None:
 
     # Define the run directory and the run id.
     run_dir, run_id = setup_run_dir(global_cfg.experiment_name)
+
+    save_eval_snapshot(
+        run_dir,
+        checkpoint_path=args.checkpoint,
+        ckpt=ckpt,
+        eval_dataset_name=args.dataset,
+        eval_dataset_cfg=dataset_cfg,
+        eval_cfg=eval_cfg,
+    )
+    log.info(f"Eval info saved to {run_dir / 'eval_info.json'}")
 
     # Set the wandb directory under the specific run.
     os.environ["WANDB_DIR"] = str(run_dir)

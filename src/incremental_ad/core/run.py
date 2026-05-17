@@ -43,6 +43,31 @@ def _git_commit() -> str | None:
         return None
 
 
+def save_eval_snapshot(
+    run_dir: Path,
+    *,
+    checkpoint_path: Path,
+    ckpt: dict,
+    eval_dataset_name: str,
+    eval_dataset_cfg,
+    eval_cfg,
+) -> None:
+    """Dump eval provenance to <run_dir>/eval_info.json for reproducibility."""
+    snapshot = {
+        "checkpoint": str(checkpoint_path),
+        "train_run_id": ckpt["run_id"],
+        "train_epoch": ckpt["epoch"],
+        "train_best_val_loss": ckpt["metrics"]["best_val_loss"],
+        "train_configs": ckpt["configs"],
+        "eval_dataset": eval_dataset_name,
+        "eval_dataset_cfg": dataclasses.asdict(eval_dataset_cfg),
+        "eval_cfg": dataclasses.asdict(eval_cfg),
+    }
+
+    with (run_dir / "eval_info.json").open("w") as f:
+        json.dump(snapshot, f, indent=2)
+
+
 def save_config_snapshot(
     run_dir: Path,
     *,  # forces the next arguments to be provided by keyword and not by position.

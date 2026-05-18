@@ -3,7 +3,7 @@ import logging
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 import numpy as np
 import torch
@@ -25,12 +25,16 @@ from incremental_ad.models.base_model import BaseModel
 
 log = logging.getLogger(__name__)
 
+ThresholdStrategy = Literal["oracle", "train_percentile"]
+
 
 @dataclass
 class EvalConfig:
     seed: int
     split: Split
     batch_size: int
+    threshold_strategy: ThresholdStrategy
+    threshold_percentile: float
 
 
 def add_args(parser: ArgumentParser) -> None:
@@ -38,6 +42,17 @@ def add_args(parser: ArgumentParser) -> None:
     parser.add_argument("--eval-seed", type=int, required=True)
     parser.add_argument("--eval-split", choices=["val", "test"], required=True)
     parser.add_argument("--eval-batch-size", type=int, required=True)
+    parser.add_argument(
+        "--eval-threshold-strategy",
+        choices=["oracle", "train_percentile"],
+        required=True,
+    )
+    parser.add_argument(
+        "--eval-threshold-percentile",
+        type=float,
+        default=99.0,
+        help="Percentile of train scores used as threshold (only for train_percentile strategy).",
+    )
 
 
 def make_config(args: Namespace) -> EvalConfig:
@@ -51,14 +66,16 @@ class Evaluator:
         self,
         model: BaseModel,
         device: torch.device,
-        loader: DataLoader,
+        eval_loader: DataLoader,
+        train_loader: DataLoader,
         run_dir: Path,
         run_id: str,
         config: EvalConfig,
     ) -> None:
         self.model = model
         self.device = device
-        self.loader = loader
+        self.eval_loader = eval_loader
+        self.train_loader = train_loader
         self.run_dir = run_dir
         self.run_id = run_id
         self.config = config
@@ -76,7 +93,7 @@ class Evaluator:
         else:
             self._evaluate_test()
 
-    def _collect_scores(self) -> np.ndarray:
+    def _collect_scores(self, loader: DataLoader, desc: str) -> np.ndarray:
 
         self.model.eval()
 
@@ -86,7 +103,7 @@ class Evaluator:
         all_scores = []
 
         with torch.no_grad():
-            for batch in tqdm(self.loader, desc="Scoring"):
+            for batch in tqdm(loader, desc=desc):
                 batch = batch.to(self.device)
                 scores = self.model.eval_step(batch)
 
@@ -100,7 +117,7 @@ class Evaluator:
         log.info("Running val evaluation...")
 
         # scores per window.
-        scores = self._collect_scores()
+        scores = self._collect_scores(self.eval_loader, desc="Scoring (val)")
 
         stats = {
             "val/score_mean": float(np.mean(scores)),
@@ -130,11 +147,28 @@ class Evaluator:
 
         log.info("Running test evaluation...")
 
+        # Resolve threshold before scoring the test set.
+        fixed_threshold: float | None = None
+
+        if self.config.threshold_strategy == "train_percentile":
+            train_scores = self._collect_scores(
+                self.train_loader, desc="Computing threshold (train)"
+            )
+
+            fixed_threshold = float(
+                np.percentile(train_scores, self.config.threshold_percentile)
+            )
+
+            log.info(
+                f"Threshold (p{self.config.threshold_percentile:.0f} of train scores): "
+                f"{fixed_threshold:.6f}"
+            )
+
         # scores per window.
         # with stride = 1 the number of windows ~ the number of timesteps.
-        scores = self._collect_scores()
+        scores = self._collect_scores(self.eval_loader, desc="Scoring (test)")
 
-        dataset = cast(BaseDataset, self.loader.dataset)
+        dataset = cast(BaseDataset, self.eval_loader.dataset)
 
         if dataset.labels is None:
             raise ValueError("Test dataset must have labels")
@@ -154,13 +188,19 @@ class Evaluator:
             [int(labels[i : i + window_size].any()) for i in range(n_windows)]
         )
 
-        results: dict = {}
-        results["window"] = self._eval_window(scores, window_labels)
-        results["point"] = self._eval_point(timestep_scores, timestep_labels)
+        results: dict = {"threshold_strategy": self.config.threshold_strategy}
+        if fixed_threshold is not None:
+            results["threshold"] = {
+                "value": fixed_threshold,
+                "percentile": self.config.threshold_percentile,
+            }
+
+        results["window"] = self._eval_window(scores, window_labels, fixed_threshold)
+        results["point"] = self._eval_point(timestep_scores, timestep_labels, fixed_threshold)
         results["point_adjusted"] = self._eval_point_adjusted(
-            timestep_scores, timestep_labels
+            timestep_scores, timestep_labels, fixed_threshold
         )
-        results["event"] = self._eval_event(timestep_scores, timestep_labels)
+        results["event"] = self._eval_event(timestep_scores, timestep_labels, fixed_threshold)
 
         self._log_test_results(results)
         self._save_test_results(results)
@@ -175,8 +215,11 @@ class Evaluator:
         # this is a convention.
         return scores, labels[window_size - 1 :]
 
-    def _eval_window(self, scores: np.ndarray, window_labels: np.ndarray) -> dict:
-        threshold = _find_best_f1_threshold(scores, window_labels)
+    def _eval_window(
+        self, scores: np.ndarray, window_labels: np.ndarray, threshold: float | None
+    ) -> dict:
+        if threshold is None:
+            threshold = _find_best_f1_threshold(scores, window_labels)
         preds = (scores >= threshold).astype(int)
 
         return {
@@ -187,8 +230,11 @@ class Evaluator:
             "recall": float(recall_score(window_labels, preds, zero_division=0)),
         }
 
-    def _eval_point(self, scores: np.ndarray, labels: np.ndarray) -> dict:
-        threshold = _find_best_f1_threshold(scores, labels)
+    def _eval_point(
+        self, scores: np.ndarray, labels: np.ndarray, threshold: float | None
+    ) -> dict:
+        if threshold is None:
+            threshold = _find_best_f1_threshold(scores, labels)
         preds = (scores >= threshold).astype(int)
 
         return {
@@ -199,8 +245,20 @@ class Evaluator:
             "recall": float(recall_score(labels, preds, zero_division=0)),
         }
 
-    def _eval_point_adjusted(self, scores: np.ndarray, labels: np.ndarray) -> dict:
-        # Sweep all exact threshold candidates, applying PA at each step.
+    def _eval_point_adjusted(
+        self, scores: np.ndarray, labels: np.ndarray, threshold: float | None
+    ) -> dict:
+        if threshold is not None:
+            # Fixed threshold: apply PA directly without sweeping.
+            preds = (scores >= threshold).astype(int)
+            preds_pa = _apply_point_adjustment(preds, labels)
+            return {
+                "f1": float(f1_score(labels, preds_pa, zero_division=0)),
+                "precision": float(precision_score(labels, preds_pa, zero_division=0)),
+                "recall": float(recall_score(labels, preds_pa, zero_division=0)),
+            }
+
+        # Oracle: sweep all exact threshold candidates, applying PA at each step.
         _, _, all_thresholds = precision_recall_curve(labels, scores)
 
         # Downsample to at most 500 candidates: the PA-F1 curve is smooth so
@@ -232,8 +290,11 @@ class Evaluator:
 
         return best
 
-    def _eval_event(self, scores: np.ndarray, labels: np.ndarray) -> dict:
-        threshold = _find_best_f1_threshold(scores, labels)
+    def _eval_event(
+        self, scores: np.ndarray, labels: np.ndarray, threshold: float | None
+    ) -> dict:
+        if threshold is None:
+            threshold = _find_best_f1_threshold(scores, labels)
         segments = _find_segments(labels)
 
         if len(segments) == 0:
@@ -273,9 +334,11 @@ class Evaluator:
     def _log_test_results(self, results: dict) -> None:
 
         # flatten the nested dictionary into a one level dictionary putting a prefix in each key.
+        # skip non-dict entries (e.g. threshold_strategy string).
         flat = {
             f"{level}/{k}": v
             for level, metrics in results.items()
+            if isinstance(metrics, dict)
             for k, v in metrics.items()
         }
 

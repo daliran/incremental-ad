@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler
 import torch
 
 from incremental_ad.core.cli import pluck
-from incremental_ad.datasets.base_dataset import BaseDataset, Split
+from incremental_ad.datasets.base_dataset import BaseDataset
 
 log = logging.getLogger(__name__)
 
@@ -138,29 +138,18 @@ def _prepare_dataset(
     return train_data_split, val_data_split, test_data, test_labels_tensor
 
 
-def load_train(config: SWaTConfig) -> tuple[SwatDataset, SwatDataset]:
-    """Returns (train_dataset, val_dataset)."""
-
-    train_data, val_data, _, _ = _prepare_dataset(config)
-
-    train_dataset = SwatDataset(train_data, config.window_len, config.stride)
-    val_dataset = SwatDataset(val_data, config.window_len, config.stride)
-
-    log.info(f"Train windows: {len(train_dataset)}, val windows: {len(val_dataset)}")
-
-    return train_dataset, val_dataset
-
-
-def load_eval(config: SWaTConfig, split: Split) -> SwatDataset:
-    """Returns the dataset for the requested evaluation split."""
+def get_loaders(
+    config: SWaTConfig,
+) -> tuple[SwatDataset, SwatDataset, SwatDataset]:
 
     train_data, val_data, test_data, test_labels = _prepare_dataset(config)
 
-    if split == "val":
-        dataset = SwatDataset(val_data, config.window_len, config.stride)
-    else:
-        dataset = SwatDataset(test_data, config.window_len, config.stride, test_labels)
+    train_dataset = SwatDataset(train_data, config.window_len, config.stride)
+    val_dataset = SwatDataset(val_data, config.window_len, config.stride)
+    test_dataset = SwatDataset(test_data, config.window_len, config.stride, test_labels)
 
-    log.info(f"Eval split '{split}': {len(dataset)} windows")
+    log.info(
+        f"Windows — train: {len(train_dataset)}, val: {len(val_dataset)}, test: {len(test_dataset)}"
+    )
 
-    return dataset
+    return train_dataset, val_dataset, test_dataset

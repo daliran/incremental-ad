@@ -89,6 +89,8 @@ python -m incremental_ad.main \
     --swat-val-ratio 0.15 \
     --eval-seed 0 \
     --eval-split test \
-    --eval-batch-size 512
+    --eval-batch-size 512 \
+    --eval-threshold-strategy train_percentile \
+    --eval-threshold-percentile 95
 
 echo "Finished at: $(date)"

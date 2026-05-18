@@ -346,6 +346,7 @@ def run_eval() -> None:
         eval_dataset_cfg=dataset_cfg,
         eval_cfg=eval_cfg,
     )
+    
     log.info(f"Eval info saved to {run_dir / 'eval_info.json'}")
 
     # Set the wandb directory under the specific run.
@@ -398,10 +399,18 @@ def run_eval() -> None:
             num_workers=NUM_WORKERS,
         )
 
+        train_loader = DataLoader(
+            result.train_dataset,
+            batch_size=eval_cfg.batch_size,
+            shuffle=False,
+            num_workers=NUM_WORKERS,
+        )
+
         e = evaluator.Evaluator(
             model=model,
             device=device,
-            loader=eval_loader,
+            eval_loader=eval_loader,
+            train_loader=train_loader,
             run_dir=run_dir,
             run_id=run_id,
             config=eval_cfg,

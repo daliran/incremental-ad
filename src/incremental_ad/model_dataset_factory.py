@@ -32,7 +32,7 @@ def build_for_training(
 
 def _build_swat_mae_tx(model_cfg: MaeTxConfig, dataset_cfg: SWaTConfig) -> BuildResult:
 
-    train_dataset, val_dataset = swat.load_train(dataset_cfg)
+    train_dataset, val_dataset, _ = swat.get_loaders(dataset_cfg)
 
     n_patches = dataset_cfg.window_len // model_cfg.patch_len
 
@@ -50,6 +50,7 @@ def _build_swat_mae_tx(model_cfg: MaeTxConfig, dataset_cfg: SWaTConfig) -> Build
 @dataclass
 class EvalBuildResult:
     model: BaseModel
+    train_dataset: BaseDataset
     eval_dataset: BaseDataset
 
 
@@ -73,7 +74,8 @@ def _build_eval_swat_mae_tx(
     model_cfg: MaeTxConfig, dataset_cfg: SWaTConfig, split: Split
 ) -> EvalBuildResult:
 
-    eval_dataset = swat.load_eval(dataset_cfg, split)
+    train_dataset, val_dataset, test_dataset = swat.get_loaders(dataset_cfg)
+    eval_dataset = val_dataset if split == "val" else test_dataset
 
     n_patches = dataset_cfg.window_len // model_cfg.patch_len
 
@@ -83,4 +85,6 @@ def _build_eval_swat_mae_tx(
         config=model_cfg,
     )
 
-    return EvalBuildResult(model=model, eval_dataset=eval_dataset)
+    return EvalBuildResult(
+        model=model, train_dataset=train_dataset, eval_dataset=eval_dataset
+    )

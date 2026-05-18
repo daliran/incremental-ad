@@ -172,9 +172,7 @@ class Evaluator:
         timestep_labels = labels[window_size - 1 :]
 
         # a window is anomalous if at least one timestep inside it is anomalous.
-        window_labels = np.array(
-            [int(labels[i : i + window_size].any()) for i in range(len(scores))]
-        )
+        window_labels = np.lib.stride_tricks.sliding_window_view(labels, window_size).any(axis=1).astype(int)
 
         results: dict = {
             "window": metrics.eval_classification(scores, window_labels, threshold),

@@ -57,7 +57,7 @@
                 "--train-grad-clip", "0.5",
                 "--train-scheduler", "cosine",
                 "--train-warmup-ratio", "0.1",
-                "--train-checkpoint-interval", "20"
+                "--train-checkpoint-interval", "0"
             ]
         },
         {

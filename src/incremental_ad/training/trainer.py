@@ -32,6 +32,7 @@ class TrainingConfig:
     grad_clip: float
     scheduler: SchedulerType
     warmup_ratio: float
+    checkpoint_interval: int  # 0 = disabled
 
 
 def add_args(parser: ArgumentParser) -> None:
@@ -48,6 +49,7 @@ def add_args(parser: ArgumentParser) -> None:
         "--train-scheduler", choices=["cosine", "constant"], required=True
     )
     parser.add_argument("--train-warmup-ratio", type=float, required=True)
+    parser.add_argument("--train-checkpoint-interval", type=int, required=True)
 
 
 def make_config(args: Namespace) -> TrainingConfig:
@@ -123,6 +125,9 @@ class Trainer:
                 )
 
                 self._save_checkpoint("last.pt", epoch, train_loss, val_loss)
+
+                if self.config.checkpoint_interval > 0 and epoch % self.config.checkpoint_interval == 0:
+                    self._save_checkpoint(f"epoch_{epoch:04d}.pt", epoch, train_loss, val_loss)
 
                 if val_loss < self.best_val_loss - 1e-4:
                     self.best_val_loss = val_loss

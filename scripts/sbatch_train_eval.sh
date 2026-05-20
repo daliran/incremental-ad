@@ -7,14 +7,14 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem=18G
 #SBATCH --time=06:00:00
-#SBATCH --output=/work/tesi_ddellacasaventurelli01/incremental_ad/logs/job_%j.log
-#SBATCH --error=/work/tesi_ddellacasaventurelli01/incremental_ad/logs/job_%j.log
+#SBATCH --output=/work/tesi_ddellacasaventurelli01/incremental-ad/logs/job_%j.log
+#SBATCH --error=/work/tesi_ddellacasaventurelli01/incremental-ad/logs/job_%j.log
 
 set -euo pipefail
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-PROJECT_ROOT=/homes/ddellacasaventurelli01/workspace/incremental_ad
-WORK=/work/tesi_ddellacasaventurelli01/incremental_ad
+PROJECT_ROOT=/homes/ddellacasaventurelli01/workspace/incremental-ad
+WORK=/work/tesi_ddellacasaventurelli01/incremental-ad
 
 # ── Environment ───────────────────────────────────────────────────────────────
 export PYTHONPATH=$PROJECT_ROOT/src
@@ -26,7 +26,7 @@ export WANDB_ENTITY=kirrel-research
 export TMPDIR=/tmp
 
 # ── Pre-create the log dir (required before SLURM writes the log file) ────────
-mkdir -p /work/tesi_ddellacasaventurelli01/incremental_ad/logs
+mkdir -p /work/tesi_ddellacasaventurelli01/incremental-ad/logs
 
 # ── Diagnostic info ───────────────────────────────────────────────────────────
 echo "Job ID:     $SLURM_JOB_ID"

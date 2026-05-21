@@ -19,7 +19,7 @@ WORK=/work/tesi_ddellacasaventurelli01/incremental-ad
 # ── Environment ───────────────────────────────────────────────────────────────
 export PYTHONPATH=$PROJECT_ROOT/src
 export HF_HOME=$WORK/hf_cache
-export RUNS_ROOT=$WORK/runs
+export RUNS_ROOT=$WORK/experiments
 export WANDB_MODE=online
 export WANDB_PROJECT=incremental_ad
 export WANDB_ENTITY=kirrel-research
@@ -38,15 +38,17 @@ nvidia-smi
 cd $PROJECT_ROOT
 source .venv/bin/activate
 
-# ── Experiment ────────────────────────────────────────────────────────────────
-# Tag meaningful hyperparameter variations (e.g. mae_tx_wd01, mae_tx_lr1e3).
-# For pure seed repeats the job ID already differentiates the run directories.
-EXPERIMENT=mae_tx
+# ── Phase ─────────────────────────────────────────────────────────────────────
+# EXPERIMENT is the (manually chosen) namespace that groups all phases of a study.
+# A phase groups a training run and its evals; "full" = pretrain on the full train set.
+EXPERIMENT=mae_tx_swat
+PHASE=full
 
 # ── Train ─────────────────────────────────────────────────────────────────────
 python -m incremental_ad.main \
     --op train \
-    --experiment-name $EXPERIMENT \
+    --experiment $EXPERIMENT \
+    --phase $PHASE \
     --device auto \
     --dataset swat \
     --model mae_tx \
@@ -77,12 +79,16 @@ python -m incremental_ad.main \
     --train-checkpoint-interval 0
 
 # ── Eval ──────────────────────────────────────────────────────────────────────
-# Checkpoint path is deterministic: $RUNS_ROOT/<experiment>_<job_id>/checkpoints/best.pt
+# The checkpoint is resolved deterministically from the phase:
+# $RUNS_ROOT/<experiment>/<phase>/checkpoints/best.pt — no job id needed. The eval
+# joins the same experiment/phase (and wandb group) as the train run above.
 python -m incremental_ad.main \
     --op eval \
-    --experiment-name ${EXPERIMENT}_eval \
+    --experiment $EXPERIMENT \
+    --from-phase $PHASE \
+    --which best \
+    --run-tag oracle \
     --device auto \
-    --checkpoint $RUNS_ROOT/${EXPERIMENT}_${SLURM_JOB_ID}/checkpoints/best.pt \
     --dataset swat \
     --swat-window-len 100 \
     --swat-stride 1 \

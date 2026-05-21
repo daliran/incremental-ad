@@ -7,23 +7,55 @@ from datetime import datetime
 from pathlib import Path
 
 
-def setup_run_dir(experiment_name: str) -> tuple[Path, str]:
-    """Create <RUNS_ROOT>/<experiment_name>_<run_id>[_task<N>]/ and return (run_dir, run_id)."""
+def _runs_root() -> Path:
+    return Path(os.environ.get("RUNS_ROOT", "experiments"))
 
-    runs_root = Path(os.environ.get("RUNS_ROOT", "runs"))
+
+def setup_run_dir(
+    experiment: str, phase: str, op: str, run_tag: str | None = None
+) -> tuple[Path, str, Path]:
+    """Create the per-job run dir and return (run_dir, run_id, phase_ckpt_dir).
+
+    Layout:
+        <RUNS_ROOT>/<experiment>/<phase>/
+            checkpoints[/<run_tag>]/        # deterministic, promoted across jobs
+            runs/<op>[_<run_tag>]_<run_id>/
+    """
 
     run_id = os.environ.get("SLURM_JOB_ID") or datetime.now().strftime("%Y%m%d_%H%M%S")
-    task_id = os.environ.get("SLURM_ARRAY_TASK_ID")
-    suffix = f"_task{task_id}" if task_id else ""
 
-    run_dir = runs_root / f"{experiment_name}_{run_id}{suffix}"
+    phase_dir = _runs_root() / experiment / phase
+
+    op_label = f"{op}_{run_tag}" if run_tag else op
+    run_dir = phase_dir / "runs" / f"{op_label}_{run_id}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    return run_dir, run_id
+    # Tagged producers (e.g. the fine-tunings ft_1..ft_N) get their own subdir so
+    # several checkpoint-producing runs can coexist within one phase.
+    phase_ckpt_dir = phase_dir / "checkpoints"
+
+    if run_tag:
+        phase_ckpt_dir = phase_ckpt_dir / run_tag
+
+    return run_dir, run_id, phase_ckpt_dir
+
+
+def resolve_deterministic_checkpoint(
+    experiment: str, phase: str, checkpoint_name: str, run_tag: str | None = None
+) -> Path:
+    """Deterministic path to a promoted checkpoint for <experiment>/<phase>[/<run_tag>]."""
+
+    ckpt_dir = _runs_root() / experiment / phase / "checkpoints"
+
+    if run_tag:
+        ckpt_dir = ckpt_dir / run_tag
+
+    return ckpt_dir / f"{checkpoint_name}.pt"
 
 
 def _git_commit() -> str | None:
     """Return the current HEAD commit hash by reading .git/HEAD directly."""
+
     try:
         # Walk up from this file to find the .git directory
         search = Path(__file__).resolve().parent
@@ -53,6 +85,7 @@ def save_eval_snapshot(
     eval_cfg,
 ) -> None:
     """Dump eval provenance to <run_dir>/eval_info.json for reproducibility."""
+
     snapshot = {
         "checkpoint": str(checkpoint_path),
         "train_run_id": ckpt["run_id"],
@@ -71,7 +104,9 @@ def save_eval_snapshot(
 def save_config_snapshot(
     run_dir: Path,
     *,  # forces the next arguments to be provided by keyword and not by position.
-    experiment_name: str,
+    experiment: str,
+    phase: str,
+    op: str,
     run_id: str,
     dataset_name: str,
     dataset_cfg,
@@ -80,8 +115,11 @@ def save_config_snapshot(
     train_cfg,
 ) -> None:
     """Dump the resolved configuration to <run_dir>/config.json for reproducibility."""
+
     snapshot = {
-        "experiment_name": experiment_name,
+        "experiment": experiment,
+        "phase": phase,
+        "op": op,
         "run_id": run_id,
         "started_at": datetime.now().isoformat(),
         "host": socket.gethostname(),

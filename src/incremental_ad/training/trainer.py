@@ -1,4 +1,5 @@
 import logging
+import shutil
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from pathlib import Path
@@ -67,7 +68,10 @@ class Trainer:
         val_loader: DataLoader,
         run_id: str,
         run_dir: Path,
-        wandb_group: str,
+        phase_ckpt_dir: Path,
+        experiment: str,
+        phase: str,
+        op: str,
         dataset_name: str,
         dataset_cfg: Any,
         model_name: str,
@@ -81,7 +85,10 @@ class Trainer:
         self.val_loader = val_loader
         self.run_id = run_id
         self.run_dir = run_dir
-        self.wandb_group = wandb_group
+        self.phase_ckpt_dir = phase_ckpt_dir
+        self.experiment = experiment
+        self.phase = phase
+        self.op = op
         self.dataset_name = dataset_name
         self.dataset_cfg = dataset_cfg
         self.model_name = model_name
@@ -126,8 +133,13 @@ class Trainer:
 
                 self._save_checkpoint("last.pt", epoch, train_loss, val_loss)
 
-                if self.config.checkpoint_interval > 0 and epoch % self.config.checkpoint_interval == 0:
-                    self._save_checkpoint(f"epoch_{epoch:04d}.pt", epoch, train_loss, val_loss)
+                if (
+                    self.config.checkpoint_interval > 0
+                    and epoch % self.config.checkpoint_interval == 0
+                ):
+                    self._save_checkpoint(
+                        f"epoch_{epoch:04d}.pt", epoch, train_loss, val_loss
+                    )
 
                 if val_loss < self.best_val_loss - 1e-4:
                     self.best_val_loss = val_loss
@@ -276,14 +288,17 @@ class Trainer:
     def _save_checkpoint(
         self, filename: str, epoch: int, train_loss: float, val_loss: float
     ) -> None:
+        path = self.run_dir / "checkpoints" / filename
         _save_ckpt(
-            self.run_dir / "checkpoints" / filename,
+            path,
             model=self.model,
             optimizer=self.optimizer,
             scheduler=self.scheduler,
             epoch=epoch,
             run_id=self.run_id,
-            wandb_group=self.wandb_group,
+            experiment=self.experiment,
+            phase=self.phase,
+            op=self.op,
             dataset_name=self.dataset_name,
             dataset_cfg=self.dataset_cfg,
             model_name=self.model_name,
@@ -295,6 +310,12 @@ class Trainer:
                 train_loss=train_loss,
             ),
         )
+
+        # Promote the rolling best/last to the deterministic phase-level dir so
+        # later jobs can locate them without knowing this job's run id.
+        if filename in ("best.pt", "last.pt"):
+            self.phase_ckpt_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, self.phase_ckpt_dir / filename)
 
     def load_checkpoint(self, ckpt: dict) -> None:
         self.model.load_state_dict(ckpt["model_state"])

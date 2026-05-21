@@ -13,7 +13,7 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "RUNS_ROOT": "${workspaceFolder}/experiments",
                 "WANDB_MODE": "disabled",
                 "WANDB_PROJECT": "incremental_ad",
                 "WANDB_ENTITY": "kirrel-research"
@@ -23,7 +23,8 @@
             "args": [
                 // --- Dispatch ---
                 "--op", "train",
-                "--experiment-name", "dev",
+                "--experiment", "dev",
+                "--phase", "full",
                 "--device", "auto",
                 "--dataset", "swat",
                 "--model", "mae_tx",
@@ -69,7 +70,7 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "RUNS_ROOT": "${workspaceFolder}/experiments",
                 "WANDB_MODE": "disabled",
                 "WANDB_PROJECT": "incremental_ad",
                 "WANDB_ENTITY": "kirrel-research"
@@ -77,7 +78,6 @@
             "justMyCode": true,
             "args": [
                 "--op", "resume",
-                "--experiment-name", "dev_resume",
                 "--device", "auto",
                 "--checkpoint", "${input:resumeCheckpoint}"
             ]
@@ -91,7 +91,7 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "RUNS_ROOT": "${workspaceFolder}/experiments",
                 "WANDB_MODE": "disabled",
                 "WANDB_PROJECT": "incremental_ad",
                 "WANDB_ENTITY": "kirrel-research"
@@ -99,7 +99,6 @@
             "justMyCode": true,
             "args": [
                 "--op", "eval",
-                "--experiment-name", "dev_eval",
                 "--device", "auto",
                 "--dataset", "swat",
                 "--checkpoint", "${input:evalCheckpoint}",
@@ -124,13 +123,13 @@
             "id": "resumeCheckpoint",
             "type": "promptString",
             "description": "Checkpoint to resume from (relative to workspace)",
-            "default": "runs/dev/checkpoints/last.pt"
+            "default": "experiments/dev/full/checkpoints/last.pt"
         },
         {
             "id": "evalCheckpoint",
             "type": "promptString",
             "description": "Checkpoint to evaluate (relative to workspace)",
-            "default": "runs/dev/checkpoints/best.pt"
+            "default": "experiments/dev/full/checkpoints/best.pt"
         }
     ]
 }

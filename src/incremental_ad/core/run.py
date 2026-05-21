@@ -12,45 +12,34 @@ def _runs_root() -> Path:
 
 
 def setup_run_dir(
-    experiment: str, phase: str, op: str, run_tag: str | None = None
-) -> tuple[Path, str, Path]:
-    """Create the per-job run dir and return (run_dir, run_id, phase_ckpt_dir).
+    experiment: str, phase: str, run_tag: str | None = None
+) -> tuple[Path, str]:
+    """Create <RUNS_ROOT>/<experiment>/<phase>/<run_label>/ and return (run_dir, run_id).
 
-    Layout:
-        <RUNS_ROOT>/<experiment>/<phase>/
-            checkpoints[/<run_tag>]/        # deterministic, promoted across jobs
-            runs/<op>[_<run_tag>]_<run_id>/
+    A phase is one SLURM job; all of its output lives in run_dir. What that output
+    is varies per phase, so this only creates the folder — checkpoint promotion,
+    eval artifacts, etc. are the phase handler's concern.
     """
 
     run_id = os.environ.get("SLURM_JOB_ID") or datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    phase_dir = _runs_root() / experiment / phase
-
-    op_label = f"{op}_{run_tag}" if run_tag else op
-    run_dir = phase_dir / "runs" / f"{op_label}_{run_id}"
+    run_label = f"{run_tag}_{run_id}" if run_tag else run_id
+    run_dir = _runs_root() / experiment / phase / run_label
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # Tagged producers (e.g. the fine-tunings ft_1..ft_N) get their own subdir so
-    # several checkpoint-producing runs can coexist within one phase.
-    phase_ckpt_dir = phase_dir / "checkpoints"
-
-    if run_tag:
-        phase_ckpt_dir = phase_ckpt_dir / run_tag
-
-    return run_dir, run_id, phase_ckpt_dir
+    return run_dir, run_id
 
 
-def resolve_deterministic_checkpoint(
-    experiment: str, phase: str, checkpoint_name: str, run_tag: str | None = None
+def phase_checkpoint_dir(
+    experiment: str, phase: str, run_tag: str | None = None
 ) -> Path:
-    """Deterministic path to a promoted checkpoint for <experiment>/<phase>[/<run_tag>]."""
+    """Deterministic dir where a producer phase promotes best/last across jobs.
 
+    Tagged producers (e.g. the fine-tunings ft_1..ft_N) get their own subdir so
+    several checkpoint-producing runs can coexist within one phase.
+    """
     ckpt_dir = _runs_root() / experiment / phase / "checkpoints"
-
-    if run_tag:
-        ckpt_dir = ckpt_dir / run_tag
-
-    return ckpt_dir / f"{checkpoint_name}.pt"
+    return ckpt_dir / run_tag if run_tag else ckpt_dir
 
 
 def _git_commit() -> str | None:

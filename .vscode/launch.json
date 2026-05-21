@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Train",
+            "name": "Pretrain full (train + eval)",
             "type": "debugpy",
             "request": "launch",
             "module": "incremental_ad.main",
@@ -22,9 +22,8 @@
             "justMyCode": true,
             "args": [
                 // --- Dispatch ---
-                "--op", "train",
+                "--phase", "pretrain_full",
                 "--experiment", "dev",
-                "--phase", "full",
                 "--device", "auto",
                 "--dataset", "swat",
                 "--model", "mae_tx",
@@ -58,11 +57,18 @@
                 "--train-grad-clip", "0.5",
                 "--train-scheduler", "cosine",
                 "--train-warmup-ratio", "0.1",
-                "--train-checkpoint-interval", "0"
+                "--train-checkpoint-interval", "0",
+
+                // --- Eval ---
+                "--eval-seed", "0",
+                "--eval-split", "test",
+                "--eval-batch-size", "512",
+                "--eval-threshold-strategy", "oracle",
+                "--eval-threshold-percentile", "99"
             ]
         },
         {
-            "name": "Resume training",
+            "name": "Eval (standalone)",
             "type": "debugpy",
             "request": "launch",
             "module": "incremental_ad.main",
@@ -77,28 +83,7 @@
             },
             "justMyCode": true,
             "args": [
-                "--op", "resume",
-                "--device", "auto",
-                "--checkpoint", "${input:resumeCheckpoint}"
-            ]
-        },
-        {
-            "name": "Eval",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "incremental_ad.main",
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/src",
-                "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/experiments",
-                "WANDB_MODE": "disabled",
-                "WANDB_PROJECT": "incremental_ad",
-                "WANDB_ENTITY": "kirrel-research"
-            },
-            "justMyCode": true,
-            "args": [
-                "--op", "eval",
+                "--phase", "eval",
                 "--device", "auto",
                 "--dataset", "swat",
                 "--checkpoint", "${input:evalCheckpoint}",
@@ -120,16 +105,10 @@
     ],
     "inputs": [
         {
-            "id": "resumeCheckpoint",
-            "type": "promptString",
-            "description": "Checkpoint to resume from (relative to workspace)",
-            "default": "experiments/dev/full/checkpoints/last.pt"
-        },
-        {
             "id": "evalCheckpoint",
             "type": "promptString",
             "description": "Checkpoint to evaluate (relative to workspace)",
-            "default": "experiments/dev/full/checkpoints/best.pt"
+            "default": ""
         }
     ]
 }

@@ -98,7 +98,7 @@ def eval_point_adjusted(
                 adjusted[s:e] = 1
 
         f = float(f1_score(labels, adjusted, zero_division=0))
-        
+
         if f > best["f1"]:
             best = {
                 "f1": f,

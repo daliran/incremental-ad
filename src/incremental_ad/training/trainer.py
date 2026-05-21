@@ -68,7 +68,7 @@ class Trainer:
         val_loader: DataLoader,
         run_id: str,
         run_dir: Path,
-        phase_ckpt_dir: Path,
+        checkpoint_dir: Path,
         experiment: str,
         phase: str,
         op: str,
@@ -85,7 +85,7 @@ class Trainer:
         self.val_loader = val_loader
         self.run_id = run_id
         self.run_dir = run_dir
-        self.phase_ckpt_dir = phase_ckpt_dir
+        self.checkpoint_dir = checkpoint_dir
         self.experiment = experiment
         self.phase = phase
         self.op = op
@@ -314,8 +314,8 @@ class Trainer:
         # Promote the rolling best/last to the deterministic phase-level dir so
         # later jobs can locate them without knowing this job's run id.
         if filename in ("best.pt", "last.pt"):
-            self.phase_ckpt_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, self.phase_ckpt_dir / filename)
+            self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, self.checkpoint_dir / filename)
 
     def load_checkpoint(self, ckpt: dict) -> None:
         self.model.load_state_dict(ckpt["model_state"])

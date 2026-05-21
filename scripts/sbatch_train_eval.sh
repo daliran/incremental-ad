@@ -40,15 +40,15 @@ source .venv/bin/activate
 
 # ── Phase ─────────────────────────────────────────────────────────────────────
 # EXPERIMENT is the (manually chosen) namespace that groups all phases of a study.
-# A phase groups a training run and its evals; "full" = pretrain on the full train set.
+# A phase is one job: "pretrain_full" trains on the full train set and then
+# evaluates the trained model, writing both into experiments/<exp>/pretrain_full/<job>/.
 EXPERIMENT=mae_tx_swat
-PHASE=full
+PHASE=pretrain_full
 
-# ── Train ─────────────────────────────────────────────────────────────────────
+# ── Pretrain (train, then eval) ─────────────────────────────────────────────────
 python -m incremental_ad.main \
-    --op train \
-    --experiment $EXPERIMENT \
     --phase $PHASE \
+    --experiment $EXPERIMENT \
     --device auto \
     --dataset swat \
     --model mae_tx \
@@ -76,24 +76,7 @@ python -m incremental_ad.main \
     --train-grad-clip 0.5 \
     --train-scheduler cosine \
     --train-warmup-ratio 0.1 \
-    --train-checkpoint-interval 0
-
-# ── Eval ──────────────────────────────────────────────────────────────────────
-# The checkpoint is resolved deterministically from the phase:
-# $RUNS_ROOT/<experiment>/<phase>/checkpoints/best.pt — no job id needed. The eval
-# joins the same experiment/phase (and wandb group) as the train run above.
-python -m incremental_ad.main \
-    --op eval \
-    --experiment $EXPERIMENT \
-    --from-phase $PHASE \
-    --which best \
-    --run-tag oracle \
-    --device auto \
-    --dataset swat \
-    --swat-window-len 100 \
-    --swat-stride 1 \
-    --swat-normalization standard \
-    --swat-val-ratio 0.15 \
+    --train-checkpoint-interval 0 \
     --eval-seed 0 \
     --eval-split test \
     --eval-batch-size 512 \

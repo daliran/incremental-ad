@@ -4,8 +4,6 @@ from typing import Any
 
 import torch
 
-from incremental_ad.core.seed import get_rng_state
-
 
 @dataclasses.dataclass
 class Metrics:
@@ -41,7 +39,6 @@ def save_checkpoint(
         "experiment": experiment,
         "phase": phase,
         "op": op,
-        "rng_state": get_rng_state(),
         "model_state": model.state_dict(),
         "optimizer_state": optimizer.state_dict() if optimizer is not None else None,
         "scheduler_state": scheduler.state_dict() if scheduler is not None else None,

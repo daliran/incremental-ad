@@ -77,6 +77,7 @@ python -m incremental_ad.main \
     --train-scheduler cosine \
     --train-warmup-ratio 0.1 \
     --train-checkpoint-interval 0 \
+    --eval-stride 1 \
     --eval-seed 0 \
     --eval-split test \
     --eval-batch-size 512 \

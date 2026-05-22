@@ -25,6 +25,10 @@ def run_pretrain_full(*, datasets: dict, models: dict, num_workers: int) -> None
     parser.add_argument("--dataset", choices=datasets, required=True)
     parser.add_argument("--model", choices=models, required=True)
 
+    # Stride for the bundled eval: it reuses the train dataset config with this
+    # stride. Defaults to 1 (the metrics assume it); raise it for a quick/coarse eval.
+    parser.add_argument("--eval-stride", type=int, default=1)
+
     known, _ = parser.parse_known_args()
 
     # Add the args for the specific dataset and model.
@@ -71,11 +75,11 @@ def run_pretrain_full(*, datasets: dict, models: dict, num_workers: int) -> None
         num_workers=num_workers,
     )
 
-    # Evaluate the model just trained. Eval metrics assume stride=1, so the eval
-    # dataset reuses the train dataset config with the stride overridden.
+    # Evaluate the model just trained. The eval dataset reuses the train dataset
+    # config with the stride overridden (see --eval-stride; defaults to 1).
     best_ckpt_path = run_dir / "checkpoints" / "best.pt"
     ckpt = checkpoint.load_checkpoint(best_ckpt_path)
-    eval_dataset_cfg = replace(dataset_cfg, stride=1)
+    eval_dataset_cfg = replace(dataset_cfg, stride=args.eval_stride)
 
     set_seed(eval_cfg.seed)
 

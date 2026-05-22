@@ -63,8 +63,8 @@ Secure Water Treatment testbed (51 features), loaded from the HuggingFace
 * **Windowing** — sliding windows of `window-len`, advanced by `stride`.
 * **Validation** — the last `val-ratio` fraction of the train series is held out
   (temporal split, no shuffling).
-* **Eval** — uses `stride = 1`; for `pretrain_full` this stride is forced
-  internally regardless of the training stride.
+* **Eval** — uses `stride = 1`; for `pretrain_full` the bundled eval reuses the
+  train dataset config with the stride overridden by `--eval-stride` (default 1).
 
 Config (`--swat-*`): `window-len`, `stride`, `normalization`, `val-ratio`.
 
@@ -92,7 +92,7 @@ Every run is identified by four coordinates:
 ### `pretrain_full` — train, then eval (one job)
 Trains the model on the full train set and immediately evaluates the trained
 checkpoint, all in one job/folder. The bundled eval reuses the training dataset
-config with stride forced to 1.
+config with the stride overridden by `--eval-stride` (default 1).
 
 ```bash
 python -m incremental_ad.main \
@@ -105,7 +105,7 @@ python -m incremental_ad.main \
     --train-seed 42 --train-epochs 300 --train-patience 30 --train-batch-size 64 \
     --train-optimizer adamw --train-weight-decay 1e-2 --train-learning-rate 1e-4 \
     --train-grad-clip 0.5 --train-scheduler cosine --train-warmup-ratio 0.1 --train-checkpoint-interval 0 \
-    --eval-seed 0 --eval-split test --eval-batch-size 512 \
+    --eval-stride 1 --eval-seed 0 --eval-split test --eval-batch-size 512 \
     --eval-threshold-strategy oracle --eval-threshold-percentile 99
 ```
 
@@ -211,6 +211,6 @@ coincide for a producing job and diverge only for a standalone eval.
 | `SLURM_JOB_ID`  | set by SLURM; becomes the `run_id`   | timestamp      |
 
 Cluster submission scripts live in [`scripts/`](scripts/):
-[`sbatch_pretrain_full.sh`](scripts/sbatch_pretrain_full.sh) (train + eval) and
-[`sbatch_eval.sh`](scripts/sbatch_eval.sh) (standalone eval). Local debug configs
+[`sbatch_mae_tx_pretrain_full.sh`](scripts/sbatch_mae_tx_pretrain_full.sh) (train + eval) and
+[`sbatch_mae_tx_eval.sh`](scripts/sbatch_mae_tx_eval.sh) (standalone eval). Local debug configs
 (with `WANDB_MODE=disabled`) are in [`.vscode/launch.json`](.vscode/launch.json).

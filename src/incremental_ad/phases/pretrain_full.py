@@ -72,6 +72,11 @@ def run_pretrain_full(*, datasets: dict, models: dict, num_workers: int) -> None
         model_name=args.model,
         model_cfg=model_cfg,
         train_cfg=train_cfg,
+        # The full slice uses the whole train series; partial_ratio/n_finetune
+        # are unused but passed explicitly (the slicing args have no defaults).
+        train_slice="full",
+        partial_ratio=1.0,
+        n_finetune=1,
         num_workers=num_workers,
     )
 

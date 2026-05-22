@@ -6,6 +6,7 @@ from incremental_ad.datasets import swat
 from incremental_ad.models import mae_tx
 from incremental_ad.phases.eval import run_eval_phase
 from incremental_ad.phases.pretrain_full import run_pretrain_full
+from incremental_ad.phases.pretrain_partial import run_pretrain_partial
 
 # Number of workers used by the data loaders.
 NUM_WORKERS = 0 if platform.system() == "Windows" else 4
@@ -27,6 +28,8 @@ def dispatch() -> None:
 
     if known.phase == "pretrain_full":
         run_pretrain_full(datasets=DATASETS, models=MODELS, num_workers=NUM_WORKERS)
+    elif known.phase == "pretrain_partial":
+        run_pretrain_partial(datasets=DATASETS, models=MODELS, num_workers=NUM_WORKERS)
     elif known.phase == "eval":
         run_eval_phase(datasets=DATASETS, models=MODELS, num_workers=NUM_WORKERS)
     else:

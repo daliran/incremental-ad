@@ -27,11 +27,16 @@ def run_train(
     model_cfg,
     train_cfg,
     num_workers: int,
+    train_slice: str,
+    partial_ratio: float,
+    n_finetune: int,
     resume_ckpt: dict | None = None,
 ) -> None:
     """Train (or, with resume_ckpt, continue training) a model.
 
-    Checkpoints (best/last) are written into run_dir/checkpoints/.
+    train_slice selects which slice of the dataset's train series to train on
+    ("full", "partial" or "ft_<i>"); partial_ratio and n_finetune define the
+    partial/ft chunking. Checkpoints (best/last) are written into run_dir/checkpoints/.
     """
 
     save_config_snapshot(
@@ -83,6 +88,9 @@ def run_train(
             dataset_name=dataset_name,
             model_cfg=model_cfg,
             dataset_cfg=dataset_cfg,
+            train_slice=train_slice,
+            partial_ratio=partial_ratio,
+            n_finetune=n_finetune,
         )
 
         model = result.model.to(device)

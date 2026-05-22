@@ -9,6 +9,7 @@ from sklearn.preprocessing import StandardScaler
 import torch
 
 from incremental_ad.core.cli import pluck
+from incremental_ad.datasets import splitting
 from incremental_ad.datasets.base_dataset import BaseDataset
 
 log = logging.getLogger(__name__)
@@ -98,7 +99,12 @@ def _build_scaler(normalization: Normalization) -> StandardScaler | None:
 
 def _prepare_dataset(
     config: SWaTConfig,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Return the full scaled train series, the test series and its labels.
+
+    The train/val carving and slice selection happen in get_loaders; the scaler
+    is fit on the full train series so every slice shares the same normalization.
+    """
     train_df, test_df = _load_raw()
 
     # getting samples and labels.
@@ -122,32 +128,60 @@ def _prepare_dataset(
     test_data = torch.tensor(test_scaled, dtype=torch.float32)
     test_labels_tensor = torch.tensor(test_labels.values, dtype=torch.long)
 
-    # creating dataset split.
-    total = len(train_data)
-    val_size = int(total * config.val_ratio)
-    train_size = total - val_size
-
-    # we need to preserve the temporal order, so no shuffling.
-    train_data_split = train_data[:train_size]
-    val_data_split = train_data[train_size:]
-
-    log.info(
-        f"Split — train: {train_size} timesteps, val: {val_size} timesteps, test: {len(test_data)} timesteps"
-    )
-
-    return train_data_split, val_data_split, test_data, test_labels_tensor
+    return train_data, test_data, test_labels_tensor
 
 
 def get_loaders(
     config: SWaTConfig,
+    train_slice: str,
+    partial_ratio: float,
+    n_finetune: int,
 ) -> tuple[SwatDataset, SwatDataset, SwatDataset]:
+    """Build (train, val, test) datasets for the requested slice of the train series.
 
-    train_data, val_data, test_data, test_labels = _prepare_dataset(config)
+    train_slice is one of "full" (the whole train series), "partial" (the
+    partial-pretrain prefix) or "ft_<i>" (a fine-tuning chunk); partial_ratio and
+    n_finetune define the partial/ft chunking (passed in by the phase, not stored
+    in the dataset config). The selected slice is split into train + a validation
+    tail; the test set is independent of it.
+    """
 
-    train_dataset = SwatDataset(train_data, config.window_len, config.stride)
-    val_dataset = SwatDataset(val_data, config.window_len, config.stride)
+    train_data, test_data, test_labels = _prepare_dataset(config)
+    n = len(train_data)
+
+    # Resolve the [start, end) range of the train series for this slice.
+    if train_slice == "full":
+        start, end = 0, n
+    else:
+        chunks = splitting.equal_chunks(n, partial_ratio, n_finetune)
+
+        if train_slice not in chunks:
+            raise ValueError(
+                f"Unknown train_slice '{train_slice}' "
+                f"(available: full, {', '.join(chunks)})"
+            )
+
+        start, end = chunks[train_slice]
+
+    # Carve train + validation tail within the slice (temporal, no shuffling).
+    (t_start, t_end), (v_start, v_end) = splitting.val_tail_split(
+        start, end, config.val_ratio
+    )
+
+    train_dataset = SwatDataset(
+        train_data[t_start:t_end], config.window_len, config.stride
+    )
+
+    val_dataset = SwatDataset(
+        train_data[v_start:v_end], config.window_len, config.stride
+    )
+
     test_dataset = SwatDataset(test_data, config.window_len, config.stride, test_labels)
 
+    log.info(
+        f"Slice '{train_slice}' of {n} train timesteps — "
+        f"train: {t_end - t_start}, val: {v_end - v_start}, test: {len(test_data)}"
+    )
     log.info(
         f"Windows — train: {len(train_dataset)}, val: {len(val_dataset)}, test: {len(test_dataset)}"
     )

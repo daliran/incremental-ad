@@ -21,18 +21,31 @@ def build_for_training(
     dataset_name: str,
     model_cfg,
     dataset_cfg,
+    train_slice: str,
+    partial_ratio: float,
+    n_finetune: int,
 ) -> BuildResult:
     if dataset_name == "swat" and model_name == "mae_tx":
-        return _build_swat_mae_tx(model_cfg, dataset_cfg)
+        return _build_swat_mae_tx(
+            model_cfg, dataset_cfg, train_slice, partial_ratio, n_finetune
+        )
 
     raise ValueError(
         f"Unknown combination: model='{model_name}', dataset='{dataset_name}'"
     )
 
 
-def _build_swat_mae_tx(model_cfg: MaeTxConfig, dataset_cfg: SWaTConfig) -> BuildResult:
+def _build_swat_mae_tx(
+    model_cfg: MaeTxConfig,
+    dataset_cfg: SWaTConfig,
+    train_slice: str,
+    partial_ratio: float,
+    n_finetune: int,
+) -> BuildResult:
 
-    train_dataset, val_dataset, _ = swat.get_loaders(dataset_cfg)
+    train_dataset, val_dataset, _ = swat.get_loaders(
+        dataset_cfg, train_slice, partial_ratio, n_finetune
+    )
 
     n_patches = dataset_cfg.window_len // model_cfg.patch_len
 
@@ -74,7 +87,11 @@ def _build_eval_swat_mae_tx(
     model_cfg: MaeTxConfig, dataset_cfg: SWaTConfig, split: Split
 ) -> EvalBuildResult:
 
-    train_dataset, val_dataset, test_dataset = swat.get_loaders(dataset_cfg)
+    # Eval uses the full train series as the reference (e.g. for the threshold);
+    # partial_ratio/n_finetune are unused for the full slice.
+    train_dataset, val_dataset, test_dataset = swat.get_loaders(
+        dataset_cfg, "full", 1.0, 1
+    )
     eval_dataset = val_dataset if split == "val" else test_dataset
 
     n_patches = dataset_cfg.window_len // model_cfg.patch_len

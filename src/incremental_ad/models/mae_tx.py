@@ -118,8 +118,11 @@ class AEEncoder(nn.Module):
             norm_first=True,
         )
 
+        # norm_first=True disables the nested-tensor fast path (which only helps
+        # padded / variable-length batches, which we don't have), so turn it off
+        # explicitly to avoid the spurious warning.
         self.transformer_encoder = nn.TransformerEncoder(
-            encoder_layer, num_layers=n_layer
+            encoder_layer, num_layers=n_layer, enable_nested_tensor=False
         )
 
         # final LayerNorm required in the pre-norm convention.
@@ -145,8 +148,11 @@ class AEDecoder(nn.Module):
             norm_first=True,
         )
 
+        # norm_first=True disables the nested-tensor fast path (which only helps
+        # padded / variable-length batches, which we don't have), so turn it off
+        # explicitly to avoid the spurious warning.
         self.transformer_encoder = nn.TransformerEncoder(
-            encoder_layer, num_layers=n_layer
+            encoder_layer, num_layers=n_layer, enable_nested_tensor=False
         )
 
         # final LayerNorm required in the pre-norm convention.

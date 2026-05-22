@@ -67,6 +67,7 @@ def run_eval_phase(*, datasets: dict, models: dict, num_workers: int) -> None:
         device=device,
         run_dir=run_dir,
         run_id=run_id,
+        group_run_id=ckpt["run_id"],
         eval_dataset_name=args.dataset,
         eval_dataset_cfg=eval_dataset_cfg,
         eval_cfg=eval_cfg,

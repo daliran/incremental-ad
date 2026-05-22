@@ -5,7 +5,7 @@ from dataclasses import replace
 
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
-from incremental_ad.core.run import phase_checkpoint_dir, setup_run_dir
+from incremental_ad.core.run import setup_run_dir
 from incremental_ad.core.seed import set_seed
 from incremental_ad.ops.eval import run_eval
 from incremental_ad.ops.train import run_train
@@ -43,9 +43,8 @@ def run_pretrain_full(*, datasets: dict, models: dict, num_workers: int) -> None
     train_cfg = trainer.make_config(args)
     eval_cfg = evaluator.make_config(args)
 
-    # Define the run directory, run id and deterministic phase checkpoint dir.
+    # Define the run directory and the run id.
     run_dir, run_id = setup_run_dir(args.experiment, args.phase, args.run_tag)
-    phase_ckpt_dir = phase_checkpoint_dir(args.experiment, args.phase, args.run_tag)
 
     # Set the wandb directory under the specific run.
     os.environ["WANDB_DIR"] = str(run_dir)
@@ -64,7 +63,6 @@ def run_pretrain_full(*, datasets: dict, models: dict, num_workers: int) -> None
         device=device,
         run_dir=run_dir,
         run_id=run_id,
-        checkpoint_dir=phase_ckpt_dir,
         dataset_name=args.dataset,
         dataset_cfg=dataset_cfg,
         model_name=args.model,
@@ -75,7 +73,7 @@ def run_pretrain_full(*, datasets: dict, models: dict, num_workers: int) -> None
 
     # Evaluate the model just trained. Eval metrics assume stride=1, so the eval
     # dataset reuses the train dataset config with the stride overridden.
-    best_ckpt_path = phase_ckpt_dir / "best.pt"
+    best_ckpt_path = run_dir / "checkpoints" / "best.pt"
     ckpt = checkpoint.load_checkpoint(best_ckpt_path)
     eval_dataset_cfg = replace(dataset_cfg, stride=1)
 
@@ -88,6 +86,7 @@ def run_pretrain_full(*, datasets: dict, models: dict, num_workers: int) -> None
         device=device,
         run_dir=run_dir,
         run_id=run_id,
+        group_run_id=ckpt["run_id"],
         eval_dataset_name=args.dataset,
         eval_dataset_cfg=eval_dataset_cfg,
         eval_cfg=eval_cfg,

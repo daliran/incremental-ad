@@ -21,7 +21,6 @@ def run_train(
     device,
     run_dir: Path,
     run_id: str,
-    checkpoint_dir: Path,
     dataset_name: str,
     dataset_cfg,
     model_name: str,
@@ -32,8 +31,7 @@ def run_train(
 ) -> None:
     """Train (or, with resume_ckpt, continue training) a model.
 
-    Checkpoints are written into run_dir and best/last are promoted to the
-    deterministic checkpoint_dir.
+    Checkpoints (best/last) are written into run_dir/checkpoints/.
     """
 
     save_config_snapshot(
@@ -65,6 +63,7 @@ def run_train(
         phase=phase,
         op="train",
         run_id=run_id,
+        group_run_id=run_id,
         run_tag=run_tag,
         config=config,
     )
@@ -105,7 +104,6 @@ def run_train(
         t = trainer.Trainer(
             model=model,
             run_dir=run_dir,
-            checkpoint_dir=checkpoint_dir,
             device=device,
             train_loader=train_loader,
             val_loader=val_loader,

@@ -16,9 +16,8 @@ def setup_run_dir(
 ) -> tuple[Path, str]:
     """Create <RUNS_ROOT>/<experiment>/<phase>/<run_label>/ and return (run_dir, run_id).
 
-    A phase is one SLURM job; all of its output lives in run_dir. What that output
-    is varies per phase, so this only creates the folder — checkpoint promotion,
-    eval artifacts, etc. are the phase handler's concern.
+    A phase is one SLURM job; all of its output (checkpoints, eval artifacts, …)
+    lives in run_dir.
     """
 
     run_id = os.environ.get("SLURM_JOB_ID") or datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -28,18 +27,6 @@ def setup_run_dir(
     run_dir.mkdir(parents=True, exist_ok=True)
 
     return run_dir, run_id
-
-
-def phase_checkpoint_dir(
-    experiment: str, phase: str, run_tag: str | None = None
-) -> Path:
-    """Deterministic dir where a producer phase promotes best/last across jobs.
-
-    Tagged producers (e.g. the fine-tunings ft_1..ft_N) get their own subdir so
-    several checkpoint-producing runs can coexist within one phase.
-    """
-    ckpt_dir = _runs_root() / experiment / phase / "checkpoints"
-    return ckpt_dir / run_tag if run_tag else ckpt_dir
 
 
 def _git_commit() -> str | None:

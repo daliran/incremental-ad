@@ -21,6 +21,7 @@ def run_eval(
     device,
     run_dir: Path,
     run_id: str,
+    group_run_id: str,
     eval_dataset_name: str,
     eval_dataset_cfg,
     eval_cfg,
@@ -32,8 +33,8 @@ def run_eval(
 ) -> None:
     """Evaluate a checkpoint, writing eval artifacts into run_dir.
 
-    group is the phase that produced the checkpoint, so the eval lands in
-    the same wandb group as that model (whether bundled with training or run on
+    phase is the phase that produced the checkpoint, so the eval lands in the
+    same wandb group as that model (whether bundled with training or run on
     demand later).
     """
 
@@ -54,6 +55,7 @@ def run_eval(
         phase=phase,
         op="eval",
         run_id=run_id,
+        group_run_id=group_run_id,
         run_tag=run_tag,
         config={
             "dataset_name": eval_dataset_name,

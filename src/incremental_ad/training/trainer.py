@@ -1,5 +1,4 @@
 import logging
-import shutil
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,7 +67,6 @@ class Trainer:
         val_loader: DataLoader,
         run_id: str,
         run_dir: Path,
-        checkpoint_dir: Path,
         experiment: str,
         phase: str,
         op: str,
@@ -85,7 +83,6 @@ class Trainer:
         self.val_loader = val_loader
         self.run_id = run_id
         self.run_dir = run_dir
-        self.checkpoint_dir = checkpoint_dir
         self.experiment = experiment
         self.phase = phase
         self.op = op
@@ -310,12 +307,6 @@ class Trainer:
                 train_loss=train_loss,
             ),
         )
-
-        # Promote the rolling best/last to the deterministic phase-level dir so
-        # later jobs can locate them without knowing this job's run id.
-        if filename in ("best.pt", "last.pt"):
-            self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, self.checkpoint_dir / filename)
 
     def load_checkpoint(self, ckpt: dict) -> None:
         self.model.load_state_dict(ckpt["model_state"])

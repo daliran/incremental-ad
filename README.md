@@ -210,6 +210,7 @@ coincide for a producing job and diverge only for a standalone eval.
 | `HF_HOME`       | HuggingFace cache (dataset download) | HF default     |
 | `SLURM_JOB_ID`  | set by SLURM; becomes the `run_id`   | timestamp      |
 
-Cluster submission lives in [`scripts/sbatch_train_eval.sh`](scripts/sbatch_train_eval.sh);
-local debug configs (with `WANDB_MODE=disabled`) are in
-[`.vscode/launch.json`](.vscode/launch.json).
+Cluster submission scripts live in [`scripts/`](scripts/):
+[`sbatch_pretrain_full.sh`](scripts/sbatch_pretrain_full.sh) (train + eval) and
+[`sbatch_eval.sh`](scripts/sbatch_eval.sh) (standalone eval). Local debug configs
+(with `WANDB_MODE=disabled`) are in [`.vscode/launch.json`](.vscode/launch.json).

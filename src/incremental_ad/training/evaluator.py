@@ -1,7 +1,7 @@
 import json
 import logging
 from argparse import ArgumentParser, Namespace
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal, cast
 
@@ -44,9 +44,15 @@ def add_args(parser: ArgumentParser) -> None:
 
 
 def make_config(args: Namespace) -> EvalConfig:
-    """Extracts the arguments from the argparse namespace and creates the dataclass."""
-    fields = pluck(args, "eval")
-    return EvalConfig(**fields)
+    """Build EvalConfig from the --eval-* args.
+
+    Only EvalConfig's own fields are taken, so a phase may add sibling --eval-*
+    options (e.g. --eval-stride, used to window the eval dataset) without them
+    leaking into the dataclass.
+    """
+    valid = {f.name for f in fields(EvalConfig)}
+    plucked = {k: v for k, v in pluck(args, "eval").items() if k in valid}
+    return EvalConfig(**plucked)
 
 
 class Evaluator:

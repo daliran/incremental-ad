@@ -35,26 +35,30 @@ class TrainingConfig:
     checkpoint_interval: int  # 0 = disabled
 
 
-def add_args(parser: ArgumentParser) -> None:
-    """Adds the specific argparser arguments."""
-    parser.add_argument("--train-seed", type=int, required=True)
-    parser.add_argument("--train-epochs", type=int, required=True)
-    parser.add_argument("--train-patience", type=int, required=True)
-    parser.add_argument("--train-batch-size", type=int, required=True)
-    parser.add_argument("--train-optimizer", choices=["adamw"], required=True)
-    parser.add_argument("--train-weight-decay", type=float, required=True)
-    parser.add_argument("--train-learning-rate", type=float, required=True)
-    parser.add_argument("--train-grad-clip", type=float, required=True)
+def add_args(parser: ArgumentParser, prefix: str = "train") -> None:
+    """Adds the trainer argparser arguments under --<prefix>-... .
+
+    prefix lets a phase declare more than one trainer config (e.g. "train" for a
+    base pretrain and "finetune" for the fine-tunings).
+    """
+    parser.add_argument(f"--{prefix}-seed", type=int, required=True)
+    parser.add_argument(f"--{prefix}-epochs", type=int, required=True)
+    parser.add_argument(f"--{prefix}-patience", type=int, required=True)
+    parser.add_argument(f"--{prefix}-batch-size", type=int, required=True)
+    parser.add_argument(f"--{prefix}-optimizer", choices=["adamw"], required=True)
+    parser.add_argument(f"--{prefix}-weight-decay", type=float, required=True)
+    parser.add_argument(f"--{prefix}-learning-rate", type=float, required=True)
+    parser.add_argument(f"--{prefix}-grad-clip", type=float, required=True)
     parser.add_argument(
-        "--train-scheduler", choices=["cosine", "constant"], required=True
+        f"--{prefix}-scheduler", choices=["cosine", "constant"], required=True
     )
-    parser.add_argument("--train-warmup-ratio", type=float, required=True)
-    parser.add_argument("--train-checkpoint-interval", type=int, required=True)
+    parser.add_argument(f"--{prefix}-warmup-ratio", type=float, required=True)
+    parser.add_argument(f"--{prefix}-checkpoint-interval", type=int, required=True)
 
 
-def make_config(args: Namespace) -> TrainingConfig:
-    """Extracts the arguments from the argparse namespace and creates the dataclass."""
-    fields = pluck(args, "train")
+def make_config(args: Namespace, prefix: str = "train") -> TrainingConfig:
+    """Extracts the --<prefix>-... arguments and creates the dataclass."""
+    fields = pluck(args, prefix)
     return TrainingConfig(**fields)
 
 

@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH --job-name=incremental_ad_pretrain_full
+#SBATCH --job-name=incremental_ad_incremental
 #SBATCH --account=tesi_ddellacasaventurelli01
 #SBATCH --partition=all_usr_prod
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --mem=18G
-#SBATCH --time=06:00:00
+#SBATCH --time=03:00:00
 #SBATCH --output=/work/tesi_ddellacasaventurelli01/incremental-ad/logs/job_%j.log
 #SBATCH --error=/work/tesi_ddellacasaventurelli01/incremental-ad/logs/job_%j.log
 
@@ -39,19 +39,23 @@ cd $PROJECT_ROOT
 source .venv/bin/activate
 
 # ── Phase ─────────────────────────────────────────────────────────────────────
-# EXPERIMENT is the (manually chosen) namespace that groups all phases of a study.
-# A phase is one job: "pretrain_full" trains on the full train set and then
-# evaluates the trained model, writing both into experiments/<exp>/pretrain_full/<job>/.
+# "incremental" is the whole pipeline in one job: pretrain the base on the first
+# --partial-ratio of the train series, fine-tune it on each of the --n-finetune
+# remaining chunks, merge the fine-tunings into the base (task arithmetic, scaled
+# by --merge-scale) and evaluate the merged model. Output goes to
+# experiments/<exp>/incremental/<job>/{base,ft_0..,merged}/.
 EXPERIMENT=mae_tx_swat
-PHASE=pretrain_full
+PHASE=incremental
 
-# ── Pretrain (train, then eval) ─────────────────────────────────────────────────
 python -m incremental_ad.main \
     --phase $PHASE \
     --experiment $EXPERIMENT \
     --device auto \
     --dataset swat \
     --model mae_tx \
+    --partial-ratio 0.5 \
+    --n-finetune 3 \
+    --merge-scale 1.0 \
     --swat-window-len 100 \
     --swat-stride 50 \
     --swat-normalization standard \
@@ -77,6 +81,17 @@ python -m incremental_ad.main \
     --train-scheduler cosine \
     --train-warmup-ratio 0.1 \
     --train-checkpoint-interval 0 \
+    --finetune-seed 42 \
+    --finetune-epochs 50 \
+    --finetune-patience 10 \
+    --finetune-batch-size 64 \
+    --finetune-optimizer adamw \
+    --finetune-weight-decay 1e-2 \
+    --finetune-learning-rate 1e-5 \
+    --finetune-grad-clip 0.5 \
+    --finetune-scheduler cosine \
+    --finetune-warmup-ratio 0.1 \
+    --finetune-checkpoint-interval 0 \
     --eval-stride 1 \
     --eval-seed 0 \
     --eval-split test \

@@ -14,7 +14,7 @@ from incremental_ad.training import evaluator, trainer
 log = logging.getLogger(__name__)
 
 
-def run_pretrain_full(*, datasets: dict, models: dict, num_workers: int) -> None:
+def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
 
     parser = argparse.ArgumentParser()
 
@@ -72,11 +72,12 @@ def run_pretrain_full(*, datasets: dict, models: dict, num_workers: int) -> None
         model_name=args.model,
         model_cfg=model_cfg,
         train_cfg=train_cfg,
-        # The full slice uses the whole train series; partial_ratio/n_finetune
-        # are unused but passed explicitly (the slicing args have no defaults).
+        # The full slice uses the whole train series and has no fine-tunings:
+        # partial_ratio=1.0 (everything), n_finetune=0. They're ignored by the
+        # "full" slice but passed explicitly (the slicing args have no defaults).
         train_slice="full",
         partial_ratio=1.0,
-        n_finetune=1,
+        n_finetune=0,
         num_workers=num_workers,
     )
 

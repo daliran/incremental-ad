@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=incremental_ad_eval
+#SBATCH --job-name=incremental_ad_pretrain
 #SBATCH --account=tesi_ddellacasaventurelli01
 #SBATCH --partition=all_usr_prod
 #SBATCH --nodes=1
@@ -38,28 +38,46 @@ nvidia-smi
 cd $PROJECT_ROOT
 source .venv/bin/activate
 
-# ── Eval (standalone, on-demand) ────────────────────────────────────────────────
-# Evaluate an existing checkpoint, e.g. to try a different threshold. The
-# experiment/phase are read back from the checkpoint, so this run lands in the
-# same wandb group as the model it evaluates; its output folder is
-# experiments/<experiment>/eval/<run_tag>_<job>/.
-#
-# CHECKPOINT: full path to the checkpoint to evaluate. Deterministic layout is
-#   $RUNS_ROOT/<experiment>/<phase>/<run_label>/checkpoints/best.pt
-# RUN_TAG: a short label for this eval (also used in the run folder and name).
-CHECKPOINT=$RUNS_ROOT/mae_tx_swat/pretrain/<run_label>/checkpoints/best.pt
-RUN_TAG=oracle
+# ── Phase ─────────────────────────────────────────────────────────────────────
+# EXPERIMENT is the (manually chosen) namespace that groups all phases of a study.
+# A phase is one job: "pretrain" trains on the full train set and then
+# evaluates the trained model, writing both into experiments/<exp>/pretrain/<job>/.
+EXPERIMENT=mae_tx_swat
+PHASE=pretrain
 
+# ── Pretrain (train, then eval) ─────────────────────────────────────────────────
 python -m incremental_ad.main \
-    --phase eval \
-    --run-tag $RUN_TAG \
-    --checkpoint $CHECKPOINT \
+    --phase $PHASE \
+    --experiment $EXPERIMENT \
     --device auto \
     --dataset swat \
+    --model mae_tx \
     --swat-window-len 100 \
-    --swat-stride 1 \
+    --swat-stride 50 \
     --swat-normalization standard \
     --swat-val-ratio 0.15 \
+    --mae-tx-patch-len 10 \
+    --mae-tx-encoder-embed-dim 256 \
+    --mae-tx-encoder-layers 2 \
+    --mae-tx-encoder-heads 2 \
+    --mae-tx-decoder-embed-dim 128 \
+    --mae-tx-decoder-layers 1 \
+    --mae-tx-decoder-heads 2 \
+    --mae-tx-patch-norm false \
+    --mae-tx-mask-ratio 0.90 \
+    --mae-tx-n-eval-passes 10 \
+    --train-seed 42 \
+    --train-epochs 300 \
+    --train-patience 30 \
+    --train-batch-size 64 \
+    --train-optimizer adamw \
+    --train-weight-decay 1e-2 \
+    --train-learning-rate 1e-4 \
+    --train-grad-clip 0.5 \
+    --train-scheduler cosine \
+    --train-warmup-ratio 0.1 \
+    --train-checkpoint-interval 0 \
+    --eval-stride 1 \
     --eval-seed 0 \
     --eval-split test \
     --eval-batch-size 512 \

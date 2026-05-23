@@ -30,13 +30,15 @@ def run_train(
     train_slice: str,
     partial_ratio: float,
     n_finetune: int,
-    resume_ckpt: dict | None = None,
+    init_model_state: dict | None = None,
 ) -> None:
-    """Train (or, with resume_ckpt, continue training) a model.
+    """Train a model, optionally initialized from given weights (for fine-tuning).
 
     train_slice selects which slice of the dataset's train series to train on
     ("full", "partial" or "ft_<i>"); partial_ratio and n_finetune define the
-    partial/ft chunking. Checkpoints (best/last) are written into run_dir/checkpoints/.
+    partial/ft chunking. If init_model_state is given, those weights are loaded
+    into the freshly built model before training (a fresh optimizer/seed is used —
+    this is a fine-tune, not a resume). Checkpoints go into run_dir/checkpoints/.
     """
 
     save_config_snapshot(
@@ -59,8 +61,9 @@ def run_train(
         "model": asdict(model_cfg),
         "train": asdict(train_cfg),
     }
-    if resume_ckpt is not None:
-        config["resumed_from"] = resume_ckpt["run_id"]
+
+    if init_model_state is not None:
+        config["finetuned"] = True
 
     # Init wandb.
     init_wandb(
@@ -79,8 +82,9 @@ def run_train(
         log.info(f"Dataset: {dataset_name} -> {dataset_cfg}")
         log.info(f"Model:   {model_name} -> {model_cfg}")
         log.info(f"Train:   {train_cfg}")
-        if resume_ckpt is not None:
-            log.info(f"Resuming from epoch {resume_ckpt['epoch']}")
+        
+        if init_model_state is not None:
+            log.info("Initializing model weights from base checkpoint (fine-tune)")
 
         # build the model and the datasets based on the selected model-dataset pair
         result = factory.build_for_training(
@@ -93,7 +97,13 @@ def run_train(
             n_finetune=n_finetune,
         )
 
-        model = result.model.to(device)
+        model = result.model
+
+        # Fine-tuning: load the base weights into the fresh model (fresh optimizer).
+        if init_model_state is not None:
+            model.load_state_dict(init_model_state)
+
+        model = model.to(device)
 
         train_loader = DataLoader(
             result.train_dataset,
@@ -125,9 +135,6 @@ def run_train(
             model_name=model_name,
             model_cfg=model_cfg,
         )
-
-        if resume_ckpt is not None:
-            t.load_checkpoint(resume_ckpt)
 
         t.train()
 

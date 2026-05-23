@@ -6,10 +6,11 @@ where a base model is adapted to new data regimes and the adaptations are merged
 
 The codebase is organized around three ideas:
 
-- **operations** — the atomic units of work: `train` and `eval`.
+- **operations** — the atomic units of work: `train`, `eval` and `merge`.
 - **phases** — what you actually launch (one phase = one SLURM job); a phase
-  orchestrates one or more operations. Implemented today: `pretrain_full`
-  (train → eval, bundled) and `eval` (standalone, on-demand).
+  orchestrates one or more operations. Implemented today: `pretrain`
+  (train → eval), `incremental` (pretrain → fine-tune → merge → eval), and
+  `eval` (standalone, on-demand).
 - **registries** — the available models and datasets, injected from `main.py`.
 
 ---
@@ -63,7 +64,7 @@ Secure Water Treatment testbed (51 features), loaded from the HuggingFace
 * **Windowing** — sliding windows of `window-len`, advanced by `stride`.
 * **Validation** — the last `val-ratio` fraction of the train series is held out
   (temporal split, no shuffling).
-* **Eval** — uses `stride = 1`; for `pretrain_full` the bundled eval reuses the
+* **Eval** — uses `stride = 1`; for `pretrain` the bundled eval reuses the
   train dataset config with the stride overridden by `--eval-stride` (default 1).
 
 Config (`--swat-*`): `window-len`, `stride`, `normalization`, `val-ratio`.
@@ -77,7 +78,7 @@ Every run is identified by four coordinates:
 | coordinate     | source                               | example         |
 | -------------- | ------------------------------------ | --------------- |
 | `experiment`   | `--experiment` (manual namespace)    | `mae_tx_swat`   |
-| `phase`        | `--phase` (the launched stage)       | `pretrain_full` |
+| `phase`        | `--phase` (the launched stage)       | `pretrain` |
 | `run_id`       | `SLURM_JOB_ID`, or a local timestamp | `43069`         |
 | `run_tag`      | `--run-tag` (optional label)         | `p95`           |
 
@@ -89,14 +90,14 @@ Every run is identified by four coordinates:
 
 `main.py` dispatches on `--phase`:
 
-### `pretrain_full` — train, then eval (one job)
+### `pretrain` — train, then eval (one job)
 Trains the model on the full train set and immediately evaluates the trained
 checkpoint, all in one job/folder. The bundled eval reuses the training dataset
 config with the stride overridden by `--eval-stride` (default 1).
 
 ```bash
 python -m incremental_ad.main \
-    --phase pretrain_full --experiment mae_tx_swat \
+    --phase pretrain --experiment mae_tx_swat \
     --dataset swat --model mae_tx \
     --swat-window-len 100 --swat-stride 50 --swat-normalization standard --swat-val-ratio 0.15 \
     --mae-tx-patch-len 10 --mae-tx-encoder-embed-dim 256 --mae-tx-encoder-layers 2 \
@@ -122,6 +123,17 @@ python -m incremental_ad.main \
     --eval-threshold-strategy oracle --eval-threshold-percentile 95
 ```
 
+### `incremental` — the whole pipeline in one job
+On a static dataset: pretrain a base on the first `--partial-ratio` of the train
+series, fine-tune it on each of the `--n-finetune` remaining equal chunks, merge
+the fine-tunings into the base via task arithmetic
+(`θ_pre + --merge-scale·Σ(θ_FTᵢ − θ_pre)`), then evaluate the merged model — all in
+one job. Outputs land in `base/`, `ft_0/`…`ft_{N-1}/`, `merged/` under one run dir
+and share one wandb group. The base pretrain uses `--train-*`; the fine-tunings use
+a separate `--finetune-*` config. See
+[`scripts/sbatch_mae_tx_incremental.sh`](scripts/sbatch_mae_tx_incremental.sh) for
+the full argument list.
+
 ### Operations
 
 - **train** (`trainer.py`) — AdamW, `cosine`/`constant` scheduler with linear
@@ -133,12 +145,18 @@ python -m incremental_ad.main \
       **point-adjusted** and **event** level, saved to `test_results.json` (plus
       ROC/PR curves to wandb). Thresholding via `oracle` or `train_percentile`
       (`--eval-threshold-percentile`).
+- **merge** (`ops/merge.py`) — task arithmetic over the base + fine-tuned
+  checkpoints: clones the base checkpoint and swaps in
+  `θ_pre + scale·Σ(θ_FTᵢ − θ_pre)`.
 
-### Roadmap (not yet implemented)
-`pretrain_partial` (train on a restricted slice + prepare the data split),
-`finetune` (continue from a base checkpoint on a data chunk — loads weights only,
-fresh optimizer/seed, no RNG restore), and `merge` (combine fine-tunings into a
-unified model via task arithmetic, then eval).
+(A fine-tuning is just **train** with `--train-slice ft_<i>` and the base weights
+loaded as the starting point; the `incremental` phase orchestrates the lot.)
+
+### Roadmap
+The `incremental` phase targets a **static** dataset. A production /
+continual-learning phase (real timestamps, day-by-day fine-tuning, selectively
+merging accumulated adaptations) will be a separate phase with its own dataset and
+logic — the operations (`train`/`eval`/`merge`) and the slicing helpers are reused.
 
 ---
 
@@ -160,8 +178,10 @@ Concretely:
 
 ```
 experiments/mae_tx_swat/
-    pretrain_full/100/               # the pretrain job (train + bundled eval)
-    eval/p95_200/                    # a standalone re-eval (its own job)
+    pretrain/100/                          # the pretrain job (train + bundled eval)
+    eval/p95_200/                          # a standalone re-eval (its own job)
+    incremental/300/                       # the incremental pipeline job
+        base/  ft_0/ ft_1/ ft_2/ merged/   # base, fine-tunings, merged model + eval
 ```
 
 Cross-phase references are explicit checkpoint paths (an eval or a future
@@ -185,15 +205,19 @@ fine-tuning is given the `--checkpoint` to read).
 Example: a pretrain job `100` and a later threshold re-eval `200` (`--run-tag p95`):
 
 ```
-mae_tx_swat/pretrain_full/100        <- group (one model)
+mae_tx_swat/pretrain/100        <- group (one model)
   ├─ train-100        (job_type train)
   ├─ eval-100         (job_type eval, bundled in the same job)
   └─ eval_p95-200     (job_type eval, standalone job 200, re-joined the group)
 ```
 
+An `incremental` job `300` puts all its sub-runs in one group
+`mae_tx_swat/incremental/300`: `train_base-300`, `train_ft_0-300` …
+`train_ft_{N-1}-300`, and `eval_merged-300`.
+
 **The one asymmetry (by design):** the standalone eval's *folder* lives under its
 own job (`eval/p95_200`, provenance), while its *wandb group* points at the model
-it evaluated (`pretrain_full/100`, analysis). The filesystem is keyed by *which
+it evaluated (`pretrain/100`, analysis). The filesystem is keyed by *which
 job wrote the bytes*; wandb is grouped by *which model is being studied*. They
 coincide for a producing job and diverge only for a standalone eval.
 
@@ -211,6 +235,9 @@ coincide for a producing job and diverge only for a standalone eval.
 | `SLURM_JOB_ID`  | set by SLURM; becomes the `run_id`   | timestamp      |
 
 Cluster submission scripts live in [`scripts/`](scripts/):
-[`sbatch_mae_tx_pretrain_full.sh`](scripts/sbatch_mae_tx_pretrain_full.sh) (train + eval) and
-[`sbatch_mae_tx_eval.sh`](scripts/sbatch_mae_tx_eval.sh) (standalone eval). Local debug configs
-(with `WANDB_MODE=disabled`) are in [`.vscode/launch.json`](.vscode/launch.json).
+[`sbatch_mae_tx_pretrain.sh`](scripts/sbatch_mae_tx_pretrain.sh) (pretrain + eval),
+[`sbatch_mae_tx_incremental.sh`](scripts/sbatch_mae_tx_incremental.sh) (pretrain +
+fine-tune + merge + eval), and
+[`sbatch_mae_tx_eval.sh`](scripts/sbatch_mae_tx_eval.sh) (standalone eval). Local
+debug configs (with `WANDB_MODE=disabled`) are in
+[`.vscode/launch.json`](.vscode/launch.json).

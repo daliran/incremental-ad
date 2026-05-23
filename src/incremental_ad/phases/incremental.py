@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-from dataclasses import replace
 
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
@@ -39,7 +38,6 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     parser.add_argument("--partial-ratio", type=float, required=True)
     parser.add_argument("--n-finetune", type=int, required=True)
     parser.add_argument("--merge-scale", type=float, default=1.0)
-    parser.add_argument("--eval-stride", type=int, default=1)
 
     known, _ = parser.parse_known_args()
 
@@ -135,10 +133,10 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         out_path=merged_ckpt_path,
     )
 
-    # 4) Evaluate the merged model. Eval metrics assume stride=1 (see --eval-stride).
+    # 4) Evaluate the merged model. The eval windows at the dataset's eval_stride
+    # (applied inside build_for_eval).
     model_name = merged_ckpt["configs"]["model_name"]
     merged_model_cfg = models[model_name][2](**merged_ckpt["configs"]["model"])
-    eval_dataset_cfg = replace(dataset_cfg, stride=args.eval_stride)
 
     set_seed(eval_cfg.seed)
 
@@ -151,7 +149,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         run_id=run_id,
         group_run_id=run_id,
         eval_dataset_name=args.dataset,
-        eval_dataset_cfg=eval_dataset_cfg,
+        eval_dataset_cfg=dataset_cfg,
         eval_cfg=eval_cfg,
         ckpt=merged_ckpt,
         checkpoint_path=merged_ckpt_path,

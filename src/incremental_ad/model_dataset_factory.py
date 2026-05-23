@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from incremental_ad.datasets import swat
 from incremental_ad.datasets.base_dataset import BaseDataset, Split
@@ -87,10 +87,13 @@ def _build_eval_swat_mae_tx(
     model_cfg: MaeTxConfig, dataset_cfg: SWaTConfig, split: Split
 ) -> EvalBuildResult:
 
-    # Eval uses the full train series as the reference (e.g. for the threshold);
+    # Evaluation windows at eval_stride (a fixed dataset-config property), and uses
+    # the full train series as the reference (e.g. for the threshold);
     # partial_ratio/n_finetune are unused for the full slice.
+    eval_cfg = replace(dataset_cfg, stride=dataset_cfg.eval_stride)
+    
     train_dataset, val_dataset, test_dataset = swat.get_loaders(
-        dataset_cfg, "full", 1.0, 1
+        eval_cfg, "full", 1.0, 0
     )
     eval_dataset = val_dataset if split == "val" else test_dataset
 

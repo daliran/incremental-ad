@@ -54,6 +54,7 @@ python -m incremental_ad.main \
     --model mae_tx \
     --swat-window-len 100 \
     --swat-stride 50 \
+    --swat-eval-stride 1 \
     --swat-normalization standard \
     --swat-val-ratio 0.15 \
     --mae-tx-patch-len 10 \
@@ -77,7 +78,6 @@ python -m incremental_ad.main \
     --train-scheduler cosine \
     --train-warmup-ratio 0.1 \
     --train-checkpoint-interval 0 \
-    --eval-stride 1 \
     --eval-seed 0 \
     --eval-split test \
     --eval-batch-size 512 \

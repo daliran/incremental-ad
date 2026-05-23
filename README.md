@@ -64,10 +64,12 @@ Secure Water Treatment testbed (51 features), loaded from the HuggingFace
 * **Windowing** — sliding windows of `window-len`, advanced by `stride`.
 * **Validation** — the last `val-ratio` fraction of the train series is held out
   (temporal split, no shuffling).
-* **Eval** — uses `stride = 1`; for `pretrain` the bundled eval reuses the
-  train dataset config with the stride overridden by `--eval-stride` (default 1).
+* **Eval** — windowing uses a separate `eval-stride` (set it to `1`, which the
+  metrics rely on). Training windows at `stride`; `build_for_eval` windows at
+  `eval-stride`.
 
-Config (`--swat-*`): `window-len`, `stride`, `normalization`, `val-ratio`.
+Config (`--swat-*`): `window-len`, `stride`, `normalization`, `val-ratio`,
+`eval-stride`.
 
 ---
 
@@ -92,21 +94,21 @@ Every run is identified by four coordinates:
 
 ### `pretrain` — train, then eval (one job)
 Trains the model on the full train set and immediately evaluates the trained
-checkpoint, all in one job/folder. The bundled eval reuses the training dataset
-config with the stride overridden by `--eval-stride` (default 1).
+checkpoint, all in one job/folder. The bundled eval windows at the dataset's
+`--swat-eval-stride` (training windows at `--swat-stride`).
 
 ```bash
 python -m incremental_ad.main \
     --phase pretrain --experiment mae_tx_swat \
     --dataset swat --model mae_tx \
-    --swat-window-len 100 --swat-stride 50 --swat-normalization standard --swat-val-ratio 0.15 \
+    --swat-window-len 100 --swat-stride 50 --swat-normalization standard --swat-val-ratio 0.15 --swat-eval-stride 1 \
     --mae-tx-patch-len 10 --mae-tx-encoder-embed-dim 256 --mae-tx-encoder-layers 2 \
     --mae-tx-encoder-heads 2 --mae-tx-decoder-embed-dim 128 --mae-tx-decoder-layers 1 \
     --mae-tx-decoder-heads 2 --mae-tx-patch-norm false --mae-tx-mask-ratio 0.90 --mae-tx-n-eval-passes 10 \
     --train-seed 42 --train-epochs 300 --train-patience 30 --train-batch-size 64 \
     --train-optimizer adamw --train-weight-decay 1e-2 --train-learning-rate 1e-4 \
     --train-grad-clip 0.5 --train-scheduler cosine --train-warmup-ratio 0.1 --train-checkpoint-interval 0 \
-    --eval-stride 1 --eval-seed 0 --eval-split test --eval-batch-size 512 \
+    --eval-seed 0 --eval-split test --eval-batch-size 512 \
     --eval-threshold-strategy oracle --eval-threshold-percentile 99
 ```
 
@@ -118,7 +120,7 @@ checkpoint is always passed explicitly; experiment/phase are read back from it.
 python -m incremental_ad.main \
     --phase eval --run-tag p95 --checkpoint <path>/checkpoints/best.pt \
     --dataset swat \
-    --swat-window-len 100 --swat-stride 1 --swat-normalization standard --swat-val-ratio 0.15 \
+    --swat-window-len 100 --swat-stride 1 --swat-normalization standard --swat-val-ratio 0.15 --swat-eval-stride 1 \
     --eval-seed 0 --eval-split test --eval-batch-size 512 \
     --eval-threshold-strategy oracle --eval-threshold-percentile 95
 ```

@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-from dataclasses import replace
 
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
@@ -24,10 +23,6 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
     parser.add_argument("--device", default="auto")
     parser.add_argument("--dataset", choices=datasets, required=True)
     parser.add_argument("--model", choices=models, required=True)
-
-    # Stride for the bundled eval: it reuses the train dataset config with this
-    # stride. Defaults to 1 (the metrics assume it); raise it for a quick/coarse eval.
-    parser.add_argument("--eval-stride", type=int, default=1)
 
     known, _ = parser.parse_known_args()
 
@@ -81,11 +76,10 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         num_workers=num_workers,
     )
 
-    # Evaluate the model just trained. The eval dataset reuses the train dataset
-    # config with the stride overridden (see --eval-stride; defaults to 1).
+    # Evaluate the model just trained. The eval windows at the dataset's
+    # eval_stride (applied inside build_for_eval).
     best_ckpt_path = run_dir / "checkpoints" / "best.pt"
     ckpt = checkpoint.load_checkpoint(best_ckpt_path)
-    eval_dataset_cfg = replace(dataset_cfg, stride=args.eval_stride)
 
     set_seed(eval_cfg.seed)
 
@@ -98,7 +92,7 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         run_id=run_id,
         group_run_id=ckpt["run_id"],
         eval_dataset_name=args.dataset,
-        eval_dataset_cfg=eval_dataset_cfg,
+        eval_dataset_cfg=dataset_cfg,
         eval_cfg=eval_cfg,
         ckpt=ckpt,
         checkpoint_path=best_ckpt_path,

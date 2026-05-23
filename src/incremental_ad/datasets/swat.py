@@ -25,15 +25,17 @@ Normalization = Literal["standard", "none"]
 @dataclass
 class SWaTConfig:
     window_len: int
-    stride: int
+    stride: int  # windowing stride used for training
+    eval_stride: int  # windowing stride used at evaluation (build_for_eval)
     normalization: Normalization
-    val_ratio: float
+    val_ratio: float 
 
 
 def add_args(parser: ArgumentParser) -> None:
     """Adds the specific argparser arguments."""
     parser.add_argument("--swat-window-len", type=int, required=True)
     parser.add_argument("--swat-stride", type=int, required=True)
+    parser.add_argument("--swat-eval-stride", type=int, required=True)
     parser.add_argument(
         "--swat-normalization", choices=["standard", "none"], required=True
     )

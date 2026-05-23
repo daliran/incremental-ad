@@ -58,6 +58,7 @@ python -m incremental_ad.main \
     --dataset swat \
     --swat-window-len 100 \
     --swat-stride 1 \
+    --swat-eval-stride 1 \
     --swat-normalization standard \
     --swat-val-ratio 0.15 \
     --eval-seed 0 \

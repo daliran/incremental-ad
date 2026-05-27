@@ -55,7 +55,8 @@ python -m incremental_ad.main \
     --model mae_tx \
     --partial-ratio 0.5 \
     --n-finetune 3 \
-    --merge-scale 1.0 \
+    --merge-scale 0.5 \
+    --base-data-ratio 1.0 \
     --swat-window-len 100 \
     --swat-stride 50 \
     --swat-eval-stride 1 \

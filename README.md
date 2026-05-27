@@ -143,9 +143,17 @@ the fine-tunings into the base via task arithmetic
 (`θ_pre + --merge-scale·Σ(θ_FTᵢ − θ_pre)`), then evaluate the merged model — all in
 one job. Outputs land in `base/`, `ft_0/`…`ft_{N-1}/`, `merged/` under one run dir
 and share one wandb group. The base pretrain uses `--train-*`; the fine-tunings use
-a separate `--finetune-*` config. See
-[`scripts/sbatch_mae_tx_incremental.sh`](scripts/sbatch_mae_tx_incremental.sh) for
-the full argument list.
+a separate `--finetune-*` config.
+
+`--base-data-ratio` controls what fraction of the base's allocated slice
+(`--partial-ratio`) the base model actually trains on. The FT chunks are always
+anchored at `partial_ratio × n` regardless of this value — only the base sees less
+data. `--base-data-ratio 1.0` is the baseline (full allocation); e.g. `0.4` with
+`--partial-ratio 0.5` on 100 k timesteps gives the base 20 k timesteps while the
+FTs still start at 50 k.
+
+See [`scripts/sbatch_mae_tx_incremental.sh`](scripts/sbatch_mae_tx_incremental.sh)
+for the full argument list.
 
 ### Operations
 

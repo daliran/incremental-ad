@@ -84,6 +84,7 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         train_slice="full",
         partial_ratio=1.0,
         n_finetune=0,
+        base_data_ratio=1.0,
         num_workers=num_workers,
     )
 
@@ -109,6 +110,7 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         train_slice="full",
         partial_ratio=1.0,
         n_finetune=0,
+        base_data_ratio=1.0,
         val_eval_cfg=val_eval_cfg,
         num_workers=num_workers,
     )

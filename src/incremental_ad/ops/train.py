@@ -58,6 +58,7 @@ def run_train(
     partial_ratio: float,
     n_finetune: int,
     num_workers: int,
+    base_data_ratio: float,
     init_model_state: dict | None = None,
     phase_config: dict | None = None,
 ) -> None:
@@ -127,6 +128,7 @@ def run_train(
             train_slice=train_slice,
             partial_ratio=partial_ratio,
             n_finetune=n_finetune,
+            base_data_ratio=base_data_ratio,
         )
 
         model = result.model

@@ -24,10 +24,11 @@ def build_for_training(
     train_slice: str,
     partial_ratio: float,
     n_finetune: int,
+    base_data_ratio: float,
 ) -> BuildResult:
     if dataset_name == "swat" and model_name == "mae_tx":
         return _build_swat_mae_tx(
-            model_cfg, dataset_cfg, train_slice, partial_ratio, n_finetune
+            model_cfg, dataset_cfg, train_slice, partial_ratio, n_finetune, base_data_ratio
         )
 
     raise ValueError(
@@ -41,10 +42,11 @@ def _build_swat_mae_tx(
     train_slice: str,
     partial_ratio: float,
     n_finetune: int,
+    base_data_ratio: float,
 ) -> BuildResult:
 
     train_dataset, val_dataset, _ = swat.get_loaders(
-        dataset_cfg, train_slice, partial_ratio, n_finetune
+        dataset_cfg, train_slice, partial_ratio, n_finetune, base_data_ratio
     )
 
     n_patches = dataset_cfg.window_len // model_cfg.patch_len
@@ -92,7 +94,7 @@ def _build_eval_swat_mae_tx(
     # partial_ratio/n_finetune are unused for the full slice.
     eval_cfg = replace(dataset_cfg, stride=dataset_cfg.eval_stride)
 
-    train_dataset, val_dataset, test_dataset = swat.get_loaders(eval_cfg, "full", 1.0, 0)
+    train_dataset, val_dataset, test_dataset = swat.get_loaders(eval_cfg, "full", 1.0, 0, 1.0)
     eval_dataset = val_dataset if split == "val" else test_dataset
 
     n_patches = dataset_cfg.window_len // model_cfg.patch_len

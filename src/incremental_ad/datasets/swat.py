@@ -138,6 +138,7 @@ def get_loaders(
     train_slice: str,
     partial_ratio: float,
     n_finetune: int,
+    base_data_ratio: float,
 ) -> tuple[SwatDataset, SwatDataset, SwatDataset]:
     """Build (train, val, test) datasets for the requested slice of the train series.
 
@@ -155,7 +156,7 @@ def get_loaders(
     if train_slice == "full":
         start, end = 0, n
     else:
-        chunks = splitting.equal_chunks(n, partial_ratio, n_finetune)
+        chunks = splitting.equal_chunks(n, partial_ratio, n_finetune, base_ratio=base_data_ratio)
 
         if train_slice not in chunks:
             raise ValueError(

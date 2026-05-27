@@ -38,7 +38,8 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     # Split + merge params (phase-level).
     parser.add_argument("--partial-ratio", type=float, required=True)
     parser.add_argument("--n-finetune", type=int, required=True)
-    parser.add_argument("--merge-scale", type=float, default=1.0)
+    parser.add_argument("--merge-scale", type=float, required=True)
+    parser.add_argument("--base-data-ratio", type=float, required=True)
 
     known, _ = parser.parse_known_args()
 
@@ -65,6 +66,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         "partial_ratio": args.partial_ratio,
         "n_finetune": args.n_finetune,
         "merge_scale": args.merge_scale,
+        "base_data_ratio": args.base_data_ratio,
     }
 
     run_dir, run_id = setup_run_dir(args.experiment, args.phase, args.run_tag)
@@ -99,9 +101,10 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         model_name=args.model,
         model_cfg=model_cfg,
         train_cfg=pretrain_cfg,
-        train_slice="partial",
+        train_slice="base",
         partial_ratio=args.partial_ratio,
         n_finetune=args.n_finetune,
+        base_data_ratio=args.base_data_ratio,
         num_workers=num_workers,
         phase_config=phase_cfg_dict,
     )
@@ -125,9 +128,10 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         model_name=args.model,
         model_cfg=model_cfg,
         ckpt=base_ckpt,
-        train_slice="partial",
+        train_slice="base",
         partial_ratio=args.partial_ratio,
         n_finetune=args.n_finetune,
+        base_data_ratio=args.base_data_ratio,
         val_eval_cfg=val_eval_cfg,
         num_workers=num_workers,
         phase_config=phase_cfg_dict,
@@ -158,6 +162,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
             train_slice=f"ft_{i}",
             partial_ratio=args.partial_ratio,
             n_finetune=args.n_finetune,
+            base_data_ratio=1.0,
             num_workers=num_workers,
             init_model_state=base_state,
             phase_config=phase_cfg_dict,
@@ -184,6 +189,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
             train_slice=f"ft_{i}",
             partial_ratio=args.partial_ratio,
             n_finetune=args.n_finetune,
+            base_data_ratio=1.0,
             val_eval_cfg=val_eval_cfg,
             num_workers=num_workers,
             phase_config=phase_cfg_dict,
@@ -224,6 +230,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         train_slice="full",
         partial_ratio=args.partial_ratio,
         n_finetune=args.n_finetune,
+        base_data_ratio=1.0,
         val_eval_cfg=val_eval_cfg,
         num_workers=num_workers,
         phase_config=phase_cfg_dict,

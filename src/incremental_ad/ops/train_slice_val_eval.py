@@ -63,6 +63,7 @@ def run_train_slice_val_eval(
     n_finetune: int,
     val_eval_cfg,
     num_workers: int,
+    base_data_ratio: float,
     phase_config: dict | None = None,
 ) -> None:
     """Evaluate reconstruction quality on the val tail of the training slice.
@@ -125,6 +126,7 @@ def run_train_slice_val_eval(
             train_slice=train_slice,
             partial_ratio=partial_ratio,
             n_finetune=n_finetune,
+            base_data_ratio=base_data_ratio,
         )
 
         model = result.model.to(device)

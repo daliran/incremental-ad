@@ -6,9 +6,10 @@ from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
 from incremental_ad.core.run import setup_run_dir
 from incremental_ad.core.seed import set_seed
-from incremental_ad.ops.eval import run_eval
+from incremental_ad.ops.test_eval import run_test_eval
 from incremental_ad.ops.train import run_train
-from incremental_ad.training import evaluator, trainer
+from incremental_ad.ops.val_eval import run_val_eval
+from incremental_ad.training import test_evaluator, trainer, val_evaluator
 
 log = logging.getLogger(__name__)
 
@@ -30,9 +31,10 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
     datasets[known.dataset][0](parser)
     models[known.model][0](parser)
 
-    # Add trainer and evaluator specific args (the bundled eval needs its own).
+    # Add trainer, val evaluator and test evaluator specific args (the bundled evals need their own).
     trainer.add_args(parser)
-    evaluator.add_args(parser)
+    val_evaluator.add_args(parser)
+    test_evaluator.add_args(parser)
 
     args = parser.parse_args()
 
@@ -40,7 +42,8 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
     dataset_cfg = datasets[args.dataset][1](args)
     model_cfg = models[args.model][1](args)
     train_cfg = trainer.make_config(args)
-    eval_cfg = evaluator.make_config(args)
+    val_eval_cfg = val_evaluator.make_config(args)
+    test_eval_cfg = test_evaluator.make_config(args)
 
     # Define the run directory and the run id.
     run_dir, run_id = setup_run_dir(args.experiment, args.phase, args.run_tag)
@@ -76,14 +79,37 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         num_workers=num_workers,
     )
 
-    # Evaluate the model just trained. The eval windows at the dataset's
-    # eval_stride (applied inside build_for_eval).
     best_ckpt_path = run_dir / "checkpoints" / "best.pt"
     ckpt = checkpoint.load_checkpoint(best_ckpt_path)
 
-    set_seed(eval_cfg.seed)
+    # Evaluate reconstruction quality on the val tail of the full training slice.
+    set_seed(val_eval_cfg.seed)
 
-    run_eval(
+    run_val_eval(
+        experiment=args.experiment,
+        phase=args.phase,
+        run_tag=args.run_tag,
+        device=device,
+        run_dir=run_dir,
+        run_id=run_id,
+        group_run_id=ckpt["run_id"],
+        dataset_name=args.dataset,
+        dataset_cfg=dataset_cfg,
+        val_eval_cfg=val_eval_cfg,
+        ckpt=ckpt,
+        model_name=args.model,
+        model_cfg=model_cfg,
+        train_slice="full",
+        partial_ratio=1.0,
+        n_finetune=0,
+        num_workers=num_workers,
+    )
+
+    # Evaluate the model just trained. The eval windows at the dataset's
+    # eval_stride (applied inside build_for_eval).
+    set_seed(test_eval_cfg.seed)
+
+    run_test_eval(
         experiment=args.experiment,
         phase=args.phase,
         run_tag=args.run_tag,
@@ -93,7 +119,7 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         group_run_id=ckpt["run_id"],
         eval_dataset_name=args.dataset,
         eval_dataset_cfg=dataset_cfg,
-        eval_cfg=eval_cfg,
+        eval_cfg=test_eval_cfg,
         ckpt=ckpt,
         checkpoint_path=best_ckpt_path,
         model_name=args.model,

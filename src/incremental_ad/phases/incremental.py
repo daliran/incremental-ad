@@ -6,10 +6,11 @@ from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
 from incremental_ad.core.run import setup_run_dir
 from incremental_ad.core.seed import set_seed
-from incremental_ad.ops.eval import run_eval
+from incremental_ad.ops.test_eval import run_test_eval
 from incremental_ad.ops.merge import run_merge
 from incremental_ad.ops.train import run_train
-from incremental_ad.training import evaluator, trainer
+from incremental_ad.ops.val_eval import run_val_eval
+from incremental_ad.training import test_evaluator, trainer, val_evaluator
 
 log = logging.getLogger(__name__)
 
@@ -45,10 +46,11 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     datasets[known.dataset][0](parser)
     models[known.model][0](parser)
 
-    # Two trainer configs (base pretrain + fine-tuning) and the eval config.
+    # Two trainer configs (base pretrain + fine-tuning), val evaluator and test evaluator.
     trainer.add_args(parser, "train")
     trainer.add_args(parser, "finetune")
-    evaluator.add_args(parser)
+    val_evaluator.add_args(parser)
+    test_evaluator.add_args(parser)
 
     args = parser.parse_args()
 
@@ -56,7 +58,8 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     model_cfg = models[args.model][1](args)
     pretrain_cfg = trainer.make_config(args, "train")
     finetune_cfg = trainer.make_config(args, "finetune")
-    eval_cfg = evaluator.make_config(args)
+    val_eval_cfg = val_evaluator.make_config(args)
+    test_eval_cfg = test_evaluator.make_config(args)
 
     run_dir, run_id = setup_run_dir(args.experiment, args.phase, args.run_tag)
     os.environ["WANDB_DIR"] = str(run_dir)
@@ -89,7 +92,30 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     )
 
     base_ckpt_path = base_dir / "checkpoints" / "best.pt"
-    base_state = checkpoint.load_checkpoint(base_ckpt_path)["model_state"]
+    base_ckpt = checkpoint.load_checkpoint(base_ckpt_path)
+    base_state = base_ckpt["model_state"]
+
+    set_seed(val_eval_cfg.seed)
+
+    run_val_eval(
+        experiment=args.experiment,
+        phase=args.phase,
+        run_tag="base",
+        device=device,
+        run_dir=base_dir,
+        run_id=run_id,
+        group_run_id=run_id,
+        dataset_name=args.dataset,
+        dataset_cfg=dataset_cfg,
+        val_eval_cfg=val_eval_cfg,
+        ckpt=base_ckpt,
+        model_name=args.model,
+        model_cfg=model_cfg,
+        train_slice="partial",
+        partial_ratio=args.partial_ratio,
+        n_finetune=args.n_finetune,
+        num_workers=num_workers,
+    )
 
     # 2) Fine-tune from the base on each chunk.
     ft_ckpt_paths = []
@@ -119,8 +145,33 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
             init_model_state=base_state,
             num_workers=num_workers,
         )
-        
-        ft_ckpt_paths.append(ft_dir / "checkpoints" / "best.pt")
+
+        ft_ckpt_path = ft_dir / "checkpoints" / "best.pt"
+        ft_ckpt = checkpoint.load_checkpoint(ft_ckpt_path)
+
+        set_seed(val_eval_cfg.seed)
+
+        run_val_eval(
+            experiment=args.experiment,
+            phase=args.phase,
+            run_tag=f"ft_{i}",
+            device=device,
+            run_dir=ft_dir,
+            run_id=run_id,
+            group_run_id=run_id,
+            dataset_name=args.dataset,
+            dataset_cfg=dataset_cfg,
+            val_eval_cfg=val_eval_cfg,
+            ckpt=ft_ckpt,
+            model_name=args.model,
+            model_cfg=model_cfg,
+            train_slice=f"ft_{i}",
+            partial_ratio=args.partial_ratio,
+            n_finetune=args.n_finetune,
+            num_workers=num_workers,
+        )
+
+        ft_ckpt_paths.append(ft_ckpt_path)
 
     # 3) Merge the fine-tunings into the base (task arithmetic).
     merged_dir = run_dir / "merged"
@@ -133,14 +184,37 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         out_path=merged_ckpt_path,
     )
 
-    # 4) Evaluate the merged model. The eval windows at the dataset's eval_stride
-    # (applied inside build_for_eval).
     model_name = merged_ckpt["configs"]["model_name"]
     merged_model_cfg = models[model_name][2](**merged_ckpt["configs"]["model"])
 
-    set_seed(eval_cfg.seed)
+    # Val reconstruction eval on the full train val — the merged model has seen all data.
+    set_seed(val_eval_cfg.seed)
 
-    run_eval(
+    run_val_eval(
+        experiment=args.experiment,
+        phase=args.phase,
+        run_tag="merged",
+        device=device,
+        run_dir=merged_dir,
+        run_id=run_id,
+        group_run_id=run_id,
+        dataset_name=args.dataset,
+        dataset_cfg=dataset_cfg,
+        val_eval_cfg=val_eval_cfg,
+        ckpt=merged_ckpt,
+        model_name=model_name,
+        model_cfg=merged_model_cfg,
+        train_slice="full",
+        partial_ratio=args.partial_ratio,
+        n_finetune=args.n_finetune,
+        num_workers=num_workers,
+    )
+
+    # 4) Evaluate the merged model. The eval windows at the dataset's eval_stride
+    # (applied inside build_for_eval).
+    set_seed(test_eval_cfg.seed)
+
+    run_test_eval(
         experiment=args.experiment,
         phase=args.phase,
         run_tag="merged",
@@ -150,7 +224,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         group_run_id=run_id,
         eval_dataset_name=args.dataset,
         eval_dataset_cfg=dataset_cfg,
-        eval_cfg=eval_cfg,
+        eval_cfg=test_eval_cfg,
         ckpt=merged_ckpt,
         checkpoint_path=merged_ckpt_path,
         model_name=model_name,

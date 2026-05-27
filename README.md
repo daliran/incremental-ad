@@ -6,11 +6,12 @@ where a base model is adapted to new data regimes and the adaptations are merged
 
 The codebase is organized around three ideas:
 
-- **operations** — the atomic units of work: `train`, `eval` and `merge`.
+- **operations** — the atomic units of work: `train`, `test_eval`, `val_eval` and `merge`.
 - **phases** — what you actually launch (one phase = one SLURM job); a phase
   orchestrates one or more operations. Implemented today: `pretrain`
-  (train → eval), `incremental` (pretrain → fine-tune → merge → eval), and
-  `eval` (standalone, on-demand).
+  (train → val_eval → test_eval), `incremental` (pretrain → fine-tune → merge →
+  val_eval → test_eval), and `eval` (standalone, on-demand; supports `--split
+  test` or `--split val`).
 - **registries** — the available models and datasets, injected from `main.py`.
 
 ---
@@ -92,10 +93,10 @@ Every run is identified by four coordinates:
 
 `main.py` dispatches on `--phase`:
 
-### `pretrain` — train, then eval (one job)
-Trains the model on the full train set and immediately evaluates the trained
-checkpoint, all in one job/folder. The bundled eval windows at the dataset's
-`--swat-eval-stride` (training windows at `--swat-stride`).
+### `pretrain` — train, then val eval, then test eval (one job)
+Trains the model on the full train set, evaluates reconstruction quality on the
+training val set, then evaluates anomaly detection on the test set — all in one
+job/folder. Both evals window at the dataset's `--swat-eval-stride`.
 
 ```bash
 python -m incremental_ad.main \
@@ -108,21 +109,31 @@ python -m incremental_ad.main \
     --train-seed 42 --train-epochs 300 --train-patience 30 --train-batch-size 64 \
     --train-optimizer adamw --train-weight-decay 1e-2 --train-learning-rate 1e-4 \
     --train-grad-clip 0.5 --train-scheduler cosine --train-warmup-ratio 0.1 --train-checkpoint-interval 0 \
-    --eval-seed 0 --eval-split test --eval-batch-size 512 \
-    --eval-threshold-strategy oracle --eval-threshold-percentile 99
+    --val-eval-seed 0 --val-eval-batch-size 512 \
+    --test-eval-seed 0 --test-eval-batch-size 512 \
+    --test-eval-threshold-strategy oracle --test-eval-threshold-percentile 99
 ```
 
 ### `eval` — standalone, on-demand
-Evaluates an existing checkpoint (e.g. to try a different threshold). The
-checkpoint is always passed explicitly; experiment/phase are read back from it.
+Evaluates an existing checkpoint. The checkpoint is always passed explicitly;
+experiment/phase are read back from it. Use `--split test` for anomaly detection
+metrics or `--split val` for reconstruction quality on the full training val set.
 
 ```bash
+# Test eval (AD metrics, e.g. to try a different threshold)
 python -m incremental_ad.main \
     --phase eval --run-tag p95 --checkpoint <path>/checkpoints/best.pt \
-    --dataset swat \
+    --dataset swat --split test \
     --swat-window-len 100 --swat-stride 1 --swat-normalization standard --swat-val-ratio 0.15 --swat-eval-stride 1 \
-    --eval-seed 0 --eval-split test --eval-batch-size 512 \
-    --eval-threshold-strategy oracle --eval-threshold-percentile 95
+    --test-eval-seed 0 --test-eval-batch-size 512 \
+    --test-eval-threshold-strategy oracle --test-eval-threshold-percentile 95
+
+# Val eval (reconstruction quality)
+python -m incremental_ad.main \
+    --phase eval --run-tag val_reconstruction --checkpoint <path>/checkpoints/best.pt \
+    --dataset swat --split val \
+    --swat-window-len 100 --swat-stride 1 --swat-normalization standard --swat-val-ratio 0.15 --swat-eval-stride 1 \
+    --val-eval-seed 0 --val-eval-batch-size 512
 ```
 
 ### `incremental` — the whole pipeline in one job
@@ -141,12 +152,14 @@ the full argument list.
 - **train** (`trainer.py`) — AdamW, `cosine`/`constant` scheduler with linear
   warmup, gradient clipping, early stopping on val loss; writes `best.pt`/`last.pt`
   (plus periodic `epoch_*.pt` if `--train-checkpoint-interval > 0`).
-- **eval** (`evaluator.py`):
-    - `--eval-split val` → score statistics, saved to `val_scores.npy`.
-    - `--eval-split test` → anomaly metrics at **window**, **point**,
-      **point-adjusted** and **event** level, saved to `test_results.json` (plus
-      ROC/PR curves to wandb). Thresholding via `oracle` or `train_percentile`
-      (`--eval-threshold-percentile`).
+- **val_eval** (`val_evaluator.py`) — reconstruction quality on a val set;
+  saves score statistics to `val_reconstruction.json`. The bundled version
+  (inside `pretrain`/`incremental`) uses the training slice's own val tail; the
+  standalone `eval` phase uses the full training val at `eval_stride`.
+- **test_eval** (`test_evaluator.py`) — anomaly detection metrics at **window**,
+  **point**, **point-adjusted** and **event** level, saved to `test_results.json`
+  (plus ROC/PR curves to wandb). Thresholding via `oracle` or `train_percentile`
+  (`--test-eval-threshold-percentile`).
 - **merge** (`ops/merge.py`) — task arithmetic over the base + fine-tuned
   checkpoints: clones the base checkpoint and swaps in
   `θ_pre + scale·Σ(θ_FTᵢ − θ_pre)`.
@@ -169,11 +182,12 @@ on the cluster). **One job → one immutable folder**, keyed by what produced it
 
 ```
 experiments/<experiment>/<phase>/<run_label>/
-    checkpoints/best.pt, last.pt     # produced by train
-    config.json                      # train run provenance snapshot
-    eval_info.json                   # eval run provenance snapshot
-    test_results.json                # eval metrics (or val_scores.npy for --eval-split val)
-    wandb/                           # local wandb files
+    checkpoints/best.pt, last.pt          # produced by train
+    config.json                           # train run provenance snapshot
+    eval_info.json                        # eval run provenance snapshot
+    val_reconstruction.json               # val_eval reconstruction stats
+    test_results.json                     # test_eval AD metrics
+    wandb/                                # local wandb files
 ```
 
 Concretely:
@@ -199,7 +213,7 @@ fine-tuning is given the `--checkpoint` to read).
   model and all of its evaluations**. `group_run_id` is the *producing* job's id:
   a training run uses its own id; an eval uses the id of the checkpoint it
   evaluates, so re-evals re-join the model's group.
-- **job_type** = the operation (`train` / `eval`).
+- **job_type** = the operation (`train` / `val_eval` / `test_eval`).
 - **name** = `<op>[_<run_tag>]-<run_id>` — uses *this* run's own id.
 - **config** = dataset/model/train|eval configs + experiment/phase/op/run_tag/slurm
   id (so you can also group/filter dynamically in the UI).
@@ -209,13 +223,15 @@ Example: a pretrain job `100` and a later threshold re-eval `200` (`--run-tag p9
 ```
 mae_tx_swat/pretrain/100        <- group (one model)
   ├─ train-100        (job_type train)
-  ├─ eval-100         (job_type eval, bundled in the same job)
-  └─ eval_p95-200     (job_type eval, standalone job 200, re-joined the group)
+  ├─ val_eval-100     (job_type val_eval, bundled)
+  ├─ test_eval-100    (job_type test_eval, bundled)
+  └─ test_eval_p95-200  (job_type test_eval, standalone job 200, re-joined the group)
 ```
 
 An `incremental` job `300` puts all its sub-runs in one group
-`mae_tx_swat/incremental/300`: `train_base-300`, `train_ft_0-300` …
-`train_ft_{N-1}-300`, and `eval_merged-300`.
+`mae_tx_swat/incremental/300`: `train_base-300`, `val_eval_base-300`,
+`train_ft_0-300`, `val_eval_ft_0-300` … `val_eval_merged-300`,
+`test_eval_merged-300`.
 
 **The one asymmetry (by design):** the standalone eval's *folder* lives under its
 own job (`eval/p95_200`, provenance), while its *wandb group* points at the model

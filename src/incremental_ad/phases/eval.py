@@ -7,8 +7,9 @@ from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
 from incremental_ad.core.run import setup_run_dir
 from incremental_ad.core.seed import set_seed
-from incremental_ad.ops.eval import run_eval
-from incremental_ad.training import evaluator
+from incremental_ad.ops.test_eval import run_test_eval
+from incremental_ad.ops.val_eval import run_standalone_val_eval
+from incremental_ad.training import test_evaluator, val_evaluator
 
 log = logging.getLogger(__name__)
 
@@ -22,20 +23,20 @@ def run_eval_phase(*, datasets: dict, models: dict, num_workers: int) -> None:
     parser.add_argument("--device", default="auto")
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--dataset", choices=datasets, required=True)
+    parser.add_argument("--split", choices=["test", "val"], required=True)
 
     known, _ = parser.parse_known_args()
 
     # Add the args for the specific dataset.
     datasets[known.dataset][0](parser)
 
-    # Add the evaluator specific args.
-    evaluator.add_args(parser)
+    # Add the evaluator-specific args based on the requested split.
+    if known.split == "test":
+        test_evaluator.add_args(parser)
+    else:
+        val_evaluator.add_args(parser)
 
     args = parser.parse_args()
-
-    # Load eval and dataset config.
-    eval_cfg = evaluator.make_config(args)
-    eval_dataset_cfg = datasets[args.dataset][1](args)
 
     # Load checkpoint and rebuild the model config it was produced with.
     ckpt = checkpoint.load_checkpoint(args.checkpoint)
@@ -56,24 +57,52 @@ def run_eval_phase(*, datasets: dict, models: dict, num_workers: int) -> None:
     # Resolve the device.
     device = resolve_device(args.device)
 
-    log.info(f"Phase: {args.phase}  (experiment={experiment})")
+    log.info(f"Phase: {args.phase}  (experiment={experiment}, split={args.split})")
 
-    set_seed(eval_cfg.seed)
+    eval_dataset_cfg = datasets[args.dataset][1](args)
 
-    run_eval(
-        experiment=experiment,
-        phase=ckpt["phase"],
-        run_tag=args.run_tag,
-        device=device,
-        run_dir=run_dir,
-        run_id=run_id,
-        group_run_id=ckpt["run_id"],
-        eval_dataset_name=args.dataset,
-        eval_dataset_cfg=eval_dataset_cfg,
-        eval_cfg=eval_cfg,
-        ckpt=ckpt,
-        checkpoint_path=args.checkpoint,
-        model_name=model_name,
-        model_cfg=model_cfg,
-        num_workers=num_workers,
-    )
+    if args.split == "test":
+        eval_cfg = test_evaluator.make_config(args)
+
+        set_seed(eval_cfg.seed)
+
+        run_test_eval(
+            experiment=experiment,
+            phase=ckpt["phase"],
+            run_tag=args.run_tag,
+            device=device,
+            run_dir=run_dir,
+            run_id=run_id,
+            group_run_id=ckpt["run_id"],
+            eval_dataset_name=args.dataset,
+            eval_dataset_cfg=eval_dataset_cfg,
+            eval_cfg=eval_cfg,
+            ckpt=ckpt,
+            checkpoint_path=args.checkpoint,
+            model_name=model_name,
+            model_cfg=model_cfg,
+            num_workers=num_workers,
+        )
+
+    else:
+        val_eval_cfg = val_evaluator.make_config(args)
+
+        set_seed(val_eval_cfg.seed)
+
+        run_standalone_val_eval(
+            experiment=experiment,
+            phase=ckpt["phase"],
+            run_tag=args.run_tag,
+            device=device,
+            run_dir=run_dir,
+            run_id=run_id,
+            group_run_id=ckpt["run_id"],
+            eval_dataset_name=args.dataset,
+            eval_dataset_cfg=eval_dataset_cfg,
+            val_eval_cfg=val_eval_cfg,
+            ckpt=ckpt,
+            checkpoint_path=args.checkpoint,
+            model_name=model_name,
+            model_cfg=model_cfg,
+            num_workers=num_workers,
+        )

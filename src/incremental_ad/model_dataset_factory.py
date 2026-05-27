@@ -91,10 +91,8 @@ def _build_eval_swat_mae_tx(
     # the full train series as the reference (e.g. for the threshold);
     # partial_ratio/n_finetune are unused for the full slice.
     eval_cfg = replace(dataset_cfg, stride=dataset_cfg.eval_stride)
-    
-    train_dataset, val_dataset, test_dataset = swat.get_loaders(
-        eval_cfg, "full", 1.0, 0
-    )
+
+    train_dataset, val_dataset, test_dataset = swat.get_loaders(eval_cfg, "full", 1.0, 0)
     eval_dataset = val_dataset if split == "val" else test_dataset
 
     n_patches = dataset_cfg.window_len // model_cfg.patch_len

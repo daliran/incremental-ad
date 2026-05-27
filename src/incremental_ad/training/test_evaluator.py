@@ -9,12 +9,11 @@ import numpy as np
 import torch
 import wandb
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 
 from incremental_ad.core.cli import pluck
-from incremental_ad.datasets.base_dataset import BaseDataset, Split
+from incremental_ad.datasets.base_dataset import BaseDataset
 from incremental_ad.models.base_model import BaseModel
-from incremental_ad.training import metrics
+from incremental_ad.training import metrics, scoring
 
 log = logging.getLogger(__name__)
 
@@ -22,9 +21,8 @@ ThresholdStrategy = Literal["oracle", "train_percentile"]
 
 
 @dataclass
-class EvalConfig:
+class TestEvalConfig:
     seed: int
-    split: Split
     batch_size: int
     threshold_strategy: ThresholdStrategy
     threshold_percentile: float
@@ -32,24 +30,23 @@ class EvalConfig:
 
 def add_args(parser: ArgumentParser) -> None:
     """Adds the specific argparser arguments."""
-    parser.add_argument("--eval-seed", type=int, required=True)
-    parser.add_argument("--eval-split", choices=["val", "test"], required=True)
-    parser.add_argument("--eval-batch-size", type=int, required=True)
+    parser.add_argument("--test-eval-seed", type=int, required=True)
+    parser.add_argument("--test-eval-batch-size", type=int, required=True)
     parser.add_argument(
-        "--eval-threshold-strategy",
+        "--test-eval-threshold-strategy",
         choices=["oracle", "train_percentile"],
         required=True,
     )
-    parser.add_argument("--eval-threshold-percentile", type=float, required=True)
+    parser.add_argument("--test-eval-threshold-percentile", type=float, required=True)
 
 
-def make_config(args: Namespace) -> EvalConfig:
+def make_config(args: Namespace) -> TestEvalConfig:
     """Extracts the arguments from the argparse namespace and creates the dataclass."""
-    fields = pluck(args, "eval")
-    return EvalConfig(**fields)
+    fields = pluck(args, "test_eval")
+    return TestEvalConfig(**fields)
 
 
-class Evaluator:
+class TestEvaluator:
     def __init__(
         self,
         model: BaseModel,
@@ -58,7 +55,7 @@ class Evaluator:
         train_loader: DataLoader,
         run_dir: Path,
         run_id: str,
-        config: EvalConfig,
+        config: TestEvalConfig,
     ) -> None:
         self.model = model
         self.device = device
@@ -70,63 +67,13 @@ class Evaluator:
 
     def load_checkpoint(self, ckpt: dict) -> None:
         self.model.load_state_dict(ckpt["model_state"])
-
         log.info(
             f"Loaded checkpoint from epoch {ckpt['epoch']} "
             f"(best_val_loss={ckpt['metrics']['best_val_loss']:.6f})"
         )
 
     def evaluate(self) -> None:
-        if self.config.split == "val":
-            self._evaluate_val()
-        else:
-            self._evaluate_test()
-
-    def _collect_scores(self, loader: DataLoader, desc: str) -> np.ndarray:
-
-        self.model.eval()
-
-        # This is a list of lists. Since batch size > 1, each sub list item is the score/reconstruction error of an individual batch/window.
-        all_scores = []
-
-        with torch.no_grad():
-            for batch in tqdm(loader, desc=desc):
-                batch = batch.to(self.device)
-                scores = self.model.eval_step(batch)
-
-                # Add the scores to the list of lists
-                all_scores.append(scores.cpu().numpy())
-
-        # Flatten the list of lists to create a unique list of scores, removing the grouping from batch size.
-        return np.concatenate(all_scores, axis=0)
-
-    def _evaluate_val(self) -> None:
-        log.info("Running val evaluation...")
-
-        # scores per window.
-        scores = self._collect_scores(self.eval_loader, desc="Scoring (val)")
-
-        stats = {
-            "val/score_mean": float(np.mean(scores)),
-            "val/score_std": float(np.std(scores)),
-            "val/score_p50": float(np.percentile(scores, 50)),
-            "val/score_p95": float(np.percentile(scores, 95)),
-            "val/score_p99": float(np.percentile(scores, 99)),
-        }
-
-        # Log the stats.
-        for k, v in stats.items():
-            log.info(f"  {k}: {v:.6f}")
-
-        # Send the stats to wandb.
-        if wandb.run is not None:
-            wandb.run.summary.update(stats)
-
-        # Save the scores, to allow plotting the data and select a threshold externally.
-        scores_path = self.run_dir / "val_scores.npy"
-        np.save(scores_path, scores)
-
-        log.info(f"Val scores saved to {scores_path}")
+        self._evaluate_test()
 
     def _resolve_threshold(self) -> float | None:
         if self.config.threshold_strategy != "train_percentile":
@@ -134,8 +81,8 @@ class Evaluator:
 
         # collecting the distribution from the training set.
         # this uses the evaluator stride, not the training stride.
-        train_scores = self._collect_scores(
-            self.train_loader, desc="Computing threshold (train)"
+        train_scores = scoring.collect_scores(
+            self.model, self.train_loader, self.device, desc="Computing threshold (train)"
         )
 
         # calculating the percentile from the training set distribution.
@@ -157,7 +104,9 @@ class Evaluator:
 
         # scores per window.
         # with stride = 1 the number of windows ~ the number of timesteps.
-        scores = self._collect_scores(self.eval_loader, desc="Scoring (test)")
+        scores = scoring.collect_scores(
+            self.model, self.eval_loader, self.device, desc="Scoring (test)"
+        )
 
         dataset = cast(BaseDataset, self.eval_loader.dataset)
 
@@ -219,7 +168,7 @@ class Evaluator:
         # send each flattened key to wandb.
         if wandb.run is not None:
             wandb.run.summary.update(
-                {k: v for k, v in flat.items() if isinstance(v, float)}
+                {k: v for k, v in flat.items() if isinstance(v, (float, int))}
             )
 
         # log curves on wandb

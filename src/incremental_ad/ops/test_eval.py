@@ -8,12 +8,12 @@ from torch.utils.data import DataLoader
 from incremental_ad import model_dataset_factory as factory
 from incremental_ad.core.run import save_eval_snapshot
 from incremental_ad.core.tracking import init_wandb
-from incremental_ad.training import evaluator
+from incremental_ad.training import test_evaluator
 
 log = logging.getLogger(__name__)
 
 
-def run_eval(
+def run_test_eval(
     *,
     experiment: str,
     phase: str,
@@ -31,7 +31,7 @@ def run_eval(
     model_cfg,
     num_workers: int,
 ) -> None:
-    """Evaluate a checkpoint, writing eval artifacts into run_dir.
+    """Evaluate a checkpoint on the test set, writing eval artifacts into run_dir.
 
     phase is the phase that produced the checkpoint, so the eval lands in the
     same wandb group as that model (whether bundled with training or run on
@@ -53,7 +53,7 @@ def run_eval(
     init_wandb(
         experiment=experiment,
         phase=phase,
-        op="eval",
+        op="test_eval",
         run_id=run_id,
         group_run_id=group_run_id,
         run_tag=run_tag,
@@ -62,7 +62,7 @@ def run_eval(
             "dataset": asdict(eval_dataset_cfg),
             "model_name": model_name,
             "model": asdict(model_cfg),
-            "eval": asdict(eval_cfg),
+            "test_eval": asdict(eval_cfg),
             "train_run_id": ckpt["run_id"],
         },
     )
@@ -79,7 +79,7 @@ def run_eval(
             dataset_name=eval_dataset_name,
             model_cfg=model_cfg,
             dataset_cfg=eval_dataset_cfg,
-            split=eval_cfg.split,
+            split="test",
         )
 
         model = result.model.to(device)
@@ -98,7 +98,7 @@ def run_eval(
             num_workers=num_workers,
         )
 
-        e = evaluator.Evaluator(
+        e = test_evaluator.TestEvaluator(
             model=model,
             device=device,
             eval_loader=eval_loader,

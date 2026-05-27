@@ -93,10 +93,11 @@ python -m incremental_ad.main \
     --finetune-scheduler cosine \
     --finetune-warmup-ratio 0.1 \
     --finetune-checkpoint-interval 0 \
-    --eval-seed 0 \
-    --eval-split test \
-    --eval-batch-size 512 \
-    --eval-threshold-strategy oracle \
-    --eval-threshold-percentile 99
+    --val-eval-seed 0 \
+    --val-eval-batch-size 512 \
+    --test-eval-seed 0 \
+    --test-eval-batch-size 512 \
+    --test-eval-threshold-strategy oracle \
+    --test-eval-threshold-percentile 99
 
 echo "Finished at: $(date)"

@@ -61,10 +61,10 @@ python -m incremental_ad.main \
     --swat-eval-stride 1 \
     --swat-normalization standard \
     --swat-val-ratio 0.15 \
-    --eval-seed 0 \
-    --eval-split test \
-    --eval-batch-size 512 \
-    --eval-threshold-strategy oracle \
-    --eval-threshold-percentile 99
+    --split test \
+    --test-eval-seed 0 \
+    --test-eval-batch-size 512 \
+    --test-eval-threshold-strategy oracle \
+    --test-eval-threshold-percentile 99
 
 echo "Finished at: $(date)"

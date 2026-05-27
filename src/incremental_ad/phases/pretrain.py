@@ -4,11 +4,11 @@ import os
 
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
-from incremental_ad.core.run import setup_run_dir
+from incremental_ad.core.run import setup_run_dir, save_phase_snapshot
 from incremental_ad.core.seed import set_seed
 from incremental_ad.ops.test_eval import run_test_eval
 from incremental_ad.ops.train import run_train
-from incremental_ad.ops.val_eval import run_val_eval
+from incremental_ad.ops.train_slice_val_eval import run_train_slice_val_eval
 from incremental_ad.training import test_evaluator, trainer, val_evaluator
 
 log = logging.getLogger(__name__)
@@ -54,6 +54,14 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
     # Resolve the device.
     device = resolve_device(args.device)
 
+    save_phase_snapshot(
+        run_dir,
+        experiment=args.experiment,
+        phase=args.phase,
+        run_id=run_id,
+        # pretrain has no phase-specific params beyond global identity
+    )
+
     log.info(f"Phase: {args.phase}  (experiment={args.experiment})")
 
     set_seed(train_cfg.seed)
@@ -62,9 +70,9 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         experiment=args.experiment,
         phase=args.phase,
         run_tag=args.run_tag,
+        run_id=run_id,
         device=device,
         run_dir=run_dir,
-        run_id=run_id,
         dataset_name=args.dataset,
         dataset_cfg=dataset_cfg,
         model_name=args.model,
@@ -85,23 +93,23 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
     # Evaluate reconstruction quality on the val tail of the full training slice.
     set_seed(val_eval_cfg.seed)
 
-    run_val_eval(
+    run_train_slice_val_eval(
         experiment=args.experiment,
         phase=args.phase,
         run_tag=args.run_tag,
-        device=device,
-        run_dir=run_dir,
         run_id=run_id,
         group_run_id=ckpt["run_id"],
+        device=device,
+        run_dir=run_dir,
         dataset_name=args.dataset,
         dataset_cfg=dataset_cfg,
-        val_eval_cfg=val_eval_cfg,
-        ckpt=ckpt,
         model_name=args.model,
         model_cfg=model_cfg,
+        ckpt=ckpt,
         train_slice="full",
         partial_ratio=1.0,
         n_finetune=0,
+        val_eval_cfg=val_eval_cfg,
         num_workers=num_workers,
     )
 
@@ -113,16 +121,16 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         experiment=args.experiment,
         phase=args.phase,
         run_tag=args.run_tag,
-        device=device,
-        run_dir=run_dir,
         run_id=run_id,
         group_run_id=ckpt["run_id"],
+        device=device,
+        run_dir=run_dir,
         eval_dataset_name=args.dataset,
         eval_dataset_cfg=dataset_cfg,
-        eval_cfg=test_eval_cfg,
-        ckpt=ckpt,
-        checkpoint_path=best_ckpt_path,
         model_name=args.model,
         model_cfg=model_cfg,
+        ckpt=ckpt,
+        checkpoint_path=best_ckpt_path,
+        eval_cfg=test_eval_cfg,
         num_workers=num_workers,
     )

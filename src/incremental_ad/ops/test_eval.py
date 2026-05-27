@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
@@ -6,11 +7,43 @@ import wandb
 from torch.utils.data import DataLoader
 
 from incremental_ad import model_dataset_factory as factory
-from incremental_ad.core.run import save_eval_snapshot
 from incremental_ad.core.tracking import init_wandb
 from incremental_ad.training import test_evaluator
 
 log = logging.getLogger(__name__)
+
+
+def _write_eval_info(
+    run_dir: Path,
+    *,
+    checkpoint_path: Path,
+    ckpt: dict,
+    eval_dataset_name: str,
+    eval_dataset_cfg,
+    eval_cfg,
+) -> None:
+    snapshot = {
+        "op": "test_eval",
+        "checkpoint": {
+            "path": str(checkpoint_path),
+            "phase": ckpt["phase"],
+            "run_id": ckpt["run_id"],
+            "epoch": ckpt["epoch"],
+            "best_val_loss": ckpt["metrics"]["best_val_loss"],
+            "dataset_name": ckpt["configs"]["dataset_name"],
+            "dataset": ckpt["configs"]["dataset"],
+            "model_name": ckpt["configs"]["model_name"],
+            "model": ckpt["configs"]["model"],
+            "train": ckpt["configs"]["train"],
+        },
+        "eval": {
+            "dataset_name": eval_dataset_name,
+            "dataset": asdict(eval_dataset_cfg),
+            "config": asdict(eval_cfg),
+        },
+    }
+    with (run_dir / "eval_info.json").open("w") as f:
+        json.dump(snapshot, f, indent=2)
 
 
 def run_test_eval(
@@ -18,18 +51,19 @@ def run_test_eval(
     experiment: str,
     phase: str,
     run_tag: str | None,
-    device,
-    run_dir: Path,
     run_id: str,
     group_run_id: str,
+    device,
+    run_dir: Path,
     eval_dataset_name: str,
     eval_dataset_cfg,
-    eval_cfg,
-    ckpt: dict,
-    checkpoint_path: Path,
     model_name: str,
     model_cfg,
+    ckpt: dict,
+    checkpoint_path: Path,
+    eval_cfg,
     num_workers: int,
+    phase_config: dict | None = None,
 ) -> None:
     """Evaluate a checkpoint on the test set, writing eval artifacts into run_dir.
 
@@ -38,7 +72,7 @@ def run_test_eval(
     demand later).
     """
 
-    save_eval_snapshot(
+    _write_eval_info(
         run_dir,
         checkpoint_path=checkpoint_path,
         ckpt=ckpt,
@@ -49,7 +83,27 @@ def run_test_eval(
 
     log.info(f"Eval info saved to {run_dir / 'eval_info.json'}")
 
-    # Init wandb.
+    wandb_config = {
+        "checkpoint": {
+            "path": str(checkpoint_path),
+            "phase": ckpt["phase"],
+            "run_id": ckpt["run_id"],
+            "epoch": ckpt["epoch"],
+            "best_val_loss": ckpt["metrics"]["best_val_loss"],
+            "dataset_name": ckpt["configs"]["dataset_name"],
+            "dataset": ckpt["configs"]["dataset"],
+            "model_name": ckpt["configs"]["model_name"],
+            "model": ckpt["configs"]["model"],
+        },
+        "eval": {
+            "dataset_name": eval_dataset_name,
+            "dataset": asdict(eval_dataset_cfg),
+            "config": asdict(eval_cfg),
+        },
+    }
+    if phase_config is not None:
+        wandb_config["phase"] = phase_config
+
     init_wandb(
         experiment=experiment,
         phase=phase,
@@ -57,14 +111,7 @@ def run_test_eval(
         run_id=run_id,
         group_run_id=group_run_id,
         run_tag=run_tag,
-        config={
-            "dataset_name": eval_dataset_name,
-            "dataset": asdict(eval_dataset_cfg),
-            "model_name": model_name,
-            "model": asdict(model_cfg),
-            "test_eval": asdict(eval_cfg),
-            "train_run_id": ckpt["run_id"],
-        },
+        config=wandb_config,
     )
 
     try:
@@ -109,7 +156,6 @@ def run_test_eval(
         )
 
         e.load_checkpoint(ckpt)
-
         e.evaluate()
 
     finally:

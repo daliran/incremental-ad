@@ -37,11 +37,13 @@ def init_wandb(
     if slurm_job_id is not None:
         meta["slurm_job_id"] = slurm_job_id
 
+    full_config = {**config, **meta}
+
     wandb.init(
         project=os.environ.get("WANDB_PROJECT"),
         entity=os.environ.get("WANDB_ENTITY"),
         group=f"{experiment}/{phase}/{group_run_id}",
         job_type=op,
         name=f"{op_label}-{run_id}",
-        config={**config, **meta},
+        config=full_config,
     )

@@ -4,12 +4,12 @@ import os
 
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
-from incremental_ad.core.run import setup_run_dir
+from incremental_ad.core.run import setup_run_dir, save_phase_snapshot
 from incremental_ad.core.seed import set_seed
 from incremental_ad.ops.test_eval import run_test_eval
 from incremental_ad.ops.merge import run_merge
 from incremental_ad.ops.train import run_train
-from incremental_ad.ops.val_eval import run_val_eval
+from incremental_ad.ops.train_slice_val_eval import run_train_slice_val_eval
 from incremental_ad.training import test_evaluator, trainer, val_evaluator
 
 log = logging.getLogger(__name__)
@@ -61,9 +61,23 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     val_eval_cfg = val_evaluator.make_config(args)
     test_eval_cfg = test_evaluator.make_config(args)
 
+    phase_cfg_dict = {
+        "partial_ratio": args.partial_ratio,
+        "n_finetune": args.n_finetune,
+        "merge_scale": args.merge_scale,
+    }
+
     run_dir, run_id = setup_run_dir(args.experiment, args.phase, args.run_tag)
     os.environ["WANDB_DIR"] = str(run_dir)
     device = resolve_device(args.device)
+
+    save_phase_snapshot(
+        run_dir,
+        experiment=args.experiment,
+        phase=args.phase,
+        run_id=run_id,
+        incremental=phase_cfg_dict,
+    )
 
     log.info(f"Phase: {args.phase}  (experiment={args.experiment})")
 
@@ -77,9 +91,9 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         experiment=args.experiment,
         phase=args.phase,
         run_tag="base",
+        run_id=run_id,
         device=device,
         run_dir=base_dir,
-        run_id=run_id,
         dataset_name=args.dataset,
         dataset_cfg=dataset_cfg,
         model_name=args.model,
@@ -89,6 +103,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         partial_ratio=args.partial_ratio,
         n_finetune=args.n_finetune,
         num_workers=num_workers,
+        phase_config=phase_cfg_dict,
     )
 
     base_ckpt_path = base_dir / "checkpoints" / "best.pt"
@@ -97,24 +112,25 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
 
     set_seed(val_eval_cfg.seed)
 
-    run_val_eval(
+    run_train_slice_val_eval(
         experiment=args.experiment,
         phase=args.phase,
         run_tag="base",
-        device=device,
-        run_dir=base_dir,
         run_id=run_id,
         group_run_id=run_id,
+        device=device,
+        run_dir=base_dir,
         dataset_name=args.dataset,
         dataset_cfg=dataset_cfg,
-        val_eval_cfg=val_eval_cfg,
-        ckpt=base_ckpt,
         model_name=args.model,
         model_cfg=model_cfg,
+        ckpt=base_ckpt,
         train_slice="partial",
         partial_ratio=args.partial_ratio,
         n_finetune=args.n_finetune,
+        val_eval_cfg=val_eval_cfg,
         num_workers=num_workers,
+        phase_config=phase_cfg_dict,
     )
 
     # 2) Fine-tune from the base on each chunk.
@@ -131,9 +147,9 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
             experiment=args.experiment,
             phase=args.phase,
             run_tag=f"ft_{i}",
+            run_id=run_id,
             device=device,
             run_dir=ft_dir,
-            run_id=run_id,
             dataset_name=args.dataset,
             dataset_cfg=dataset_cfg,
             model_name=args.model,
@@ -142,8 +158,9 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
             train_slice=f"ft_{i}",
             partial_ratio=args.partial_ratio,
             n_finetune=args.n_finetune,
-            init_model_state=base_state,
             num_workers=num_workers,
+            init_model_state=base_state,
+            phase_config=phase_cfg_dict,
         )
 
         ft_ckpt_path = ft_dir / "checkpoints" / "best.pt"
@@ -151,24 +168,25 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
 
         set_seed(val_eval_cfg.seed)
 
-        run_val_eval(
+        run_train_slice_val_eval(
             experiment=args.experiment,
             phase=args.phase,
             run_tag=f"ft_{i}",
-            device=device,
-            run_dir=ft_dir,
             run_id=run_id,
             group_run_id=run_id,
+            device=device,
+            run_dir=ft_dir,
             dataset_name=args.dataset,
             dataset_cfg=dataset_cfg,
-            val_eval_cfg=val_eval_cfg,
-            ckpt=ft_ckpt,
             model_name=args.model,
             model_cfg=model_cfg,
+            ckpt=ft_ckpt,
             train_slice=f"ft_{i}",
             partial_ratio=args.partial_ratio,
             n_finetune=args.n_finetune,
+            val_eval_cfg=val_eval_cfg,
             num_workers=num_workers,
+            phase_config=phase_cfg_dict,
         )
 
         ft_ckpt_paths.append(ft_ckpt_path)
@@ -190,24 +208,25 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     # Val reconstruction eval on the full train val — the merged model has seen all data.
     set_seed(val_eval_cfg.seed)
 
-    run_val_eval(
+    run_train_slice_val_eval(
         experiment=args.experiment,
         phase=args.phase,
         run_tag="merged",
-        device=device,
-        run_dir=merged_dir,
         run_id=run_id,
         group_run_id=run_id,
+        device=device,
+        run_dir=merged_dir,
         dataset_name=args.dataset,
         dataset_cfg=dataset_cfg,
-        val_eval_cfg=val_eval_cfg,
-        ckpt=merged_ckpt,
         model_name=model_name,
         model_cfg=merged_model_cfg,
+        ckpt=merged_ckpt,
         train_slice="full",
         partial_ratio=args.partial_ratio,
         n_finetune=args.n_finetune,
+        val_eval_cfg=val_eval_cfg,
         num_workers=num_workers,
+        phase_config=phase_cfg_dict,
     )
 
     # 4) Evaluate the merged model. The eval windows at the dataset's eval_stride
@@ -218,16 +237,17 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         experiment=args.experiment,
         phase=args.phase,
         run_tag="merged",
-        device=device,
-        run_dir=merged_dir,
         run_id=run_id,
         group_run_id=run_id,
+        device=device,
+        run_dir=merged_dir,
         eval_dataset_name=args.dataset,
         eval_dataset_cfg=dataset_cfg,
-        eval_cfg=test_eval_cfg,
-        ckpt=merged_ckpt,
-        checkpoint_path=merged_ckpt_path,
         model_name=model_name,
         model_cfg=merged_model_cfg,
+        ckpt=merged_ckpt,
+        checkpoint_path=merged_ckpt_path,
+        eval_cfg=test_eval_cfg,
         num_workers=num_workers,
+        phase_config=phase_cfg_dict,
     )

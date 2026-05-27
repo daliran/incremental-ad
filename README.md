@@ -6,7 +6,7 @@ where a base model is adapted to new data regimes and the adaptations are merged
 
 The codebase is organized around three ideas:
 
-- **operations** — the atomic units of work: `train`, `test_eval`, `val_eval` and `merge`.
+- **operations** — the atomic units of work: `train`, `val_eval`, `train_slice_val_eval`, `test_eval` and `merge`.
 - **phases** — what you actually launch (one phase = one SLURM job); a phase
   orchestrates one or more operations. Implemented today: `pretrain`
   (train → val_eval → test_eval), `incremental` (pretrain → fine-tune → merge →
@@ -152,10 +152,13 @@ the full argument list.
 - **train** (`trainer.py`) — AdamW, `cosine`/`constant` scheduler with linear
   warmup, gradient clipping, early stopping on val loss; writes `best.pt`/`last.pt`
   (plus periodic `epoch_*.pt` if `--train-checkpoint-interval > 0`).
-- **val_eval** (`val_evaluator.py`) — reconstruction quality on a val set;
-  saves score statistics to `val_reconstruction.json`. The bundled version
-  (inside `pretrain`/`incremental`) uses the training slice's own val tail; the
-  standalone `eval` phase uses the full training val at `eval_stride`.
+- **val_eval** (`val_evaluator.py`) — reconstruction quality on the full training val
+  series at `eval_stride`; used by the `eval` phase on-demand. Writes
+  `val_eval_info.json` + `val_reconstruction.json`.
+- **train_slice_val_eval** (`val_evaluator.py`) — reconstruction quality on the val
+  tail of the specific training slice used during training; bundled inside
+  `pretrain`/`incremental` to inspect what the trainer actually saw. Writes
+  `train_slice_val_eval_info.json` + `val_reconstruction.json`.
 - **test_eval** (`test_evaluator.py`) — anomaly detection metrics at **window**,
   **point**, **point-adjusted** and **event** level, saved to `test_results.json`
   (plus ROC/PR curves to wandb). Thresholding via `oracle` or `train_percentile`
@@ -178,27 +181,74 @@ logic — the operations (`train`/`eval`/`merge`) and the slicing helpers are re
 ## Filesystem — provenance
 
 Output root is `$RUNS_ROOT` (defaults to `experiments/`; set to `$WORK/experiments`
-on the cluster). **One job → one immutable folder**, keyed by what produced it:
+on the cluster). **One job → one immutable folder**, keyed by what produced it.
+
+### File layout
 
 ```
 experiments/<experiment>/<phase>/<run_label>/
-    checkpoints/best.pt, last.pt          # produced by train
-    config.json                           # train run provenance snapshot
-    eval_info.json                        # eval run provenance snapshot
-    val_reconstruction.json               # val_eval reconstruction stats
-    test_results.json                     # test_eval AD metrics
+    phase_config.json                     # global identity + provenance + phase-specific params
     wandb/                                # local wandb files
+
+    # produced by train + train_slice_val_eval (bundled inside pretrain/incremental):
+    config.json                           # dataset/model/train config for this op
+    checkpoints/best.pt, last.pt
+    train_slice_val_eval_info.json        # checkpoint + eval config (slice-specific val eval)
+    val_reconstruction.json               # reconstruction score statistics
+
+    # produced by a bundled test_eval op:
+    eval_info.json                        # checkpoint section + eval section
+    test_results.json                     # AD metrics (window/point/event)
+
+    # produced by val_eval (standalone eval phase, --split val):
+    val_eval_info.json                    # checkpoint section + eval section
+    val_reconstruction.json               # reconstruction score statistics
 ```
 
-Concretely:
+For the `incremental` phase, each sub-step gets its own sub-directory:
 
 ```
 experiments/mae_tx_swat/
-    pretrain/100/                          # the pretrain job (train + bundled eval)
-    eval/p95_200/                          # a standalone re-eval (its own job)
-    incremental/300/                       # the incremental pipeline job
-        base/  ft_0/ ft_1/ ft_2/ merged/   # base, fine-tunings, merged model + eval
+    pretrain/100/                          # pretrain job: train → val_eval → test_eval
+        phase_config.json
+        config.json
+        checkpoints/
+        train_slice_val_eval_info.json
+        val_reconstruction.json
+        eval_info.json
+        test_results.json
+
+    eval/p95_200/                          # standalone re-eval job
+        phase_config.json                  # includes split + checkpoint path
+        val_eval_info.json                 # (--split val) checkpoint + eval section
+        val_reconstruction.json            # (--split val) reconstruction stats
+        eval_info.json                     # (--split test) checkpoint + eval section
+        test_results.json                  # (--split test) AD metrics
+
+    incremental/300/                       # incremental pipeline job
+        phase_config.json                  # includes partial_ratio, n_finetune, merge_scale
+        base/                              # partial pretrain + train_slice_val_eval
+            config.json
+            checkpoints/
+            train_slice_val_eval_info.json
+            val_reconstruction.json
+        ft_0/  ft_1/  ft_2/               # fine-tune steps, same layout as base/
+        merged/                            # merged model + train_slice_val_eval + test_eval
+            checkpoints/
+            train_slice_val_eval_info.json
+            val_reconstruction.json
+            eval_info.json
+            test_results.json
 ```
+
+### Config hierarchy
+
+Two levels, no duplication between them:
+
+| level | file | contents |
+|---|---|---|
+| phase | `phase_config.json` | global identity (experiment, phase, run_id), provenance (host, git commit, timestamp), phase-specific params (partial_ratio, n_finetune, merge_scale, …) |
+| op | `config.json` / `val_eval_info.json` / `eval_info.json` | dataset + model + op-specific config; eval files split into a `checkpoint` section (what the model was trained with) and an `eval` section (what this eval run used) |
 
 Cross-phase references are explicit checkpoint paths (an eval or a future
 fine-tuning is given the `--checkpoint` to read).
@@ -222,16 +272,16 @@ Example: a pretrain job `100` and a later threshold re-eval `200` (`--run-tag p9
 
 ```
 mae_tx_swat/pretrain/100        <- group (one model)
-  ├─ train-100        (job_type train)
-  ├─ val_eval-100     (job_type val_eval, bundled)
-  ├─ test_eval-100    (job_type test_eval, bundled)
-  └─ test_eval_p95-200  (job_type test_eval, standalone job 200, re-joined the group)
+  ├─ train-100                    (job_type train)
+  ├─ train_slice_val_eval-100     (job_type train_slice_val_eval, bundled)
+  ├─ test_eval-100                (job_type test_eval, bundled)
+  └─ test_eval_p95-200            (job_type test_eval, standalone job 200, re-joined the group)
 ```
 
 An `incremental` job `300` puts all its sub-runs in one group
-`mae_tx_swat/incremental/300`: `train_base-300`, `val_eval_base-300`,
-`train_ft_0-300`, `val_eval_ft_0-300` … `val_eval_merged-300`,
-`test_eval_merged-300`.
+`mae_tx_swat/incremental/300`: `train_base-300`, `train_slice_val_eval_base-300`,
+`train_ft_0-300`, `train_slice_val_eval_ft_0-300` …
+`train_slice_val_eval_merged-300`, `test_eval_merged-300`.
 
 **The one asymmetry (by design):** the standalone eval's *folder* lives under its
 own job (`eval/p95_200`, provenance), while its *wandb group* points at the model

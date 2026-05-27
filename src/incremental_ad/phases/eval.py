@@ -5,10 +5,10 @@ from pathlib import Path
 
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
-from incremental_ad.core.run import setup_run_dir
+from incremental_ad.core.run import setup_run_dir, save_phase_snapshot
 from incremental_ad.core.seed import set_seed
+from incremental_ad.ops.val_eval import run_val_eval
 from incremental_ad.ops.test_eval import run_test_eval
-from incremental_ad.ops.val_eval import run_standalone_val_eval
 from incremental_ad.training import test_evaluator, val_evaluator
 
 log = logging.getLogger(__name__)
@@ -61,6 +61,15 @@ def run_eval_phase(*, datasets: dict, models: dict, num_workers: int) -> None:
 
     eval_dataset_cfg = datasets[args.dataset][1](args)
 
+    save_phase_snapshot(
+        run_dir,
+        experiment=experiment,
+        phase=args.phase,
+        run_id=run_id,
+        split=args.split,
+        checkpoint=str(args.checkpoint),
+    )
+
     if args.split == "test":
         eval_cfg = test_evaluator.make_config(args)
 
@@ -70,17 +79,17 @@ def run_eval_phase(*, datasets: dict, models: dict, num_workers: int) -> None:
             experiment=experiment,
             phase=ckpt["phase"],
             run_tag=args.run_tag,
-            device=device,
-            run_dir=run_dir,
             run_id=run_id,
             group_run_id=ckpt["run_id"],
+            device=device,
+            run_dir=run_dir,
             eval_dataset_name=args.dataset,
             eval_dataset_cfg=eval_dataset_cfg,
-            eval_cfg=eval_cfg,
-            ckpt=ckpt,
-            checkpoint_path=args.checkpoint,
             model_name=model_name,
             model_cfg=model_cfg,
+            ckpt=ckpt,
+            checkpoint_path=args.checkpoint,
+            eval_cfg=eval_cfg,
             num_workers=num_workers,
         )
 
@@ -89,20 +98,20 @@ def run_eval_phase(*, datasets: dict, models: dict, num_workers: int) -> None:
 
         set_seed(val_eval_cfg.seed)
 
-        run_standalone_val_eval(
+        run_val_eval(
             experiment=experiment,
             phase=ckpt["phase"],
             run_tag=args.run_tag,
-            device=device,
-            run_dir=run_dir,
             run_id=run_id,
             group_run_id=ckpt["run_id"],
+            device=device,
+            run_dir=run_dir,
             eval_dataset_name=args.dataset,
             eval_dataset_cfg=eval_dataset_cfg,
-            val_eval_cfg=val_eval_cfg,
-            ckpt=ckpt,
-            checkpoint_path=args.checkpoint,
             model_name=model_name,
             model_cfg=model_cfg,
+            ckpt=ckpt,
+            checkpoint_path=args.checkpoint,
+            val_eval_cfg=val_eval_cfg,
             num_workers=num_workers,
         )

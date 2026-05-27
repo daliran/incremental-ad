@@ -1,4 +1,3 @@
-import dataclasses
 import json
 import os
 import platform
@@ -51,62 +50,24 @@ def _git_commit() -> str | None:
         return None
 
 
-def save_eval_snapshot(
-    run_dir: Path,
-    *,
-    checkpoint_path: Path,
-    ckpt: dict,
-    eval_dataset_name: str,
-    eval_dataset_cfg,
-    eval_cfg,
-) -> None:
-    """Dump eval provenance to <run_dir>/eval_info.json for reproducibility."""
+def save_phase_snapshot(run_dir: Path, *, experiment: str, phase: str, run_id: str, **phase_params) -> None:
+    """Dump global identity + provenance + phase-specific params to <run_dir>/phase_config.json.
 
-    snapshot = {
-        "checkpoint": str(checkpoint_path),
-        "train_run_id": ckpt["run_id"],
-        "train_epoch": ckpt["epoch"],
-        "train_best_val_loss": ckpt["metrics"]["best_val_loss"],
-        "train_configs": ckpt["configs"],
-        "eval_dataset": eval_dataset_name,
-        "eval_dataset_cfg": dataclasses.asdict(eval_dataset_cfg),
-        "eval_cfg": dataclasses.asdict(eval_cfg),
-    }
-
-    with (run_dir / "eval_info.json").open("w") as f:
-        json.dump(snapshot, f, indent=2)
-
-
-def save_config_snapshot(
-    run_dir: Path,
-    *,  # forces the next arguments to be provided by keyword and not by position.
-    experiment: str,
-    phase: str,
-    op: str,
-    run_id: str,
-    dataset_name: str,
-    dataset_cfg,
-    model_name: str,
-    model_cfg,
-    train_cfg,
-) -> None:
-    """Dump the resolved configuration to <run_dir>/config.json for reproducibility."""
+    phase_params should contain only parameters that are specific to this phase (e.g.
+    partial_ratio/n_finetune/merge_scale for incremental). Dataset, model, and op configs
+    belong at the op level (config.json / eval_info.json) and must NOT be passed here.
+    """
 
     snapshot = {
         "experiment": experiment,
         "phase": phase,
-        "op": op,
         "run_id": run_id,
         "started_at": datetime.now().isoformat(),
         "host": socket.gethostname(),
         "python": platform.python_version(),
         "git_commit": _git_commit(),
-        "dataset_name": dataset_name,
-        "dataset": dataclasses.asdict(dataset_cfg),
-        "model_name": model_name,
-        "model": dataclasses.asdict(model_cfg),
-        "train": dataclasses.asdict(train_cfg),
+        **phase_params,
     }
 
-    with (run_dir / "config.json").open("w") as f:
+    with (run_dir / "phase_config.json").open("w") as f:
         json.dump(snapshot, f, indent=2)

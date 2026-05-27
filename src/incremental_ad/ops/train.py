@@ -1,3 +1,4 @@
+import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
@@ -6,11 +7,38 @@ import wandb
 from torch.utils.data import DataLoader
 
 from incremental_ad import model_dataset_factory as factory
-from incremental_ad.core.run import save_config_snapshot
 from incremental_ad.core.tracking import init_wandb
 from incremental_ad.training import trainer
 
 log = logging.getLogger(__name__)
+
+
+def _write_config(
+    run_dir: Path,
+    *,
+    experiment: str,
+    phase: str,
+    op: str,
+    run_id: str,
+    dataset_name: str,
+    dataset_cfg,
+    model_name: str,
+    model_cfg,
+    train_cfg,
+) -> None:
+    snapshot = {
+        "experiment": experiment,
+        "phase": phase,
+        "op": op,
+        "run_id": run_id,
+        "dataset_name": dataset_name,
+        "dataset": asdict(dataset_cfg),
+        "model_name": model_name,
+        "model": asdict(model_cfg),
+        "train": asdict(train_cfg),
+    }
+    with (run_dir / "config.json").open("w") as f:
+        json.dump(snapshot, f, indent=2)
 
 
 def run_train(
@@ -18,19 +46,20 @@ def run_train(
     experiment: str,
     phase: str,
     run_tag: str | None,
+    run_id: str,
     device,
     run_dir: Path,
-    run_id: str,
     dataset_name: str,
     dataset_cfg,
     model_name: str,
     model_cfg,
     train_cfg,
-    num_workers: int,
     train_slice: str,
     partial_ratio: float,
     n_finetune: int,
+    num_workers: int,
     init_model_state: dict | None = None,
+    phase_config: dict | None = None,
 ) -> None:
     """Train a model, optionally initialized from given weights (for fine-tuning).
 
@@ -41,7 +70,7 @@ def run_train(
     this is a fine-tune, not a resume). Checkpoints go into run_dir/checkpoints/.
     """
 
-    save_config_snapshot(
+    _write_config(
         run_dir,
         experiment=experiment,
         phase=phase,
@@ -65,6 +94,9 @@ def run_train(
     if init_model_state is not None:
         config["finetuned"] = True
 
+    if phase_config is not None:
+        config["phase"] = phase_config
+
     # Init wandb.
     init_wandb(
         experiment=experiment,
@@ -82,7 +114,7 @@ def run_train(
         log.info(f"Dataset: {dataset_name} -> {dataset_cfg}")
         log.info(f"Model:   {model_name} -> {model_cfg}")
         log.info(f"Train:   {train_cfg}")
-        
+
         if init_model_state is not None:
             log.info("Initializing model weights from base checkpoint (fine-tune)")
 

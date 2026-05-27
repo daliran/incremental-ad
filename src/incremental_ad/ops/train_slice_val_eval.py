@@ -13,44 +13,38 @@ from incremental_ad.training import val_evaluator
 log = logging.getLogger(__name__)
 
 
-def _write_val_eval_info(
+def _write_train_slice_val_eval_info(
     run_dir: Path,
     *,
-    checkpoint_path: Path,
     ckpt: dict,
-    eval_dataset_name: str,
-    eval_dataset_cfg,
+    dataset_name: str,
+    dataset_cfg,
     model_name: str,
     model_cfg,
+    train_slice: str,
     val_eval_cfg,
 ) -> None:
     snapshot = {
-        "op": "val_eval",
+        "op": "train_slice_val_eval",
         "checkpoint": {
-            "path": str(checkpoint_path),
-            "phase": ckpt["phase"],
             "run_id": ckpt["run_id"],
             "epoch": ckpt["epoch"],
             "best_val_loss": ckpt["metrics"]["best_val_loss"],
-            "dataset_name": ckpt["configs"]["dataset_name"],
-            "dataset": ckpt["configs"]["dataset"],
-            "model_name": ckpt["configs"]["model_name"],
-            "model": ckpt["configs"]["model"],
-            "train": ckpt["configs"]["train"],
         },
         "eval": {
-            "dataset_name": eval_dataset_name,
-            "dataset": asdict(eval_dataset_cfg),
+            "train_slice": train_slice,
+            "dataset_name": dataset_name,
+            "dataset": asdict(dataset_cfg),
             "model_name": model_name,
             "model": asdict(model_cfg),
             "config": asdict(val_eval_cfg),
         },
     }
-    with (run_dir / "val_eval_info.json").open("w") as f:
+    with (run_dir / "train_slice_val_eval_info.json").open("w") as f:
         json.dump(snapshot, f, indent=2)
 
 
-def run_val_eval(
+def run_train_slice_val_eval(
     *,
     experiment: str,
     phase: str,
@@ -59,48 +53,45 @@ def run_val_eval(
     group_run_id: str,
     device,
     run_dir: Path,
-    eval_dataset_name: str,
-    eval_dataset_cfg,
+    dataset_name: str,
+    dataset_cfg,
     model_name: str,
     model_cfg,
     ckpt: dict,
-    checkpoint_path: Path,
+    train_slice: str,
+    partial_ratio: float,
+    n_finetune: int,
     val_eval_cfg,
     num_workers: int,
     phase_config: dict | None = None,
 ) -> None:
-    """Evaluate reconstruction quality on the full training val series.
+    """Evaluate reconstruction quality on the val tail of the training slice.
 
-    Uses build_for_eval (eval_stride, full train series) — appropriate for
-    on-demand re-evaluation after training, not tied to any training slice.
+    Uses the same slice and stride that were used during training, so the val
+    set is identical to the one the trainer monitored for early stopping.
     """
 
-    _write_val_eval_info(
+    _write_train_slice_val_eval_info(
         run_dir,
-        checkpoint_path=checkpoint_path,
         ckpt=ckpt,
-        eval_dataset_name=eval_dataset_name,
-        eval_dataset_cfg=eval_dataset_cfg,
+        dataset_name=dataset_name,
+        dataset_cfg=dataset_cfg,
         model_name=model_name,
         model_cfg=model_cfg,
+        train_slice=train_slice,
         val_eval_cfg=val_eval_cfg,
     )
 
     wandb_config = {
         "checkpoint": {
-            "path": str(checkpoint_path),
-            "phase": ckpt["phase"],
             "run_id": ckpt["run_id"],
             "epoch": ckpt["epoch"],
             "best_val_loss": ckpt["metrics"]["best_val_loss"],
-            "dataset_name": ckpt["configs"]["dataset_name"],
-            "dataset": ckpt["configs"]["dataset"],
-            "model_name": ckpt["configs"]["model_name"],
-            "model": ckpt["configs"]["model"],
         },
         "eval": {
-            "dataset_name": eval_dataset_name,
-            "dataset": asdict(eval_dataset_cfg),
+            "train_slice": train_slice,
+            "dataset_name": dataset_name,
+            "dataset": asdict(dataset_cfg),
             "model_name": model_name,
             "model": asdict(model_cfg),
             "config": asdict(val_eval_cfg),
@@ -112,7 +103,7 @@ def run_val_eval(
     init_wandb(
         experiment=experiment,
         phase=phase,
-        op="val_eval",
+        op="train_slice_val_eval",
         run_id=run_id,
         group_run_id=group_run_id,
         run_tag=run_tag,
@@ -120,23 +111,26 @@ def run_val_eval(
     )
 
     try:
-        log.info(f"Run dir: {run_dir}")
-        log.info(f"Device:  {device}")
-        log.info(f"Dataset: {eval_dataset_name} -> {eval_dataset_cfg}")
-        log.info(f"Model:   {model_name} -> {model_cfg}")
+        log.info(f"Run dir:     {run_dir}")
+        log.info(f"Device:      {device}")
+        log.info(f"Dataset:     {dataset_name} -> {dataset_cfg}")
+        log.info(f"Model:       {model_name} -> {model_cfg}")
+        log.info(f"Train slice: {train_slice}")
 
-        result = factory.build_for_eval(
+        result = factory.build_for_training(
             model_name=model_name,
-            dataset_name=eval_dataset_name,
+            dataset_name=dataset_name,
             model_cfg=model_cfg,
-            dataset_cfg=eval_dataset_cfg,
-            split="val",
+            dataset_cfg=dataset_cfg,
+            train_slice=train_slice,
+            partial_ratio=partial_ratio,
+            n_finetune=n_finetune,
         )
 
         model = result.model.to(device)
 
         val_loader = DataLoader(
-            result.eval_dataset,
+            result.val_dataset,
             batch_size=val_eval_cfg.batch_size,
             shuffle=False,
             num_workers=num_workers,

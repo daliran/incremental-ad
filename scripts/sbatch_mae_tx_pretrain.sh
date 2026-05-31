@@ -65,8 +65,8 @@ python -m incremental_ad.main \
     --mae-tx-decoder-layers 1 \
     --mae-tx-decoder-heads 2 \
     --mae-tx-patch-norm false \
-    --mae-tx-mask-ratio 0.90 \
-    --mae-tx-n-eval-passes 10 \
+    --mae-tx-mask-ratio 0.80 \
+    --mae-tx-n-eval-passes 30 \
     --train-seed 42 \
     --train-epochs 300 \
     --train-patience 30 \

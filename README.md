@@ -40,12 +40,15 @@ subset is masked and the model reconstructs the masked patches.
     * Optional patch-level normalization of the ground-truth patches
       (`patch_norm`) — makes the loss focus on shape, not magnitude.
     * MSE between predicted and ground-truth patches.
-* **Peculiarity at eval time** — the anomaly score for a window is the mean
-  reconstruction error obtained by running **`n_eval_passes`** forward passes,
-  each with a *different random mask*, and averaging the per-token errors
-  (weighted by how often each token was masked). This Monte-Carlo style scoring
-  reduces the variance of the single-mask estimate. Eval is run with dataset
-  **stride = 1** (one window per timestep), which the metrics rely on.
+* **Peculiarity at eval time** — the anomaly score for a window is computed
+  from the per-patch reconstruction errors obtained by running
+  **`n_eval_passes`** forward passes, each with a *different random mask*, and
+  averaging each patch's error over the passes it was masked in (weighted
+  average). This Monte-Carlo style scoring reduces the variance of the
+  single-mask estimate. The window score is the mean of the per-patch errors.
+
+  Eval is run with dataset **stride = 1** (one window per timestep), which the
+  metrics rely on.
 
 Config (`--mae-tx-*`): `patch-len`, `encoder-embed-dim`, `encoder-layers`,
 `encoder-heads`, `decoder-embed-dim`, `decoder-layers`, `decoder-heads`,
@@ -105,7 +108,7 @@ python -m incremental_ad.main \
     --swat-window-len 100 --swat-stride 50 --swat-normalization standard --swat-val-ratio 0.15 --swat-eval-stride 1 \
     --mae-tx-patch-len 10 --mae-tx-encoder-embed-dim 256 --mae-tx-encoder-layers 2 \
     --mae-tx-encoder-heads 2 --mae-tx-decoder-embed-dim 128 --mae-tx-decoder-layers 1 \
-    --mae-tx-decoder-heads 2 --mae-tx-patch-norm false --mae-tx-mask-ratio 0.90 --mae-tx-n-eval-passes 10 \
+    --mae-tx-decoder-heads 2 --mae-tx-patch-norm false --mae-tx-mask-ratio 0.80 --mae-tx-n-eval-passes 30 \
     --train-seed 42 --train-epochs 300 --train-patience 30 --train-batch-size 64 \
     --train-optimizer adamw --train-weight-decay 1e-2 --train-learning-rate 1e-4 \
     --train-grad-clip 0.5 --train-scheduler cosine --train-warmup-ratio 0.1 --train-checkpoint-interval 0 \

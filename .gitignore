@@ -187,6 +187,7 @@ fabric.properties
 # project specific
 hf_cache/
 experiments/
+debug/
 
 # unignore project scripts excluded by the VirtualEnv template above
 !scripts/

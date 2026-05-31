@@ -45,7 +45,7 @@
                 "--mae-tx-decoder-heads", "2",
                 "--mae-tx-patch-norm", "false",
                 "--mae-tx-mask-ratio", "0.8",
-                "--mae-tx-n-eval-passes", "10",
+                "--mae-tx-n-eval-passes", "30",
 
                 // --- Training ---
                 "--train-seed", "42",
@@ -117,7 +117,7 @@
                 "--mae-tx-decoder-heads", "2",
                 "--mae-tx-patch-norm", "false",
                 "--mae-tx-mask-ratio", "0.8",
-                "--mae-tx-n-eval-passes", "10",
+                "--mae-tx-n-eval-passes", "30",
 
                 // --- Base pretrain training ---
                 "--train-seed", "42",
@@ -190,6 +190,22 @@
                 "--test-eval-batch-size", "512",
                 "--test-eval-threshold-strategy", "oracle",
                 "--test-eval-threshold-percentile", "99"
+            ]
+        },
+        {
+            "name": "Analyze Dataset",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/analysis/analyze_dataset.py",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "HF_HOME": "${workspaceFolder}/hf_cache"
+            },
+            "justMyCode": true,
+            "args": [
+                "--dataset", "swat",
+                "--out-dir", "${workspaceFolder}/debug/dataset/swat"
             ]
         }
     ],

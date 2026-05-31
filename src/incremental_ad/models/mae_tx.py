@@ -371,15 +371,60 @@ class MAETransformer(BaseModel):
         # the clamp is used to avoid division by 0 in case a token is never visited.
         mean_token_errors = token_error_sum / token_error_counts.clamp(min=1)
 
-        # (batch_size).
-        # average reconstruction error of all tokens in a batch/sequence.
-        # this is basically a single anomaly score per window.
-
-        # with a single forward pass this would have been:
-        # errors = F.mse_loss(predicted_patches, ground_truth_patches, reduction="none").mean(dim=-1)
-        # score = errors.mean(dim=-1)
-
         return mean_token_errors.mean(dim=-1)
+
+    def debug_step(self, batch: torch.Tensor) -> dict[str, torch.Tensor]:
+        """Return all per-window debug info for RunDebugger (batch_size=1)."""
+        return self._debug_reconstruction(batch)
+
+    def _debug_reconstruction(self, batch: torch.Tensor) -> dict[str, torch.Tensor]:
+        batch_size = batch.size(0)
+        tokens = self._tokenize(batch)
+
+        token_error_sum = torch.zeros(batch_size, self.n_patches, device=batch.device)
+        token_error_counts = torch.zeros(batch_size, self.n_patches, device=batch.device)
+        
+        recon_sum = torch.zeros_like(tokens)
+        recon_count = torch.zeros(batch_size, self.n_patches, device=batch.device)
+
+        for _ in range(self.config.n_eval_passes):
+            mask_indices, unmask_indices = create_mask(
+                batch_size, self.n_patches, self.config.mask_ratio, batch.device
+            )
+
+            decoder_output, _ = self._forward(batch, unmask_indices)
+
+            self._accumulate_errors(
+                decoder_output, tokens, mask_indices, token_error_sum, token_error_counts
+            )
+
+            # Only accumulate decoder output at positions that were actually masked.
+            # Visible-position outputs are not supervised during training and would
+            # corrupt the averaged reconstruction used for visualization.
+            masked_preds = get_by_mask(decoder_output, mask_indices)  # (B, n_masked, patch_dim)
+            idx = mask_indices.unsqueeze(-1).expand_as(masked_preds)
+            recon_sum.scatter_add_(1, idx, masked_preds.detach())
+            recon_count.scatter_add_(1, mask_indices, torch.ones_like(mask_indices, dtype=recon_count.dtype))
+
+        mean_token_errors = token_error_sum / token_error_counts.clamp(min=1)
+        
+        # Default to original for any patch never masked (practically impossible with many passes).
+        recon_avg = tokens.clone()
+        has_recon = recon_count > 0
+
+        recon_avg[has_recon.unsqueeze(-1).expand_as(recon_sum)] = (
+            recon_sum / recon_count.clamp(min=1).unsqueeze(-1)
+        )[has_recon.unsqueeze(-1).expand_as(recon_sum)]
+
+        B, P, _ = tokens.shape
+        PL = self.config.patch_len
+        NF = self.n_features
+
+        return {
+            "token_errors": mean_token_errors,
+            "original": tokens.reshape(B, P * PL, NF),
+            "reconstruction": recon_avg.reshape(B, P * PL, NF),
+        }
 
     def _accumulate_errors(
         self,

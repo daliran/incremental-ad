@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from datasets import load_dataset
+import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 import torch
@@ -65,6 +66,21 @@ class SwatDataset(BaseDataset):
     def __getitem__(self, idx: int) -> torch.Tensor:
         start = idx * self.stride
         return self.data[start : start + self.window_size]
+
+
+def load_for_analysis() -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
+    """Return raw (unscaled) train/test arrays and feature names for offline analysis."""
+    
+    train_df, test_df = _load_raw()
+    train_samples, _ = _extract_samples_and_labels(train_df)
+    test_samples, test_labels = _extract_samples_and_labels(test_df)
+    
+    return (
+        train_samples.values.astype(np.float32),
+        test_samples.values.astype(np.float32),
+        np.asarray(test_labels.values, dtype=np.int64),
+        list(train_samples.columns),
+    )
 
 
 def _load_raw() -> tuple[pd.DataFrame, pd.DataFrame]:

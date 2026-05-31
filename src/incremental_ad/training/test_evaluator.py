@@ -14,6 +14,7 @@ from incremental_ad.core.cli import pluck
 from incremental_ad.datasets.base_dataset import BaseDataset
 from incremental_ad.models.base_model import BaseModel
 from incremental_ad.training import metrics, scoring
+from incremental_ad.training.run_debug import RunDebugger
 
 log = logging.getLogger(__name__)
 
@@ -82,7 +83,10 @@ class TestEvaluator:
         # collecting the distribution from the training set.
         # this uses the evaluator stride, not the training stride.
         train_scores = scoring.collect_scores(
-            self.model, self.train_loader, self.device, desc="Computing threshold (train)"
+            self.model,
+            self.train_loader,
+            self.device,
+            desc="Computing threshold (train)",
         )
 
         # calculating the percentile from the training set distribution.
@@ -135,6 +139,21 @@ class TestEvaluator:
             ),
             "event": metrics.eval_event(scores, timestep_labels, threshold),
         }
+
+        # Resolve a concrete threshold value for debug output.
+        # Oracle mode picks the best window-level F1 threshold; train_percentile already has one.
+        debug_threshold = (
+            threshold
+            if threshold is not None
+            else metrics.find_best_f1_threshold(scores, window_labels)
+        )
+
+        RunDebugger(
+            run_dir=self.run_dir,
+            model=self.model,
+            device=self.device,
+            eval_dataset=dataset,
+        ).run(scores, window_labels, debug_threshold)
 
         self._report(results, scores, window_labels, timestep_labels)
 

@@ -2,7 +2,7 @@ import argparse
 import logging
 import platform
 
-from incremental_ad.datasets import swat
+from incremental_ad.datasets import psm, swat
 from incremental_ad.models import mae_tx
 from incremental_ad.phases.eval import run_eval_phase
 from incremental_ad.phases.incremental import run_incremental
@@ -14,6 +14,7 @@ NUM_WORKERS = 0 if platform.system() == "Windows" else 4
 # Registry entries.
 DATASETS = {
     "swat": (swat.add_args, swat.make_config, swat.SWaTConfig),
+    "psm": (psm.add_args, psm.make_config, psm.PsmConfig),
 }
 
 MODELS = {

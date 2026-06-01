@@ -2,10 +2,12 @@
 Dataset-level analysis for anomaly detection datasets.
 
 Outputs (written to --out-dir, default debug/dataset/<name>):
-  stats.csv            Per-feature stats: train / test-normal / test-anomaly / delta-z
-  anomaly_events.csv   Segment catalog sorted by hardness ascending (hardest first)
-  timeseries.pdf       Multi-page time series with anomaly shading and ±2σ reference
-  anomaly_heatmap.png  Features × time z-score heatmap with GT label strip
+  stats.csv              Per-feature stats: train / test-normal / test-anomaly / delta-z
+  anomaly_events.csv     Segment catalog sorted by hardness ascending (hardest first)
+  train_timeseries.pdf   Multi-page train time series with ±2σ reference lines
+  timeseries.pdf         Multi-page test time series with anomaly shading and ±2σ reference
+  train_heatmap.png      Features × time z-score heatmap of train set (sorted by drift)
+  anomaly_heatmap.png    Features × time z-score heatmap with GT label strip
 
 Adding a new dataset:
   1. Implement  load_<name>() -> DatasetBundle  (raw/unscaled arrays)
@@ -70,8 +72,20 @@ def load_swat() -> DatasetBundle:
     return DatasetBundle("swat", feature_names, train_data, test_data, test_labels)
 
 
+def load_psm() -> DatasetBundle:
+    from incremental_ad.datasets.psm import load_for_analysis
+
+    train_data, test_data, test_labels, feature_names = load_for_analysis()
+    log.info(
+        f"PSM — train: {len(train_data):,}  test: {len(test_data):,} "
+        f"({int(test_labels.sum()):,} anomaly pts, {test_labels.mean():.1%})"
+    )
+    return DatasetBundle("psm", feature_names, train_data, test_data, test_labels)
+
+
 LOADERS: dict[str, Callable[[], DatasetBundle]] = {
     "swat": load_swat,
+    "psm": load_psm,
 }
 
 # ---------------------------------------------------------------------------
@@ -312,6 +326,126 @@ def plot_anomaly_heatmap(bundle: DatasetBundle, out_path: Path, max_cols: int = 
 
 
 # ---------------------------------------------------------------------------
+# Plot: train time series PDF
+# ---------------------------------------------------------------------------
+
+
+def plot_train_timeseries(bundle: DatasetBundle, out_path: Path) -> None:
+    """
+    One PDF page per group of features. Each subplot shows the train-set signal
+    with ±2σ dashed lines computed from the train mean/std itself.
+    """
+    train_mean = bundle.train_data.mean(axis=0)
+    train_std = bundle.train_data.std(axis=0) + 1e-8
+    T = len(bundle.train_data)
+    t = np.arange(T)
+    n_feat = len(bundle.feature_names)
+    n_pages = (n_feat + _FEATURES_PER_PAGE - 1) // _FEATURES_PER_PAGE
+
+    with PdfPages(out_path) as pdf:
+        for page, page_start in enumerate(range(0, n_feat, _FEATURES_PER_PAGE)):
+            feat_idx = list(range(page_start, min(page_start + _FEATURES_PER_PAGE, n_feat)))
+            fig, axes_2d = plt.subplots(
+                len(feat_idx), 1,
+                figsize=(18, 3 * len(feat_idx)),
+                sharex=True,
+                squeeze=False,
+            )
+            axes = axes_2d[:, 0]
+
+            for ax, fi in zip(axes, feat_idx):
+                ax.plot(t, bundle.train_data[:, fi], color="#222222", linewidth=0.6)
+                mu, sigma = float(train_mean[fi]), float(train_std[fi])
+                ax.axhline(mu, color="#0055cc", linewidth=0.5, linestyle=":")
+                ax.axhline(mu + 2 * sigma, color="#0055cc", linewidth=0.9, linestyle="--", alpha=0.7)
+                ax.axhline(mu - 2 * sigma, color="#0055cc", linewidth=0.9, linestyle="--", alpha=0.7)
+                ax.set_ylabel(bundle.feature_names[fi], fontsize=8, rotation=0, ha="right", va="center")
+                ax.tick_params(labelsize=7)
+                ax.set_xlim(0, T)
+
+            axes[-1].set_xlabel("Timestep (train set)")
+            axes[0].legend(
+                handles=[
+                    Line2D([0], [0], color="#0055cc", linestyle="--", label="±2σ (train)"),
+                ],
+                loc="upper right",
+                fontsize=8,
+            )
+            fig.suptitle(
+                f"{bundle.name.upper()} — Train features {page_start + 1}–{feat_idx[-1] + 1}"
+                f" of {n_feat}  (page {page + 1}/{n_pages})",
+                fontsize=10,
+            )
+            plt.tight_layout(rect=(0, 0, 1, 0.97))
+            pdf.savefig(fig, dpi=120)
+            plt.close(fig)
+
+    log.info(f"Saved train time series: {out_path}")
+
+
+# ---------------------------------------------------------------------------
+# Plot: train z-score heatmap
+# ---------------------------------------------------------------------------
+
+_ROLLING_WINDOW_FRAC = 0.05  # fraction of train length used for rolling drift
+
+
+def plot_train_heatmap(bundle: DatasetBundle, out_path: Path, max_cols: int = 5000) -> None:
+    """
+    Features × time z-score heatmap of the train set.
+
+    Features are sorted top-to-bottom by temporal drift — std of the rolling mean
+    (window = 5% of train length) — so rows with the most within-train regime
+    change appear first. This makes distributional shifts visible and helps
+    identify natural split boundaries.
+    """
+    train_mean = bundle.train_data.mean(axis=0)
+    train_std = bundle.train_data.std(axis=0) + 1e-8
+    T = len(bundle.train_data)
+    stride = max(1, T // max_cols)
+
+    data_ds = bundle.train_data[::stride]
+    z = (data_ds - train_mean) / train_std  # (T', F)
+
+    # Sort features by how much their rolling mean drifts over the train window.
+    window = max(1, int(len(data_ds) * _ROLLING_WINDOW_FRAC))
+    rolling_std_of_mean = (
+        pd.DataFrame(z)
+        .rolling(window, center=True, min_periods=1)
+        .mean()
+        .std(axis=0)
+        .values
+    )
+    sort_idx = np.argsort(rolling_std_of_mean)[::-1]
+    z_sorted = z[:, sort_idx].T  # (F, T')
+    names_sorted = [bundle.feature_names[i] for i in sort_idx]
+
+    vmax = float(max(3.0, np.percentile(np.abs(z_sorted), 98)))
+    norm = TwoSlopeNorm(vmin=-vmax, vcenter=0.0, vmax=vmax)
+
+    fig, ax_heat = plt.subplots(figsize=(18, 12))
+
+    im = ax_heat.imshow(z_sorted, aspect="auto", cmap="RdBu_r", norm=norm, interpolation="nearest")
+    plt.colorbar(im, ax=ax_heat, label="Z-score (relative to train mean)", shrink=0.8, pad=0.01)
+
+    n_feat = len(names_sorted)
+    ytick_step = max(1, n_feat // 30)
+    ax_heat.set_yticks(range(0, n_feat, ytick_step))
+    ax_heat.set_yticklabels(names_sorted[::ytick_step], fontsize=7)
+    ax_heat.set_ylabel("Feature  (top = highest temporal drift)")
+    ax_heat.set_xlabel(f"Timestep — train set  (stride={stride})")
+
+    fig.suptitle(
+        f"{bundle.name.upper()} — Train z-score heatmap  |  features sorted by temporal drift",
+        fontsize=11,
+    )
+    plt.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    log.info(f"Saved train heatmap: {out_path}")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -348,7 +482,13 @@ def main() -> None:
     catalog.to_csv(out_dir / "anomaly_events.csv", index=False)
     log.info(f"  anomaly_events.csv  ({len(catalog)} events)")
 
-    log.info("Plotting time series…")
+    log.info("Plotting train time series…")
+    plot_train_timeseries(bundle, out_dir / "train_timeseries.pdf")
+
+    log.info("Plotting train heatmap…")
+    plot_train_heatmap(bundle, out_dir / "train_heatmap.png")
+
+    log.info("Plotting test time series…")
     plot_timeseries(bundle, out_dir / "timeseries.pdf")
 
     log.info("Plotting anomaly heatmap…")

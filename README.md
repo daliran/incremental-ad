@@ -9,9 +9,9 @@ The codebase is organized around three ideas:
 - **operations** — the atomic units of work: `train`, `val_eval`, `train_slice_val_eval`, `test_eval` and `merge`.
 - **phases** — what you actually launch (one phase = one SLURM job); a phase
   orchestrates one or more operations. Implemented today: `pretrain`
-  (train → val_eval → test_eval), `incremental` (pretrain → fine-tune → merge →
-  val_eval → test_eval), and `eval` (standalone, on-demand; supports `--split
-  test` or `--split val`).
+  (train → train_slice_val_eval → test_eval), `incremental` (base pretrain →
+  fine-tune × N → merge → train_slice_val_eval → test_eval), and `eval`
+  (standalone, on-demand; supports `--split test` or `--split val`).
 - **registries** — the available models and datasets, injected from `main.py`.
 
 ---
@@ -75,6 +75,21 @@ Secure Water Treatment testbed (51 features), loaded from the HuggingFace
 Config (`--swat-*`): `window-len`, `stride`, `normalization`, `val-ratio`,
 `eval-stride`.
 
+### PSM (`psm`)
+
+Pooled Server Metrics dataset (25 features), loaded from the HuggingFace
+`thuml/Time-Series-Library` dataset. Unlike SWaT, data and labels are in
+separate configs (`PSM-data` / `PSM-label`); the label split is named
+`test_label` with a binary `label` column (0 = normal, 1 = anomaly).
+The train split contains scattered NaN values (~2 % of rows) that are
+forward-filled then backward-filled before scaling.
+
+* **Normalization** — `standard` (per-feature, fit on train) or `none`.
+* **Windowing / Validation / Eval** — same scheme as SWaT.
+
+Config (`--psm-*`): `window-len`, `stride`, `normalization`, `val-ratio`,
+`eval-stride`.
+
 ---
 
 ## Run identity
@@ -99,7 +114,7 @@ Every run is identified by four coordinates:
 ### `pretrain` — train, then val eval, then test eval (one job)
 Trains the model on the full train set, evaluates reconstruction quality on the
 training val set, then evaluates anomaly detection on the test set — all in one
-job/folder. Both evals window at the dataset's `--swat-eval-stride`.
+job/folder. Both evals window at the dataset's `eval-stride` config (e.g. `--swat-eval-stride`).
 
 ```bash
 python -m incremental_ad.main \
@@ -155,7 +170,7 @@ data. `--base-data-ratio 1.0` is the baseline (full allocation); e.g. `0.4` with
 `--partial-ratio 0.5` on 100 k timesteps gives the base 20 k timesteps while the
 FTs still start at 50 k.
 
-See [`scripts/sbatch_mae_tx_incremental.sh`](scripts/sbatch_mae_tx_incremental.sh)
+See [`scripts/sbatch_mae_tx_swat_incremental.sh`](scripts/sbatch_mae_tx_swat_incremental.sh)
 for the full argument list.
 
 ### Operations
@@ -302,6 +317,30 @@ coincide for a producing job and diverge only for a standalone eval.
 
 ---
 
+## Analysis
+
+`analysis/analyze_dataset.py` produces a set of offline diagnostics for a
+given dataset. Outputs land in `debug/dataset/<name>/` by default.
+
+| file | contents |
+|---|---|
+| `stats.csv` | Per-feature descriptive stats for train, test-normal, test-anomaly, and anomaly Δz |
+| `anomaly_events.csv` | Contiguous anomaly segments ranked by hardness (lowest mean \|z\| first) |
+| `train_timeseries.pdf` | Multi-page PDF of the train signal per feature with ±2σ reference lines |
+| `timeseries.pdf` | Multi-page PDF of the test signal with anomaly shading and ±2σ reference lines |
+| `train_heatmap.png` | Features × time z-score heatmap of the train set; features sorted by temporal drift (useful for choosing split boundaries) |
+| `anomaly_heatmap.png` | Features × time z-score heatmap of the test set; features sorted by anomaly detectability |
+
+```bash
+python analysis/analyze_dataset.py --dataset swat
+python analysis/analyze_dataset.py --dataset psm --out-dir debug/psm_run1
+```
+
+Supported datasets: `swat`, `psm`. Adding a new one requires implementing
+`load_<name>() -> DatasetBundle` and registering it in `LOADERS`.
+
+---
+
 ## Environment
 
 | variable        | purpose                              | default        |
@@ -314,9 +353,15 @@ coincide for a producing job and diverge only for a standalone eval.
 | `SLURM_JOB_ID`  | set by SLURM; becomes the `run_id`   | timestamp      |
 
 Cluster submission scripts live in [`scripts/`](scripts/):
-[`sbatch_mae_tx_pretrain.sh`](scripts/sbatch_mae_tx_pretrain.sh) (pretrain + eval),
-[`sbatch_mae_tx_incremental.sh`](scripts/sbatch_mae_tx_incremental.sh) (pretrain +
-fine-tune + merge + eval), and
-[`sbatch_mae_tx_eval.sh`](scripts/sbatch_mae_tx_eval.sh) (standalone eval). Local
-debug configs (with `WANDB_MODE=disabled`) are in
+
+| script | dataset | phase |
+|---|---|---|
+| [`sbatch_mae_tx_swat_pretrain.sh`](scripts/sbatch_mae_tx_swat_pretrain.sh) | SWaT | pretrain + eval |
+| [`sbatch_mae_tx_swat_incremental.sh`](scripts/sbatch_mae_tx_swat_incremental.sh) | SWaT | pretrain + fine-tune + merge + eval |
+| [`sbatch_mae_tx_swat_eval.sh`](scripts/sbatch_mae_tx_swat_eval.sh) | SWaT | standalone eval |
+| [`sbatch_mae_tx_psm_pretrain.sh`](scripts/sbatch_mae_tx_psm_pretrain.sh) | PSM | pretrain + eval |
+| [`sbatch_mae_tx_psm_incremental.sh`](scripts/sbatch_mae_tx_psm_incremental.sh) | PSM | pretrain + fine-tune + merge + eval |
+| [`sbatch_mae_tx_psm_eval.sh`](scripts/sbatch_mae_tx_psm_eval.sh) | PSM | standalone eval |
+
+Local debug configs (with `WANDB_MODE=disabled`) are in
 [`.vscode/launch.json`](.vscode/launch.json).

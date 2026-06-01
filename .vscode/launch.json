@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Pretrain (train + eval)",
+            "name": "SWaT — Pretrain (train + eval)",
             "type": "debugpy",
             "request": "launch",
             "module": "incremental_ad.main",
@@ -72,7 +72,7 @@
             ]
         },
         {
-            "name": "Incremental (pretrain + finetune + merge + eval)",
+            "name": "SWaT — Incremental (pretrain + finetune + merge + eval)",
             "type": "debugpy",
             "request": "launch",
             "module": "incremental_ad.main",
@@ -157,7 +157,7 @@
             ]
         },
         {
-            "name": "Eval (standalone)",
+            "name": "SWaT — Eval (standalone)",
             "type": "debugpy",
             "request": "launch",
             "module": "incremental_ad.main",
@@ -193,7 +193,7 @@
             ]
         },
         {
-            "name": "Analyze Dataset",
+            "name": "SWaT — Analyze Dataset",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/analysis/analyze_dataset.py",
@@ -206,6 +206,209 @@
             "args": [
                 "--dataset", "swat",
                 "--out-dir", "${workspaceFolder}/debug/dataset/swat"
+            ]
+        },
+        {
+            "name": "PSM — Pretrain (train + eval)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "incremental_ad.main",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "HF_HOME": "${workspaceFolder}/hf_cache",
+                "RUNS_ROOT": "${workspaceFolder}/experiments",
+                "WANDB_MODE": "disabled",
+                "WANDB_PROJECT": "incremental_ad",
+                "WANDB_ENTITY": "kirrel-research"
+            },
+            "justMyCode": true,
+            "args": [
+                // --- Dispatch ---
+                "--phase", "pretrain",
+                "--experiment", "dev_mae_tx_psm",
+                "--device", "auto",
+                "--dataset", "psm",
+                "--model", "mae_tx",
+
+                // --- PSM dataset ---
+                "--psm-window-len", "100",
+                "--psm-stride", "50",
+                "--psm-eval-stride", "1",
+                "--psm-normalization", "standard",
+                "--psm-val-ratio", "0.15",
+
+                // --- MAE transformer model ---
+                "--mae-tx-patch-len", "5",
+                "--mae-tx-encoder-embed-dim", "256",
+                "--mae-tx-encoder-layers", "2",
+                "--mae-tx-encoder-heads", "2",
+                "--mae-tx-decoder-embed-dim", "128",
+                "--mae-tx-decoder-layers", "1",
+                "--mae-tx-decoder-heads", "2",
+                "--mae-tx-patch-norm", "false",
+                "--mae-tx-mask-ratio", "0.8",
+                "--mae-tx-n-eval-passes", "30",
+
+                // --- Training ---
+                "--train-seed", "42",
+                "--train-epochs", "300",
+                "--train-patience", "30",
+                "--train-batch-size", "64",
+                "--train-optimizer", "adamw",
+                "--train-weight-decay", "1e-2",
+                "--train-learning-rate", "1e-4",
+                "--train-grad-clip", "0.5",
+                "--train-scheduler", "cosine",
+                "--train-warmup-ratio", "0.1",
+                "--train-checkpoint-interval", "0",
+
+                // --- Val eval ---
+                "--val-eval-seed", "0",
+                "--val-eval-batch-size", "512",
+
+                // --- Test eval (PSM anomaly rate ~28%; percentile=72 for train_percentile strategy) ---
+                "--test-eval-seed", "0",
+                "--test-eval-batch-size", "512",
+                "--test-eval-threshold-strategy", "oracle",
+                "--test-eval-threshold-percentile", "72"
+            ]
+        },
+        {
+            "name": "PSM — Incremental (pretrain + finetune + merge + eval)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "incremental_ad.main",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "HF_HOME": "${workspaceFolder}/hf_cache",
+                "RUNS_ROOT": "${workspaceFolder}/experiments",
+                "WANDB_MODE": "disabled",
+                "WANDB_PROJECT": "incremental_ad",
+                "WANDB_ENTITY": "kirrel-research"
+            },
+            "justMyCode": true,
+            "args": [
+                // --- Dispatch ---
+                "--phase", "incremental",
+                "--experiment", "dev_mae_tx_psm",
+                "--device", "auto",
+                "--dataset", "psm",
+                "--model", "mae_tx",
+
+                // --- Split + merge ---
+                "--partial-ratio", "0.5",
+                "--n-finetune", "3",
+                "--merge-scale", "0.5",
+                "--base-data-ratio", "1.0",
+
+                // --- PSM dataset ---
+                "--psm-window-len", "100",
+                "--psm-stride", "50",
+                "--psm-eval-stride", "1",
+                "--psm-normalization", "standard",
+                "--psm-val-ratio", "0.15",
+
+                // --- MAE transformer model ---
+                "--mae-tx-patch-len", "5",
+                "--mae-tx-encoder-embed-dim", "256",
+                "--mae-tx-encoder-layers", "2",
+                "--mae-tx-encoder-heads", "2",
+                "--mae-tx-decoder-embed-dim", "128",
+                "--mae-tx-decoder-layers", "1",
+                "--mae-tx-decoder-heads", "2",
+                "--mae-tx-patch-norm", "false",
+                "--mae-tx-mask-ratio", "0.8",
+                "--mae-tx-n-eval-passes", "30",
+
+                // --- Base pretrain training ---
+                "--train-seed", "42",
+                "--train-epochs", "300",
+                "--train-patience", "30",
+                "--train-batch-size", "64",
+                "--train-optimizer", "adamw",
+                "--train-weight-decay", "1e-2",
+                "--train-learning-rate", "1e-4",
+                "--train-grad-clip", "0.5",
+                "--train-scheduler", "cosine",
+                "--train-warmup-ratio", "0.1",
+                "--train-checkpoint-interval", "0",
+
+                // --- Fine-tuning training ---
+                "--finetune-seed", "42",
+                "--finetune-epochs", "50",
+                "--finetune-patience", "10",
+                "--finetune-batch-size", "64",
+                "--finetune-optimizer", "adamw",
+                "--finetune-weight-decay", "1e-2",
+                "--finetune-learning-rate", "1e-5",
+                "--finetune-grad-clip", "0.5",
+                "--finetune-scheduler", "cosine",
+                "--finetune-warmup-ratio", "0.1",
+                "--finetune-checkpoint-interval", "0",
+
+                // --- Val eval ---
+                "--val-eval-seed", "0",
+                "--val-eval-batch-size", "512",
+
+                // --- Test eval ---
+                "--test-eval-seed", "0",
+                "--test-eval-batch-size", "512",
+                "--test-eval-threshold-strategy", "oracle",
+                "--test-eval-threshold-percentile", "72"
+            ]
+        },
+        {
+            "name": "PSM — Eval (standalone)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "incremental_ad.main",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "HF_HOME": "${workspaceFolder}/hf_cache",
+                "RUNS_ROOT": "${workspaceFolder}/experiments",
+                "WANDB_MODE": "disabled",
+                "WANDB_PROJECT": "incremental_ad",
+                "WANDB_ENTITY": "kirrel-research"
+            },
+            "justMyCode": true,
+            "args": [
+                "--phase", "eval",
+                "--device", "auto",
+                "--dataset", "psm",
+                "--checkpoint", "${input:evalCheckpoint}",
+
+                // --- PSM dataset ---
+                "--psm-window-len", "100",
+                "--psm-stride", "1",
+                "--psm-eval-stride", "1",
+                "--psm-normalization", "standard",
+                "--psm-val-ratio", "0.15",
+
+                // --- Split selection + test eval args ---
+                "--split", "test",
+                "--test-eval-seed", "0",
+                "--test-eval-batch-size", "512",
+                "--test-eval-threshold-strategy", "oracle",
+                "--test-eval-threshold-percentile", "72"
+            ]
+        },
+        {
+            "name": "PSM — Analyze Dataset",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/analysis/analyze_dataset.py",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "HF_HOME": "${workspaceFolder}/hf_cache"
+            },
+            "justMyCode": true,
+            "args": [
+                "--dataset", "psm",
+                "--out-dir", "${workspaceFolder}/debug/dataset/psm"
             ]
         }
     ],

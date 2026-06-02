@@ -229,10 +229,18 @@ class MAETransformer(BaseModel):
         n_params = sum(p.numel() for p in self.parameters())
 
         log.info("MAETransformer architecture:")
-        log.info(f"  Sequence   : {self.n_patches} patches × {self.config.patch_len} timesteps × {self.n_features} features → raw token dim {raw_token_dim}")
-        log.info(f"  Masking    : {n_masked} masked / {n_visible} visible (ratio={self.config.mask_ratio})")
-        log.info(f"  Encoder    : dim={self.config.encoder_embed_dim}, layers={self.config.encoder_layers}, heads={self.config.encoder_heads}  (sees {n_visible} tokens)")
-        log.info(f"  Decoder    : dim={self.config.decoder_embed_dim}, layers={self.config.decoder_layers}, heads={self.config.decoder_heads}  (sees {self.n_patches} tokens)")
+        log.info(
+            f"  Sequence   : {self.n_patches} patches × {self.config.patch_len} timesteps × {self.n_features} features → raw token dim {raw_token_dim}"
+        )
+        log.info(
+            f"  Masking    : {n_masked} masked / {n_visible} visible (ratio={self.config.mask_ratio})"
+        )
+        log.info(
+            f"  Encoder    : dim={self.config.encoder_embed_dim}, layers={self.config.encoder_layers}, heads={self.config.encoder_heads}  (sees {n_visible} tokens)"
+        )
+        log.info(
+            f"  Decoder    : dim={self.config.decoder_embed_dim}, layers={self.config.decoder_layers}, heads={self.config.decoder_heads}  (sees {self.n_patches} tokens)"
+        )
         log.info(f"  Parameters : {n_params:,}")
 
     def _tokenize(self, x: torch.Tensor) -> torch.Tensor:
@@ -373,59 +381,6 @@ class MAETransformer(BaseModel):
 
         return mean_token_errors.mean(dim=-1)
 
-    def debug_step(self, batch: torch.Tensor) -> dict[str, torch.Tensor]:
-        """Return all per-window debug info for RunDebugger (batch_size=1)."""
-        return self._debug_reconstruction(batch)
-
-    def _debug_reconstruction(self, batch: torch.Tensor) -> dict[str, torch.Tensor]:
-        batch_size = batch.size(0)
-        tokens = self._tokenize(batch)
-
-        token_error_sum = torch.zeros(batch_size, self.n_patches, device=batch.device)
-        token_error_counts = torch.zeros(batch_size, self.n_patches, device=batch.device)
-        
-        recon_sum = torch.zeros_like(tokens)
-        recon_count = torch.zeros(batch_size, self.n_patches, device=batch.device)
-
-        for _ in range(self.config.n_eval_passes):
-            mask_indices, unmask_indices = create_mask(
-                batch_size, self.n_patches, self.config.mask_ratio, batch.device
-            )
-
-            decoder_output, _ = self._forward(batch, unmask_indices)
-
-            self._accumulate_errors(
-                decoder_output, tokens, mask_indices, token_error_sum, token_error_counts
-            )
-
-            # Only accumulate decoder output at positions that were actually masked.
-            # Visible-position outputs are not supervised during training and would
-            # corrupt the averaged reconstruction used for visualization.
-            masked_preds = get_by_mask(decoder_output, mask_indices)  # (B, n_masked, patch_dim)
-            idx = mask_indices.unsqueeze(-1).expand_as(masked_preds)
-            recon_sum.scatter_add_(1, idx, masked_preds.detach())
-            recon_count.scatter_add_(1, mask_indices, torch.ones_like(mask_indices, dtype=recon_count.dtype))
-
-        mean_token_errors = token_error_sum / token_error_counts.clamp(min=1)
-        
-        # Default to original for any patch never masked (practically impossible with many passes).
-        recon_avg = tokens.clone()
-        has_recon = recon_count > 0
-
-        recon_avg[has_recon.unsqueeze(-1).expand_as(recon_sum)] = (
-            recon_sum / recon_count.clamp(min=1).unsqueeze(-1)
-        )[has_recon.unsqueeze(-1).expand_as(recon_sum)]
-
-        B, P, _ = tokens.shape
-        PL = self.config.patch_len
-        NF = self.n_features
-
-        return {
-            "token_errors": mean_token_errors,
-            "original": tokens.reshape(B, P * PL, NF),
-            "reconstruction": recon_avg.reshape(B, P * PL, NF),
-        }
-
     def _accumulate_errors(
         self,
         prediction: torch.Tensor,
@@ -456,6 +411,80 @@ class MAETransformer(BaseModel):
 
         # Adds the increment value in the tensor at the location of the mask indices.
         token_error_counts.scatter_add_(1, mask_indices, visited_tokens)
+
+    def debug_step(self, batch: torch.Tensor) -> dict[str, torch.Tensor]:
+
+        batch_size = batch.size(0)
+
+        # (batch_size, masked patches).
+        # token level reconstruction error.
+        token_error_sum = torch.zeros(batch_size, self.n_patches, device=batch.device)
+
+        # (batch_size, masked patches).
+        # tensors which keeps track how many time a token has been masked.
+        token_error_counts = torch.zeros(
+            batch_size, self.n_patches, device=batch.device
+        )
+
+        tokens = self._tokenize(batch)
+
+        recon_sum = torch.zeros_like(tokens)
+
+        recon_count = torch.zeros(batch_size, self.n_patches, device=batch.device)
+
+        for _ in range(self.config.n_eval_passes):
+
+            mask_indices, unmask_indices = create_mask(
+                batch_size, self.n_patches, self.config.mask_ratio, batch.device
+            )
+
+            decoder_output, _ = self._forward(batch, unmask_indices)
+
+            # fills the error sum and error counts tensors.
+            self._accumulate_errors(
+                decoder_output,
+                tokens,
+                mask_indices,
+                token_error_sum,
+                token_error_counts,
+            )
+
+            # Only accumulate decoder output at positions that were actually masked.
+            # Visible-position outputs are not supervised during training and would
+            # corrupt the averaged reconstruction used for visualization.
+            masked_preds = get_by_mask(
+                decoder_output, mask_indices
+            )  # (B, n_masked, patch_dim)
+
+            idx = mask_indices.unsqueeze(-1).expand_as(masked_preds)
+
+            recon_sum.scatter_add_(1, idx, masked_preds.detach())
+
+            recon_count.scatter_add_(
+                1, mask_indices, torch.ones_like(mask_indices, dtype=recon_count.dtype)
+            )
+
+        # (batch_size, masked patches).
+        # average token error considering each token accumulated error and the number of times the token appeared.
+        mean_token_errors = token_error_sum / token_error_counts.clamp(min=1)
+
+        # Default to original for any patch never masked (practically impossible with many passes).
+        recon_avg = tokens.clone()
+        has_recon = recon_count > 0
+
+        recon_avg[has_recon.unsqueeze(-1).expand_as(recon_sum)] = (
+            recon_sum / recon_count.clamp(min=1).unsqueeze(-1)
+        )[has_recon.unsqueeze(-1).expand_as(recon_sum)]
+
+        B, P, _ = tokens.shape
+        PL = self.config.patch_len
+        NF = self.n_features
+
+        return {
+            "token_errors": mean_token_errors,
+            "original": tokens.reshape(B, P * PL, NF),
+            "reconstruction": recon_avg.reshape(B, P * PL, NF),
+        }
 
 
 # Moved at the bottom because it needs the model to be definend first

@@ -1,23 +1,3 @@
-"""
-Dataset-level analysis for anomaly detection datasets.
-
-Outputs (written to --out-dir, default debug/dataset/<name>):
-  stats.csv              Per-feature stats: train / test-normal / test-anomaly / delta-z
-  anomaly_events.csv     Segment catalog sorted by hardness ascending (hardest first)
-  train_timeseries.pdf   Multi-page train time series with ±2σ reference lines
-  timeseries.pdf         Multi-page test time series with anomaly shading and ±2σ reference
-  train_heatmap.png      Features × time z-score heatmap of train set (sorted by drift)
-  anomaly_heatmap.png    Features × time z-score heatmap with GT label strip
-
-Adding a new dataset:
-  1. Implement  load_<name>() -> DatasetBundle  (raw/unscaled arrays)
-  2. Register it in LOADERS at the bottom of this file
-
-Usage:
-  python analysis/analyze_dataset.py --dataset swat
-  python analysis/analyze_dataset.py --dataset swat --out-dir path/to/output
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -42,11 +22,6 @@ from matplotlib.lines import Line2D
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Shared data model
-# ---------------------------------------------------------------------------
-
-
 @dataclass
 class DatasetBundle:
     name: str
@@ -54,11 +29,6 @@ class DatasetBundle:
     train_data: np.ndarray  # (T_train, F) raw/unscaled
     test_data: np.ndarray   # (T_test,  F) raw/unscaled
     test_labels: np.ndarray  # (T_test,)   int, 0=normal 1=anomaly
-
-
-# ---------------------------------------------------------------------------
-# Dataset loaders  — add new datasets here
-# ---------------------------------------------------------------------------
 
 
 def load_swat() -> DatasetBundle:
@@ -88,11 +58,6 @@ LOADERS: dict[str, Callable[[], DatasetBundle]] = {
     "psm": load_psm,
 }
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
-
 def _anomaly_events(labels: np.ndarray) -> list[tuple[int, int]]:
     """Return (start, end_inclusive) for each contiguous anomaly run."""
     events: list[tuple[int, int]] = []
@@ -112,11 +77,6 @@ def _anomaly_events(labels: np.ndarray) -> list[tuple[int, int]]:
 def _shade_anomaly_regions(ax: matplotlib.axes.Axes, labels: np.ndarray) -> None:
     for s, e in _anomaly_events(labels):
         ax.axvspan(s, e + 1, color="#ffcccc", alpha=0.45, linewidth=0)
-
-
-# ---------------------------------------------------------------------------
-# Analysis: statistics
-# ---------------------------------------------------------------------------
 
 
 def compute_stats(bundle: DatasetBundle) -> pd.DataFrame:
@@ -150,12 +110,6 @@ def compute_stats(bundle: DatasetBundle) -> pd.DataFrame:
     df = pd.DataFrame(cols, index=bundle.feature_names)
     df.index.name = "feature"
     return df.round(4)
-
-
-# ---------------------------------------------------------------------------
-# Analysis: anomaly event catalog
-# ---------------------------------------------------------------------------
-
 
 def compute_anomaly_catalog(bundle: DatasetBundle) -> pd.DataFrame:
     """Segment catalog sorted by mean |z-score| ascending (hardest events first)."""
@@ -194,12 +148,7 @@ def compute_anomaly_catalog(bundle: DatasetBundle) -> pd.DataFrame:
     )
 
 
-# ---------------------------------------------------------------------------
-# Plot: multi-page time series PDF
-# ---------------------------------------------------------------------------
-
 _FEATURES_PER_PAGE = 6
-
 
 def plot_timeseries(bundle: DatasetBundle, out_path: Path) -> None:
     """
@@ -254,11 +203,6 @@ def plot_timeseries(bundle: DatasetBundle, out_path: Path) -> None:
             plt.close(fig)
 
     log.info(f"Saved time series: {out_path}")
-
-
-# ---------------------------------------------------------------------------
-# Plot: z-score heatmap
-# ---------------------------------------------------------------------------
 
 
 def plot_anomaly_heatmap(bundle: DatasetBundle, out_path: Path, max_cols: int = 5000) -> None:
@@ -324,12 +268,6 @@ def plot_anomaly_heatmap(bundle: DatasetBundle, out_path: Path, max_cols: int = 
     plt.close(fig)
     log.info(f"Saved heatmap: {out_path}")
 
-
-# ---------------------------------------------------------------------------
-# Plot: train time series PDF
-# ---------------------------------------------------------------------------
-
-
 def plot_train_timeseries(bundle: DatasetBundle, out_path: Path) -> None:
     """
     One PDF page per group of features. Each subplot shows the train-set signal
@@ -383,12 +321,7 @@ def plot_train_timeseries(bundle: DatasetBundle, out_path: Path) -> None:
     log.info(f"Saved train time series: {out_path}")
 
 
-# ---------------------------------------------------------------------------
-# Plot: train z-score heatmap
-# ---------------------------------------------------------------------------
-
 _ROLLING_WINDOW_FRAC = 0.05  # fraction of train length used for rolling drift
-
 
 def plot_train_heatmap(bundle: DatasetBundle, out_path: Path, max_cols: int = 5000) -> None:
     """
@@ -443,11 +376,6 @@ def plot_train_heatmap(bundle: DatasetBundle, out_path: Path, max_cols: int = 50
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     log.info(f"Saved train heatmap: {out_path}")
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:

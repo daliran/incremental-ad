@@ -6,7 +6,7 @@ log = logging.getLogger(__name__)
 
 
 def resolve_device(requested_device: str = "auto") -> torch.device:
-    """Resolve a device string to a torch.device, falling back to CPU on failure."""
+
     if requested_device == "auto":
         device_str = "cuda" if torch.cuda.is_available() else "cpu"
     else:
@@ -21,7 +21,7 @@ def resolve_device(requested_device: str = "auto") -> torch.device:
 
     if device.type == "cuda":
         props = torch.cuda.get_device_properties(device)
-        vram_gb = props.total_memory / 1024**3
+        vram_gb = props.total_memory / 1024**3 # gigabytes
         log.info(f"Using {device} — {props.name} ({vram_gb:.1f} GB VRAM)")
     else:
         log.info(f"Using {device}")

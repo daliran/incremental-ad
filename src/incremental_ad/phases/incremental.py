@@ -69,8 +69,13 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         "base_data_ratio": args.base_data_ratio,
     }
 
+    # Define the run directory and the run id.
     run_dir, run_id = setup_run_dir(args.experiment, args.phase, args.run_tag)
+
+    # Set the wandb directory under the specific run.
     os.environ["WANDB_DIR"] = str(run_dir)
+
+    # Resolve the device.
     device = resolve_device(args.device)
 
     save_phase_snapshot(
@@ -111,8 +116,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
 
     base_ckpt_path = base_dir / "checkpoints" / "best.pt"
     base_ckpt = checkpoint.load_checkpoint(base_ckpt_path)
-    base_state = base_ckpt["model_state"]
-
+    
     set_seed(val_eval_cfg.seed)
 
     run_train_slice_val_eval(
@@ -138,6 +142,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     )
 
     # 2) Fine-tune from the base on each chunk.
+    base_state = base_ckpt["model_state"]
     ft_ckpt_paths = []
 
     for i in range(args.n_finetune):

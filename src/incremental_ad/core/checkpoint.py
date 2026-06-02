@@ -30,7 +30,8 @@ def save_checkpoint(
     train_cfg,
     metrics: Metrics,
 ) -> None:
-    """Save a checkpoint with everything needed to resume training or run eval."""
+    
+    """Save a checkpoint with everything needed to run a fine tune or eval."""
     path.parent.mkdir(parents=True, exist_ok=True)
 
     payload = {
@@ -56,7 +57,7 @@ def save_checkpoint(
 
 
 def load_checkpoint(path: Path) -> dict[str, Any]:
-    """Load a checkpoint on the CPU."""
+    """Load a checkpoint on the CPU. Data is loaded on the GPU later on."""
 
     # Using weights_only=false to save all the states into a single file.
     return torch.load(path, map_location="cpu", weights_only=False)

@@ -1,11 +1,3 @@
-"""Run-level debug outputs written alongside test_results.json.
-
-Generated inside <run_dir>/debug/:
-  score_timeline.png      Anomaly scores over time with GT shading and threshold line
-  score_distributions.png Score histograms for normal vs anomaly windows
-  event_analysis.csv      Per-anomaly-event scores and detection status (hardest first)
-  samples/                Reconstruction plots for FN / FP / TP examples
-"""
 from __future__ import annotations
 
 import logging
@@ -32,6 +24,7 @@ N_SAMPLES = 5  # examples per category (FN, FP, TP)
 
 
 class RunDebugger:
+
     def __init__(
         self,
         run_dir: Path,
@@ -46,10 +39,11 @@ class RunDebugger:
 
     def run(
         self,
-        scores: np.ndarray,         # (n_windows,)
-        window_labels: np.ndarray,  # (n_windows,) 0/1
+        scores: np.ndarray,
+        window_labels: np.ndarray,
         threshold: float,
     ) -> None:
+        
         self.debug_dir.mkdir(parents=True, exist_ok=True)
 
         log.info(f"Writing debug outputs to {self.debug_dir}")
@@ -62,10 +56,6 @@ class RunDebugger:
             self._log_to_wandb()
         except Exception:
             log.exception("RunDebugger encountered an error; outputs may be partial")
-
-    # ------------------------------------------------------------------
-    # wandb upload
-    # ------------------------------------------------------------------
 
     def _log_to_wandb(self) -> None:
         if wandb.run is None:
@@ -89,33 +79,35 @@ class RunDebugger:
             wandb.log(to_log)
             log.info(f"  Logged {len(to_log)} debug images to wandb")
 
-    # ------------------------------------------------------------------
-    # Score timeline
-    # ------------------------------------------------------------------
-
     def _score_timeline(
         self, scores: np.ndarray, window_labels: np.ndarray, threshold: float
     ) -> None:
+        
         t = np.arange(len(scores))
         normal_mask = window_labels == 0
         anomaly_mask = ~normal_mask
 
         fig, ax = plt.subplots(figsize=(18, 4))
 
+        # show the anomalous segments
         for s, e in find_segments(window_labels):
             ax.axvspan(s, e, color="#ffcccc", alpha=0.45, linewidth=0)
 
+        # draw the normal points
         if normal_mask.any():
             ax.scatter(
                 t[normal_mask], scores[normal_mask],
                 s=0.5, c="#888888", alpha=0.3, label="Normal", rasterized=True,
             )
+
+        # draw the anomaly points
         if anomaly_mask.any():
             ax.scatter(
                 t[anomaly_mask], scores[anomaly_mask],
                 s=1.5, c="#cc2222", alpha=0.7, label="Anomaly", rasterized=True,
             )
 
+        # draw the threshold line
         ax.axhline(
             threshold, color="#0055cc", linewidth=1.2, linestyle="--",
             label=f"Threshold ({threshold:.4f})",
@@ -127,17 +119,16 @@ class RunDebugger:
         ax.set_xlim(0, len(scores))
         ax.legend(loc="upper right", fontsize=8, markerscale=6)
         plt.tight_layout()
+
         fig.savefig(self.debug_dir / "score_timeline.png", dpi=150, bbox_inches="tight")
         plt.close(fig)
-        log.info("  debug/score_timeline.png")
 
-    # ------------------------------------------------------------------
-    # Score distributions
-    # ------------------------------------------------------------------
+        log.info("  debug/score_timeline.png")
 
     def _score_distributions(
         self, scores: np.ndarray, window_labels: np.ndarray, threshold: float
     ) -> None:
+        
         normal_scores = scores[window_labels == 0]
         anomaly_scores = scores[window_labels == 1]
 
@@ -146,6 +137,7 @@ class RunDebugger:
 
         ax.hist(normal_scores, bins=bins, density=True, alpha=0.55, color="#444488", label=f"Normal ({len(normal_scores):,})")
         ax.hist(anomaly_scores, bins=bins, density=True, alpha=0.55, color="#cc2222", label=f"Anomaly ({len(anomaly_scores):,})")
+        
         ax.axvline(
             threshold, color="#0055cc", linewidth=1.5, linestyle="--",
             label=f"Threshold ({threshold:.4f})",
@@ -156,26 +148,27 @@ class RunDebugger:
         ax.set_title("Score distributions — normal vs anomaly windows")
         ax.legend()
         plt.tight_layout()
+
         fig.savefig(self.debug_dir / "score_distributions.png", dpi=150, bbox_inches="tight")
         plt.close(fig)
-        log.info("  debug/score_distributions.png")
 
-    # ------------------------------------------------------------------
-    # Event analysis CSV
-    # ------------------------------------------------------------------
+        log.info("  debug/score_distributions.png")
 
     def _event_analysis(
         self, scores: np.ndarray, window_labels: np.ndarray, threshold: float
     ) -> None:
         segments = find_segments(window_labels)
+
         if not segments:
             log.info("  debug/event_analysis.csv  (no anomaly events found)")
             return
 
         records = []
+
         for s, e in segments:
             seg = scores[s:e]
             max_score = float(seg.max())
+
             records.append(
                 {
                     "start_win": s,
@@ -197,17 +190,17 @@ class RunDebugger:
             .sort_values("max_score", ascending=True)  # hardest first
             .reset_index(drop=True)
         )
-        df.to_csv(self.debug_dir / "event_analysis.csv", index=False)
-        n_missed = int((~df["detected"]).sum())
-        log.info(f"  debug/event_analysis.csv  ({len(df)} events, {n_missed} missed)")
 
-    # ------------------------------------------------------------------
-    # Sample reconstructions
-    # ------------------------------------------------------------------
+        df.to_csv(self.debug_dir / "event_analysis.csv", index=False)
+
+        n_missed = int((~df["detected"]).sum())
+
+        log.info(f"  debug/event_analysis.csv  ({len(df)} events, {n_missed} missed)")
 
     def _sample_reconstructions(
         self, scores: np.ndarray, window_labels: np.ndarray, threshold: float
     ) -> None:
+        
         preds = (scores >= threshold).astype(int)
         is_anomaly = window_labels == 1
         is_normal = ~is_anomaly
@@ -232,7 +225,9 @@ class RunDebugger:
 
         for cat, indices in categories.items():
             for rank, win_idx in enumerate(indices):
+
                 debug_info = self._fetch_debug(win_idx)
+
                 self._plot_window(
                     debug_info=debug_info,
                     win_idx=win_idx,
@@ -245,6 +240,7 @@ class RunDebugger:
                 )
 
         counts = {k: len(v) for k, v in categories.items()}
+
         log.info(f"  debug/samples/  fn:{counts['fn']} fp:{counts['fp']} tp:{counts['tp']}")
 
     def _fetch_debug(self, win_idx: int) -> dict | None:
@@ -275,8 +271,10 @@ class RunDebugger:
         rank: int,
         out_dir: Path,
     ) -> None:
+        
         if debug_info is None:
             return
+        
         if "original" not in debug_info or "reconstruction" not in debug_info:
             return
 
@@ -333,12 +331,15 @@ class RunDebugger:
 
         cat_label = {"fn": "False Negative", "fp": "False Positive", "tp": "True Positive"}[category]
         gt_str = "Anomaly" if label == 1 else "Normal"
+
         fig.suptitle(
             f"[{cat_label}]  win={win_idx}  GT={gt_str}  "
             f"score={score:.5f}  threshold={threshold:.5f}",
             fontsize=11, fontweight="bold",
         )
+
         plt.tight_layout(rect=(0, 0, 1, 0.95))
+
         fig.savefig(out_dir / f"{category}_{rank:02d}_win{win_idx}.png", dpi=130, bbox_inches="tight")
         plt.close(fig)
 

@@ -59,13 +59,13 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         experiment=args.experiment,
         phase=args.phase,
         run_id=run_id,
-        # pretrain has no phase-specific params beyond global identity
     )
 
     log.info(f"Phase: {args.phase}  (experiment={args.experiment})")
 
     set_seed(train_cfg.seed)
 
+    # The full slice uses the whole train series and has no fine-tunings.
     run_train(
         experiment=args.experiment,
         phase=args.phase,
@@ -78,9 +78,6 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         model_name=args.model,
         model_cfg=model_cfg,
         train_cfg=train_cfg,
-        # The full slice uses the whole train series and has no fine-tunings:
-        # partial_ratio=1.0 (everything), n_finetune=0. They're ignored by the
-        # "full" slice but passed explicitly (the slicing args have no defaults).
         train_slice="full",
         partial_ratio=1.0,
         n_finetune=0,
@@ -115,8 +112,8 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         num_workers=num_workers,
     )
 
-    # Evaluate the model just trained. The eval windows at the dataset's
-    # eval_stride (applied inside build_for_eval).
+    # Evaluate the model just trained. 
+    # The eval windows at the dataset's eval_stride (applied inside build_for_eval).
     set_seed(test_eval_cfg.seed)
 
     run_test_eval(

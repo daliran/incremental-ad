@@ -50,7 +50,9 @@ class ValEvaluator:
         self.run_id = run_id
 
     def load_checkpoint(self, ckpt: dict) -> None:
+        
         self.model.load_state_dict(ckpt["model_state"])
+
         log.info(
             f"Loaded checkpoint from epoch {ckpt['epoch']} "
             f"(best_val_loss={ckpt['metrics']['best_val_loss']:.6f})"

@@ -84,7 +84,7 @@ def run_train(
         train_cfg=train_cfg,
     )
 
-    config = {
+    wandb_config = {
         "dataset_name": dataset_name,
         "dataset": asdict(dataset_cfg),
         "model_name": model_name,
@@ -93,10 +93,10 @@ def run_train(
     }
 
     if init_model_state is not None:
-        config["finetuned"] = True
+        wandb_config["finetuned"] = True
 
     if phase_config is not None:
-        config["phase"] = phase_config
+        wandb_config["phase"] = phase_config
 
     # Init wandb.
     init_wandb(
@@ -106,7 +106,7 @@ def run_train(
         run_id=run_id,
         group_run_id=run_id,
         run_tag=run_tag,
-        config=config,
+        config=wandb_config,
     )
 
     try:

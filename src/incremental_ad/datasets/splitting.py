@@ -1,12 +1,3 @@
-"""Reusable, dataset-agnostic helpers to carve a training series into slices.
-
-These work purely on indices over ``[0, n)``, so any time-series dataset can use
-them. A dataset that knows real timestamps (e.g. split by day/week) can compute
-its own slice boundaries and still reuse :func:`val_tail_split` + windowing — the
-phases only ever ask for a named slice, they never compute boundaries themselves.
-"""
-
-
 def equal_chunks(
     n: int, partial_ratio: float, n_finetune: int, base_ratio: float = 1.0
 ) -> dict[str, tuple[int, int]]:

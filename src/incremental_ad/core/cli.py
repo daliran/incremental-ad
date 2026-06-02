@@ -3,7 +3,6 @@ from typing import Any
 
 
 def str_to_bool(v: str) -> bool:
-    """Argparse type for explicit boolean flags ('true' / 'false')."""
     if v.lower() == "true":
         return True
     if v.lower() == "false":

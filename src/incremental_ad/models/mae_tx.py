@@ -426,9 +426,9 @@ class MAETransformer(BaseModel):
             batch_size, self.n_patches, device=batch.device
         )
 
-        tokens = self._tokenize(batch)
-
-        recon_sum = torch.zeros_like(tokens)
+        recon_sum = torch.zeros(
+            batch_size, self.n_patches, self.config.patch_len * self.n_features, device=batch.device
+        )
 
         recon_count = torch.zeros(batch_size, self.n_patches, device=batch.device)
 
@@ -438,7 +438,7 @@ class MAETransformer(BaseModel):
                 batch_size, self.n_patches, self.config.mask_ratio, batch.device
             )
 
-            decoder_output, _ = self._forward(batch, unmask_indices)
+            decoder_output, tokens = self._forward(batch, unmask_indices)
 
             # fills the error sum and error counts tensors.
             self._accumulate_errors(

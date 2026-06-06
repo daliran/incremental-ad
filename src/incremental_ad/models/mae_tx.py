@@ -1,6 +1,7 @@
 import logging
 from argparse import ArgumentParser, Namespace
 from dataclasses import dataclass
+from enum import Enum
 
 import torch
 import torch.nn as nn
@@ -10,6 +11,15 @@ from incremental_ad.core.cli import pluck, str_to_bool
 from incremental_ad.models.base_model import BaseModel
 
 log = logging.getLogger(__name__)
+
+
+class TrainingMode(str, Enum):
+    # Reconstruct randomly masked patches (standard MAE).
+    RANDOM_MASK = "random_mask"
+    # Reconstruct the second half of the window given the first half (forecasting).
+    CAUSAL_MASK = "causal_mask"
+    # Reconstruct the last patch given all preceding patches (next-step prediction).
+    NEXT_STEP = "next_step"
 
 
 @dataclass
@@ -24,6 +34,7 @@ class MaeTxConfig:
     mask_ratio: float
     patch_norm: bool
     n_eval_passes: int
+    training_mode: TrainingMode
 
 
 def add_args(parser: ArgumentParser) -> None:
@@ -38,6 +49,12 @@ def add_args(parser: ArgumentParser) -> None:
     parser.add_argument("--mae-tx-mask-ratio", type=float, required=True)
     parser.add_argument("--mae-tx-patch-norm", type=str_to_bool, required=True)
     parser.add_argument("--mae-tx-n-eval-passes", type=int, required=True)
+    parser.add_argument(
+        "--mae-tx-training-mode",
+        type=TrainingMode,
+        choices=list(TrainingMode),
+        required=True,
+    )
 
 
 def make_config(args: Namespace) -> MaeTxConfig:
@@ -76,6 +93,29 @@ def create_mask(
     unmask_indices = random_indices_sequence[:, number_of_masked_tokens:]
 
     return mask_indices, unmask_indices
+
+
+def create_causal_mask(
+    batch_size: int, number_of_patches: int, device: torch.device
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Masks the second half of the sequence; encoder sees only the first half."""
+    n_masked = number_of_patches // 2
+    n_visible = number_of_patches - n_masked
+
+    visible = torch.arange(n_visible, device=device).unsqueeze(0).expand(batch_size, -1)
+    masked = torch.arange(n_visible, number_of_patches, device=device).unsqueeze(0).expand(batch_size, -1)
+
+    return masked.contiguous(), visible.contiguous()
+
+
+def create_next_step_mask(
+    batch_size: int, number_of_patches: int, device: torch.device
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Masks only the last patch; encoder sees all preceding patches."""
+    visible = torch.arange(number_of_patches - 1, device=device).unsqueeze(0).expand(batch_size, -1)
+    masked = torch.full((batch_size, 1), number_of_patches - 1, dtype=torch.long, device=device)
+
+    return masked.contiguous(), visible.contiguous()
 
 
 def get_by_mask(tensor: torch.Tensor, mask_indices: torch.Tensor) -> torch.Tensor:
@@ -223,7 +263,13 @@ class MAETransformer(BaseModel):
         self._log_architecture()
 
     def _log_architecture(self) -> None:
-        n_masked = int(self.n_patches * self.config.mask_ratio)
+        mode = self.config.training_mode
+        if mode == TrainingMode.RANDOM_MASK:
+            n_masked = int(self.n_patches * self.config.mask_ratio)
+        elif mode == TrainingMode.CAUSAL_MASK:
+            n_masked = self.n_patches // 2
+        else:
+            n_masked = 1
         n_visible = self.n_patches - n_masked
         raw_token_dim = self.config.patch_len * self.n_features
         n_params = sum(p.numel() for p in self.parameters())
@@ -232,8 +278,10 @@ class MAETransformer(BaseModel):
         log.info(
             f"  Sequence   : {self.n_patches} patches × {self.config.patch_len} timesteps × {self.n_features} features → raw token dim {raw_token_dim}"
         )
+        log.info(f"  Training   : {mode.value}")
         log.info(
-            f"  Masking    : {n_masked} masked / {n_visible} visible (ratio={self.config.mask_ratio})"
+            f"  Masking    : {n_masked} masked / {n_visible} visible"
+            + (f" (ratio={self.config.mask_ratio})" if mode == TrainingMode.RANDOM_MASK else "")
         )
         log.info(
             f"  Encoder    : dim={self.config.encoder_embed_dim}, layers={self.config.encoder_layers}, heads={self.config.encoder_heads}  (sees {n_visible} tokens)"
@@ -305,13 +353,22 @@ class MAETransformer(BaseModel):
         var = patches.var(dim=-1, keepdim=True)
         return (patches - mean) / (var + 1e-6).sqrt()
 
+    def _create_training_mask(
+        self, batch_size: int, device: torch.device
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        mode = self.config.training_mode
+        if mode == TrainingMode.RANDOM_MASK:
+            return create_mask(batch_size, self.n_patches, self.config.mask_ratio, device)
+        elif mode == TrainingMode.CAUSAL_MASK:
+            return create_causal_mask(batch_size, self.n_patches, device)
+        else:
+            return create_next_step_mask(batch_size, self.n_patches, device)
+
     def training_step(self, batch: torch.Tensor) -> torch.Tensor:
 
         batch_size = batch.size(0)
 
-        mask_indices, unmask_indices = create_mask(
-            batch_size, self.n_patches, self.config.mask_ratio, batch.device
-        )
+        mask_indices, unmask_indices = self._create_training_mask(batch_size, batch.device)
 
         decoder_output, tokens = self._forward(batch, unmask_indices)
 
@@ -341,7 +398,11 @@ class MAETransformer(BaseModel):
 
     def eval_step(self, batch: torch.Tensor) -> torch.Tensor:
         # Note: at eval, the stride used in the dataset is 1.
+        if self.config.training_mode == TrainingMode.RANDOM_MASK:
+            return self._eval_random_mask(batch)
+        return self._eval_deterministic(batch)
 
+    def _eval_random_mask(self, batch: torch.Tensor) -> torch.Tensor:
         batch_size = batch.size(0)
 
         # (batch_size, masked patches).
@@ -358,20 +419,14 @@ class MAETransformer(BaseModel):
         )
 
         for _ in range(self.config.n_eval_passes):
-
             mask_indices, unmask_indices = create_mask(
                 batch_size, self.n_patches, self.config.mask_ratio, batch.device
             )
-
             decoder_output, tokens = self._forward(batch, unmask_indices)
 
             # fills the error sum and error counts tensors.
             self._accumulate_errors(
-                decoder_output,
-                tokens,
-                mask_indices,
-                token_error_sum,
-                token_error_counts,
+                decoder_output, tokens, mask_indices, token_error_sum, token_error_counts
             )
 
         # (batch_size, masked patches).
@@ -380,6 +435,21 @@ class MAETransformer(BaseModel):
         mean_token_errors = token_error_sum / token_error_counts.clamp(min=1)
 
         return mean_token_errors.mean(dim=-1)
+
+    def _eval_deterministic(self, batch: torch.Tensor) -> torch.Tensor:
+        # Single forward pass: the mask is deterministic so repeating it adds nothing.
+        batch_size = batch.size(0)
+        mask_indices, unmask_indices = self._create_training_mask(batch_size, batch.device)
+        decoder_output, tokens = self._forward(batch, unmask_indices)
+
+        gt = get_by_mask(tokens, mask_indices)
+        pred = get_by_mask(decoder_output, mask_indices)
+
+        if self.config.patch_norm:
+            gt = self._normalize_patches(gt)
+
+        # (B, n_masked) → mean over masked patches → (B,)
+        return F.mse_loss(pred, gt, reduction="none").mean(dim=-1).mean(dim=-1)
 
     def _accumulate_errors(
         self,
@@ -413,7 +483,11 @@ class MAETransformer(BaseModel):
         token_error_counts.scatter_add_(1, mask_indices, visited_tokens)
 
     def debug_step(self, batch: torch.Tensor) -> dict[str, torch.Tensor]:
+        if self.config.training_mode == TrainingMode.RANDOM_MASK:
+            return self._debug_random_mask(batch)
+        return self._debug_deterministic(batch)
 
+    def _debug_random_mask(self, batch: torch.Tensor) -> dict[str, torch.Tensor]:
         batch_size = batch.size(0)
 
         # (batch_size, masked patches).
@@ -433,11 +507,9 @@ class MAETransformer(BaseModel):
         recon_count = torch.zeros(batch_size, self.n_patches, device=batch.device)
 
         for _ in range(self.config.n_eval_passes):
-
             mask_indices, unmask_indices = create_mask(
                 batch_size, self.n_patches, self.config.mask_ratio, batch.device
             )
-
             decoder_output, tokens = self._forward(batch, unmask_indices)
 
             # fills the error sum and error counts tensors.
@@ -484,6 +556,36 @@ class MAETransformer(BaseModel):
             "token_errors": mean_token_errors,
             "original": tokens.reshape(B, P * PL, NF),
             "reconstruction": recon_avg.reshape(B, P * PL, NF),
+        }
+
+    def _debug_deterministic(self, batch: torch.Tensor) -> dict[str, torch.Tensor]:
+        # Single forward pass: the mask is fixed so averaging over passes is pointless.
+        batch_size = batch.size(0)
+        mask_indices, unmask_indices = self._create_training_mask(batch_size, batch.device)
+        decoder_output, tokens = self._forward(batch, unmask_indices)
+
+        gt = get_by_mask(tokens, mask_indices)
+        pred = get_by_mask(decoder_output, mask_indices)
+
+        if self.config.patch_norm:
+            gt = self._normalize_patches(gt)
+
+        # Per-patch MSE at the masked positions; 0 at visible positions (not evaluated).
+        errors = F.mse_loss(pred, gt, reduction="none").mean(dim=-1)  # (B, n_masked)
+        token_errors = torch.zeros(batch_size, self.n_patches, device=batch.device)
+        token_errors.scatter_(1, mask_indices, errors)
+
+        # Reconstruction: decoder output at masked positions, original elsewhere.
+        recon = tokens.clone()
+        set_by_mask(recon, mask_indices, pred.detach())
+
+        B, P, _ = tokens.shape
+        PL = self.config.patch_len
+        NF = self.n_features
+        return {
+            "token_errors": token_errors,
+            "original": tokens.reshape(B, P * PL, NF),
+            "reconstruction": recon.reshape(B, P * PL, NF),
         }
 
 

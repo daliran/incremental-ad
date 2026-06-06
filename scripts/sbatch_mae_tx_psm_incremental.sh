@@ -67,6 +67,7 @@ python -m incremental_ad.main \
     --mae-tx-patch-norm false \
     --mae-tx-mask-ratio 0.80 \
     --mae-tx-n-eval-passes 30 \
+    --mae-tx-training-mode random_mask \
     --train-seed 42 \
     --train-epochs 300 \
     --train-patience 30 \

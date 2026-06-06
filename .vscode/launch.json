@@ -46,6 +46,7 @@
                 "--mae-tx-patch-norm", "false",
                 "--mae-tx-mask-ratio", "0.8",
                 "--mae-tx-n-eval-passes", "30",
+                "--mae-tx-training-mode", "random_mask",
 
                 // --- Training ---
                 "--train-seed", "42",
@@ -118,6 +119,7 @@
                 "--mae-tx-patch-norm", "false",
                 "--mae-tx-mask-ratio", "0.8",
                 "--mae-tx-n-eval-passes", "30",
+                "--mae-tx-training-mode", "random_mask",
 
                 // --- Base pretrain training ---
                 "--train-seed", "42",
@@ -249,6 +251,7 @@
                 "--mae-tx-patch-norm", "false",
                 "--mae-tx-mask-ratio", "0.8",
                 "--mae-tx-n-eval-passes", "30",
+                "--mae-tx-training-mode", "random_mask",
 
                 // --- Training ---
                 "--train-seed", "42",
@@ -321,6 +324,7 @@
                 "--mae-tx-patch-norm", "false",
                 "--mae-tx-mask-ratio", "0.8",
                 "--mae-tx-n-eval-passes", "30",
+                "--mae-tx-training-mode", "random_mask",
 
                 // --- Base pretrain training ---
                 "--train-seed", "42",

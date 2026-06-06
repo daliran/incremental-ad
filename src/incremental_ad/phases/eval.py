@@ -3,6 +3,9 @@ import logging
 import os
 from pathlib import Path
 
+from torch.utils.data import DataLoader
+
+from incremental_ad import model_dataset_factory as factory
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
 from incremental_ad.core.run import setup_run_dir, save_phase_snapshot
@@ -73,6 +76,20 @@ def run_eval_phase(*, datasets: dict, models: dict, num_workers: int) -> None:
     if args.split == "test":
         eval_cfg = test_evaluator.make_config(args)
 
+        train_ds, eval_ds = factory.build_eval_datasets(
+            dataset_name=args.dataset,
+            dataset_cfg=eval_dataset_cfg,
+            split="test",
+        )
+
+        train_loader = DataLoader(
+            train_ds, batch_size=eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+        )
+
+        eval_loader = DataLoader(
+            eval_ds, batch_size=eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+        )
+
         set_seed(eval_cfg.seed)
 
         run_test_eval(
@@ -90,11 +107,22 @@ def run_eval_phase(*, datasets: dict, models: dict, num_workers: int) -> None:
             ckpt=ckpt,
             checkpoint_path=args.checkpoint,
             eval_cfg=eval_cfg,
-            num_workers=num_workers,
+            train_loader=train_loader,
+            eval_loader=eval_loader,
         )
 
     else:
         val_eval_cfg = val_evaluator.make_config(args)
+
+        _, val_ds = factory.build_eval_datasets(
+            dataset_name=args.dataset,
+            dataset_cfg=eval_dataset_cfg,
+            split="val",
+        )
+        
+        val_loader = DataLoader(
+            val_ds, batch_size=val_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+        )
 
         set_seed(val_eval_cfg.seed)
 
@@ -113,5 +141,5 @@ def run_eval_phase(*, datasets: dict, models: dict, num_workers: int) -> None:
             ckpt=ckpt,
             checkpoint_path=args.checkpoint,
             val_eval_cfg=val_eval_cfg,
-            num_workers=num_workers,
+            val_loader=val_loader,
         )

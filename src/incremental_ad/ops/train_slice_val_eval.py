@@ -59,17 +59,15 @@ def run_train_slice_val_eval(
     model_cfg,
     ckpt: dict,
     train_slice: str,
-    partial_ratio: float,
-    n_finetune: int,
+    val_loader: DataLoader,
     val_eval_cfg,
-    num_workers: int,
-    base_data_ratio: float,
     phase_config: dict | None = None,
 ) -> None:
     """Evaluate reconstruction quality on the val tail of the training slice.
 
-    Uses the same slice and stride that were used during training, so the val
-    set is identical to the one the trainer monitored for early stopping.
+    Uses the same val_loader that the trainer monitored for early stopping, so
+    results are directly comparable. The caller is responsible for building the
+    val_loader. train_slice is kept for metadata/logging only.
     """
 
     _write_train_slice_val_eval_info(
@@ -118,25 +116,13 @@ def run_train_slice_val_eval(
         log.info(f"Model:       {model_name} -> {model_cfg}")
         log.info(f"Train slice: {train_slice}")
 
-        result = factory.build_for_training(
+        model = factory.build_model(
             model_name=model_name,
             dataset_name=dataset_name,
             model_cfg=model_cfg,
             dataset_cfg=dataset_cfg,
-            train_slice=train_slice,
-            partial_ratio=partial_ratio,
-            n_finetune=n_finetune,
-            base_data_ratio=base_data_ratio,
         )
-
-        model = result.model.to(device)
-
-        val_loader = DataLoader(
-            result.val_dataset,
-            batch_size=val_eval_cfg.batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-        )
+        model = model.to(device)
 
         e = val_evaluator.ValEvaluator(
             model=model,

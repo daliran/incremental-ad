@@ -66,13 +66,14 @@ def run_val_eval(
     ckpt: dict,
     checkpoint_path: Path,
     val_eval_cfg,
-    num_workers: int,
+    val_loader: DataLoader,
     phase_config: dict | None = None,
 ) -> None:
     """Evaluate reconstruction quality on the full training val series.
 
-    Uses build_for_eval (eval_stride, full train series) — appropriate for
-    on-demand re-evaluation after training, not tied to any training slice.
+    The caller is responsible for building val_loader at eval_stride on the
+    full train series. Appropriate for on-demand re-evaluation after training,
+    not tied to any training slice.
     """
 
     _write_val_eval_info(
@@ -125,22 +126,12 @@ def run_val_eval(
         log.info(f"Dataset: {eval_dataset_name} -> {eval_dataset_cfg}")
         log.info(f"Model:   {model_name} -> {model_cfg}")
 
-        result = factory.build_for_eval(
+        model = factory.build_model(
             model_name=model_name,
             dataset_name=eval_dataset_name,
             model_cfg=model_cfg,
             dataset_cfg=eval_dataset_cfg,
-            split="val",
-        )
-
-        model = result.model.to(device)
-
-        val_loader = DataLoader(
-            result.eval_dataset,
-            batch_size=val_eval_cfg.batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-        )
+        ).to(device)
 
         e = val_evaluator.ValEvaluator(
             model=model,

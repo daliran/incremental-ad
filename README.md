@@ -6,9 +6,10 @@ where a base model is adapted to new data regimes and the adaptations are merged
 
 The codebase is organized around three ideas:
 
-- **operations** — the atomic units of work: `train`, `val_eval`, `train_slice_val_eval`, `test_eval` and `merge`.
+- **operations** — the atomic units of work: `train`, `val_eval`, `train_slice_val_eval`, `test_eval` and `merge`. Each op is a pure function: it receives a model config and pre-built `DataLoader`s from the calling phase, and owns only the training/eval logic, wandb init, and file writes.
 - **phases** — what you actually launch (one phase = one SLURM job); a phase
-  orchestrates one or more operations. Implemented today: `pretrain`
+  orchestrates one or more operations and owns all dataset/loader construction
+  (via `model_dataset_factory`). Implemented today: `pretrain`
   (train → train_slice_val_eval → test_eval), `incremental` (base pretrain →
   fine-tune × N → merge → train_slice_val_eval → test_eval), and `eval`
   (standalone, on-demand; supports `--split test` or `--split val`).
@@ -163,6 +164,12 @@ one job. Outputs land in `base/`, `ft_0/`…`ft_{N-1}/`, `merged/` under one run
 and share one wandb group. The base pretrain uses `--train-*`; the fine-tunings use
 a separate `--finetune-*` config.
 
+During base pretraining, the train portion of each ft split is passed as a
+**secondary val loader**. This logs `loss/ft_0/train`, `loss/ft_1/train`, … to
+wandb every epoch alongside `loss/train` and `loss/val`, so you can watch how
+the base model generalises to unseen future data as training progresses. These
+curves do not affect early stopping or checkpointing.
+
 `--base-data-ratio` controls what fraction of the base's allocated slice
 (`--partial-ratio`) the base model actually trains on. The FT chunks are always
 anchored at `partial_ratio × n` regardless of this value — only the base sees less
@@ -173,28 +180,47 @@ FTs still start at 50 k.
 See [`scripts/sbatch_mae_tx_swat_incremental.sh`](scripts/sbatch_mae_tx_swat_incremental.sh)
 for the full argument list.
 
+### `model_dataset_factory` — the three building blocks
+
+All dataset and model construction goes through three functions:
+
+| Function | Returns | Stride used |
+|---|---|---|
+| `build_model(model_name, dataset_name, model_cfg, dataset_cfg)` | `BaseModel` | — |
+| `build_datasets(dataset_name, dataset_cfg, train_slice, …)` | `(train_ds, val_ds)` | `dataset_cfg.stride` |
+| `build_eval_datasets(dataset_name, dataset_cfg, split)` | `(train_ds, eval_ds)` | `dataset_cfg.eval_stride` |
+
+`build_datasets` accepts any `train_slice` (`"full"`, `"base"`, `"ft_<i>"`).
+`build_eval_datasets` always loads the full train series and returns either the
+val tail or the test set based on `split`. Phases call these before invoking
+ops; ops never touch the factory for datasets.
+
 ### Operations
 
 - **train** (`trainer.py`) — AdamW, `cosine`/`constant` scheduler with linear
-  warmup, gradient clipping, early stopping on val loss; writes `best.pt`/`last.pt`
-  (plus periodic `epoch_*.pt` if `--train-checkpoint-interval > 0`).
-- **val_eval** (`val_evaluator.py`) — reconstruction quality on the full training val
-  series at `eval_stride`; used by the `eval` phase on-demand. Writes
-  `val_eval_info.json` + `val_reconstruction.json`.
+  warmup, gradient clipping, early stopping on primary val loss; writes
+  `best.pt`/`last.pt` (plus periodic `epoch_*.pt` if
+  `--train-checkpoint-interval > 0`). Accepts an optional
+  `secondary_val_loaders` dict: each entry is evaluated every epoch and logged
+  to wandb under `loss/<key>` without affecting checkpointing or early stopping.
 - **train_slice_val_eval** (`val_evaluator.py`) — reconstruction quality on the val
   tail of the specific training slice used during training; bundled inside
   `pretrain`/`incremental` to inspect what the trainer actually saw. Writes
   `train_slice_val_eval_info.json` + `val_reconstruction.json`.
+- **val_eval** (`val_evaluator.py`) — reconstruction quality on the full training val
+  series at `eval_stride`; used by the `eval` phase on-demand. Writes
+  `val_eval_info.json` + `val_reconstruction.json`.
 - **test_eval** (`test_evaluator.py`) — anomaly detection metrics at **window**,
   **point**, **point-adjusted** and **event** level, saved to `test_results.json`
-  (plus ROC/PR curves to wandb). Thresholding via `oracle` or `train_percentile`
-  (`--test-eval-threshold-percentile`).
+  (plus ROC/PR curves to wandb). Receives both a `train_loader` (for threshold
+  fitting) and an `eval_loader` (test set). Thresholding via `oracle` or
+  `train_percentile` (`--test-eval-threshold-percentile`).
 - **merge** (`ops/merge.py`) — task arithmetic over the base + fine-tuned
   checkpoints: clones the base checkpoint and swaps in
   `θ_pre + scale·Σ(θ_FTᵢ − θ_pre)`.
 
-(A fine-tuning is just **train** with `--train-slice ft_<i>` and the base weights
-loaded as the starting point; the `incremental` phase orchestrates the lot.)
+(A fine-tuning is just **train** with the base weights loaded as the starting
+point; the `incremental` phase orchestrates the lot.)
 
 ### Roadmap
 The `incremental` phase targets a **static** dataset. A production /

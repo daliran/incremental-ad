@@ -69,6 +69,7 @@ class Trainer:
         device: torch.device,
         train_loader: DataLoader,
         val_loader: DataLoader,
+        secondary_val_loaders: dict[str, DataLoader] | None,
         run_id: str,
         run_dir: Path,
         experiment: str,
@@ -78,13 +79,14 @@ class Trainer:
         dataset_cfg: Any,
         model_name: str,
         model_cfg: Any,
-        config: TrainingConfig,
+        config: TrainingConfig  
     ) -> None:
 
         self.model = model
         self.device = device
         self.train_loader = train_loader
         self.val_loader = val_loader
+        self.secondary_val_loaders = secondary_val_loaders or {}
         self.run_id = run_id
         self.run_dir = run_dir
         self.experiment = experiment
@@ -113,9 +115,16 @@ class Trainer:
                 train_loss, grad_norm = self._train_epoch(epoch)
 
                 # run an epoch on all batches of the validation set
-                val_loss = self._val_epoch(epoch)
+                val_loss = self._compute_loader_loss(
+                    self.val_loader, desc=f"Epoch {epoch} [val]"
+                )
 
                 current_lr = self.optimizer.param_groups[0]["lr"]
+
+                secondary_losses = {}
+
+                for key, loader in self.secondary_val_loaders.items():
+                    secondary_losses[f"loss/{key}"] = self._compute_loader_loss(loader)
 
                 log.info(
                     f"Epoch {epoch}/{self.config.epochs} — "
@@ -128,6 +137,7 @@ class Trainer:
                         "loss/val": val_loss,
                         "train/lr": current_lr,
                         "train/grad_norm": grad_norm,
+                        **secondary_losses,
                     },
                     step=epoch,
                 )
@@ -216,12 +226,12 @@ class Trainer:
 
         return avg_loss, avg_grad_norm
 
-    def _val_epoch(self, epoch: int) -> float:
+    def _compute_loader_loss(self, loader: DataLoader, desc: str = "") -> float:
         self.model.eval()
 
         total_loss = 0.0
 
-        progress = tqdm(self.val_loader, desc=f"Epoch {epoch} [val]", leave=False)
+        progress = tqdm(loader, desc=desc, leave=False)
 
         with torch.no_grad():
             for batch in progress:
@@ -233,10 +243,7 @@ class Trainer:
 
         progress.close()
 
-        n = len(self.val_loader)
-        avg_loss = total_loss / n
-
-        return avg_loss
+        return total_loss / len(loader)
 
     def _build_optimizer(self) -> torch.optim.Optimizer:
         name = self.config.optimizer

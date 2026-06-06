@@ -2,6 +2,9 @@ import argparse
 import logging
 import os
 
+from torch.utils.data import DataLoader
+
+from incremental_ad import model_dataset_factory as factory
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
 from incremental_ad.core.run import setup_run_dir, save_phase_snapshot
@@ -63,9 +66,31 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
 
     log.info(f"Phase: {args.phase}  (experiment={args.experiment})")
 
+    # Build datasets once; reuse the val_dataset for both training monitoring and
+    # the post-training val eval (different batch sizes, same data).
+    train_ds, val_ds = factory.build_datasets(
+        dataset_name=args.dataset,
+        dataset_cfg=dataset_cfg,
+        train_slice="full",
+        partial_ratio=1.0,
+        n_finetune=0,
+        base_data_ratio=1.0,
+    )
+
+    train_loader = DataLoader(
+        train_ds, batch_size=train_cfg.batch_size, shuffle=True, num_workers=num_workers
+    )
+
+    val_loader = DataLoader(
+        val_ds, batch_size=train_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+    
+    eval_val_loader = DataLoader(
+        val_ds, batch_size=val_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+
     set_seed(train_cfg.seed)
 
-    # The full slice uses the whole train series and has no fine-tunings.
     run_train(
         experiment=args.experiment,
         phase=args.phase,
@@ -78,11 +103,8 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         model_name=args.model,
         model_cfg=model_cfg,
         train_cfg=train_cfg,
-        train_slice="full",
-        partial_ratio=1.0,
-        n_finetune=0,
-        base_data_ratio=1.0,
-        num_workers=num_workers,
+        train_loader=train_loader,
+        val_loader=val_loader,
     )
 
     best_ckpt_path = run_dir / "checkpoints" / "best.pt"
@@ -105,15 +127,25 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         model_cfg=model_cfg,
         ckpt=ckpt,
         train_slice="full",
-        partial_ratio=1.0,
-        n_finetune=0,
-        base_data_ratio=1.0,
+        val_loader=eval_val_loader,
         val_eval_cfg=val_eval_cfg,
-        num_workers=num_workers,
     )
 
-    # Evaluate the model just trained. 
-    # The eval windows at the dataset's eval_stride (applied inside build_for_eval).
+    # Evaluate the model just trained.
+    test_train_ds, test_eval_ds = factory.build_eval_datasets(
+        dataset_name=args.dataset,
+        dataset_cfg=dataset_cfg,
+        split="test",
+    )
+
+    test_train_loader = DataLoader(
+        test_train_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+    
+    test_eval_loader = DataLoader(
+        test_eval_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+
     set_seed(test_eval_cfg.seed)
 
     run_test_eval(
@@ -131,5 +163,6 @@ def run_pretrain(*, datasets: dict, models: dict, num_workers: int) -> None:
         ckpt=ckpt,
         checkpoint_path=best_ckpt_path,
         eval_cfg=test_eval_cfg,
-        num_workers=num_workers,
+        train_loader=test_train_loader,
+        eval_loader=test_eval_loader,
     )

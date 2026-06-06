@@ -54,21 +54,19 @@ def run_train(
     model_name: str,
     model_cfg,
     train_cfg,
-    train_slice: str,
-    partial_ratio: float,
-    n_finetune: int,
-    num_workers: int,
-    base_data_ratio: float,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+    secondary_val_loaders: dict[str, DataLoader] | None = None,
     init_model_state: dict | None = None,
     phase_config: dict | None = None,
 ) -> None:
     """Train a model, optionally initialized from given weights (for fine-tuning).
 
-    train_slice selects which slice of the dataset's train series to train on
-    ("full", "partial" or "ft_<i>"); partial_ratio and n_finetune define the
-    partial/ft chunking. If init_model_state is given, those weights are loaded
-    into the freshly built model before training (a fresh optimizer/seed is used —
-    this is a fine-tune, not a resume). Checkpoints go into run_dir/checkpoints/.
+    The caller is responsible for building train_loader and val_loader (and any
+    secondary_val_loaders for bonus monitoring). If init_model_state is given,
+    those weights are loaded into the freshly built model before training (fresh
+    optimizer/seed — this is a fine-tune, not a resume). Checkpoints go into
+    run_dir/checkpoints/.
     """
 
     _write_config(
@@ -98,7 +96,6 @@ def run_train(
     if phase_config is not None:
         wandb_config["phase"] = phase_config
 
-    # Init wandb.
     init_wandb(
         experiment=experiment,
         phase=phase,
@@ -119,48 +116,26 @@ def run_train(
         if init_model_state is not None:
             log.info("Initializing model weights from base checkpoint (fine-tune)")
 
-        # build the model and the datasets based on the selected model-dataset pair
-        result = factory.build_for_training(
+        model = factory.build_model(
             model_name=model_name,
             dataset_name=dataset_name,
             model_cfg=model_cfg,
             dataset_cfg=dataset_cfg,
-            train_slice=train_slice,
-            partial_ratio=partial_ratio,
-            n_finetune=n_finetune,
-            base_data_ratio=base_data_ratio,
         )
 
-        model = result.model
-
-        # Fine-tuning: load the base weights into the fresh model (fresh optimizer).
         if init_model_state is not None:
             model.load_state_dict(init_model_state)
 
         model = model.to(device)
 
-        train_loader = DataLoader(
-            result.train_dataset,
-            batch_size=train_cfg.batch_size,
-            shuffle=True,
-            num_workers=num_workers,
-        )
-
-        val_loader = DataLoader(
-            result.val_dataset,
-            batch_size=train_cfg.batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-        )
-
         t = trainer.Trainer(
             model=model,
-            run_dir=run_dir,
             device=device,
             train_loader=train_loader,
             val_loader=val_loader,
-            config=train_cfg,
+            secondary_val_loaders=secondary_val_loaders,
             run_id=run_id,
+            run_dir=run_dir,
             experiment=experiment,
             phase=phase,
             op="train",
@@ -168,6 +143,7 @@ def run_train(
             dataset_cfg=dataset_cfg,
             model_name=model_name,
             model_cfg=model_cfg,
+            config=train_cfg,
         )
 
         t.train()

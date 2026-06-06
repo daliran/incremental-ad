@@ -2,6 +2,9 @@ import argparse
 import logging
 import os
 
+from torch.utils.data import DataLoader
+
+from incremental_ad import model_dataset_factory as factory
 from incremental_ad.core import checkpoint
 from incremental_ad.core.device import resolve_device
 from incremental_ad.core.run import setup_run_dir, save_phase_snapshot
@@ -88,9 +91,49 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
 
     log.info(f"Phase: {args.phase}  (experiment={args.experiment})")
 
-    # 1) Pretrain the base on the partial slice.
     base_dir = run_dir / "base"
     base_dir.mkdir(parents=True, exist_ok=True)
+
+    # Primary loaders for base training.
+    base_train_ds, base_val_ds = factory.build_datasets(
+        dataset_name=args.dataset,
+        dataset_cfg=dataset_cfg,
+        train_slice="base",
+        partial_ratio=args.partial_ratio,
+        n_finetune=args.n_finetune,
+        base_data_ratio=args.base_data_ratio,
+    )
+
+    base_train_loader = DataLoader(
+        base_train_ds, batch_size=pretrain_cfg.batch_size, shuffle=True, num_workers=num_workers
+    )
+
+    base_val_loader = DataLoader(
+        base_val_ds, batch_size=pretrain_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+
+    base_eval_val_loader = DataLoader(
+        base_val_ds, batch_size=val_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+
+    # Secondary val loaders: train portion of each ft split, logged each epoch
+    # so we can watch base-model generalisation to unseen data during training.
+    secondary_val_loaders = {
+        f"ft_{i}/train": DataLoader(
+            factory.build_datasets(
+                dataset_name=args.dataset,
+                dataset_cfg=dataset_cfg,
+                train_slice=f"ft_{i}",
+                partial_ratio=args.partial_ratio,
+                n_finetune=args.n_finetune,
+                base_data_ratio=args.base_data_ratio,
+            )[0],
+            batch_size=pretrain_cfg.batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+        )
+        for i in range(args.n_finetune)
+    }
 
     set_seed(pretrain_cfg.seed)
 
@@ -106,17 +149,15 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         model_name=args.model,
         model_cfg=model_cfg,
         train_cfg=pretrain_cfg,
-        train_slice="base",
-        partial_ratio=args.partial_ratio,
-        n_finetune=args.n_finetune,
-        base_data_ratio=args.base_data_ratio,
-        num_workers=num_workers,
+        train_loader=base_train_loader,
+        val_loader=base_val_loader,
+        secondary_val_loaders=secondary_val_loaders,
         phase_config=phase_cfg_dict,
     )
 
     base_ckpt_path = base_dir / "checkpoints" / "best.pt"
     base_ckpt = checkpoint.load_checkpoint(base_ckpt_path)
-    
+
     set_seed(val_eval_cfg.seed)
 
     run_train_slice_val_eval(
@@ -133,15 +174,11 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         model_cfg=model_cfg,
         ckpt=base_ckpt,
         train_slice="base",
-        partial_ratio=args.partial_ratio,
-        n_finetune=args.n_finetune,
-        base_data_ratio=args.base_data_ratio,
+        val_loader=base_eval_val_loader,
         val_eval_cfg=val_eval_cfg,
-        num_workers=num_workers,
         phase_config=phase_cfg_dict,
     )
 
-    # 2) Fine-tune from the base on each chunk.
     base_state = base_ckpt["model_state"]
     ft_ckpt_paths = []
 
@@ -149,6 +186,27 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
 
         ft_dir = run_dir / f"ft_{i}"
         ft_dir.mkdir(parents=True, exist_ok=True)
+
+        ft_train_ds, ft_val_ds = factory.build_datasets(
+            dataset_name=args.dataset,
+            dataset_cfg=dataset_cfg,
+            train_slice=f"ft_{i}",
+            partial_ratio=args.partial_ratio,
+            n_finetune=args.n_finetune,
+            base_data_ratio=1.0,
+        )
+
+        ft_train_loader = DataLoader(
+            ft_train_ds, batch_size=finetune_cfg.batch_size, shuffle=True, num_workers=num_workers
+        )
+
+        ft_val_loader = DataLoader(
+            ft_val_ds, batch_size=finetune_cfg.batch_size, shuffle=False, num_workers=num_workers
+        )
+
+        ft_eval_val_loader = DataLoader(
+            ft_val_ds, batch_size=val_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+        )
 
         set_seed(finetune_cfg.seed)
 
@@ -164,11 +222,8 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
             model_name=args.model,
             model_cfg=model_cfg,
             train_cfg=finetune_cfg,
-            train_slice=f"ft_{i}",
-            partial_ratio=args.partial_ratio,
-            n_finetune=args.n_finetune,
-            base_data_ratio=1.0,
-            num_workers=num_workers,
+            train_loader=ft_train_loader,
+            val_loader=ft_val_loader,
             init_model_state=base_state,
             phase_config=phase_cfg_dict,
         )
@@ -192,17 +247,13 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
             model_cfg=model_cfg,
             ckpt=ft_ckpt,
             train_slice=f"ft_{i}",
-            partial_ratio=args.partial_ratio,
-            n_finetune=args.n_finetune,
-            base_data_ratio=1.0,
+            val_loader=ft_eval_val_loader,
             val_eval_cfg=val_eval_cfg,
-            num_workers=num_workers,
             phase_config=phase_cfg_dict,
         )
 
         ft_ckpt_paths.append(ft_ckpt_path)
 
-    # 3) Merge the fine-tunings into the base (task arithmetic).
     merged_dir = run_dir / "merged"
     merged_ckpt_path = merged_dir / "checkpoints" / "best.pt"
 
@@ -217,6 +268,19 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     merged_model_cfg = models[model_name][2](**merged_ckpt["configs"]["model"])
 
     # Val reconstruction eval on the full train val — the merged model has seen all data.
+    _, merged_val_ds = factory.build_datasets(
+        dataset_name=args.dataset,
+        dataset_cfg=dataset_cfg,
+        train_slice="full",
+        partial_ratio=args.partial_ratio,
+        n_finetune=args.n_finetune,
+        base_data_ratio=1.0,
+    )
+
+    merged_eval_val_loader = DataLoader(
+        merged_val_ds, batch_size=val_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+
     set_seed(val_eval_cfg.seed)
 
     run_train_slice_val_eval(
@@ -233,16 +297,25 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         model_cfg=merged_model_cfg,
         ckpt=merged_ckpt,
         train_slice="full",
-        partial_ratio=args.partial_ratio,
-        n_finetune=args.n_finetune,
-        base_data_ratio=1.0,
+        val_loader=merged_eval_val_loader,
         val_eval_cfg=val_eval_cfg,
-        num_workers=num_workers,
         phase_config=phase_cfg_dict,
     )
 
-    # 4) Evaluate the merged model. The eval windows at the dataset's eval_stride
-    # (applied inside build_for_eval).
+    test_train_ds, test_eval_ds = factory.build_eval_datasets(
+        dataset_name=args.dataset,
+        dataset_cfg=dataset_cfg,
+        split="test",
+    )
+
+    test_train_loader = DataLoader(
+        test_train_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+    
+    test_eval_loader = DataLoader(
+        test_eval_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+
     set_seed(test_eval_cfg.seed)
 
     run_test_eval(
@@ -260,6 +333,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         ckpt=merged_ckpt,
         checkpoint_path=merged_ckpt_path,
         eval_cfg=test_eval_cfg,
-        num_workers=num_workers,
+        train_loader=test_train_loader,
+        eval_loader=test_eval_loader,
         phase_config=phase_cfg_dict,
     )

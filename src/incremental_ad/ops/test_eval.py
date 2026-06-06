@@ -62,14 +62,16 @@ def run_test_eval(
     ckpt: dict,
     checkpoint_path: Path,
     eval_cfg,
-    num_workers: int,
+    train_loader: DataLoader,
+    eval_loader: DataLoader,
     phase_config: dict | None = None,
 ) -> None:
     """Evaluate a checkpoint on the test set, writing eval artifacts into run_dir.
 
-    phase is the phase that produced the checkpoint, so the eval lands in the
-    same wandb group as that model (whether bundled with training or run on
-    demand later).
+    The caller is responsible for building train_loader (used for threshold
+    fitting) and eval_loader (the test set). phase is the phase that produced
+    the checkpoint, so the eval lands in the same wandb group as that model
+    (whether bundled with training or run on demand later).
     """
 
     _write_eval_info(
@@ -121,29 +123,12 @@ def run_test_eval(
         log.info(f"Model:   {model_name} -> {model_cfg}")
         log.info(f"Eval:    {eval_cfg}")
 
-        result = factory.build_for_eval(
+        model = factory.build_model(
             model_name=model_name,
             dataset_name=eval_dataset_name,
             model_cfg=model_cfg,
             dataset_cfg=eval_dataset_cfg,
-            split="test",
-        )
-
-        model = result.model.to(device)
-
-        eval_loader = DataLoader(
-            result.eval_dataset,
-            batch_size=eval_cfg.batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-        )
-
-        train_loader = DataLoader(
-            result.train_dataset,
-            batch_size=eval_cfg.batch_size,
-            shuffle=False,
-            num_workers=num_workers,
-        )
+        ).to(device)
 
         e = test_evaluator.TestEvaluator(
             model=model,

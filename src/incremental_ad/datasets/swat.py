@@ -27,7 +27,7 @@ Normalization = Literal["standard", "none"]
 class SWaTConfig:
     window_len: int
     stride: int  # windowing stride used for training
-    eval_stride: int  # windowing stride used at evaluation (build_for_eval)
+    eval_stride: int  # windowing stride used at evaluation (build_eval_datasets)
     normalization: Normalization
     val_ratio: float 
 

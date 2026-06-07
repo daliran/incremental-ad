@@ -276,6 +276,11 @@ class Trainer:
                 total_iters=warmup_epochs,
             )
 
+            # When epochs is too small for a cosine phase (e.g. 1-epoch debug runs),
+            # warmup alone covers the full training.
+            if cosine_epochs <= 0:
+                return warmup
+
             # normal scheduling phase
             cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer,

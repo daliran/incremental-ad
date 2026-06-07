@@ -100,6 +100,7 @@
                 "--n-finetune", "3",
                 "--merge-scale", "0.5",
                 "--base-data-ratio", "1.0",
+                "--ft-test-eval", "false",
 
                 // --- SWaT dataset ---
                 "--swat-window-len", "100",
@@ -305,6 +306,7 @@
                 "--n-finetune", "3",
                 "--merge-scale", "0.5",
                 "--base-data-ratio", "1.0",
+                "--ft-test-eval", "false",
 
                 // --- PSM dataset ---
                 "--psm-window-len", "100",

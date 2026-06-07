@@ -57,6 +57,7 @@ python -m incremental_ad.main \
     --n-finetune 3 \
     --merge-scale 0.5 \
     --base-data-ratio 1.0 \
+    --ft-test-eval false \
     --swat-window-len 100 \
     --swat-stride 50 \
     --swat-eval-stride 1 \

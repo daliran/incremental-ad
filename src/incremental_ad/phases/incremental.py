@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 
 from incremental_ad import model_dataset_factory as factory
 from incremental_ad.core import checkpoint
+from incremental_ad.core.cli import str_to_bool
 from incremental_ad.core.device import resolve_device
 from incremental_ad.core.run import setup_run_dir, save_phase_snapshot
 from incremental_ad.core.seed import set_seed
@@ -43,6 +44,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     parser.add_argument("--n-finetune", type=int, required=True)
     parser.add_argument("--merge-scale", type=float, required=True)
     parser.add_argument("--base-data-ratio", type=float, required=True)
+    parser.add_argument("--ft-test-eval", type=str_to_bool, required=True)
 
     known, _ = parser.parse_known_args()
 
@@ -119,7 +121,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
     # Secondary val loaders: train portion of each ft split, logged each epoch
     # so we can watch base-model generalisation to unseen data during training.
     secondary_val_loaders = {
-        f"ft_{i}/train": DataLoader(
+        f"ft_{i}_train": DataLoader(
             factory.build_datasets(
                 dataset_name=args.dataset,
                 dataset_cfg=dataset_cfg,
@@ -176,6 +178,43 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         train_slice="base",
         val_loader=base_eval_val_loader,
         val_eval_cfg=val_eval_cfg,
+        phase_config=phase_cfg_dict,
+    )
+
+    # Test eval on the base model — gives a baseline before any fine-tuning or merging.
+    base_test_train_ds, base_test_eval_ds = factory.build_eval_datasets(
+        dataset_name=args.dataset,
+        dataset_cfg=dataset_cfg,
+        split="test",
+    )
+
+    base_test_train_loader = DataLoader(
+        base_test_train_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+
+    base_test_eval_loader = DataLoader(
+        base_test_eval_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+    )
+
+    set_seed(test_eval_cfg.seed)
+
+    run_test_eval(
+        experiment=args.experiment,
+        phase=args.phase,
+        run_tag="base",
+        run_id=run_id,
+        group_run_id=run_id,
+        device=device,
+        run_dir=base_dir,
+        eval_dataset_name=args.dataset,
+        eval_dataset_cfg=dataset_cfg,
+        model_name=args.model,
+        model_cfg=model_cfg,
+        ckpt=base_ckpt,
+        checkpoint_path=base_ckpt_path,
+        eval_cfg=test_eval_cfg,
+        train_loader=base_test_train_loader,
+        eval_loader=base_test_eval_loader,
         phase_config=phase_cfg_dict,
     )
 
@@ -252,6 +291,43 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
             phase_config=phase_cfg_dict,
         )
 
+        if args.ft_test_eval:
+            ft_test_train_ds, ft_test_eval_ds = factory.build_eval_datasets(
+                dataset_name=args.dataset,
+                dataset_cfg=dataset_cfg,
+                split="test",
+            )
+
+            ft_test_train_loader = DataLoader(
+                ft_test_train_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+            )
+
+            ft_test_eval_loader = DataLoader(
+                ft_test_eval_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+            )
+
+            set_seed(test_eval_cfg.seed)
+
+            run_test_eval(
+                experiment=args.experiment,
+                phase=args.phase,
+                run_tag=f"ft_{i}",
+                run_id=run_id,
+                group_run_id=run_id,
+                device=device,
+                run_dir=ft_dir,
+                eval_dataset_name=args.dataset,
+                eval_dataset_cfg=dataset_cfg,
+                model_name=args.model,
+                model_cfg=model_cfg,
+                ckpt=ft_ckpt,
+                checkpoint_path=ft_ckpt_path,
+                eval_cfg=test_eval_cfg,
+                train_loader=ft_test_train_loader,
+                eval_loader=ft_test_eval_loader,
+                phase_config=phase_cfg_dict,
+            )
+
         ft_ckpt_paths.append(ft_ckpt_path)
 
     merged_dir = run_dir / "merged"
@@ -302,18 +378,18 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         phase_config=phase_cfg_dict,
     )
 
-    test_train_ds, test_eval_ds = factory.build_eval_datasets(
+    merged_test_train_ds, merged_test_eval_ds = factory.build_eval_datasets(
         dataset_name=args.dataset,
         dataset_cfg=dataset_cfg,
         split="test",
     )
 
-    test_train_loader = DataLoader(
-        test_train_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+    merged_test_train_loader = DataLoader(
+        merged_test_train_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
     )
-    
-    test_eval_loader = DataLoader(
-        test_eval_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
+
+    merged_test_eval_loader = DataLoader(
+        merged_test_eval_ds, batch_size=test_eval_cfg.batch_size, shuffle=False, num_workers=num_workers
     )
 
     set_seed(test_eval_cfg.seed)
@@ -333,7 +409,7 @@ def run_incremental(*, datasets: dict, models: dict, num_workers: int) -> None:
         ckpt=merged_ckpt,
         checkpoint_path=merged_ckpt_path,
         eval_cfg=test_eval_cfg,
-        train_loader=test_train_loader,
-        eval_loader=test_eval_loader,
+        train_loader=merged_test_train_loader,
+        eval_loader=merged_test_eval_loader,
         phase_config=phase_cfg_dict,
     )

@@ -11,7 +11,8 @@ The codebase is organized around three ideas:
   orchestrates one or more operations and owns all dataset/loader construction
   (via `model_dataset_factory`). Implemented today: `pretrain`
   (train → train_slice_val_eval → test_eval), `incremental` (base pretrain →
-  fine-tune × N → merge → train_slice_val_eval → test_eval), and `eval`
+  test_eval → fine-tune × N → [test_eval] → merge → train_slice_val_eval →
+  test_eval), and `eval`
   (standalone, on-demand; supports `--split test` or `--split val`).
 - **registries** — the available models and datasets, injected from `main.py`.
 
@@ -170,9 +171,10 @@ and share one wandb group. The base pretrain uses `--train-*`; the fine-tunings 
 a separate `--finetune-*` config.
 
 During base pretraining, the train portion of each ft split is passed as a
-**secondary val loader**. This logs `loss/ft_0/train`, `loss/ft_1/train`, … to
-wandb every epoch alongside `loss/train` and `loss/val`, so you can watch how
-the base model generalises to unseen future data as training progresses. These
+**secondary val loader**. This logs `loss/ft_0_train`, `loss/ft_1_train`, … to
+wandb every epoch alongside `loss/train` and `loss/val` — all in the same chart
+panel — so you can watch how the base model generalises to unseen future data as
+training progresses. These
 curves do not affect early stopping or checkpointing.
 
 `--base-data-ratio` controls what fraction of the base's allocated slice
@@ -284,11 +286,13 @@ experiments/mae_tx_swat/
 
     incremental/300/                       # incremental pipeline job
         phase_config.json                  # includes partial_ratio, n_finetune, merge_scale
-        base/                              # partial pretrain + train_slice_val_eval
+        base/                              # partial pretrain + train_slice_val_eval + test_eval
             config.json
             checkpoints/
             train_slice_val_eval_info.json
             val_reconstruction.json
+            eval_info.json
+            test_results.json
         ft_0/  ft_1/  ft_2/               # fine-tune steps, same layout as base/
         merged/                            # merged model + train_slice_val_eval + test_eval
             checkpoints/
@@ -337,8 +341,9 @@ mae_tx_swat/pretrain/100        <- group (one model)
 
 An `incremental` job `300` puts all its sub-runs in one group
 `mae_tx_swat/incremental/300`: `train_base-300`, `train_slice_val_eval_base-300`,
-`train_ft_0-300`, `train_slice_val_eval_ft_0-300` …
+`test_eval_base-300`, `train_ft_0-300`, `train_slice_val_eval_ft_0-300` …
 `train_slice_val_eval_merged-300`, `test_eval_merged-300`.
+(`test_eval_ft_0-300` … appear only when `--ft-test-eval true`.)
 
 **The one asymmetry (by design):** the standalone eval's *folder* lives under its
 own job (`eval/p95_200`, provenance), while its *wandb group* points at the model

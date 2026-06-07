@@ -52,6 +52,7 @@ python -m incremental_ad.main \
     --n-finetune 3 \
     --merge-scale 0.5 \
     --base-data-ratio 1.0 \
+    --ft-test-eval false \
     --psm-window-len 100 \
     --psm-stride 50 \
     --psm-eval-stride 1 \

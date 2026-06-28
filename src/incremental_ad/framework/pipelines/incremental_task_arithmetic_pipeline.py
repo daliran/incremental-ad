@@ -147,6 +147,37 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
         baseline_state = {k: v.cpu() for k, v in model.state_dict().items()}
         caps = context.dataset.capabilities
 
+        # --- Baseline val eval ---
+        if DatasetCapability.VAL in caps:
+            val_evaluator = context.configurator.create_val_evaluator()
+            baseline_val_step = "baseline/val"
+            log.info(f"[{baseline_val_step}] Starting evaluation")
+            started_at_eval = datetime.now(timezone.utc)
+
+            baseline_val_metrics = self.runner.run(
+                model, val_evaluator, dataset.get_val_eval_dataset(),
+                seed=context.eval_seed,
+            )
+
+            for k, v in baseline_val_metrics.items():
+                log.info(f"  [{baseline_val_step}] {k}: {v:.4f}")
+            log.info(f"[{baseline_val_step}] Evaluation complete")
+
+            if wandb.run is not None:
+                wandb.run.summary.update(
+                    {f"{baseline_val_step}/{k}": v for k, v in baseline_val_metrics.items()}
+                )
+
+            baseline_val_result = EvalStepResult(
+                step_name=baseline_val_step,
+                started_at=started_at_eval,
+                finished_at=datetime.now(timezone.utc),
+                metrics=baseline_val_metrics,
+            )
+
+            baseline_val_result.write(baseline_step_dir / "val")
+            results.append(baseline_val_result)
+
         # --- Baseline test eval (pre-fine-tuning reference) ---
         if DatasetCapability.TEST in caps:
             evaluator = context.configurator.create_test_evaluator()

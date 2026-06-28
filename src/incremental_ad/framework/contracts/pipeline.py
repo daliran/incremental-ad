@@ -1,10 +1,13 @@
 import inspect
 import json
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar
+
+log = logging.getLogger(__name__)
 
 from incremental_ad.framework.contracts.configurable import Configurable
 from incremental_ad.framework.contracts.dataset import Dataset
@@ -74,4 +77,6 @@ class Pipeline(Configurable, ABC):
     ) -> None:
         debugger = context.configurator.create_debugger()
         if debugger is not None:
+            log.info("[debug] Starting debugger")
             debugger.run(model, context.dataset, evaluator, step_dir)
+            log.info("[debug] Debugger complete")

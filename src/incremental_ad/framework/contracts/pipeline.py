@@ -44,7 +44,7 @@ class StepResult:
     def write(self, out_dir: Path) -> None:
         """Write result.json into out_dir."""
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "result.json").write_text(json.dumps(self._to_json_dict(), indent=2))
+        (out_dir / "result.json").write_text(json.dumps(self._to_json_dict(), indent=2), encoding="utf-8")
 
     def _to_json_dict(self) -> dict:
         return {

@@ -42,7 +42,7 @@ def _cfg_to_dict(cfg: Namespace) -> dict:
 
 def _write_config(run_dir: Path, **fields) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "config.json").write_text(json.dumps(fields, indent=2))
+    (run_dir / "config.json").write_text(json.dumps(fields, indent=2), encoding="utf-8")
 
 
 class Experiment:
@@ -137,7 +137,7 @@ class Experiment:
             args=args,
         )
 
-        file_handler = logging.FileHandler(run_dir / "run.log")
+        file_handler = logging.FileHandler(run_dir / "run.log", encoding="utf-8")
         file_handler.setFormatter(
             logging.Formatter("%(asctime)s  %(levelname)-8s  %(name)s: %(message)s")
         )

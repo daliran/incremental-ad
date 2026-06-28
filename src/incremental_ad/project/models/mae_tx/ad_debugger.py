@@ -179,7 +179,7 @@ class MaeTxAdDebugger(Debugger):
                 }
             )
         if rows:
-            with (out / "event_analysis.csv").open("w", newline="") as f:
+            with (out / "event_analysis.csv").open("w", newline="", encoding="utf-8") as f:
                 writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
                 writer.writeheader()
                 writer.writerows(rows)

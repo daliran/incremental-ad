@@ -185,9 +185,12 @@ fabric.properties
 .idea
 
 # project specific
-hf_cache/
-experiments/
-debug/
+hf_cache/       # HuggingFace dataset cache
+experiments/    # run outputs (checkpoints, result.json, config.json, run.log)
+wandb/          # wandb local run directory
+logs/           # SLURM job logs
+analysis/       # generated dataset analysis artifacts (plots, CSVs)
+debug/          # debug visualisations from MaeTxAdDebugger
 
 # unignore project scripts excluded by the VirtualEnv template above
 !scripts/

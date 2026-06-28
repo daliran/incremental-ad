@@ -1,403 +1,311 @@
-# Incremental anomaly detection
+# incremental-ad
 
-Thesis project (AIE master degree) on **time-series anomaly detection** with
-self-supervised reconstruction models, working toward an **incremental** setup
-where a base model is adapted to new data regimes and the adaptations are merged.
+Research framework for **incremental anomaly detection on multivariate time series**. The core idea: a model trained on a baseline period can be incrementally adapted to new operating conditions via task arithmetic — without forgetting the original distribution.
 
-The codebase is organized around three ideas:
-
-- **operations** — the atomic units of work: `train`, `val_eval`, `train_slice_val_eval`, `test_eval` and `merge`. Each op is a pure function: it receives a model config and pre-built `DataLoader`s from the calling phase, and owns only the training/eval logic, wandb init, and file writes.
-- **phases** — what you actually launch (one phase = one SLURM job); a phase
-  orchestrates one or more operations and owns all dataset/loader construction
-  (via `model_dataset_factory`). Implemented today: `pretrain`
-  (train → train_slice_val_eval → test_eval), `incremental` (base pretrain →
-  test_eval → fine-tune × N → [test_eval] → merge → train_slice_val_eval →
-  test_eval), and `eval`
-  (standalone, on-demand; supports `--split test` or `--split val`).
-- **registries** — the available models and datasets, injected from `main.py`.
+The framework is general enough to support four task types on the same backbone: **anomaly detection**, **forecasting**, **imputation**, and **classification**.
 
 ---
 
-## Models
+## Setup
 
-### Transformer MAE (`mae_tx`)
-
-A masked auto-encoder over patched multivariate time series. Windows are split
-into non-overlapping **patches** (`patch_len` timesteps × all features); a subset
-is masked and the model reconstructs the masked patches. Which patches are masked
-depends on `training_mode` (see Training loss below).
-
-* **Architecture**
-    * Fixed sequence length.
-    * Learned encoder positional encoding.
-    * Learned decoder positional encoding (different from the encoder's).
-    * Learned decoder mask token.
-    * Learned projection between encoder `d_model` and decoder `d_model`.
-* **AE encoder/decoder**
-    * Pre-norm instead of post-norm.
-    * FFN dim = `4 * d_model`.
-    * Encoder `d_model` > decoder `d_model` (asymmetric, MAE-style: the encoder
-      only sees the *visible* tokens, the decoder sees all positions).
-* **Training loss**
-    * MSE between predicted and ground-truth patches.
-    * Optional patch-level normalization of the ground-truth patches
-      (`patch_norm`) — makes the loss focus on shape, not magnitude.
-    * Three training modes (`training_mode`):
-        * `random_mask` — standard MAE: a random subset of patches is masked and reconstructed.
-        * `causal_mask` — forecasting: the encoder sees the first half of the window and reconstructs the second half.
-        * `next_step` — next-step prediction: the encoder sees all patches except the last and reconstructs it.
-* **Anomaly scoring at eval time** — behavior depends on `training_mode`:
-    * `random_mask`: **`n_eval_passes`** forward passes with independent random masks;
-      per-patch errors are accumulated and averaged over the passes each patch was
-      masked in (Monte-Carlo estimate). The window score is the mean per-patch error.
-    * `causal_mask` / `next_step`: a single deterministic forward pass with the same
-      mask used during training. `n_eval_passes` is ignored. The window score is the
-      mean error over the supervised patches only.
-
-  Eval is run with dataset **stride = 1** (one window per timestep), which the
-  metrics rely on.
-
-Config (`--mae-tx-*`): `patch-len`, `encoder-embed-dim`, `encoder-layers`,
-`encoder-heads`, `decoder-embed-dim`, `decoder-layers`, `decoder-heads`,
-`mask-ratio`, `patch-norm`, `n-eval-passes`, `training-mode`.
-
----
-
-## Datasets
-
-### SWaT (`swat`)
-
-Secure Water Treatment testbed (51 features), loaded from the HuggingFace
-`thuml/Time-Series-Library` dataset. The `train` split is normal-only; the
-`test` split carries `Normal/Attack` labels.
-
-* **Normalization** — `standard` (per-feature, fit on train) or `none`.
-* **Windowing** — sliding windows of `window-len`, advanced by `stride`.
-* **Validation** — the last `val-ratio` fraction of the train series is held out
-  (temporal split, no shuffling).
-* **Eval** — windowing uses a separate `eval-stride` (set it to `1`, which the
-  metrics rely on). Training windows at `stride`; `build_for_eval` windows at
-  `eval-stride`.
-
-Config (`--swat-*`): `window-len`, `stride`, `normalization`, `val-ratio`,
-`eval-stride`.
-
-### PSM (`psm`)
-
-Pooled Server Metrics dataset (25 features), loaded from the HuggingFace
-`thuml/Time-Series-Library` dataset. Unlike SWaT, data and labels are in
-separate configs (`PSM-data` / `PSM-label`); the label split is named
-`test_label` with a binary `label` column (0 = normal, 1 = anomaly).
-The train split contains scattered NaN values (~2 % of rows) that are
-forward-filled then backward-filled before scaling.
-
-* **Normalization** — `standard` (per-feature, fit on train) or `none`.
-* **Windowing / Validation / Eval** — same scheme as SWaT.
-
-Config (`--psm-*`): `window-len`, `stride`, `normalization`, `val-ratio`,
-`eval-stride`.
-
----
-
-## Run identity
-
-Every run is identified by four coordinates:
-
-| coordinate     | source                               | example         |
-| -------------- | ------------------------------------ | --------------- |
-| `experiment`   | `--experiment` (manual namespace)    | `mae_tx_swat`   |
-| `phase`        | `--phase` (the launched stage)       | `pretrain` |
-| `run_id`       | `SLURM_JOB_ID`, or a local timestamp | `43069`         |
-| `run_tag`      | `--run-tag` (optional label)         | `p95`           |
-
-`run_label = <run_tag>_<run_id>` if a tag is given, else `<run_id>`.
-
----
-
-## Phases & operations
-
-`main.py` dispatches on `--phase`:
-
-### `pretrain` — train, then val eval, then test eval (one job)
-Trains the model on the full train set, evaluates reconstruction quality on the
-training val set, then evaluates anomaly detection on the test set — all in one
-job/folder. Both evals window at the dataset's `eval-stride` config (e.g. `--swat-eval-stride`).
+Activate the virtual environment and set the environment variables before running anything:
 
 ```bash
-python -m incremental_ad.main \
-    --phase pretrain --experiment mae_tx_swat \
-    --dataset swat --model mae_tx \
-    --swat-window-len 100 --swat-stride 50 --swat-normalization standard --swat-val-ratio 0.15 --swat-eval-stride 1 \
-    --mae-tx-patch-len 10 --mae-tx-encoder-embed-dim 256 --mae-tx-encoder-layers 2 \
-    --mae-tx-encoder-heads 2 --mae-tx-decoder-embed-dim 128 --mae-tx-decoder-layers 1 \
-    --mae-tx-decoder-heads 2 --mae-tx-patch-norm false --mae-tx-mask-ratio 0.80 --mae-tx-n-eval-passes 30 --mae-tx-training-mode random_mask \
-    --train-seed 42 --train-epochs 300 --train-patience 30 --train-batch-size 64 \
-    --train-optimizer adamw --train-weight-decay 1e-2 --train-learning-rate 1e-4 \
-    --train-grad-clip 0.5 --train-scheduler cosine --train-warmup-ratio 0.1 --train-checkpoint-interval 0 \
-    --val-eval-seed 0 --val-eval-batch-size 512 \
-    --test-eval-seed 0 --test-eval-batch-size 512 \
-    --test-eval-threshold-strategy oracle --test-eval-threshold-percentile 99
+source .venv/bin/activate
 ```
 
-### `eval` — standalone, on-demand
-Evaluates an existing checkpoint. The checkpoint is always passed explicitly;
-experiment/phase are read back from it. Use `--split test` for anomaly detection
-metrics or `--split val` for reconstruction quality on the full training val set.
-
-```bash
-# Test eval (AD metrics, e.g. to try a different threshold)
-python -m incremental_ad.main \
-    --phase eval --run-tag p95 --checkpoint <path>/checkpoints/best.pt \
-    --dataset swat --split test \
-    --swat-window-len 100 --swat-stride 1 --swat-normalization standard --swat-val-ratio 0.15 --swat-eval-stride 1 \
-    --test-eval-seed 0 --test-eval-batch-size 512 \
-    --test-eval-threshold-strategy oracle --test-eval-threshold-percentile 95
-
-# Val eval (reconstruction quality)
-python -m incremental_ad.main \
-    --phase eval --run-tag val_reconstruction --checkpoint <path>/checkpoints/best.pt \
-    --dataset swat --split val \
-    --swat-window-len 100 --swat-stride 1 --swat-normalization standard --swat-val-ratio 0.15 --swat-eval-stride 1 \
-    --val-eval-seed 0 --val-eval-batch-size 512
-```
-
-### `incremental` — the whole pipeline in one job
-On a static dataset: pretrain a base on the first `--partial-ratio` of the train
-series, fine-tune it on each of the `--n-finetune` remaining equal chunks, merge
-the fine-tunings into the base via task arithmetic
-(`θ_pre + --merge-scale·Σ(θ_FTᵢ − θ_pre)`), then evaluate the merged model — all in
-one job. Outputs land in `base/`, `ft_0/`…`ft_{N-1}/`, `merged/` under one run dir
-and share one wandb group. The base pretrain uses `--train-*`; the fine-tunings use
-a separate `--finetune-*` config.
-
-During base pretraining, the train portion of each ft split is passed as a
-**secondary val loader**. This logs `loss/ft_0_train`, `loss/ft_1_train`, … to
-wandb every epoch alongside `loss/train` and `loss/val` — all in the same chart
-panel — so you can watch how the base model generalises to unseen future data as
-training progresses. These
-curves do not affect early stopping or checkpointing.
-
-`--base-data-ratio` controls what fraction of the base's allocated slice
-(`--partial-ratio`) the base model actually trains on. The FT chunks are always
-anchored at `partial_ratio × n` regardless of this value — only the base sees less
-data. `--base-data-ratio 1.0` is the baseline (full allocation); e.g. `0.4` with
-`--partial-ratio 0.5` on 100 k timesteps gives the base 20 k timesteps while the
-FTs still start at 50 k.
-
-See [`scripts/sbatch_mae_tx_swat_incremental.sh`](scripts/sbatch_mae_tx_swat_incremental.sh)
-for the full argument list.
-
-### `model_dataset_factory` — the three building blocks
-
-All dataset and model construction goes through three functions:
-
-| Function | Returns | Stride used |
-|---|---|---|
-| `build_model(model_name, dataset_name, model_cfg, dataset_cfg)` | `BaseModel` | — |
-| `build_datasets(dataset_name, dataset_cfg, train_slice, …)` | `(train_ds, val_ds)` | `dataset_cfg.stride` |
-| `build_eval_datasets(dataset_name, dataset_cfg, split)` | `(train_ds, eval_ds)` | `dataset_cfg.eval_stride` |
-
-`build_datasets` accepts any `train_slice` (`"full"`, `"base"`, `"ft_<i>"`).
-`build_eval_datasets` always loads the full train series and returns either the
-val tail or the test set based on `split`. Phases call these before invoking
-ops; ops never touch the factory for datasets.
-
-### Operations
-
-- **train** (`trainer.py`) — AdamW, `cosine`/`constant` scheduler with linear
-  warmup, gradient clipping, early stopping on primary val loss; writes
-  `best.pt`/`last.pt` (plus periodic `epoch_*.pt` if
-  `--train-checkpoint-interval > 0`). Accepts an optional
-  `secondary_val_loaders` dict: each entry is evaluated every epoch and logged
-  to wandb under `loss/<key>` without affecting checkpointing or early stopping.
-- **train_slice_val_eval** (`val_evaluator.py`) — reconstruction quality on the val
-  tail of the specific training slice used during training; bundled inside
-  `pretrain`/`incremental` to inspect what the trainer actually saw. Writes
-  `train_slice_val_eval_info.json` + `val_reconstruction.json`.
-- **val_eval** (`val_evaluator.py`) — reconstruction quality on the full training val
-  series at `eval_stride`; used by the `eval` phase on-demand. Writes
-  `val_eval_info.json` + `val_reconstruction.json`.
-- **test_eval** (`test_evaluator.py`) — anomaly detection metrics at **window**,
-  **point**, **point-adjusted** and **event** level, saved to `test_results.json`
-  (plus ROC/PR curves to wandb). Receives both a `train_loader` (for threshold
-  fitting) and an `eval_loader` (test set). Thresholding via `oracle` or
-  `train_percentile` (`--test-eval-threshold-percentile`).
-- **merge** (`ops/merge.py`) — task arithmetic over the base + fine-tuned
-  checkpoints: clones the base checkpoint and swaps in
-  `θ_pre + scale·Σ(θ_FTᵢ − θ_pre)`.
-
-(A fine-tuning is just **train** with the base weights loaded as the starting
-point; the `incremental` phase orchestrates the lot.)
-
-### Roadmap
-The `incremental` phase targets a **static** dataset. A production /
-continual-learning phase (real timestamps, day-by-day fine-tuning, selectively
-merging accumulated adaptations) will be a separate phase with its own dataset and
-logic — the operations (`train`/`eval`/`merge`) and the slicing helpers are reused.
+| variable | purpose | default |
+|----------|---------|---------|
+| `RUNS_ROOT` | root directory for all run output | `experiments/` |
+| `WANDB_PROJECT` | wandb project name; leave unset to disable wandb | — |
+| `WANDB_ENTITY` | wandb entity | wandb default |
+| `WANDB_MODE` | `online` / `offline` / `disabled` | wandb default |
+| `HF_HOME` | HuggingFace cache for dataset downloads | HF default |
+| `SLURM_JOB_ID` | set by SLURM; used as `run_id` | timestamp + hex suffix |
 
 ---
 
-## Filesystem — provenance
+## Tasks
 
-Output root is `$RUNS_ROOT` (defaults to `experiments/`; set to `$WORK/experiments`
-on the cluster). **One job → one immutable folder**, keyed by what produced it.
-
-### File layout
-
-```
-experiments/<experiment>/<phase>/<run_label>/
-    phase_config.json                     # global identity + provenance + phase-specific params
-    wandb/                                # local wandb files
-
-    # produced by train + train_slice_val_eval (bundled inside pretrain/incremental):
-    config.json                           # dataset/model/train config for this op
-    checkpoints/best.pt, last.pt
-    train_slice_val_eval_info.json        # checkpoint + eval config (slice-specific val eval)
-    val_reconstruction.json               # reconstruction score statistics
-
-    # produced by a bundled test_eval op:
-    eval_info.json                        # checkpoint section + eval section
-    test_results.json                     # AD metrics (window/point/event)
-
-    # produced by val_eval (standalone eval phase, --split val):
-    val_eval_info.json                    # checkpoint section + eval section
-    val_reconstruction.json               # reconstruction score statistics
-```
-
-For the `incremental` phase, each sub-step gets its own sub-directory:
-
-```
-experiments/mae_tx_swat/
-    pretrain/100/                          # pretrain job: train → val_eval → test_eval
-        phase_config.json
-        config.json
-        checkpoints/
-        train_slice_val_eval_info.json
-        val_reconstruction.json
-        eval_info.json
-        test_results.json
-
-    eval/p95_200/                          # standalone re-eval job
-        phase_config.json                  # includes split + checkpoint path
-        val_eval_info.json                 # (--split val) checkpoint + eval section
-        val_reconstruction.json            # (--split val) reconstruction stats
-        eval_info.json                     # (--split test) checkpoint + eval section
-        test_results.json                  # (--split test) AD metrics
-
-    incremental/300/                       # incremental pipeline job
-        phase_config.json                  # includes partial_ratio, n_finetune, merge_scale
-        base/                              # partial pretrain + train_slice_val_eval + test_eval
-            config.json
-            checkpoints/
-            train_slice_val_eval_info.json
-            val_reconstruction.json
-            eval_info.json
-            test_results.json
-        ft_0/  ft_1/  ft_2/               # fine-tune steps, same layout as base/
-        merged/                            # merged model + train_slice_val_eval + test_eval
-            checkpoints/
-            train_slice_val_eval_info.json
-            val_reconstruction.json
-            eval_info.json
-            test_results.json
-```
-
-### Config hierarchy
-
-Two levels, no duplication between them:
-
-| level | file | contents |
-|---|---|---|
-| phase | `phase_config.json` | global identity (experiment, phase, run_id), provenance (host, git commit, timestamp), phase-specific params (partial_ratio, n_finetune, merge_scale, …) |
-| op | `config.json` / `val_eval_info.json` / `eval_info.json` | dataset + model + op-specific config; eval files split into a `checkpoint` section (what the model was trained with) and an `eval` section (what this eval run used) |
-
-Cross-phase references are explicit checkpoint paths (an eval or a future
-fine-tuning is given the `--checkpoint` to read).
+| task | `--task` | supervision | eval metric |
+|------|----------|-------------|-------------|
+| Anomaly detection | `ad` | self-supervised | AUROC, F1, PA-F1 |
+| Forecasting | `forecast` | self-supervised | MSE, MAE |
+| Imputation | `imputation` | self-supervised | MSE, MAE at masked positions |
+| Classification | `classification` | supervised | accuracy, macro-F1 |
 
 ---
 
-## wandb — analysis
+## Running experiments
 
-`project = $WANDB_PROJECT`, `entity = $WANDB_ENTITY`.
+Every run is launched via `python -m incremental_ad.main` with a set of `--component_arg` flags. The entry point selects the model, dataset, task, and pipeline by name; each component declares and reads its own arguments. Full argument lists for each experiment are in the SLURM scripts and the VS Code launch configurations.
 
-- **group** = `<experiment>/<phase>/<group_run_id>` — **one group per trained
-  model and all of its evaluations**. `group_run_id` is the *producing* job's id:
-  a training run uses its own id; an eval uses the id of the checkpoint it
-  evaluates, so re-evals re-join the model's group.
-- **job_type** = the operation (`train` / `val_eval` / `test_eval`).
-- **name** = `<op>[_<run_tag>]-<run_id>` — uses *this* run's own id.
-- **config** = dataset/model/train|eval configs + experiment/phase/op/run_tag/slurm
-  id (so you can also group/filter dynamically in the UI).
+### Pipelines
 
-Example: a pretrain job `100` and a later threshold re-eval `200` (`--run-tag p95`):
+**`StandardPipeline`** — single-phase training followed by evaluation. Use this for non-incremental baselines: train on all available data, then evaluate on val and test.
+
+**`IncrementalTaskArithmeticPipeline`** — the main research pipeline. Trains a baseline model on the first fraction of the training data, then fine-tunes independently on each subsequent segment. The fine-tuned models are merged back into the baseline via task arithmetic:
 
 ```
-mae_tx_swat/pretrain/100        <- group (one model)
-  ├─ train-100                    (job_type train)
-  ├─ train_slice_val_eval-100     (job_type train_slice_val_eval, bundled)
-  ├─ test_eval-100                (job_type test_eval, bundled)
-  └─ test_eval_p95-200            (job_type test_eval, standalone job 200, re-joined the group)
+θ_merged = θ_base + scale × Σᵢ (θ_ft_i − θ_base)
 ```
 
-An `incremental` job `300` puts all its sub-runs in one group
-`mae_tx_swat/incremental/300`: `train_base-300`, `train_slice_val_eval_base-300`,
-`test_eval_base-300`, `train_ft_0-300`, `train_slice_val_eval_ft_0-300` …
-`train_slice_val_eval_merged-300`, `test_eval_merged-300`.
-(`test_eval_ft_0-300` … appear only when `--ft-test-eval true`.)
+The scale is controlled by `--pipeline_merge_scale`. Each fine-tuned model contributes a *task vector* (the difference from baseline); these are summed and added back. Baseline and fine-tuned states are stored on CPU between phases so only the active model occupies GPU memory. `--pipeline_ft_test_eval` optionally runs test evaluation after each fine-tuning step before the merge.
 
-**The one asymmetry (by design):** the standalone eval's *folder* lives under its
-own job (`eval/p95_200`, provenance), while its *wandb group* points at the model
-it evaluated (`pretrain/100`, analysis). The filesystem is keyed by *which
-job wrote the bytes*; wandb is grouped by *which model is being studied*. They
-coincide for a producing job and diverge only for a standalone eval.
+**`EvalPipeline`** — loads a saved checkpoint and runs evaluation only. Useful for re-evaluating a trained model with a different threshold strategy or for running the debugger visualizations. Pass `--pipeline_checkpoint_path` and the same model/dataset args used during training.
+
+### SLURM scripts
+
+Ready-to-submit scripts live in [`scripts/`](scripts/). Edit `PROJECT_ROOT` and `WORK` at the top of each script before submitting. Use [`scripts/debug.sh`](scripts/debug.sh) to open an interactive GPU session on the cluster.
+
+| script | dataset | pipeline |
+|--------|---------|----------|
+| [`sbatch_mae_tx_swat_ad_standard.sh`](scripts/sbatch_mae_tx_swat_ad_standard.sh) | SWaT | StandardPipeline |
+| [`sbatch_mae_tx_swat_ad_incremental.sh`](scripts/sbatch_mae_tx_swat_ad_incremental.sh) | SWaT | IncrementalTaskArithmeticPipeline |
+| [`sbatch_mae_tx_swat_ad_eval.sh`](scripts/sbatch_mae_tx_swat_ad_eval.sh) | SWaT | EvalPipeline |
+| [`sbatch_mae_tx_psm_ad_standard.sh`](scripts/sbatch_mae_tx_psm_ad_standard.sh) | PSM | StandardPipeline |
+| [`sbatch_mae_tx_psm_ad_incremental.sh`](scripts/sbatch_mae_tx_psm_ad_incremental.sh) | PSM | IncrementalTaskArithmeticPipeline |
+| [`sbatch_mae_tx_psm_ad_eval.sh`](scripts/sbatch_mae_tx_psm_ad_eval.sh) | PSM | EvalPipeline |
+| [`sbatch_mae_tx_etth_forecast_standard.sh`](scripts/sbatch_mae_tx_etth_forecast_standard.sh) | ETTh1 | StandardPipeline |
+| [`sbatch_mae_tx_etth_forecast_incremental.sh`](scripts/sbatch_mae_tx_etth_forecast_incremental.sh) | ETTh1 | IncrementalTaskArithmeticPipeline |
+| [`sbatch_mae_tx_etth_forecast_eval.sh`](scripts/sbatch_mae_tx_etth_forecast_eval.sh) | ETTh1 | EvalPipeline |
+| [`sbatch_mae_tx_etth_imputation_standard.sh`](scripts/sbatch_mae_tx_etth_imputation_standard.sh) | ETTh1 | StandardPipeline |
+| [`sbatch_mae_tx_etth_imputation_eval.sh`](scripts/sbatch_mae_tx_etth_imputation_eval.sh) | ETTh1 | EvalPipeline |
+
+### Local debugging
+
+[`.vscode/launch.json`](.vscode/launch.json) contains debug configurations for all datasets, tasks, and pipelines — including synthetic datasets for quick smoke tests. `WANDB_MODE` is set to `disabled` in all local configs.
 
 ---
 
-## Analysis
+## Run outputs
 
-`analysis/analyze_dataset.py` produces a set of offline diagnostics for a
-given dataset. Outputs land in `debug/dataset/<name>/` by default.
+Each run writes to `$RUNS_ROOT/<experiment_name>/<run_id>/`.
 
-| file | contents |
-|---|---|
-| `stats.csv` | Per-feature descriptive stats for train, test-normal, test-anomaly, and anomaly Δz |
-| `anomaly_events.csv` | Contiguous anomaly segments ranked by hardness (lowest mean \|z\| first) |
-| `train_timeseries.pdf` | Multi-page PDF of the train signal per feature with ±2σ reference lines |
-| `timeseries.pdf` | Multi-page PDF of the test signal with anomaly shading and ±2σ reference lines |
-| `train_heatmap.png` | Features × time z-score heatmap of the train set; features sorted by temporal drift (useful for choosing split boundaries) |
-| `anomaly_heatmap.png` | Features × time z-score heatmap of the test set; features sorted by anomaly detectability |
-
-```bash
-python analysis/analyze_dataset.py --dataset swat
-python analysis/analyze_dataset.py --dataset psm --out-dir debug/psm_run1
+```
+<run_dir>/
+├── config.json             # full reproducibility record (all args + git commit)
+├── run.log
+│
+├── baseline/               # IncrementalTaskArithmeticPipeline
+│   ├── result.json
+│   ├── checkpoints/
+│   └── test/result.json
+├── finetune_0/ ... finetune_N/
+│   ├── result.json
+│   ├── checkpoints/
+│   └── test/result.json    # only if --pipeline_ft_test_eval
+├── merged/
+│   ├── checkpoints/best.pt
+│   ├── val/result.json
+│   └── test/result.json
+│
+└── train/                  # StandardPipeline
+    ├── result.json
+    ├── checkpoints/
+    ├── val/result.json
+    └── test/result.json
 ```
 
-Supported datasets: `swat`, `psm`. Adding a new one requires implementing
-`load_<name>() -> DatasetBundle` and registering it in `LOADERS`.
+Checkpoint paths inside `result.json` are stored relative to `run_dir` so run directories remain self-contained when moved.
+
+Wandb is opt-in: set `WANDB_PROJECT` to enable it. Training metrics use a `step_offset`-adjusted step counter so all phases share one x-axis. Final metrics from each eval step are written to `wandb.run.summary`. ROC and PR curves are logged as native wandb charts by the AD test evaluator.
 
 ---
 
-## Environment
+---
 
-| variable        | purpose                              | default        |
-| --------------- | ------------------------------------ | -------------- |
-| `RUNS_ROOT`     | output root for run folders          | `experiments`  |
-| `WANDB_PROJECT` | wandb project                        | —              |
-| `WANDB_ENTITY`  | wandb entity                         | —              |
-| `WANDB_MODE`    | `online` / `offline` / `disabled`    | wandb default  |
-| `HF_HOME`       | HuggingFace cache (dataset download) | HF default     |
-| `SLURM_JOB_ID`  | set by SLURM; becomes the `run_id`   | timestamp      |
+## Framework internals
 
-Cluster submission scripts live in [`scripts/`](scripts/):
+This section covers the design of the codebase — how the pieces fit together, the choices made, and how to extend it. The framework is intentionally generic and knows nothing about anomaly detection or time series. All domain knowledge lives in `project/`.
 
-| script | dataset | phase |
-|---|---|---|
-| [`sbatch_mae_tx_swat_pretrain.sh`](scripts/sbatch_mae_tx_swat_pretrain.sh) | SWaT | pretrain + eval |
-| [`sbatch_mae_tx_swat_incremental.sh`](scripts/sbatch_mae_tx_swat_incremental.sh) | SWaT | pretrain + fine-tune + merge + eval |
-| [`sbatch_mae_tx_swat_eval.sh`](scripts/sbatch_mae_tx_swat_eval.sh) | SWaT | standalone eval |
-| [`sbatch_mae_tx_psm_pretrain.sh`](scripts/sbatch_mae_tx_psm_pretrain.sh) | PSM | pretrain + eval |
-| [`sbatch_mae_tx_psm_incremental.sh`](scripts/sbatch_mae_tx_psm_incremental.sh) | PSM | pretrain + fine-tune + merge + eval |
-| [`sbatch_mae_tx_psm_eval.sh`](scripts/sbatch_mae_tx_psm_eval.sh) | PSM | standalone eval |
+### Codebase layout
 
-Local debug configs (with `WANDB_MODE=disabled`) are in
-[`.vscode/launch.json`](.vscode/launch.json).
+```
+src/incremental_ad/
+├── framework/              # Generic ML framework — no domain knowledge
+│   ├── contracts/          # Abstract base classes (the pluggable interfaces)
+│   ├── core/               # Stateless utilities (seed, device, git, wandb)
+│   ├── datasets/           # Reusable building blocks (SlidingWindowDataset)
+│   ├── evaluators/         # Concrete evaluator implementations + EvaluationRunner
+│   ├── pipelines/          # Concrete pipeline implementations
+│   ├── trainers/           # Concrete trainer implementations
+│   └── experiment.py       # Orchestrator: wires components and runs
+│
+├── project/                # Domain-specific implementations
+│   ├── datasets/           # Swat, Psm, EtthForecastDataset, EtthImputationDataset,
+│   │                       # TestForecastDataset, TestImputationDataset, TestClassificationDataset
+│   ├── models/mae_tx/      # MaeTx + MaeTxClassifier, configurators, debugger
+│   └── contracts/task.py   # Task enum (ad, forecast, imputation, classification)
+│
+└── main.py                 # CLI entry point
+```
+
+The split between `framework/` and `project/` is a hard boundary: `framework/` imports nothing from `project/`. Adding a new model, dataset, or evaluator means adding files to `project/` and importing them in the relevant `__init__.py` — `main.py` never changes.
+
+### `Configurable` — the CLI contract
+
+Every pluggable component implements two class methods:
+
+- **`add_args(parser, prefix)`** — registers the component's CLI arguments into the shared parser. Every arg is prefixed with the component's `ARG_PREFIX` (e.g., `MaeTx` uses `mae_tx_`, so patch size is `--mae_tx_patch_len`).
+- **`from_config(cfg, prefix)`** — reads those args back from the parsed namespace and constructs the component.
+
+The `prefix` parameter handles the case where the same class is instantiated twice in one run. `IncrementalTaskArithmeticPipeline` uses `StandardTrainer` twice: once under `--trainer_*` (baseline) and once under `--finetune_trainer_*` (fine-tuning). Both sets of args are fully independent — there is no fallback or inheritance between them.
+
+`main.py` uses two-pass argument parsing: a minimal pre-parser first identifies which model, dataset, task, and pipeline are selected, then the full parser is built with all component-specific arguments. This means every component declares and reads its own args; `main.py` never changes when new components are added.
+
+### Registry pattern
+
+Every concrete component class self-registers the moment it is defined, via `__init_subclass__`. `Dataset`, `Model`, `Task`, `Pipeline`, `Trainer`, and `TaskModelConfigurator` each have a class-level `_registry` dict. `main.py` imports `project/` so the classes are defined (and registered), then looks them up by the string names passed on the CLI. No switch statements, no hard-coded lists — adding a new dataset means creating the class and importing it.
+
+`TaskModelConfigurator` is keyed by a `(Task, type[Model])` pair, so the right configurator is selected automatically for each task/model combination.
+
+### Component contracts
+
+#### `Model`
+
+Models must not construct any `nn.Module` layers in `__init__` — only configuration is stored there. `_build()` is called by `TaskModelConfigurator.configure()` after the dataset has injected its properties (`n_features`, `seq_len`, etc.). This ensures architecture dimensions are derived from the data at runtime, not hard-coded.
+
+Training and inference are separated into two methods: `compute_loss(batch)` returns a scalar for the optimizer; `predict_step(batch)` returns a `(output, target)` 2-tuple consumed by the evaluator. Batch format depends on the task — plain tensors for unsupervised tasks, `(inputs, labels)` for supervised ones.
+
+#### `Dataset` and `PartitionedDataset`
+
+The dataset contract distinguishes between training-phase methods and evaluation-phase methods. Training-phase methods (`get_train_segment`, `get_baseline`, `get_incremental_segments`) return `Segment(train, val)` pairs windowed at the configurable `stride`, so early stopping conditions match training. Evaluation methods (`get_val_eval_dataset`, `get_train_eval_dataset`, `get_test_dataset`) always use stride=1 to ensure every timestep is covered.
+
+`get_test_dataset()` yields `(inputs, target)` tuples. Batch formats by task:
+
+| task | inputs | target |
+|------|--------|--------|
+| AD | `window [W, F]` | `anomaly_labels [W]` |
+| Forecasting | `full_window [W+H, F]` | `future [H, F]` |
+| Imputation | `masked_window [W, F]` | `(original [W, F], visible_idx [n_visible])` |
+| Classification | `window [W, F]` | `label []` |
+
+`PartitionedDataset` adds the incremental split: `--dataset_baseline_fraction` and `--dataset_baseline_use_fraction` control how much training data the baseline sees; `--dataset_n_finetune_segments` controls how many equal fine-tuning chunks are carved from the remainder.
+
+Three `@runtime_checkable` protocols let configurators verify that a dataset exposes the properties they need (`forecast_len`, `mask_patch_len`, `n_classes`). A dataset only needs to implement the protocols relevant to the tasks it supports.
+
+#### `Task`
+
+`Task` is a string enum — a marker with no logic. Its only role is to be the key in the `TaskModelConfigurator` registry, pairing tasks with the models that implement them.
+
+#### `TaskModelConfigurator`
+
+The bridge between a specific task and a specific model. Does four things:
+
+1. **`_configure(model, dataset)`** — injects dataset-derived values into the model (`n_features`, `seq_len`, etc.) and sets task-specific model state (`inference_mode`, `forecast_patches`, `n_classes`). Always called before `model._build()`.
+2. **`create_val_evaluator()`** — returns the evaluator for training-time validation.
+3. **`create_test_evaluator()`** — returns the evaluator for final test evaluation.
+4. **`create_debugger()`** — optionally returns a `Debugger` for post-eval visualizations (AD only; enabled via `--configurator_debug`).
+
+Registered configurators:
+
+| configurator | task | model |
+|-------------|------|-------|
+| `MaeTxAdConfigurator` | `ad` | `MaeTx` |
+| `MaeTxForecastingConfigurator` | `forecast` | `MaeTx` |
+| `MaeTxImputationConfigurator` | `imputation` | `MaeTx` |
+| `MaeTxClassificationConfigurator` | `classification` | `MaeTxClassifier` |
+
+#### `StandardTrainer`
+
+Owns device management for training: `model.to(device)` is called inside `fit()`. Pipelines and models are device-agnostic. Creates its own `DataLoader`s from `DataLoaderConfig` — pipelines pass the config, not pre-built loaders.
+
+`secondary_loaders` are named val loaders evaluated every epoch but not used for early stopping. Used in `IncrementalTaskArithmeticPipeline` to track each fine-tuning segment's val loss during baseline training on one wandb chart. `step_offset` is added to the local epoch number when logging, giving all training phases a single monotonic x-axis.
+
+`IncrementalTaskArithmeticPipeline` registers `StandardTrainer` twice: `--trainer_*` for the baseline and `--finetune_trainer_*` for fine-tuning. All args must be explicitly stated for both — there is no fallback.
+
+#### `EvaluationRunner`
+
+The counterpart to `StandardTrainer` for evaluation. Owns device management for inference: `model.to(device)` is called inside `run()`. Pipelines and models stay device-agnostic throughout.
+
+`run()` resets the evaluator, optionally collects reference scores for threshold calibration (AD only, via `ReferenceScoredEvaluator`), iterates the dataset, and returns the computed metrics. The evaluator retains its accumulated state after return so the caller can log wandb charts or run the debugger.
+
+`EvalPipeline` exposes `--runner_device` via `EvaluationRunner.add_args`. `StandardPipeline` and `IncrementalTaskArithmeticPipeline` inherit the device from the trainer.
+
+#### `Evaluator`
+
+Pure metric accumulator: `reset()` before an eval pass, `update(outputs)` once per batch, `compute()` at the end. The evaluator knows nothing about devices, data loading, or model internals.
+
+Three optional capability protocols are detected with `isinstance()` at call sites:
+
+| protocol | purpose |
+|----------|---------|
+| `ReferenceScoredEvaluator` | calibrate AD threshold from training score distribution |
+| `WandbChartsEvaluator` | log native wandb ROC/PR curves after eval |
+| `DebugDataEvaluator` | expose scores/labels/threshold to the debugger |
+
+Evaluators by task:
+
+| task | val evaluator | test evaluator |
+|------|--------------|----------------|
+| AD | `AdValEvaluator` — reconstruction error stats | `AdTestEvaluator` — AUROC, window/point/event F1, PA-F1 |
+| Forecasting | `ForecastingEvaluator` — MSE/MAE/RMSE | same |
+| Imputation | `ImputationEvaluator` — MSE/MAE/RMSE at masked positions | same |
+| Classification | `ClassificationEvaluator` — accuracy, macro-F1 | same |
+
+#### `Debugger`
+
+Called after test evaluation when `create_debugger()` returns a non-None instance. `MaeTxAdDebugger` retrieves scores and labels via `DebugDataEvaluator.debug_data()` and writes score timeline and distribution plots to `step_dir`. Enabled with `--configurator_debug`.
+
+---
+
+### Models
+
+#### `MaeTx` — masked autoencoder (AD, forecasting, imputation)
+
+Windows are split into non-overlapping patches (`patch_len` timesteps × all features). The encoder processes only the *visible* tokens — the asymmetric MAE design where the heavy encoder sees a small subset while the lightweight decoder reconstructs all positions via learned mask tokens. Loss is MSE over masked patches only. When `patch_norm=True`, ground-truth patches are normalized per-patch before MSE, making the loss focus on shape rather than magnitude.
+
+Three training modes (`--mae_tx_training_mode`):
+
+| mode | visible tokens | masked tokens | use case |
+|------|---------------|--------------|---------|
+| `random_mask` | random `1-mask_ratio` fraction | remaining patches | AD, imputation |
+| `causal_mask` | first half | second half | forecasting |
+| `next_step` | all but last | last patch | next-step prediction |
+
+At inference, the mode set by the configurator determines how the model scores a window:
+
+- **AD** (`random_mask`): `n_eval_passes` forward passes with independent random masks are run per batch. Per-patch errors accumulate across passes and are averaged — a Monte Carlo estimate of the expected reconstruction error. The final window score is the mean per-patch error. For `causal_mask`/`next_step`, a single deterministic pass is used.
+- **Forecasting**: the first-half patches (context) are visible; the model predicts the second-half (future). Only the forecast positions are extracted from the decoder output.
+- **Imputation**: the dataset applies a fixed deterministic mask per window (seeded by window index) and provides `visible_idx` alongside the masked input. The model encodes only visible patches and predicts at masked positions; the evaluator compares predictions vs. original only at those positions.
+
+#### `MaeTxClassifier` — supervised classification
+
+Extends the same encoder backbone with a mean-pooled linear classification head. No decoder is built — the model is strictly encoder-only, making it smaller than `MaeTx` for the same encoder configuration. Training is supervised with cross-entropy. Only encoder CLI args are required; decoder and masking args are not used.
+
+---
+
+### Datasets
+
+Both real datasets use a sliding window over a `[T, F]` time series, with configurable `window_len` and `stride`. Standard scaling is fitted on training data only.
+
+| dataset | `--dataset` | features | anomaly rate |
+|---------|------------|----------|--------------|
+| SWaT | `Swat` | 51 | ~12% |
+| PSM | `Psm` | 25 | ~28% |
+| ETTh1 | `EtthForecastDataset` / `EtthImputationDataset` | 7 | — |
+
+Data is loaded from HuggingFace (`thuml/Time-Series-Library`) on first use. PSM has scattered NaN values (~2% of rows) that are forward- then backward-filled before scaling.
+
+Four synthetic datasets (`TestForecastDataset`, `TestImputationDataset`, `TestClassificationDataset`) generate deterministic multivariate sine waves for end-to-end pipeline smoke tests without downloading anything.
+
+---
+
+### Extending the framework
+
+#### Adding a new dataset
+
+Subclass `TimeSeriesDataset` + `PartitionedDataset` (or just `Dataset` for non-incremental use), implement the required data-access methods, and import the class in `project/datasets/__init__.py`. The class self-registers on import — nothing else changes.
+
+#### Adding a new model
+
+Subclass `Model` (or `_MaeTxBase` to reuse the encoder backbone), create a `TaskModelConfigurator` subclass decorated with `@TaskModelConfigurator.register(Task.X, MyModel)`, and import both in `project/models/__init__.py`.
+
+#### Adding a new task
+
+Add a value to the `Task` enum, create a `TaskModelConfigurator` subclass for `(Task.NEW, SomeModel)`, and implement the task-specific evaluators. If the dataset needs to expose extra properties to the configurator, add a `@runtime_checkable` protocol to `framework/contracts/dataset.py`. No other framework changes are required.
+
+#### Adding a new pipeline
+
+Subclass `Pipeline`, implement `add_args` (calling `DataLoaderConfig.add_args`, `StandardTrainer.add_args`, and `EvaluationRunner.add_args` as needed alongside any pipeline-specific args), `from_config`, and `run`. Import in `framework/pipelines/__init__.py`.

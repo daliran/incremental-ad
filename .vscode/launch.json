@@ -1,11 +1,11 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
+        // ── SWaT — Anomaly Detection ──────────────────────────────────────────
+
         {
-            "name": "SWaT — Pretrain (train + eval)",
+            "name": "SWaT — AD Standard (train + eval)",
             "type": "debugpy",
             "request": "launch",
             "module": "incremental_ad.main",
@@ -13,67 +13,62 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/experiments",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
                 "WANDB_MODE": "disabled",
                 "WANDB_PROJECT": "incremental_ad",
                 "WANDB_ENTITY": "kirrel-research"
-
             },
             "justMyCode": true,
             "args": [
                 // --- Dispatch ---
-                "--phase", "pretrain",
-                "--experiment", "dev_mae_tx_swat",
-                "--device", "auto",
-                "--dataset", "swat",
-                "--model", "mae_tx",
+                "--experiment_name", "dev_mae_tx_swat",
+                "--model", "MaeTx",
+                "--dataset", "Swat",
+                "--task", "ad",
+                "--pipeline", "StandardPipeline",
+                "--seed", "42",
+
+                // --- MAE transformer ---
+                "--mae_tx_patch_len", "5",
+                "--mae_tx_encoder_embed_dim", "256",
+                "--mae_tx_encoder_layers", "2",
+                "--mae_tx_encoder_heads", "2",
+                "--mae_tx_decoder_embed_dim", "128",
+                "--mae_tx_decoder_layers", "1",
+                "--mae_tx_decoder_heads", "2",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.8",
+                "--mae_tx_n_eval_passes", "30",
+                "--mae_tx_training_mode", "random_mask",
 
                 // --- SWaT dataset ---
-                "--swat-window-len", "100",
-                "--swat-stride", "50",
-                "--swat-eval-stride", "1",
-                "--swat-normalization", "standard",
-                "--swat-val-ratio", "0.15",      
+                "--dataset_window_len", "100",
+                "--dataset_stride", "50",
+                "--dataset_normalization", "standard",
+                "--dataset_val_fraction", "0.15",
 
-                // --- MAE transformer model ---
-                "--mae-tx-patch-len", "5",
-                "--mae-tx-encoder-embed-dim", "256",
-                "--mae-tx-encoder-layers", "2",
-                "--mae-tx-encoder-heads", "2",
-                "--mae-tx-decoder-embed-dim", "128",
-                "--mae-tx-decoder-layers", "1",
-                "--mae-tx-decoder-heads", "2",
-                "--mae-tx-patch-norm", "false",
-                "--mae-tx-mask-ratio", "0.8",
-                "--mae-tx-n-eval-passes", "30",
-                "--mae-tx-training-mode", "random_mask",
+                // --- DataLoader ---
+                "--loader_batch_size", "64",
 
                 // --- Training ---
-                "--train-seed", "42",
-                "--train-epochs", "300",
-                "--train-patience", "30",
-                "--train-batch-size", "64",
-                "--train-optimizer", "adamw",
-                "--train-weight-decay", "1e-2",
-                "--train-learning-rate", "1e-4",
-                "--train-grad-clip", "0.5",
-                "--train-scheduler", "cosine",
-                "--train-warmup-ratio", "0.1",
-                "--train-checkpoint-interval", "0",
+                "--trainer_n_epochs", "300",
+                "--trainer_patience", "30",
+                "--trainer_optimizer", "adamw",
+                "--trainer_weight_decay", "1e-2",
+                "--trainer_learning_rate", "1e-4",
+                "--trainer_grad_clip", "0.5",
+                "--trainer_scheduler", "cosine",
+                "--trainer_warmup_ratio", "0.1",
+                "--trainer_checkpoint_interval", "0",
 
-                // --- Val eval (reconstruction quality on training val set) ---
-                "--val-eval-seed", "0",
-                "--val-eval-batch-size", "512",
-
-                // --- Test eval (AD metrics on test set) ---
-                "--test-eval-seed", "0",
-                "--test-eval-batch-size", "512",
-                "--test-eval-threshold-strategy", "oracle",
-                "--test-eval-threshold-percentile", "99"
+                // --- Evaluator ---
+                "--configurator_threshold_strategy", "oracle",
+                "--configurator_threshold_percentile", "99"
             ]
         },
+
         {
-            "name": "SWaT — Incremental (pretrain + finetune + merge + eval)",
+            "name": "SWaT — AD Incremental (baseline + finetune + merge + eval)",
             "type": "debugpy",
             "request": "launch",
             "module": "incremental_ad.main",
@@ -81,7 +76,7 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/experiments",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
                 "WANDB_MODE": "disabled",
                 "WANDB_PROJECT": "incremental_ad",
                 "WANDB_ENTITY": "kirrel-research"
@@ -89,78 +84,125 @@
             "justMyCode": true,
             "args": [
                 // --- Dispatch ---
-                "--phase", "incremental",
-                "--experiment", "dev_mae_tx_swat",
-                "--device", "auto",
-                "--dataset", "swat",
-                "--model", "mae_tx",
+                "--experiment_name", "dev_mae_tx_swat",
+                "--model", "MaeTx",
+                "--dataset", "Swat",
+                "--task", "ad",
+                "--pipeline", "IncrementalTaskArithmeticPipeline",
+                "--seed", "42",
 
-                // --- Split + merge ---
-                "--partial-ratio", "0.5",
-                "--n-finetune", "3",
-                "--merge-scale", "0.5",
-                "--base-data-ratio", "1.0",
-                "--ft-test-eval", "false",
+                // --- MAE transformer ---
+                "--mae_tx_patch_len", "5",
+                "--mae_tx_encoder_embed_dim", "256",
+                "--mae_tx_encoder_layers", "2",
+                "--mae_tx_encoder_heads", "2",
+                "--mae_tx_decoder_embed_dim", "128",
+                "--mae_tx_decoder_layers", "1",
+                "--mae_tx_decoder_heads", "2",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.8",
+                "--mae_tx_n_eval_passes", "30",
+                "--mae_tx_training_mode", "random_mask",
+
+                // --- SWaT dataset + split ---
+                "--dataset_window_len", "100",
+                "--dataset_stride", "50",
+                "--dataset_normalization", "standard",
+                "--dataset_baseline_fraction", "0.5",
+                "--dataset_baseline_use_fraction", "1.0",
+                "--dataset_n_finetune_segments", "3",
+                "--dataset_val_fraction", "0.15",
+
+                // --- DataLoader ---
+                "--loader_batch_size", "64",
+
+                // --- Baseline training ---
+                "--trainer_n_epochs", "300",
+                "--trainer_patience", "30",
+                "--trainer_optimizer", "adamw",
+                "--trainer_weight_decay", "1e-2",
+                "--trainer_learning_rate", "1e-4",
+                "--trainer_grad_clip", "0.5",
+                "--trainer_scheduler", "cosine",
+                "--trainer_warmup_ratio", "0.1",
+                "--trainer_checkpoint_interval", "0",
+
+                // --- Fine-tuning ---
+                "--finetune_trainer_n_epochs", "50",
+                "--finetune_trainer_patience", "10",
+                "--finetune_trainer_weight_decay", "1e-2",
+                "--finetune_trainer_learning_rate", "1e-5",
+                "--finetune_trainer_grad_clip", "0.5",
+                "--finetune_trainer_scheduler", "cosine",
+
+                // --- Task arithmetic ---
+                "--pipeline_merge_scale", "0.5",
+
+                // --- Evaluator ---
+                "--configurator_threshold_strategy", "oracle",
+                "--configurator_threshold_percentile", "99"
+            ]
+        },
+
+        {
+            "name": "SWaT — AD Eval (standalone)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "incremental_ad.main",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "HF_HOME": "${workspaceFolder}/hf_cache",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "WANDB_MODE": "disabled",
+                "WANDB_PROJECT": "incremental_ad",
+                "WANDB_ENTITY": "kirrel-research"
+            },
+            "justMyCode": true,
+            "args": [
+                // --- Dispatch ---
+                "--experiment_name", "dev_mae_tx_swat",
+                "--model", "MaeTx",
+                "--dataset", "Swat",
+                "--task", "ad",
+                "--pipeline", "EvalPipeline",
+                "--seed", "0",
+
+                // --- MAE transformer (must match checkpoint) ---
+                "--mae_tx_patch_len", "5",
+                "--mae_tx_encoder_embed_dim", "256",
+                "--mae_tx_encoder_layers", "2",
+                "--mae_tx_encoder_heads", "2",
+                "--mae_tx_decoder_embed_dim", "128",
+                "--mae_tx_decoder_layers", "1",
+                "--mae_tx_decoder_heads", "2",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.8",
+                "--mae_tx_n_eval_passes", "30",
+                "--mae_tx_training_mode", "random_mask",
 
                 // --- SWaT dataset ---
-                "--swat-window-len", "100",
-                "--swat-stride", "50",
-                "--swat-eval-stride", "1",
-                "--swat-normalization", "standard",
-                "--swat-val-ratio", "0.15",         
+                "--dataset_window_len", "100",
+                "--dataset_stride", "1",
+                "--dataset_normalization", "standard",
+                "--dataset_val_fraction", "0.15",
 
-                // --- MAE transformer model ---
-                "--mae-tx-patch-len", "5",
-                "--mae-tx-encoder-embed-dim", "256",
-                "--mae-tx-encoder-layers", "2",
-                "--mae-tx-encoder-heads", "2",
-                "--mae-tx-decoder-embed-dim", "128",
-                "--mae-tx-decoder-layers", "1",
-                "--mae-tx-decoder-heads", "2",
-                "--mae-tx-patch-norm", "false",
-                "--mae-tx-mask-ratio", "0.8",
-                "--mae-tx-n-eval-passes", "30",
-                "--mae-tx-training-mode", "random_mask",
+                // --- DataLoader ---
+                "--loader_batch_size", "512",
 
-                // --- Base pretrain training ---
-                "--train-seed", "42",
-                "--train-epochs", "300",
-                "--train-patience", "30",
-                "--train-batch-size", "64",
-                "--train-optimizer", "adamw",
-                "--train-weight-decay", "1e-2",
-                "--train-learning-rate", "1e-4",
-                "--train-grad-clip", "0.5",
-                "--train-scheduler", "cosine",
-                "--train-warmup-ratio", "0.1",
-                "--train-checkpoint-interval", "0",
+                // --- Checkpoint ---
+                "--pipeline_checkpoint_path", "${input:evalCheckpoint}",
 
-                // --- Fine-tuning training ---
-                "--finetune-seed", "42",
-                "--finetune-epochs", "50",
-                "--finetune-patience", "10",
-                "--finetune-batch-size", "64",
-                "--finetune-optimizer", "adamw",
-                "--finetune-weight-decay", "1e-2",
-                "--finetune-learning-rate", "1e-5",
-                "--finetune-grad-clip", "0.5",
-                "--finetune-scheduler", "cosine",
-                "--finetune-warmup-ratio", "0.1",
-                "--finetune-checkpoint-interval", "0",
-
-                // --- Val eval (reconstruction quality on training val set) ---
-                "--val-eval-seed", "0",
-                "--val-eval-batch-size", "512",
-
-                // --- Test eval (AD metrics on merged model) ---
-                "--test-eval-seed", "0",
-                "--test-eval-batch-size", "512",
-                "--test-eval-threshold-strategy", "oracle",
-                "--test-eval-threshold-percentile", "99"
+                // --- Evaluator ---
+                "--configurator_threshold_strategy", "oracle",
+                "--configurator_threshold_percentile", "99"
             ]
         },
+
+        // ── PSM — Anomaly Detection ───────────────────────────────────────────
+
         {
-            "name": "SWaT — Eval (standalone)",
+            "name": "PSM — AD Standard (train + eval)",
             "type": "debugpy",
             "request": "launch",
             "module": "incremental_ad.main",
@@ -168,59 +210,7 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/experiments",
-                "WANDB_MODE": "disabled",
-                "WANDB_PROJECT": "incremental_ad",
-                "WANDB_ENTITY": "kirrel-research"
-            },
-            "justMyCode": true,
-            "args": [
-                "--phase", "eval",
-                "--device", "auto",
-                "--dataset", "swat",
-                "--checkpoint", "${input:evalCheckpoint}",
-
-                 // --- SWaT dataset ---
-                "--swat-window-len", "100",
-                "--swat-stride", "1",
-                "--swat-eval-stride", "1",
-                "--swat-normalization", "standard",
-                "--swat-val-ratio", "0.15",  
-
-                // --- Split selection + test eval args ---
-                "--split", "test",
-                "--test-eval-seed", "0",
-                "--test-eval-batch-size", "512",
-                "--test-eval-threshold-strategy", "oracle",
-                "--test-eval-threshold-percentile", "99"
-            ]
-        },
-        {
-            "name": "SWaT — Analyze Dataset",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/analysis/analyze_dataset.py",
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/src",
-                "HF_HOME": "${workspaceFolder}/hf_cache"
-            },
-            "justMyCode": true,
-            "args": [
-                "--dataset", "swat",
-                "--out-dir", "${workspaceFolder}/debug/dataset/swat"
-            ]
-        },
-        {
-            "name": "PSM — Pretrain (train + eval)",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "incremental_ad.main",
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/src",
-                "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/experiments",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
                 "WANDB_MODE": "disabled",
                 "WANDB_PROJECT": "incremental_ad",
                 "WANDB_ENTITY": "kirrel-research"
@@ -228,58 +218,54 @@
             "justMyCode": true,
             "args": [
                 // --- Dispatch ---
-                "--phase", "pretrain",
-                "--experiment", "dev_mae_tx_psm",
-                "--device", "auto",
-                "--dataset", "psm",
-                "--model", "mae_tx",
+                "--experiment_name", "dev_mae_tx_psm",
+                "--model", "MaeTx",
+                "--dataset", "Psm",
+                "--task", "ad",
+                "--pipeline", "StandardPipeline",
+                "--seed", "42",
 
-                // --- PSM dataset ---
-                "--psm-window-len", "100",
-                "--psm-stride", "50",
-                "--psm-eval-stride", "1",
-                "--psm-normalization", "standard",
-                "--psm-val-ratio", "0.15",
+                // --- MAE transformer ---
+                "--mae_tx_patch_len", "5",
+                "--mae_tx_encoder_embed_dim", "256",
+                "--mae_tx_encoder_layers", "2",
+                "--mae_tx_encoder_heads", "2",
+                "--mae_tx_decoder_embed_dim", "128",
+                "--mae_tx_decoder_layers", "1",
+                "--mae_tx_decoder_heads", "2",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.8",
+                "--mae_tx_n_eval_passes", "30",
+                "--mae_tx_training_mode", "random_mask",
 
-                // --- MAE transformer model ---
-                "--mae-tx-patch-len", "5",
-                "--mae-tx-encoder-embed-dim", "256",
-                "--mae-tx-encoder-layers", "2",
-                "--mae-tx-encoder-heads", "2",
-                "--mae-tx-decoder-embed-dim", "128",
-                "--mae-tx-decoder-layers", "1",
-                "--mae-tx-decoder-heads", "2",
-                "--mae-tx-patch-norm", "false",
-                "--mae-tx-mask-ratio", "0.8",
-                "--mae-tx-n-eval-passes", "30",
-                "--mae-tx-training-mode", "random_mask",
+                // --- PSM dataset (anomaly rate ~28% → percentile 72 for train_percentile) ---
+                "--dataset_window_len", "100",
+                "--dataset_stride", "50",
+                "--dataset_normalization", "standard",
+                "--dataset_val_fraction", "0.15",
+
+                // --- DataLoader ---
+                "--loader_batch_size", "64",
 
                 // --- Training ---
-                "--train-seed", "42",
-                "--train-epochs", "300",
-                "--train-patience", "30",
-                "--train-batch-size", "64",
-                "--train-optimizer", "adamw",
-                "--train-weight-decay", "1e-2",
-                "--train-learning-rate", "1e-4",
-                "--train-grad-clip", "0.5",
-                "--train-scheduler", "cosine",
-                "--train-warmup-ratio", "0.1",
-                "--train-checkpoint-interval", "0",
+                "--trainer_n_epochs", "300",
+                "--trainer_patience", "30",
+                "--trainer_optimizer", "adamw",
+                "--trainer_weight_decay", "1e-2",
+                "--trainer_learning_rate", "1e-4",
+                "--trainer_grad_clip", "0.5",
+                "--trainer_scheduler", "cosine",
+                "--trainer_warmup_ratio", "0.1",
+                "--trainer_checkpoint_interval", "0",
 
-                // --- Val eval ---
-                "--val-eval-seed", "0",
-                "--val-eval-batch-size", "512",
-
-                // --- Test eval (PSM anomaly rate ~28%; percentile=72 for train_percentile strategy) ---
-                "--test-eval-seed", "0",
-                "--test-eval-batch-size", "512",
-                "--test-eval-threshold-strategy", "oracle",
-                "--test-eval-threshold-percentile", "72"
+                // --- Evaluator ---
+                "--configurator_threshold_strategy", "oracle",
+                "--configurator_threshold_percentile", "72"
             ]
         },
+
         {
-            "name": "PSM — Incremental (pretrain + finetune + merge + eval)",
+            "name": "PSM — AD Incremental (baseline + finetune + merge + eval)",
             "type": "debugpy",
             "request": "launch",
             "module": "incremental_ad.main",
@@ -287,7 +273,7 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/experiments",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
                 "WANDB_MODE": "disabled",
                 "WANDB_PROJECT": "incremental_ad",
                 "WANDB_ENTITY": "kirrel-research"
@@ -295,78 +281,68 @@
             "justMyCode": true,
             "args": [
                 // --- Dispatch ---
-                "--phase", "incremental",
-                "--experiment", "dev_mae_tx_psm",
-                "--device", "auto",
-                "--dataset", "psm",
-                "--model", "mae_tx",
+                "--experiment_name", "dev_mae_tx_psm",
+                "--model", "MaeTx",
+                "--dataset", "Psm",
+                "--task", "ad",
+                "--pipeline", "IncrementalTaskArithmeticPipeline",
+                "--seed", "42",
 
-                // --- Split + merge ---
-                "--partial-ratio", "0.5",
-                "--n-finetune", "3",
-                "--merge-scale", "0.5",
-                "--base-data-ratio", "1.0",
-                "--ft-test-eval", "false",
+                // --- MAE transformer ---
+                "--mae_tx_patch_len", "5",
+                "--mae_tx_encoder_embed_dim", "256",
+                "--mae_tx_encoder_layers", "2",
+                "--mae_tx_encoder_heads", "2",
+                "--mae_tx_decoder_embed_dim", "128",
+                "--mae_tx_decoder_layers", "1",
+                "--mae_tx_decoder_heads", "2",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.8",
+                "--mae_tx_n_eval_passes", "30",
+                "--mae_tx_training_mode", "random_mask",
 
-                // --- PSM dataset ---
-                "--psm-window-len", "100",
-                "--psm-stride", "50",
-                "--psm-eval-stride", "1",
-                "--psm-normalization", "standard",
-                "--psm-val-ratio", "0.15",
+                // --- PSM dataset + split ---
+                "--dataset_window_len", "100",
+                "--dataset_stride", "50",
+                "--dataset_normalization", "standard",
+                "--dataset_baseline_fraction", "0.5",
+                "--dataset_baseline_use_fraction", "1.0",
+                "--dataset_n_finetune_segments", "3",
+                "--dataset_val_fraction", "0.15",
 
-                // --- MAE transformer model ---
-                "--mae-tx-patch-len", "5",
-                "--mae-tx-encoder-embed-dim", "256",
-                "--mae-tx-encoder-layers", "2",
-                "--mae-tx-encoder-heads", "2",
-                "--mae-tx-decoder-embed-dim", "128",
-                "--mae-tx-decoder-layers", "1",
-                "--mae-tx-decoder-heads", "2",
-                "--mae-tx-patch-norm", "false",
-                "--mae-tx-mask-ratio", "0.8",
-                "--mae-tx-n-eval-passes", "30",
-                "--mae-tx-training-mode", "random_mask",
+                // --- DataLoader ---
+                "--loader_batch_size", "64",
 
-                // --- Base pretrain training ---
-                "--train-seed", "42",
-                "--train-epochs", "300",
-                "--train-patience", "30",
-                "--train-batch-size", "64",
-                "--train-optimizer", "adamw",
-                "--train-weight-decay", "1e-2",
-                "--train-learning-rate", "1e-4",
-                "--train-grad-clip", "0.5",
-                "--train-scheduler", "cosine",
-                "--train-warmup-ratio", "0.1",
-                "--train-checkpoint-interval", "0",
+                // --- Baseline training ---
+                "--trainer_n_epochs", "300",
+                "--trainer_patience", "30",
+                "--trainer_optimizer", "adamw",
+                "--trainer_weight_decay", "1e-2",
+                "--trainer_learning_rate", "1e-4",
+                "--trainer_grad_clip", "0.5",
+                "--trainer_scheduler", "cosine",
+                "--trainer_warmup_ratio", "0.1",
+                "--trainer_checkpoint_interval", "0",
 
-                // --- Fine-tuning training ---
-                "--finetune-seed", "42",
-                "--finetune-epochs", "50",
-                "--finetune-patience", "10",
-                "--finetune-batch-size", "64",
-                "--finetune-optimizer", "adamw",
-                "--finetune-weight-decay", "1e-2",
-                "--finetune-learning-rate", "1e-5",
-                "--finetune-grad-clip", "0.5",
-                "--finetune-scheduler", "cosine",
-                "--finetune-warmup-ratio", "0.1",
-                "--finetune-checkpoint-interval", "0",
+                // --- Fine-tuning ---
+                "--finetune_trainer_n_epochs", "50",
+                "--finetune_trainer_patience", "10",
+                "--finetune_trainer_weight_decay", "1e-2",
+                "--finetune_trainer_learning_rate", "1e-5",
+                "--finetune_trainer_grad_clip", "0.5",
+                "--finetune_trainer_scheduler", "cosine",
 
-                // --- Val eval ---
-                "--val-eval-seed", "0",
-                "--val-eval-batch-size", "512",
+                // --- Task arithmetic ---
+                "--pipeline_merge_scale", "0.5",
 
-                // --- Test eval ---
-                "--test-eval-seed", "0",
-                "--test-eval-batch-size", "512",
-                "--test-eval-threshold-strategy", "oracle",
-                "--test-eval-threshold-percentile", "72"
+                // --- Evaluator ---
+                "--configurator_threshold_strategy", "oracle",
+                "--configurator_threshold_percentile", "72"
             ]
         },
+
         {
-            "name": "PSM — Eval (standalone)",
+            "name": "PSM — AD Eval (standalone)",
             "type": "debugpy",
             "request": "launch",
             "module": "incremental_ad.main",
@@ -374,55 +350,333 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
                 "HF_HOME": "${workspaceFolder}/hf_cache",
-                "RUNS_ROOT": "${workspaceFolder}/experiments",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
                 "WANDB_MODE": "disabled",
                 "WANDB_PROJECT": "incremental_ad",
                 "WANDB_ENTITY": "kirrel-research"
             },
             "justMyCode": true,
             "args": [
-                "--phase", "eval",
-                "--device", "auto",
-                "--dataset", "psm",
-                "--checkpoint", "${input:evalCheckpoint}",
+                // --- Dispatch ---
+                "--experiment_name", "dev_mae_tx_psm",
+                "--model", "MaeTx",
+                "--dataset", "Psm",
+                "--task", "ad",
+                "--pipeline", "EvalPipeline",
+                "--seed", "0",
+
+                // --- MAE transformer (must match checkpoint) ---
+                "--mae_tx_patch_len", "5",
+                "--mae_tx_encoder_embed_dim", "256",
+                "--mae_tx_encoder_layers", "2",
+                "--mae_tx_encoder_heads", "2",
+                "--mae_tx_decoder_embed_dim", "128",
+                "--mae_tx_decoder_layers", "1",
+                "--mae_tx_decoder_heads", "2",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.8",
+                "--mae_tx_n_eval_passes", "30",
+                "--mae_tx_training_mode", "random_mask",
 
                 // --- PSM dataset ---
-                "--psm-window-len", "100",
-                "--psm-stride", "1",
-                "--psm-eval-stride", "1",
-                "--psm-normalization", "standard",
-                "--psm-val-ratio", "0.15",
+                "--dataset_window_len", "100",
+                "--dataset_stride", "1",
+                "--dataset_normalization", "standard",
+                "--dataset_val_fraction", "0.15",
 
-                // --- Split selection + test eval args ---
-                "--split", "test",
-                "--test-eval-seed", "0",
-                "--test-eval-batch-size", "512",
-                "--test-eval-threshold-strategy", "oracle",
-                "--test-eval-threshold-percentile", "72"
+                // --- DataLoader ---
+                "--loader_batch_size", "512",
+
+                // --- Checkpoint ---
+                "--pipeline_checkpoint_path", "${input:evalCheckpoint}",
+
+                // --- Evaluator ---
+                "--configurator_threshold_strategy", "oracle",
+                "--configurator_threshold_percentile", "72"
             ]
         },
+
+        // ── ETTh1 — Forecasting ───────────────────────────────────────────────
+
         {
-            "name": "PSM — Analyze Dataset",
+            "name": "ETTh1 — Forecast Standard (train + eval)",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/analysis/analyze_dataset.py",
+            "module": "incremental_ad.main",
             "cwd": "${workspaceFolder}",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
-                "HF_HOME": "${workspaceFolder}/hf_cache"
+                "HF_HOME": "${workspaceFolder}/hf_cache",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "WANDB_MODE": "disabled",
+                "WANDB_PROJECT": "incremental_ad",
+                "WANDB_ENTITY": "kirrel-research"
             },
             "justMyCode": true,
             "args": [
-                "--dataset", "psm",
-                "--out-dir", "${workspaceFolder}/debug/dataset/psm"
+                // --- Dispatch ---
+                "--experiment_name", "dev_mae_tx_etth_forecast",
+                "--model", "MaeTx",
+                "--dataset", "EtthForecastDataset",
+                "--task", "forecast",
+                "--pipeline", "StandardPipeline",
+                "--seed", "42",
+
+                // --- MAE transformer (patch_norm must be false for forecasting) ---
+                "--mae_tx_patch_len", "16",
+                "--mae_tx_encoder_embed_dim", "256",
+                "--mae_tx_encoder_layers", "4",
+                "--mae_tx_encoder_heads", "4",
+                "--mae_tx_decoder_embed_dim", "128",
+                "--mae_tx_decoder_layers", "2",
+                "--mae_tx_decoder_heads", "4",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.75",
+                "--mae_tx_n_eval_passes", "1",
+                "--mae_tx_training_mode", "causal_mask",
+
+                // --- ETTh1 dataset (window_len = context_len + forecast_len) ---
+                "--dataset_window_len", "432",
+                "--dataset_forecast_len", "96",
+                "--dataset_stride", "1",
+                "--dataset_normalization", "standard",
+                "--dataset_val_fraction", "0.1",
+
+                // --- DataLoader ---
+                "--loader_batch_size", "64",
+
+                // --- Training ---
+                "--trainer_n_epochs", "50",
+                "--trainer_patience", "10",
+                "--trainer_optimizer", "adamw",
+                "--trainer_weight_decay", "1e-4",
+                "--trainer_learning_rate", "1e-4",
+                "--trainer_grad_clip", "1.0",
+                "--trainer_scheduler", "cosine",
+                "--trainer_warmup_ratio", "0.1",
+                "--trainer_checkpoint_interval", "0"
+            ]
+        },
+
+        {
+            "name": "ETTh1 — Forecast Eval (standalone)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "incremental_ad.main",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "HF_HOME": "${workspaceFolder}/hf_cache",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "WANDB_MODE": "disabled",
+                "WANDB_PROJECT": "incremental_ad",
+                "WANDB_ENTITY": "kirrel-research"
+            },
+            "justMyCode": true,
+            "args": [
+                // --- Dispatch ---
+                "--experiment_name", "dev_mae_tx_etth_forecast",
+                "--model", "MaeTx",
+                "--dataset", "EtthForecastDataset",
+                "--task", "forecast",
+                "--pipeline", "EvalPipeline",
+                "--seed", "0",
+
+                // --- MAE transformer (must match checkpoint) ---
+                "--mae_tx_patch_len", "16",
+                "--mae_tx_encoder_embed_dim", "256",
+                "--mae_tx_encoder_layers", "4",
+                "--mae_tx_encoder_heads", "4",
+                "--mae_tx_decoder_embed_dim", "128",
+                "--mae_tx_decoder_layers", "2",
+                "--mae_tx_decoder_heads", "4",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.75",
+                "--mae_tx_n_eval_passes", "1",
+                "--mae_tx_training_mode", "causal_mask",
+
+                // --- ETTh1 dataset ---
+                "--dataset_window_len", "432",
+                "--dataset_forecast_len", "96",
+                "--dataset_stride", "1",
+                "--dataset_normalization", "standard",
+                "--dataset_val_fraction", "0.1",
+
+                // --- DataLoader ---
+                "--loader_batch_size", "512",
+
+                // --- Checkpoint ---
+                "--pipeline_checkpoint_path", "${input:evalCheckpoint}"
+            ]
+        },
+
+        // ── Synthetic test datasets (quick local verification) ────────────────
+
+        {
+            "name": "Test — Forecast Standard",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "incremental_ad.main",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "WANDB_MODE": "disabled"
+            },
+            "justMyCode": true,
+            "args": [
+                // --- Dispatch ---
+                "--experiment_name", "dev_forecast",
+                "--model", "MaeTx",
+                "--dataset", "TestForecastDataset",
+                "--task", "forecast",
+                "--pipeline", "StandardPipeline",
+                "--seed", "42",
+
+                // --- MAE transformer (causal mask; patch_len must divide window_len) ---
+                "--mae_tx_patch_len", "8",
+                "--mae_tx_encoder_embed_dim", "64",
+                "--mae_tx_encoder_layers", "2",
+                "--mae_tx_encoder_heads", "4",
+                "--mae_tx_decoder_embed_dim", "32",
+                "--mae_tx_decoder_layers", "1",
+                "--mae_tx_decoder_heads", "4",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.5",
+                "--mae_tx_n_eval_passes", "1",
+                "--mae_tx_training_mode", "causal_mask",
+
+                // --- Dataset ---
+                "--dataset_window_len", "64",
+                "--dataset_forecast_len", "16",
+                "--dataset_val_fraction", "0.1",
+
+                // --- DataLoader ---
+                "--loader_batch_size", "64",
+
+                // --- Training ---
+                "--trainer_n_epochs", "50",
+                "--trainer_patience", "10",
+                "--trainer_optimizer", "adamw",
+                "--trainer_weight_decay", "1e-4",
+                "--trainer_learning_rate", "1e-3",
+                "--trainer_grad_clip", "1.0",
+                "--trainer_scheduler", "cosine",
+                "--trainer_warmup_ratio", "0.1",
+                "--trainer_checkpoint_interval", "0"
+            ]
+        },
+
+        {
+            "name": "Test — Imputation Standard",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "incremental_ad.main",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "WANDB_MODE": "disabled"
+            },
+            "justMyCode": true,
+            "args": [
+                // --- Dispatch ---
+                "--experiment_name", "dev_imputation",
+                "--model", "MaeTx",
+                "--dataset", "TestImputationDataset",
+                "--task", "imputation",
+                "--pipeline", "StandardPipeline",
+                "--seed", "42",
+
+                // --- MAE transformer (patch_len must equal dataset_patch_len) ---
+                "--mae_tx_patch_len", "8",
+                "--mae_tx_encoder_embed_dim", "64",
+                "--mae_tx_encoder_layers", "2",
+                "--mae_tx_encoder_heads", "4",
+                "--mae_tx_decoder_embed_dim", "32",
+                "--mae_tx_decoder_layers", "1",
+                "--mae_tx_decoder_heads", "4",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.5",
+                "--mae_tx_n_eval_passes", "1",
+                "--mae_tx_training_mode", "random_mask",
+
+                // --- Dataset (dataset_patch_len must equal mae_tx_patch_len) ---
+                "--dataset_window_len", "64",
+                "--dataset_patch_len", "8",
+                "--dataset_mask_ratio", "0.5",
+                "--dataset_val_fraction", "0.1",
+
+                // --- DataLoader ---
+                "--loader_batch_size", "64",
+
+                // --- Training ---
+                "--trainer_n_epochs", "50",
+                "--trainer_patience", "10",
+                "--trainer_optimizer", "adamw",
+                "--trainer_weight_decay", "1e-4",
+                "--trainer_learning_rate", "1e-3",
+                "--trainer_grad_clip", "1.0",
+                "--trainer_scheduler", "cosine",
+                "--trainer_warmup_ratio", "0.1",
+                "--trainer_checkpoint_interval", "0"
+            ]
+        },
+
+        {
+            "name": "Test — Classification Standard",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "incremental_ad.main",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "WANDB_MODE": "disabled"
+            },
+            "justMyCode": true,
+            "args": [
+                // --- Dispatch ---
+                "--experiment_name", "dev_classification",
+                "--model", "MaeTxClassifier",
+                "--dataset", "TestClassificationDataset",
+                "--task", "classification",
+                "--pipeline", "StandardPipeline",
+                "--seed", "42",
+
+                // --- MaeTxClassifier: encoder-only, no decoder/masking args required ---
+                "--mae_tx_patch_len", "8",
+                "--mae_tx_encoder_embed_dim", "64",
+                "--mae_tx_encoder_layers", "2",
+                "--mae_tx_encoder_heads", "4",
+                "--mae_tx_patch_norm", "false",
+
+                // --- Dataset ---
+                "--dataset_window_len", "64",
+                "--dataset_val_fraction", "0.1",
+
+                // --- DataLoader ---
+                "--loader_batch_size", "64",
+
+                // --- Training ---
+                "--trainer_n_epochs", "50",
+                "--trainer_patience", "10",
+                "--trainer_optimizer", "adamw",
+                "--trainer_weight_decay", "1e-4",
+                "--trainer_learning_rate", "1e-3",
+                "--trainer_grad_clip", "1.0",
+                "--trainer_scheduler", "cosine",
+                "--trainer_warmup_ratio", "0.1",
+                "--trainer_checkpoint_interval", "0"
             ]
         }
+
     ],
     "inputs": [
         {
             "id": "evalCheckpoint",
             "type": "promptString",
-            "description": "Checkpoint to evaluate (relative to workspace)",
+            "description": "Path to checkpoint (relative to workspace, e.g. runs/mae_tx_swat/<run_id>/merged/checkpoints/best.pt)",
             "default": ""
         }
     ]

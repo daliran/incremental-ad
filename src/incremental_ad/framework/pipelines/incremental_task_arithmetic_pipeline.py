@@ -369,11 +369,10 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 merged_val_result.write(merged_dir / "val")
                 results.append(merged_val_result)
 
-        # --- Evaluate merged (or baseline if no finetune) model ---
-        eval_step_name = "merged" if ft_states else "baseline"
-        eval_step_dir = context.step_dir(eval_step_name)
-
-        if DatasetCapability.TEST in caps:
+        # --- Evaluate merged model (baseline was already evaluated above) ---
+        if ft_states and DatasetCapability.TEST in caps:
+            eval_step_name = "merged"
+            eval_step_dir = context.step_dir(eval_step_name)
             evaluator = context.configurator.create_test_evaluator()
 
             reference_ds = (

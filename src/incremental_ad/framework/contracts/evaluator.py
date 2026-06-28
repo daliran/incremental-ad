@@ -28,6 +28,7 @@ class Evaluator(ABC, Generic[T]):
 class ReferenceScoredEvaluator(Protocol):
     """Optional capability: evaluator that sets its threshold from a reference score distribution."""
 
+    def needs_reference_scores(self) -> bool: ...
     def set_reference_scores(self, scores: np.ndarray) -> None: ...
 
 

@@ -39,6 +39,9 @@ class AdTestEvaluator(Evaluator[tuple[Tensor, Tensor]]):
         self._last_point_labels: np.ndarray | None = None
         self._last_threshold: float | None = None
 
+    def needs_reference_scores(self) -> bool:
+        return self._threshold_strategy == "percentile"
+
     def set_reference_scores(self, scores: np.ndarray) -> None:
         """Compute and store the percentile threshold from reference (baseline) scores."""
         self._threshold = float(np.percentile(scores, self._threshold_percentile))

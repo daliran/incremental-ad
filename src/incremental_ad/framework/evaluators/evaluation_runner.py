@@ -76,7 +76,8 @@ class EvaluationRunner:
         evaluator.reset()
 
         if reference_dataset is not None and isinstance(evaluator, ReferenceScoredEvaluator):
-            evaluator.set_reference_scores(self.collect_scores(model, reference_dataset))
+            if evaluator.needs_reference_scores():
+                evaluator.set_reference_scores(self.collect_scores(model, reference_dataset))
 
         loader = self.loader_config.make_loader(dataset, shuffle=False)
 

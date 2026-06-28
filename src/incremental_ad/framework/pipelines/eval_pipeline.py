@@ -69,7 +69,7 @@ class EvalPipeline(Pipeline):
                 else None
             )
 
-            log.info("[eval/test] Running evaluation")
+            log.info("[eval/test] Starting evaluation")
             started_at = datetime.now(timezone.utc)
 
             metrics = self.runner.run(
@@ -80,6 +80,7 @@ class EvalPipeline(Pipeline):
 
             for k, v in metrics.items():
                 log.info(f"  [eval/test] {k}: {v:.4f}")
+            log.info("[eval/test] Evaluation complete")
 
             if wandb.run is not None:
                 wandb.run.summary.update(

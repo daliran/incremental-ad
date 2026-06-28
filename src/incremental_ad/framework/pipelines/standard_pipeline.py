@@ -140,16 +140,17 @@ class StandardPipeline(Pipeline):
         # --- Val eval ---
         if DatasetCapability.VAL in caps:
             evaluator = context.configurator.create_val_evaluator()
+            eval_step = "train/val"
+            log.info(f"[{eval_step}] Starting evaluation")
             started_at = datetime.now(timezone.utc)
 
             metrics = self.runner.run(
                 model, evaluator, dataset.get_val_eval_dataset(), seed=context.eval_seed
             )
 
-            eval_step = "train/val"
-
             for k, v in metrics.items():
                 log.info(f"  [{eval_step}] {k}: {v:.4f}")
+            log.info(f"[{eval_step}] Evaluation complete")
 
             if wandb.run is not None:
                 wandb.run.summary.update(
@@ -177,18 +178,19 @@ class StandardPipeline(Pipeline):
                 else None
             )
 
+            eval_step = "train/test"
+            log.info(f"[{eval_step}] Starting evaluation")
             started_at = datetime.now(timezone.utc)
-            
+
             metrics = self.runner.run(
                 model, evaluator, dataset.get_test_dataset(),
                 reference_dataset=reference_ds,
                 seed=context.eval_seed,
             )
 
-            eval_step = "train/test"
-
             for k, v in metrics.items():
                 log.info(f"  [{eval_step}] {k}: {v:.4f}")
+            log.info(f"[{eval_step}] Evaluation complete")
 
             if wandb.run is not None:
                 wandb.run.summary.update(

@@ -157,6 +157,8 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 else None
             )
 
+            baseline_test_step = "baseline/test"
+            log.info(f"[{baseline_test_step}] Starting evaluation")
             started_at_eval = datetime.now(timezone.utc)
 
             metrics = self.runner.run(
@@ -165,10 +167,9 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 seed=context.eval_seed,
             )
 
-            baseline_test_step = "baseline/test"
-
             for k, v in metrics.items():
                 log.info(f"  [{baseline_test_step}] {k}: {v:.4f}")
+            log.info(f"[{baseline_test_step}] Evaluation complete")
 
             if wandb.run is not None:
                 wandb.run.summary.update(
@@ -256,6 +257,8 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                     else None
                 )
 
+                ft_eval_step = f"{step_name}/test"
+                log.info(f"[{ft_eval_step}] Starting evaluation")
                 started_at_eval = datetime.now(timezone.utc)
 
                 metrics = self.runner.run(
@@ -264,10 +267,9 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                     seed=context.eval_seed,
                 )
 
-                ft_eval_step = f"{step_name}/test"
-
                 for k, v in metrics.items():
                     log.info(f"  [{ft_eval_step}] {k}: {v:.4f}")
+                log.info(f"[{ft_eval_step}] Evaluation complete")
 
                 if wandb.run is not None:
                     wandb.run.summary.update(
@@ -290,9 +292,11 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
 
         # --- Task arithmetic merge ---
         if ft_states:
+            log.info(f"[merged] Merging {len(ft_states)} finetune models (scale={self.merge_scale})")
             merged_state = _task_arithmetic_merge(
                 baseline_state, ft_states, self.merge_scale
             )
+            log.info("[merged] Merge complete")
 
             model.load_state_dict(merged_state)
 
@@ -305,6 +309,8 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
             # --- Merged val eval (sanity-check: does the merge hurt reconstruction?) ---
             if DatasetCapability.VAL in caps:
                 val_evaluator = context.configurator.create_val_evaluator()
+                merged_val_step = "merged/val"
+                log.info(f"[{merged_val_step}] Starting evaluation")
                 started_at_eval = datetime.now(timezone.utc)
 
                 merged_val_metrics = self.runner.run(
@@ -312,10 +318,9 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                     seed=context.eval_seed,
                 )
 
-                merged_val_step = "merged/val"
-
                 for k, v in merged_val_metrics.items():
                     log.info(f"  [{merged_val_step}] {k}: {v:.4f}")
+                log.info(f"[{merged_val_step}] Evaluation complete")
 
                 if wandb.run is not None:
                     wandb.run.summary.update(
@@ -346,6 +351,8 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 else None
             )
 
+            full_step = f"{eval_step_name}/test"
+            log.info(f"[{full_step}] Starting evaluation")
             started_at = datetime.now(timezone.utc)
 
             metrics = self.runner.run(
@@ -354,10 +361,9 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 seed=context.eval_seed,
             )
 
-            full_step = f"{eval_step_name}/test"
-
             for k, v in metrics.items():
                 log.info(f"  [{full_step}] {k}: {v:.4f}")
+            log.info(f"[{full_step}] Evaluation complete")
 
             if wandb.run is not None:
                 wandb.run.summary.update(

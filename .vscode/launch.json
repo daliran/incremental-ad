@@ -63,7 +63,8 @@
 
                 // --- Evaluator ---
                 "--configurator_threshold_strategy", "oracle",
-                "--configurator_threshold_percentile", "99"
+                "--configurator_threshold_percentile", "99",
+                "--configurator_debug"
             ]
         },
 
@@ -140,7 +141,8 @@
 
                 // --- Evaluator ---
                 "--configurator_threshold_strategy", "oracle",
-                "--configurator_threshold_percentile", "99"
+                "--configurator_threshold_percentile", "99",
+                "--configurator_debug"
             ]
         },
 
@@ -260,7 +262,8 @@
 
                 // --- Evaluator ---
                 "--configurator_threshold_strategy", "oracle",
-                "--configurator_threshold_percentile", "72"
+                "--configurator_threshold_percentile", "72",
+                "--configurator_debug"
             ]
         },
 
@@ -337,7 +340,8 @@
 
                 // --- Evaluator ---
                 "--configurator_threshold_strategy", "oracle",
-                "--configurator_threshold_percentile", "72"
+                "--configurator_threshold_percentile", "72",
+                "--configurator_debug"
             ]
         },
 

@@ -55,16 +55,10 @@ class TrainStepResult(StepResult):
 @dataclass
 class EvalStepResult(StepResult):
     metrics: dict[str, float]
-    results_path: Path | None
 
     def _to_json_dict(self) -> dict:
         d = super()._to_json_dict()
-        d.update(
-            {
-                "metrics": self.metrics,
-                "results_path": str(self.results_path) if self.results_path else None,
-            }
-        )
+        d.update({"metrics": self.metrics})
         return d
 
 
@@ -162,7 +156,7 @@ class StandardPipeline(Pipeline):
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
                 metrics=metrics,
-                results_path=None,
+
             )
 
             val_result.write(step_dir / "val")
@@ -205,7 +199,7 @@ class StandardPipeline(Pipeline):
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
                 metrics=metrics,
-                results_path=None,
+
             )
 
             test_result.write(step_dir / "test")

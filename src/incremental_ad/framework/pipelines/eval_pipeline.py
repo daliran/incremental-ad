@@ -95,7 +95,7 @@ class EvalPipeline(Pipeline):
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
                 metrics=metrics,
-                results_path=None,
+
             )
 
             result.write(step_dir / "test")

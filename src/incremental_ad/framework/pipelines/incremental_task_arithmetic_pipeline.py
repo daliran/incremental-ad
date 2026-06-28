@@ -184,7 +184,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 started_at=started_at_eval,
                 finished_at=datetime.now(timezone.utc),
                 metrics=metrics,
-                results_path=None,
+
             )
 
             baseline_test_result.write(baseline_step_dir / "test")
@@ -284,7 +284,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                     started_at=started_at_eval,
                     finished_at=datetime.now(timezone.utc),
                     metrics=metrics,
-                    results_path=None,
+    
                 )
 
                 ft_eval_result.write(step_dir / "test")
@@ -332,7 +332,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                     started_at=started_at_eval,
                     finished_at=datetime.now(timezone.utc),
                     metrics=merged_val_metrics,
-                    results_path=None,
+    
                 )
 
                 merged_val_result.write(merged_dir / "val")
@@ -378,7 +378,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 started_at=started_at,
                 finished_at=datetime.now(timezone.utc),
                 metrics=metrics,
-                results_path=None,
+
             )
 
             result.write(eval_step_dir / "test")

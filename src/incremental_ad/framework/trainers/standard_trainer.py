@@ -118,6 +118,7 @@ class StandardTrainer(Trainer):
 
         best_val_loss: float | None = None
         best_epoch: int | None = None
+        best_epoch_train_loss: float = float("inf")
         best_state: dict | None = None
         epochs_no_improve = 0
         final_train_loss = float("inf")
@@ -186,6 +187,7 @@ class StandardTrainer(Trainer):
                     if best_val_loss is None or val_loss < best_val_loss - 1e-4:
                         best_val_loss = val_loss
                         best_epoch = epoch
+                        best_epoch_train_loss = train_loss
                         best_state = copy.deepcopy(model.state_dict())
                         epochs_no_improve = 0
                         is_best = True
@@ -246,7 +248,7 @@ class StandardTrainer(Trainer):
                     checkpoint_path,
                     best_state,
                     best_epoch,
-                    final_train_loss,
+                    best_epoch_train_loss,
                     best_val_loss,
                 )
 

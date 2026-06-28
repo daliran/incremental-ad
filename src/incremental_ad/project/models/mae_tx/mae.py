@@ -509,8 +509,10 @@ class MaeTx(_MaeTxBase):
             self._accumulate_errors(
                 decoder_output, tokens, mask_indices, error_sum, error_counts
             )
-        mean_token_errors = error_sum / error_counts.clamp(min=1)  # [B, n_patches]
-        return mean_token_errors.mean(dim=-1)  # [B]
+        # Mean error per masked-token-instance — average only over tokens that were
+        # actually masked at least once. Averaging over all n_patches would dilute the
+        # score toward zero for tokens no pass happened to mask.
+        return error_sum.sum(dim=-1) / error_counts.sum(dim=-1).clamp(min=1)  # [B]
 
     def _predict_deterministic(self, batch: Tensor) -> Tensor:
         B = batch.size(0)

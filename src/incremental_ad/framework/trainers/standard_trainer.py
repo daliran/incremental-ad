@@ -181,19 +181,37 @@ class StandardTrainer(Trainer):
 
                 lr = optimizer.param_groups[0]["lr"]
 
+                is_best = False
+                if val_loss is not None:
+                    if best_val_loss is None or val_loss < best_val_loss - 1e-4:
+                        best_val_loss = val_loss
+                        best_epoch = epoch
+                        best_state = copy.deepcopy(model.state_dict())
+                        epochs_no_improve = 0
+                        is_best = True
+                        if wandb.run is not None:
+                            wandb.run.summary[f"{prefix}best_val_loss"] = val_loss
+                            wandb.run.summary[f"{prefix}best_epoch"] = epoch
+                    else:
+                        epochs_no_improve += 1
+
                 val_str = f"  val={val_loss:.4f}" if val_loss is not None else ""
                 secondary_str = ""
-
                 if final_secondary_losses:
                     items = "  ".join(
                         f"{k}={v:.4f}" for k, v in final_secondary_losses.items()
                     )
                     secondary_str = f"  [{items}]"
+                pat_str = (
+                    f"  pat={'best' if is_best else f'{epochs_no_improve}/{self.patience}'}"
+                    if val_loss is not None
+                    else ""
+                )
 
                 log.info(
                     f"{label}Epoch {epoch:{epoch_w}}/{self.n_epochs} "
                     f"— train={train_loss:.4f}{val_str}{secondary_str}  "
-                    f"lr={lr:.2e}  gnorm={grad_norm:.3f}"
+                    f"lr={lr:.2e}  gnorm={grad_norm:.3f}{pat_str}"
                 )
 
                 wandb_metrics: dict[str, float] = {
@@ -201,38 +219,22 @@ class StandardTrainer(Trainer):
                     f"{prefix}train/lr": lr,
                     f"{prefix}train/grad_norm": grad_norm,
                 }
-
                 if val_loss is not None:
                     wandb_metrics[f"{prefix}loss/val"] = val_loss
-
                 for name, loss in final_secondary_losses.items():
                     wandb_metrics[f"{prefix}loss/secondary/{name}"] = loss
-
                 if wandb.run is not None:
                     wandb.log(wandb_metrics, step=step_offset + epoch)
 
                 if val_loss is None:
                     continue
 
-                if best_val_loss is None or val_loss < best_val_loss - 1e-4:
-                    best_val_loss = val_loss
-                    best_epoch = epoch
-                    best_state = copy.deepcopy(model.state_dict())
-                    epochs_no_improve = 0
+                if epochs_no_improve >= self.patience:
                     log.info(
-                        f"{label}New best checkpoint at epoch {epoch} (val={val_loss:.4f})"
+                        f"{label}Early stopping at epoch {epoch} "
+                        f"(no improvement for {self.patience} epochs)"
                     )
-                    if wandb.run is not None:
-                        wandb.run.summary[f"{prefix}best_val_loss"] = val_loss
-                        wandb.run.summary[f"{prefix}best_epoch"] = epoch
-                else:
-                    epochs_no_improve += 1
-                    if epochs_no_improve >= self.patience:
-                        log.info(
-                            f"{label}Early stopping at epoch {epoch} "
-                            f"(no improvement for {self.patience} epochs)"
-                        )
-                        break
+                    break
 
         checkpoint_path: Path | None = None
 

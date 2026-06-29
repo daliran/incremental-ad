@@ -14,7 +14,6 @@ import wandb
 from incremental_ad.framework.contracts.dataset import Dataset
 from incremental_ad.framework.contracts.model import Model, TaskModelConfigurator
 from incremental_ad.framework.contracts.pipeline import Pipeline, RunContext, StepResult
-from incremental_ad.framework.contracts.task import Task
 from incremental_ad.framework.core.git import git_commit
 from incremental_ad.framework.core.seed import set_seed
 from incremental_ad.framework.core.tracking import init_wandb
@@ -50,7 +49,7 @@ class Experiment:
         self,
         model: Model,
         dataset: Dataset,
-        task: Task,
+        task: str,
         pipeline: Pipeline,
         configurator: TaskModelConfigurator,
         seed: int,
@@ -72,7 +71,9 @@ class Experiment:
     def add_args(parser: ArgumentParser) -> None:
         parser.add_argument("--model", required=True)
         parser.add_argument("--dataset", required=True)
-        parser.add_argument("--task", required=True, choices=[t.value for t in Task])
+        parser.add_argument(
+            "--task", required=True, choices=TaskModelConfigurator.registered_tasks()
+        )
         parser.add_argument("--pipeline", required=True)
         parser.add_argument("--seed", type=int, default=42)
         parser.add_argument("--eval_seed", type=int, default=None)
@@ -80,10 +81,10 @@ class Experiment:
 
     @classmethod
     def from_config(cls, cfg: Namespace) -> "Experiment":
-        task = Task(cfg.task)
+        task = cfg.task
         model_cls = Model._registry[cfg.model]
-        
-        configurator_cls = TaskModelConfigurator._registry.get((task, model_cls))
+
+        configurator_cls = TaskModelConfigurator.lookup(task, model_cls)
 
         if configurator_cls is None:
             raise RuntimeError(
@@ -132,7 +133,7 @@ class Experiment:
             eval_seed=self.eval_seed,
             model=type(self.model).__name__,
             dataset=type(self.dataset).__name__,
-            task=self.task.value,
+            task=self.task,
             pipeline=type(self.pipeline).__name__,
             args=args,
         )
@@ -160,7 +161,10 @@ class Experiment:
         # configure() calls model._build()
         self.configurator.configure(self.model, self.dataset)
 
-        analysis_dir = Path("analysis") / type(self.dataset).__name__
+        # Dataset analysis is dataset-level and identical across runs/experiments, so it
+        # lives under the shared runs root (keyed by dataset), not in the per-run dir.
+        # analyze() caches via a done.flag so it's computed once and reused.
+        analysis_dir = runs_root / "analysis" / type(self.dataset).__name__
         self.dataset.analyze(analysis_dir)
 
         context = RunContext(

@@ -17,7 +17,6 @@ import incremental_ad.framework.pipelines  # noqa: F401
 from incremental_ad.framework.contracts.dataset import Dataset
 from incremental_ad.framework.contracts.model import Model, TaskModelConfigurator
 from incremental_ad.framework.contracts.pipeline import Pipeline
-from incremental_ad.framework.contracts.task import Task
 from incremental_ad.framework.experiment import Experiment
 
 
@@ -32,7 +31,9 @@ def main() -> None:
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument("--model", required=True)
     pre.add_argument("--dataset", required=True)
-    pre.add_argument("--task", required=True, choices=[t.value for t in Task])
+    pre.add_argument(
+        "--task", required=True, choices=TaskModelConfigurator.registered_tasks()
+    )
     pre.add_argument("--pipeline", required=True)
     known, _ = pre.parse_known_args()
 
@@ -51,9 +52,8 @@ def main() -> None:
     # Trainer args are registered by the pipeline (each pipeline owns its trainers).
     Pipeline._registry[known.pipeline].add_args(parser)
 
-    task = Task(known.task)
     model_cls = Model._registry[known.model]
-    configurator_cls = TaskModelConfigurator._registry.get((task, model_cls))
+    configurator_cls = TaskModelConfigurator.lookup(known.task, model_cls)
 
     if configurator_cls is None:
         print(

@@ -13,7 +13,6 @@ from incremental_ad.framework.contracts.configurable import Configurable
 from incremental_ad.framework.contracts.dataset import Dataset
 from incremental_ad.framework.contracts.evaluator import Evaluator
 from incremental_ad.framework.contracts.model import Model, TaskModelConfigurator
-from incremental_ad.framework.contracts.task import Task
 
 
 @dataclass
@@ -24,7 +23,7 @@ class RunContext:
     run_dir: Path
     model: Model
     dataset: Dataset
-    task: Task
+    task: str
     configurator: TaskModelConfigurator
     seed: int
     eval_seed: int

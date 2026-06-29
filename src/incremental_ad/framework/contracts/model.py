@@ -10,7 +10,13 @@ from incremental_ad.framework.contracts.configurable import Configurable
 from incremental_ad.framework.contracts.dataset import Dataset
 from incremental_ad.framework.contracts.debugger import Debugger
 from incremental_ad.framework.contracts.evaluator import Evaluator
-from incremental_ad.framework.contracts.task import Task
+
+
+def _task_key(task: object) -> str:
+    """Normalize a task identifier to its string key. Accepts a plain string or any
+    enum-like object exposing .value (e.g. the project's Task enum), so the framework
+    never depends on a concrete task taxonomy."""
+    return getattr(task, "value", task)
 
 
 class Model(Configurable, torch.nn.Module, ABC):
@@ -37,21 +43,19 @@ class Model(Configurable, torch.nn.Module, ABC):
 
     @abstractmethod
     def score(self, inputs: Tensor) -> Tensor:
-        """Pure inference: map input window(s) to task output.
+        """Pure inference: map input window(s) to the model's task output.
 
-        Return shape depends on task:
-          AD             → [B] scalar anomaly scores
-          Classification → [B, n_classes] logits
-          Forecasting    → [B, H, F] predictions
+        The return shape is task-specific (e.g. per-window scores, class logits, or step
+        predictions) and is interpreted by the matching evaluator.
         """
         ...
 
     def predict_step(self, batch: tuple[Tensor, Any]) -> tuple[Any, Any]:
-        """Eval wrapper: unpack (inputs, target), score inputs, return (scores, target).
+        """Eval wrapper: unpack (inputs, target), score inputs, return (output, target).
 
-        The target element travels unchanged to the evaluator — it carries anomaly labels
-        for AD, forecast targets for forecasting, or (original, visible_idx) for imputation.
-        Override when the model needs target to compute outputs (e.g. imputation).
+        The target element travels unchanged to the evaluator — it carries whatever ground
+        truth the task's evaluator needs (labels, targets, reconstruction references, ...).
+        Override when the model needs the target to compute its output.
         """
         inputs, target = batch
         return self.score(inputs), target
@@ -59,11 +63,12 @@ class Model(Configurable, torch.nn.Module, ABC):
 
 class TaskModelConfigurator(Configurable, ABC):
     ARG_PREFIX = "configurator"
-    _registry: ClassVar[dict[tuple[Task, type], type["TaskModelConfigurator"]]] = {}
+    # Keyed by (task_name, model_cls). task_name is a plain string so the framework
+    # stays agnostic of the concrete task taxonomy (which lives in project/).
+    _registry: ClassVar[dict[tuple[str, type], type["TaskModelConfigurator"]]] = {}
 
     # Default no-op implementations of the Configurable contract.
-    # Configurators with CLI args (e.g. MaeTxAdConfigurator) override both.
-    # Configurators with no args (e.g. MaeTxImputationConfigurator) inherit these.
+    # Configurators with CLI args override both; argument-free ones inherit these.
     @classmethod
     def add_args(cls, parser: ArgumentParser, prefix: str | None = None) -> None:
         pass
@@ -73,27 +78,43 @@ class TaskModelConfigurator(Configurable, ABC):
         return cls()
 
     @classmethod
-    def register(cls, task: Task, model_cls: type):
-        """Decorator that registers a configurator for a specific (Task, Model) pair."""
+    def register(cls, task: object, model_cls: type):
+        """Decorator that registers a configurator for a specific (task, Model) pair.
+        task may be a string or an enum exposing .value (e.g. the project's Task)."""
 
         def decorator(configurator_cls: type) -> type:
-            cls._registry[(task, model_cls)] = configurator_cls
+            cls._registry[(_task_key(task), model_cls)] = configurator_cls
             return configurator_cls
 
         return decorator
 
     @classmethod
-    def get(cls, task: Task, model: object) -> type["TaskModelConfigurator"]:
+    def get(cls, task: object, model: object) -> type["TaskModelConfigurator"]:
         """Retrieve the configurator registered for the given task and model. Raises KeyError if incompatible."""
-        return cls._registry[(task, type(model))]
+        return cls._registry[(_task_key(task), type(model))]
+
+    @classmethod
+    def lookup(cls, task: object, model_cls: type) -> type["TaskModelConfigurator"] | None:
+        """Return the configurator for (task, model_cls), or None if none is registered."""
+        return cls._registry.get((_task_key(task), model_cls))
+
+    @classmethod
+    def registered_tasks(cls) -> list[str]:
+        """Sorted unique task names that have at least one registered configurator.
+        Used to populate the --task CLI choices without hardcoding a taxonomy."""
+        return sorted({task for task, _ in cls._registry})
 
     def configure(self, model: Model, dataset: Dataset) -> None:
-        """Inject dataset-derived properties then build the model. Not overridable — customise _configure."""
+        """Inject dataset-derived properties then build the model. Not overridable — customise
+        _configure, which is also where each configurator asserts dataset compatibility
+        (structural protocols and required capabilities)."""
         self._configure(model, dataset)
         model._build()
 
     def _configure(self, model: Model, dataset: Dataset) -> None:
-        """Override to inject dataset-derived values into model config before _build() is called."""
+        """Override to validate dataset compatibility (isinstance protocol checks and
+        DatasetCapability requirements) and inject dataset-derived values into model config
+        before _build() is called."""
 
     @abstractmethod
     def create_val_evaluator(self) -> Evaluator:

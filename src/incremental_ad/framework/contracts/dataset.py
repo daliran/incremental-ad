@@ -33,6 +33,45 @@ class SplitConfig:
         0.1  # fraction carved out as val within each segment (0 = no val)
     )
 
+    def validate(self, n: int) -> None:
+        """Fail fast on split params that would produce empty/degenerate segments for a
+        series of length n. Restores the guards the old splitting.equal_chunks() enforced."""
+        if not 0.0 < self.baseline_fraction <= 1.0:
+            raise ValueError(
+                f"baseline_fraction must be in (0, 1], got {self.baseline_fraction}"
+            )
+        if not 0.0 < self.baseline_use_fraction <= 1.0:
+            raise ValueError(
+                f"baseline_use_fraction must be in (0, 1], got {self.baseline_use_fraction}"
+            )
+        if not 0.0 <= self.val_fraction < 1.0:
+            raise ValueError(f"val_fraction must be in [0, 1), got {self.val_fraction}")
+        if self.n_finetune_segments < 0:
+            raise ValueError(
+                f"n_finetune_segments must be >= 0, got {self.n_finetune_segments}"
+            )
+
+        baseline_end = int(n * self.baseline_fraction)
+        use_end = int(baseline_end * self.baseline_use_fraction)
+        if use_end <= 0:
+            raise ValueError(
+                f"baseline slice is empty (n={n}, baseline_fraction={self.baseline_fraction}, "
+                f"baseline_use_fraction={self.baseline_use_fraction})"
+            )
+
+        if self.n_finetune_segments > 0:
+            remaining = n - baseline_end
+            if remaining <= 0:
+                raise ValueError(
+                    f"no data left for fine-tuning (n={n}, baseline_fraction={self.baseline_fraction}); "
+                    "lower baseline_fraction or set n_finetune_segments=0"
+                )
+            if remaining // self.n_finetune_segments <= 0:
+                raise ValueError(
+                    f"n_finetune_segments={self.n_finetune_segments} too large for "
+                    f"{remaining} remaining timesteps"
+                )
+
 
 @dataclass
 class DataLoaderConfig:
@@ -68,12 +107,20 @@ class DataLoaderConfig:
 class Segment:
     """One training phase: a required training dataset and an optional validation dataset.
 
+    Both are consumed by the trainer via model.compute_loss() — val supplies the
+    early-stopping/checkpoint-selection loss, so it must be loss-shaped exactly like
+    train (same batch format), not metric-shaped.
+
     Contract:
       train — yields single tensors (unsupervised) or (inputs, labels) tuples (supervised);
-              consumed by model.compute_loss().
-      val   — yields (inputs, target) 2-tuples; consumed by model.predict_step().
-              target is passed through to the evaluator unchanged (reconstruction
-              target, forecast target, or a cheap placeholder like zeros for AD val).
+              passed to model.compute_loss().
+      val   — same shape as train; passed to model.compute_loss() each epoch to compute
+              the validation loss. May be None when the segment has no held-out tail.
+
+    Note: this is NOT the dataset used to compute reported metrics. Post-training metric
+    evaluation goes through the evaluator (model.predict_step()) on the separate
+    get_val_eval_dataset() / get_test_dataset(), which are metric-shaped and yield
+    (inputs, target) 2-tuples.
     """
 
     train: TorchDataset
@@ -109,7 +156,7 @@ class Dataset(Configurable, ABC):
     def get_train_eval_dataset(self) -> TorchDataset:
         """Return the full training series windowed with eval_stride for reference scoring.
 
-        Used by pipelines to fit score-based thresholds (ReferenceScoredEvaluator).
+        Used by pipelines to configure reference-based evaluators (ReferenceEvaluator).
         Must use eval_stride (not the training stride) so every timestep is covered.
         Yields single tensors — no labels, no targets.
         Raises NotImplementedError for datasets that do not support training."""
@@ -130,14 +177,9 @@ class Dataset(Configurable, ABC):
     def get_test_dataset(self) -> TorchDataset:
         """Return the test dataset. Only valid when TEST is in capabilities.
 
-        Contract: must yield (inputs, target) 2-tuples so that
-        model.predict_step(batch) can unpack inputs and pass through targets.
-
-        Task-specific formats:
-          AD            — (window [W,F], anomaly_labels [W])
-          Forecasting   — (full_window [W,F], future [H,F])
-          Imputation    — (masked_window [W,F], (original [W,F], visible_idx [n_visible]))
-          Classification — (window [W,F], label [])
+        Contract: must yield (inputs, target) 2-tuples so that model.predict_step(batch)
+        can unpack inputs and pass the target through to the evaluator. The concrete shapes
+        of inputs and target are task-specific and defined by the dataset/configurator pair.
         """
         raise NotImplementedError
 
@@ -177,6 +219,27 @@ class PartitionedDataset(Dataset, ABC):
     def get_incremental_segments(self) -> list[Segment]:
         """Return n_finetune equal segments from the non-baseline remainder. Empty if n_finetune=0."""
         ...
+
+    def get_baseline_val_eval_dataset(self) -> TorchDataset:
+        """Eval-stride windowing over the baseline segment's held-out val slice.
+
+        Used by the incremental pipeline for baseline/val, so the baseline is scored on
+        its own validation data rather than the global tail. Raises NotImplementedError
+        for datasets that do not support it."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement get_baseline_val_eval_dataset()"
+        )
+
+    def get_incremental_val_eval_dataset(self) -> TorchDataset:
+        """Eval-stride windowing over the union of every segment's held-out val slice
+        (baseline + each finetune).
+
+        Used by the incremental pipeline for merged/val, so the merged model is scored
+        across all regimes and never on training data. Raises NotImplementedError for
+        datasets that do not support it."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement get_incremental_val_eval_dataset()"
+        )
 
 
 class TimeSeriesDataset(Dataset, ABC):

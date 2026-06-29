@@ -9,6 +9,7 @@ import torch
 from datasets import load_dataset
 from sklearn.preprocessing import StandardScaler
 from torch import Tensor
+from torch.utils.data import ConcatDataset
 
 from incremental_ad.framework.contracts.dataset import (
     DatasetCapability,
@@ -18,6 +19,12 @@ from incremental_ad.framework.contracts.dataset import (
     TimeSeriesDataset,
 )
 from incremental_ad.framework.datasets.sliding_window import SlidingWindowDataset
+from incremental_ad.framework.datasets.splitting import (
+    all_segment_ranges,
+    baseline_range,
+    finetune_ranges,
+    val_tail_split,
+)
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +52,7 @@ class Psm(TimeSeriesDataset, PartitionedDataset):
         self._train_data, self._test_data, self._test_labels = _prepare_data(
             normalization
         )
+        self.split_config.validate(len(self._train_data))
 
     @property
     def n_features(self) -> int:
@@ -89,34 +97,44 @@ class Psm(TimeSeriesDataset, PartitionedDataset):
         return self._make_segment(0, len(self._train_data))
 
     def get_baseline(self) -> Segment:
-        n = len(self._train_data)
-        baseline_end = int(n * self.split_config.baseline_fraction)
-        use_end = int(baseline_end * self.split_config.baseline_use_fraction)
-        return self._make_segment(0, use_end)
+        start, end = baseline_range(len(self._train_data), self.split_config)
+        return self._make_segment(start, end)
 
     def get_incremental_segments(self) -> list[Segment]:
-        if self.split_config.n_finetune_segments == 0:
-            return []
-        n = len(self._train_data)
-        remainder_start = int(n * self.split_config.baseline_fraction)
-        segment_size = (n - remainder_start) // self.split_config.n_finetune_segments
         return [
-            self._make_segment(
-                remainder_start + i * segment_size,
-                remainder_start + (i + 1) * segment_size,
-            )
-            for i in range(self.split_config.n_finetune_segments)
+            self._make_segment(start, end)
+            for start, end in finetune_ranges(len(self._train_data), self.split_config)
         ]
 
     def get_train_eval_dataset(self) -> SlidingWindowDataset:
         return SlidingWindowDataset(self._train_data, self.window_len, self._eval_stride)
 
-    def get_val_eval_dataset(self) -> SlidingWindowDataset:
-        n = len(self._train_data)
-        val_start = n - int(n * self.split_config.val_fraction)
+    def _val_eval_for_range(self, start: int, end: int) -> SlidingWindowDataset:
+        """Eval-stride windowing over the val tail _make_segment() holds out from
+        [start, end) — same val range, but eval_stride=1 covers every timestep."""
+        _, (val_start, val_end) = val_tail_split(start, end, self.split_config.val_fraction)
         return SlidingWindowDataset(
-            self._train_data[val_start:], self.window_len, self._eval_stride,
-            labels=torch.zeros(n - val_start, dtype=torch.uint8),
+            self._train_data[val_start:val_end], self.window_len, self._eval_stride,
+            labels=torch.zeros(val_end - val_start, dtype=torch.uint8),
+        )
+
+    def get_val_eval_dataset(self) -> SlidingWindowDataset:
+        """StandardPipeline val-eval: the global val tail (mirrors get_train_segment())."""
+        return self._val_eval_for_range(0, len(self._train_data))
+
+    def get_baseline_val_eval_dataset(self) -> SlidingWindowDataset:
+        """Incremental baseline/val: the baseline segment's own held-out slice."""
+        start, end = baseline_range(len(self._train_data), self.split_config)
+        return self._val_eval_for_range(start, end)
+
+    def get_incremental_val_eval_dataset(self) -> ConcatDataset:
+        """Incremental merged/val: union of every segment's held-out val slice
+        (baseline + each finetune), so the merge is checked across all regimes."""
+        return ConcatDataset(
+            [
+                self._val_eval_for_range(start, end)
+                for start, end in all_segment_ranges(len(self._train_data), self.split_config)
+            ]
         )
 
     def get_test_dataset(self) -> SlidingWindowDataset:
@@ -133,9 +151,7 @@ class Psm(TimeSeriesDataset, PartitionedDataset):
         analysis_dir.mkdir(parents=True, exist_ok=True)
         log.info("Writing dataset analysis to %s ...", analysis_dir)
 
-        import matplotlib
-
-        matplotlib.use("Agg")
+        from incremental_ad.framework.datasets import analysis
 
         train_df, test_df, label_df = _load_raw()
         train_samples = _extract_features(train_df).ffill().bfill()
@@ -143,11 +159,14 @@ class Psm(TimeSeriesDataset, PartitionedDataset):
         test_labels_raw = label_df["label"].astype(int)
         features = list(train_samples.columns)
 
-        _write_feature_stats(
-            train_samples, test_samples, test_labels_raw, features, analysis_dir
+        analysis.run_timeseries_analysis(
+            analysis_dir,
+            name="PSM",
+            train=train_samples.to_numpy(dtype=float),
+            test=test_samples.to_numpy(dtype=float),
+            feature_names=features,
+            test_labels=test_labels_raw.to_numpy(),
         )
-        _plot_anomaly_timeline(test_labels_raw.to_numpy(), analysis_dir)
-        _plot_feature_overview(train_samples, test_samples, features, analysis_dir)
 
         done_flag.touch()
         log.info("Dataset analysis complete.")
@@ -156,10 +175,12 @@ class Psm(TimeSeriesDataset, PartitionedDataset):
 
     def _make_segment(self, start: int, end: int) -> Segment:
         if self.split_config.val_fraction > 0:
-            val_start = end - int((end - start) * self.split_config.val_fraction)
+            (tr_start, tr_end), (val_start, val_end) = val_tail_split(
+                start, end, self.split_config.val_fraction
+            )
             return Segment(
-                train=SlidingWindowDataset(self._train_data[start:val_start], self.window_len, self.stride),
-                val=SlidingWindowDataset(self._train_data[val_start:end], self.window_len, self.stride),
+                train=SlidingWindowDataset(self._train_data[tr_start:tr_end], self.window_len, self.stride),
+                val=SlidingWindowDataset(self._train_data[val_start:val_end], self.window_len, self.stride),
             )
         return Segment(
             train=SlidingWindowDataset(self._train_data[start:end], self.window_len, self.stride),
@@ -208,93 +229,3 @@ def _load_raw() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
 def _extract_features(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop(columns=[_TIMESTAMP_COL])
-
-
-# ── Analysis helpers ───────────────────────────────────────────────────────────
-
-
-def _write_feature_stats(
-    train: pd.DataFrame,
-    test: pd.DataFrame,
-    test_labels: pd.Series,
-    features: list[str],
-    out: Path,
-) -> None:
-    test_normal = test[test_labels == 0]
-    test_anomaly = test[test_labels == 1]
-    rows = []
-    for f in features:
-        rows.append(
-            {
-                "feature": f,
-                "train_mean": float(train[f].mean()),
-                "train_std": float(train[f].std()),
-                "test_normal_mean": (
-                    float(test_normal[f].mean()) if len(test_normal) else float("nan")
-                ),
-                "test_normal_std": (
-                    float(test_normal[f].std()) if len(test_normal) else float("nan")
-                ),
-                "test_anomaly_mean": (
-                    float(test_anomaly[f].mean()) if len(test_anomaly) else float("nan")
-                ),
-                "test_anomaly_std": (
-                    float(test_anomaly[f].std()) if len(test_anomaly) else float("nan")
-                ),
-            }
-        )
-    pd.DataFrame(rows).to_csv(out / "feature_stats.csv", index=False)
-
-
-def _plot_anomaly_timeline(labels: np.ndarray, out: Path) -> None:
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(figsize=(14, 2))
-    ax.fill_between(np.arange(len(labels)), labels, alpha=0.7, color="orange")
-    ax.set_xlabel("timestep")
-    ax.set_ylabel("anomaly")
-    ax.set_title("PSM test set — anomaly label timeline")
-    ax.set_ylim(-0.05, 1.15)
-    fig.tight_layout()
-    fig.savefig(out / "anomaly_timeline.png", dpi=120)
-    plt.close(fig)
-
-
-def _plot_feature_overview(
-    train: pd.DataFrame, test: pd.DataFrame, features: list[str], out: Path
-) -> None:
-    import matplotlib.pyplot as plt
-
-    train_mean = train.mean()
-    train_std = train.std().replace(0, 1)
-    test_mean = test.mean()
-    shift = ((test_mean - train_mean) / train_std).abs()
-    top_features = shift.nlargest(min(16, len(features))).index.tolist()
-
-    n = len(top_features)
-    ncols = 4
-    nrows = (n + ncols - 1) // ncols
-    fig, axes = plt.subplots(nrows, ncols, figsize=(14, nrows * 2.5))
-    axes = axes.flatten()
-
-    for i, feat in enumerate(top_features):
-        ax = axes[i]
-        tr = train[feat].values
-        te = test[feat].values
-        bins = np.linspace(min(tr.min(), te.min()), max(tr.max(), te.max()), 40)
-        ax.hist(tr, bins=bins, alpha=0.6, color="#4C72B0", density=True, label="train")
-        ax.hist(te, bins=bins, alpha=0.6, color="orange", density=True, label="test")
-        ax.set_title(feat, fontsize=7)
-        ax.tick_params(labelsize=5)
-        if i == 0:
-            ax.legend(fontsize=6)
-
-    for j in range(n, len(axes)):
-        axes[j].set_visible(False)
-
-    fig.suptitle(
-        "Top features by train→test mean shift (train=blue, test=orange)", fontsize=9
-    )
-    fig.tight_layout()
-    fig.savefig(out / "feature_overview.png", dpi=120)
-    plt.close(fig)

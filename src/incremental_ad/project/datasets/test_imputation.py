@@ -163,12 +163,12 @@ class TestImputationDataset(TimeSeriesDataset):
                 train=SlidingWindowDataset(
                     self._train_data[:val_start], self._window_len, self.stride
                 ),
-                val=_ImputationWindowDataset(
-                    self._train_data[val_start:],
-                    self._window_len,
-                    self._patch_len,
-                    self._mask_ratio,
-                    self.stride,
+                # Clean windows: the trainer's val loss uses model.compute_loss
+                # (random-mask MAE), so it must see uncorrupted inputs like training.
+                # The fixed-mask imputation metric is evaluated separately via
+                # get_val_eval_dataset() (the _ImputationWindowDataset path).
+                val=SlidingWindowDataset(
+                    self._train_data[val_start:], self._window_len, self.stride
                 ),
             )
         return Segment(

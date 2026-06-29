@@ -20,7 +20,7 @@ import torch
 from datasets import load_dataset
 from sklearn.preprocessing import StandardScaler
 from torch import Tensor
-from torch.utils.data import Dataset as TorchDataset
+from torch.utils.data import ConcatDataset, Dataset as TorchDataset
 
 from incremental_ad.framework.contracts.dataset import (
     DatasetCapability,
@@ -30,6 +30,12 @@ from incremental_ad.framework.contracts.dataset import (
     TimeSeriesDataset,
 )
 from incremental_ad.framework.datasets.sliding_window import SlidingWindowDataset
+from incremental_ad.framework.datasets.splitting import (
+    all_segment_ranges,
+    baseline_range,
+    finetune_ranges,
+    val_tail_split,
+)
 
 log = logging.getLogger(__name__)
 
@@ -135,13 +141,18 @@ class _EtthBase(TimeSeriesDataset, ABC):
         analysis_dir.mkdir(parents=True, exist_ok=True)
         log.info("Writing dataset analysis to %s ...", analysis_dir)
 
-        import matplotlib
-        matplotlib.use("Agg")
+        from incremental_ad.framework.datasets import analysis
 
         train_df, test_df = _load_raw()
         features = _feature_cols(train_df)
-        _write_feature_stats(train_df[features], test_df[features], features, analysis_dir)
-        _plot_feature_overview(train_df[features], test_df[features], features, analysis_dir)
+        analysis.run_timeseries_analysis(
+            analysis_dir,
+            name="ETTh1",
+            train=train_df[features].to_numpy(dtype=float),
+            test=test_df[features].to_numpy(dtype=float),
+            feature_names=features,
+            test_labels=None,  # ETTh1 has no anomaly labels
+        )
         done_flag.touch()
         log.info("Dataset analysis complete.")
 
@@ -173,6 +184,7 @@ class EtthForecastDataset(_EtthBase, PartitionedDataset):
         _EtthBase.__init__(self, window_len, stride, normalization)
         self._forecast_len = forecast_len
         self.split_config = split_config
+        self.split_config.validate(len(self._train_data))
 
     @property
     def forecast_len(self) -> int:
@@ -206,7 +218,7 @@ class EtthForecastDataset(_EtthBase, PartitionedDataset):
 
     @property
     def capabilities(self) -> set[DatasetCapability]:
-        caps = {DatasetCapability.TEST}
+        caps = {DatasetCapability.TEST, DatasetCapability.TEST_LABELS}
         if self.split_config.val_fraction > 0:
             caps.add(DatasetCapability.VAL)
         return caps
@@ -215,30 +227,40 @@ class EtthForecastDataset(_EtthBase, PartitionedDataset):
         return self._make_segment(0, len(self._train_data))
 
     def get_baseline(self) -> Segment:
-        n = len(self._train_data)
-        baseline_end = int(n * self.split_config.baseline_fraction)
-        use_end = int(baseline_end * self.split_config.baseline_use_fraction)
-        return self._make_segment(0, use_end)
+        start, end = baseline_range(len(self._train_data), self.split_config)
+        return self._make_segment(start, end)
 
     def get_incremental_segments(self) -> list[Segment]:
-        if self.split_config.n_finetune_segments == 0:
-            return []
-        n = len(self._train_data)
-        remainder_start = int(n * self.split_config.baseline_fraction)
-        segment_size = (n - remainder_start) // self.split_config.n_finetune_segments
         return [
-            self._make_segment(
-                remainder_start + i * segment_size,
-                remainder_start + (i + 1) * segment_size,
-            )
-            for i in range(self.split_config.n_finetune_segments)
+            self._make_segment(start, end)
+            for start, end in finetune_ranges(len(self._train_data), self.split_config)
         ]
 
-    def get_val_eval_dataset(self) -> _ForecastWindowDataset:
-        n = len(self._train_data)
-        val_start = n - int(n * self.split_config.val_fraction)
+    def _val_eval_for_range(self, start: int, end: int) -> _ForecastWindowDataset:
+        """Eval-stride windowing over the val tail _make_segment() holds out from
+        [start, end) — same val range, but eval_stride=1 covers every timestep."""
+        _, (val_start, val_end) = val_tail_split(start, end, self.split_config.val_fraction)
         return _ForecastWindowDataset(
-            self._train_data[val_start:], self._window_len, self._forecast_len, self._eval_stride
+            self._train_data[val_start:val_end], self._window_len, self._forecast_len, self._eval_stride
+        )
+
+    def get_val_eval_dataset(self) -> _ForecastWindowDataset:
+        """StandardPipeline val-eval: the global val tail (mirrors get_train_segment())."""
+        return self._val_eval_for_range(0, len(self._train_data))
+
+    def get_baseline_val_eval_dataset(self) -> _ForecastWindowDataset:
+        """Incremental baseline/val: the baseline segment's own held-out slice."""
+        start, end = baseline_range(len(self._train_data), self.split_config)
+        return self._val_eval_for_range(start, end)
+
+    def get_incremental_val_eval_dataset(self) -> ConcatDataset:
+        """Incremental merged/val: union of every segment's held-out val slice
+        (baseline + each finetune), so the merge is checked across all regimes."""
+        return ConcatDataset(
+            [
+                self._val_eval_for_range(start, end)
+                for start, end in all_segment_ranges(len(self._train_data), self.split_config)
+            ]
         )
 
     def get_test_dataset(self) -> _ForecastWindowDataset:
@@ -250,13 +272,15 @@ class EtthForecastDataset(_EtthBase, PartitionedDataset):
 
     def _make_segment(self, start: int, end: int) -> Segment:
         if self.split_config.val_fraction > 0:
-            val_start = end - int((end - start) * self.split_config.val_fraction)
+            (tr_start, tr_end), (val_start, val_end) = val_tail_split(
+                start, end, self.split_config.val_fraction
+            )
             return Segment(
                 train=SlidingWindowDataset(
-                    self._train_data[start:val_start], self._window_len, self.stride
+                    self._train_data[tr_start:tr_end], self._window_len, self.stride
                 ),
                 val=_ForecastWindowDataset(
-                    self._train_data[val_start:end],
+                    self._train_data[val_start:val_end],
                     self._window_len,
                     self._forecast_len,
                     self.stride,
@@ -337,7 +361,7 @@ class EtthImputationDataset(_EtthBase):
 
     @property
     def capabilities(self) -> set[DatasetCapability]:
-        caps = {DatasetCapability.TEST}
+        caps = {DatasetCapability.TEST, DatasetCapability.TEST_LABELS}
         if self.val_fraction > 0:
             caps.add(DatasetCapability.VAL)
         return caps
@@ -350,12 +374,12 @@ class EtthImputationDataset(_EtthBase):
                 train=SlidingWindowDataset(
                     self._train_data[:val_start], self._window_len, self.stride
                 ),
-                val=_ImputationWindowDataset(
-                    self._train_data[val_start:],
-                    self._window_len,
-                    self._patch_len,
-                    self._mask_ratio,
-                    self.stride,
+                # Clean windows: the trainer's val loss uses model.compute_loss
+                # (random-mask MAE), so it must see uncorrupted inputs like training.
+                # The fixed-mask imputation metric is evaluated separately via
+                # get_val_eval_dataset() (the _ImputationWindowDataset path).
+                val=SlidingWindowDataset(
+                    self._train_data[val_start:], self._window_len, self.stride
                 ),
             )
         return Segment(
@@ -424,58 +448,3 @@ def _load_raw() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def _feature_cols(df: pd.DataFrame) -> list[str]:
     return [c for c in df.columns if c != _DATE_COL]
-
-
-# ── Analysis helpers ───────────────────────────────────────────────────────────
-
-
-def _write_feature_stats(
-    train: pd.DataFrame, test: pd.DataFrame, features: list[str], out: Path
-) -> None:
-    rows = [
-        {
-            "feature": f,
-            "train_mean": float(train[f].mean()),
-            "train_std": float(train[f].std()),
-            "test_mean": float(test[f].mean()),
-            "test_std": float(test[f].std()),
-        }
-        for f in features
-    ]
-    pd.DataFrame(rows).to_csv(out / "feature_stats.csv", index=False)
-
-
-def _plot_feature_overview(
-    train: pd.DataFrame, test: pd.DataFrame, features: list[str], out: Path
-) -> None:
-    import matplotlib.pyplot as plt
-
-    train_mean = train.mean()
-    train_std = train.std().replace(0, 1)
-    shift = ((test.mean() - train_mean) / train_std).abs()
-    top_features = shift.nlargest(min(16, len(features))).index.tolist()
-
-    n = len(top_features)
-    ncols = min(4, n)
-    nrows = (n + ncols - 1) // ncols
-    fig, axes = plt.subplots(nrows, ncols, figsize=(14, nrows * 2.5), squeeze=False)
-    axes_flat = axes.flatten()
-
-    for i, feat in enumerate(top_features):
-        ax = axes_flat[i]
-        tr, te = train[feat].values, test[feat].values
-        bins = np.linspace(min(tr.min(), te.min()), max(tr.max(), te.max()), 40)
-        ax.hist(tr, bins=bins, alpha=0.6, color="#4C72B0", density=True, label="train")
-        ax.hist(te, bins=bins, alpha=0.6, color="orange", density=True, label="test")
-        ax.set_title(feat, fontsize=7)
-        ax.tick_params(labelsize=5)
-        if i == 0:
-            ax.legend(fontsize=6)
-
-    for j in range(n, len(axes_flat)):
-        axes_flat[j].set_visible(False)
-
-    fig.suptitle("Features by train→test mean shift (train=blue, test=orange)", fontsize=9)
-    fig.tight_layout()
-    fig.savefig(out / "feature_overview.png", dpi=120)
-    plt.close(fig)

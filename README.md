@@ -16,7 +16,7 @@ source .venv/bin/activate
 
 | variable | purpose | default |
 |----------|---------|---------|
-| `RUNS_ROOT` | root directory for all run output | `experiments/` |
+| `RUNS_ROOT` | root directory for all run output | `runs/` |
 | `WANDB_PROJECT` | wandb project name; leave unset to disable wandb | — |
 | `WANDB_ENTITY` | wandb entity | wandb default |
 | `WANDB_MODE` | `online` / `offline` / `disabled` | wandb default |
@@ -109,6 +109,8 @@ Each run writes to `$RUNS_ROOT/<experiment_name>/<run_id>/`.
 
 Checkpoint paths inside `result.json` are stored relative to `run_dir` so run directories remain self-contained when moved.
 
+Dataset analysis artifacts are written once per dataset to `$RUNS_ROOT/analysis/<DatasetName>/` and reused across runs and experiments (a `done.flag` short-circuits regeneration). The bundle — produced by the reusable `framework/datasets/analysis.py` on raw/unscaled data — includes `feature_stats.csv` (per-feature mean/std/min/max/percentiles, split into normal/anomaly with delta-z when labels exist), `anomaly_catalog.csv` (per-segment difficulty + top driving features, labelled datasets), per-feature time-series PDFs (`{train,test}_timeseries.pdf`, with ±2σ bands and anomaly shading), and z-score heatmaps (`{train,test}_heatmap.png`, sorted by temporal drift or anomaly detectability).
+
 Wandb is opt-in: set `WANDB_PROJECT` to enable it. Training metrics use a `step_offset`-adjusted step counter so all phases share one x-axis. Final metrics from each eval step are written to `wandb.run.summary`. ROC and PR curves are logged as native wandb charts by the AD test evaluator.
 
 ---
@@ -117,31 +119,31 @@ Wandb is opt-in: set `WANDB_PROJECT` to enable it. Training metrics use a `step_
 
 ## Framework internals
 
-This section covers the design of the codebase — how the pieces fit together, the choices made, and how to extend it. The framework is intentionally generic and knows nothing about anomaly detection or time series. All domain knowledge lives in `project/`.
+This section covers the design of the codebase — how the pieces fit together, the choices made, and how to extend it. `framework/` is a reusable, batteries-included toolkit: generic contracts **plus** off-the-shelf concrete implementations (trainer, evaluators, datasets building blocks) that any project can use as-is. `project/` holds what is specific to *this* research — the model under study, its configurators, and the experiment wiring.
 
 ### Codebase layout
 
 ```
 src/incremental_ad/
-├── framework/              # Generic ML framework — no domain knowledge
+├── framework/              # Reusable toolkit — contracts + ready-to-use implementations
 │   ├── contracts/          # Abstract base classes (the pluggable interfaces)
 │   ├── core/               # Stateless utilities (seed, device, git, wandb)
-│   ├── datasets/           # Reusable building blocks (SlidingWindowDataset)
-│   ├── evaluators/         # Concrete evaluator implementations + EvaluationRunner
+│   ├── datasets/           # Reusable building blocks (SlidingWindowDataset, splitting, analysis)
+│   ├── evaluators/         # EvaluationRunner + reusable evaluators (AD, forecasting, imputation, classification)
 │   ├── pipelines/          # Concrete pipeline implementations
 │   ├── trainers/           # Concrete trainer implementations
 │   └── experiment.py       # Orchestrator: wires components and runs
 │
-├── project/                # Domain-specific implementations
+├── project/                # Specific to this project
 │   ├── datasets/           # Swat, Psm, EtthForecastDataset, EtthImputationDataset,
 │   │                       # TestForecastDataset, TestImputationDataset, TestClassificationDataset
 │   ├── models/mae_tx/      # MaeTx + MaeTxClassifier, configurators, debugger
-│   └── contracts/task.py   # Task enum (ad, forecast, imputation, classification)
+│   └── task.py             # Task enum (ad, forecast, imputation, classification)
 │
 └── main.py                 # CLI entry point
 ```
 
-The split between `framework/` and `project/` is a hard boundary: `framework/` imports nothing from `project/`. Adding a new model, dataset, or evaluator means adding files to `project/` and importing them in the relevant `__init__.py` — `main.py` never changes.
+The invariant is the **dependency direction**: `project/` imports from `framework/`, never the reverse — that's what keeps the framework reusable. Within that rule, a concrete class lives in `framework/` if it's reusable beyond this project (it depends only on framework contracts) or in `project/` if it's bespoke; code can be *promoted* `project → framework` once it proves general, with no call-site changes since everything goes through contracts/registries. Adding a new model, dataset, or evaluator means adding files and importing them in the relevant `__init__.py` — `main.py` never changes.
 
 ### `Configurable` — the CLI contract
 
@@ -156,9 +158,9 @@ The `prefix` parameter handles the case where the same class is instantiated twi
 
 ### Registry pattern
 
-Every concrete component class self-registers the moment it is defined, via `__init_subclass__`. `Dataset`, `Model`, `Task`, `Pipeline`, `Trainer`, and `TaskModelConfigurator` each have a class-level `_registry` dict. `main.py` imports `project/` so the classes are defined (and registered), then looks them up by the string names passed on the CLI. No switch statements, no hard-coded lists — adding a new dataset means creating the class and importing it.
+Every concrete component class self-registers the moment it is defined, via `__init_subclass__`. `Dataset`, `Model`, `Pipeline`, `Trainer`, and `TaskModelConfigurator` each have a class-level `_registry` dict. `main.py` imports `project/` so the classes are defined (and registered), then looks them up by the string names passed on the CLI. No switch statements, no hard-coded lists — adding a new dataset means creating the class and importing it.
 
-`TaskModelConfigurator` is keyed by a `(Task, type[Model])` pair, so the right configurator is selected automatically for each task/model combination.
+`TaskModelConfigurator` is keyed by a `(task_name, type[Model])` pair, where `task_name` is a plain string — the framework stays agnostic of the concrete task taxonomy (which lives in `project/task.py`). The right configurator is selected automatically for each task/model combination, and the valid `--task` choices are derived from the registered configurators rather than a hard-coded list.
 
 ### Component contracts
 
@@ -187,7 +189,7 @@ Three `@runtime_checkable` protocols let configurators verify that a dataset exp
 
 #### `Task`
 
-`Task` is a string enum — a marker with no logic. Its only role is to be the key in the `TaskModelConfigurator` registry, pairing tasks with the models that implement them.
+`Task` is a string enum that lives in `project/task.py` — the framework never imports it. The configurator registry is keyed by the task's *string* value, so the set of tasks is a project concern and the framework just routes by name. A plain string works equally well as a key; the enum exists only for readable registration (`@TaskModelConfigurator.register(Task.AD, MaeTx)`).
 
 #### `TaskModelConfigurator`
 
@@ -197,6 +199,8 @@ The bridge between a specific task and a specific model. Does four things:
 2. **`create_val_evaluator()`** — returns the evaluator for training-time validation.
 3. **`create_test_evaluator()`** — returns the evaluator for final test evaluation.
 4. **`create_debugger()`** — optionally returns a `Debugger` for post-eval visualizations (AD only; enabled via `--configurator_debug`).
+
+`_configure()` is also where each configurator asserts dataset compatibility, in one place: the structural protocol checks (`isinstance(dataset, ForecastDataset)`, etc.) plus any `DatasetCapability` the task needs — e.g. AD and classification assert `TEST_LABELS` (the dataset's test set carries ground-truth labels). An incompatible (task, model, dataset) pairing fails fast here, before the model is built.
 
 Registered configurators:
 
@@ -219,7 +223,7 @@ Owns device management for training: `model.to(device)` is called inside `fit()`
 
 The counterpart to `StandardTrainer` for evaluation. Owns device management for inference: `model.to(device)` is called inside `run()`. Pipelines and models stay device-agnostic throughout.
 
-`run()` resets the evaluator, optionally collects reference scores for threshold calibration (AD only, via `ReferenceScoredEvaluator`), iterates the dataset, and returns the computed metrics. The evaluator retains its accumulated state after return so the caller can log wandb charts or run the debugger.
+`run()` resets the evaluator, optionally runs a reference pass over an auxiliary dataset for evaluators that configure themselves from it (via `ReferenceEvaluator` — e.g. AD threshold calibration), iterates the dataset, and returns the computed metrics. The evaluator retains its accumulated state after return so the caller can log wandb charts or run the debugger.
 
 `EvalPipeline` exposes `--runner_device` via `EvaluationRunner.add_args`. `StandardPipeline` and `IncrementalTaskArithmeticPipeline` inherit the device from the trainer.
 
@@ -231,7 +235,7 @@ Three optional capability protocols are detected with `isinstance()` at call sit
 
 | protocol | purpose |
 |----------|---------|
-| `ReferenceScoredEvaluator` | calibrate AD threshold from training score distribution |
+| `ReferenceEvaluator` | configure state from a reference pass (e.g. AD threshold from the training score distribution) |
 | `WandbChartsEvaluator` | log native wandb ROC/PR curves after eval |
 | `DebugDataEvaluator` | expose scores/labels/threshold to the debugger |
 
@@ -261,13 +265,13 @@ Three training modes (`--mae_tx_training_mode`):
 | mode | visible tokens | masked tokens | use case |
 |------|---------------|--------------|---------|
 | `random_mask` | random `1-mask_ratio` fraction | remaining patches | AD, imputation |
-| `causal_mask` | first half | second half | forecasting |
+| `causal_mask` | first half | second half (AD) / forecast horizon (forecasting) | forecasting |
 | `next_step` | all but last | last patch | next-step prediction |
 
 At inference, the mode set by the configurator determines how the model scores a window:
 
 - **AD** (`random_mask`): `n_eval_passes` forward passes with independent random masks are run per batch. Per-patch errors accumulate across passes and are averaged — a Monte Carlo estimate of the expected reconstruction error. The final window score is the mean per-patch error. For `causal_mask`/`next_step`, a single deterministic pass is used.
-- **Forecasting**: the first-half patches (context) are visible; the model predicts the second-half (future). Only the forecast positions are extracted from the decoder output.
+- **Forecasting**: the context patches are visible; the model predicts the forecast-horizon patches (`forecast_len // patch_len`). Training masks exactly those horizon patches (causal), so the masked span seen during training matches what is predicted at inference. Only the forecast positions are extracted from the decoder output.
 - **Imputation**: the dataset applies a fixed deterministic mask per window (seeded by window index) and provides `visible_idx` alongside the masked input. The model encodes only visible patches and predicts at masked positions; the evaluator compares predictions vs. original only at those positions.
 
 #### `MaeTxClassifier` — supervised classification
@@ -304,7 +308,7 @@ Subclass `Model` (or `_MaeTxBase` to reuse the encoder backbone), create a `Task
 
 #### Adding a new task
 
-Add a value to the `Task` enum, create a `TaskModelConfigurator` subclass for `(Task.NEW, SomeModel)`, and implement the task-specific evaluators. If the dataset needs to expose extra properties to the configurator, add a `@runtime_checkable` protocol to `framework/contracts/dataset.py`. No other framework changes are required.
+Add a value to the `Task` enum in `project/task.py`, create a `TaskModelConfigurator` subclass for `(Task.NEW, SomeModel)`, and implement the task's evaluators — in `framework/evaluators/` if they're reusable (they only depend on the `Evaluator` contract), or in `project/` if bespoke. If the dataset needs to expose extra properties to the configurator, add a `@runtime_checkable` protocol to `framework/contracts/dataset.py`.
 
 #### Adding a new pipeline
 

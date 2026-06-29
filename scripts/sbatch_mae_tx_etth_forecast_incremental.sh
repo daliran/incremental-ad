@@ -72,12 +72,13 @@ python -m incremental_ad.main \
     --dataset_baseline_use_fraction 1.0 \
     --dataset_n_finetune_segments 3 \
     --dataset_val_fraction 0.1 \
+    --dataset_test_fraction 0.2 \
     \
-    --loader_batch_size 64 \
+    --loader_batch_size 128 \
     --loader_num_workers 4 \
     \
     --trainer_n_epochs 100 \
-    --trainer_patience 20 \
+    --trainer_patience 15 \
     --trainer_optimizer adamw \
     --trainer_weight_decay 1e-4 \
     --trainer_learning_rate 1e-4 \

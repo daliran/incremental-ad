@@ -46,40 +46,43 @@ def run_timeseries_analysis(
     *,
     name: str,
     train: np.ndarray,
-    test: np.ndarray,
+    test: np.ndarray | None = None,
     feature_names: list[str],
     test_labels: np.ndarray | None = None,
 ) -> None:
     """Write the full analysis bundle for a dataset to out_dir.
 
-    train/test: raw (unscaled) [T, F] arrays. test_labels: optional [T_test] 0/1 labels —
-    when present, enables the anomaly-split stats, catalog, shading, and detectability sort.
+    train: raw (unscaled) [T, F] array. test: optional held-out [T_test, F] array — when
+    absent (None/empty) only train-side artifacts are produced. test_labels: optional
+    [T_test] 0/1 labels — when present, enables the anomaly-split stats, catalog, shading,
+    and detectability sort.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     train = np.asarray(train, dtype=float)
-    test = np.asarray(test, dtype=float)
+    has_test = test is not None and len(test) > 0
+    test = np.asarray(test, dtype=float) if has_test else None
     ref_mean = train.mean(axis=0)
     ref_std = train.std(axis=0) + 1e-8
 
-    labels = None if test_labels is None else np.asarray(test_labels).astype(int)
+    labels = None if (test_labels is None or not has_test) else np.asarray(test_labels).astype(int)
     has_anomalies = labels is not None and int(labels.sum()) > 0
 
     _write_feature_stats(out_dir, train, test, feature_names, labels, ref_mean, ref_std)
-    if has_anomalies:
-        _write_anomaly_catalog(out_dir, test, labels, feature_names, ref_mean, ref_std)
-
-    _plot_feature_timeseries(
-        out_dir / "test_timeseries.pdf", f"{name} — test", test, feature_names,
-        ref_mean, ref_std, labels if has_anomalies else None,
-    )
-    _plot_zscore_heatmap(
-        out_dir / "test_heatmap.png", f"{name} — test z-score heatmap", test,
-        ref_mean, ref_std, feature_names,
-        sort="detectability" if has_anomalies else "drift",
-        labels=labels if has_anomalies else None,
-    )
+    if has_test:
+        if has_anomalies:
+            _write_anomaly_catalog(out_dir, test, labels, feature_names, ref_mean, ref_std)
+        _plot_feature_timeseries(
+            out_dir / "test_timeseries.pdf", f"{name} — test", test, feature_names,
+            ref_mean, ref_std, labels if has_anomalies else None,
+        )
+        _plot_zscore_heatmap(
+            out_dir / "test_heatmap.png", f"{name} — test z-score heatmap", test,
+            ref_mean, ref_std, feature_names,
+            sort="detectability" if has_anomalies else "drift",
+            labels=labels if has_anomalies else None,
+        )
 
     _plot_feature_timeseries(
         out_dir / "train_timeseries.pdf", f"{name} — train", train, feature_names,
@@ -129,7 +132,7 @@ def _stat_block(arr: np.ndarray, prefix: str) -> dict[str, np.ndarray]:
 def _write_feature_stats(
     out_dir: Path,
     train: np.ndarray,
-    test: np.ndarray,
+    test: np.ndarray | None,
     feature_names: list[str],
     labels: np.ndarray | None,
     ref_mean: np.ndarray,
@@ -137,7 +140,9 @@ def _write_feature_stats(
 ) -> None:
     cols: dict[str, np.ndarray] = {}
     cols.update(_stat_block(train, "train"))
-    if labels is not None:
+    if test is None:
+        pass
+    elif labels is not None:
         normal, anomaly = test[labels == 0], test[labels == 1]
         if len(normal):
             cols.update(_stat_block(normal, "test_normal"))

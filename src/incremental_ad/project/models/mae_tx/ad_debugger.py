@@ -10,6 +10,7 @@ Produces under step_dir/debug/:
 from __future__ import annotations
 
 import csv
+import logging
 from pathlib import Path
 from typing import Any, cast
 
@@ -33,6 +34,8 @@ from incremental_ad.project.models.mae_tx.mae import (
     _create_random_mask,
     _get_by_mask,
 )
+
+log = logging.getLogger(__name__)
 
 
 class MaeTxAdDebugger(Debugger):
@@ -89,29 +92,35 @@ class MaeTxAdDebugger(Debugger):
     def _plot_score_timeline(
         self, scores: np.ndarray, labels: np.ndarray, threshold: float, out: Path
     ) -> None:
-        fig, ax = plt.subplots(figsize=(14, 3))
+        fig, ax = plt.subplots(figsize=(16, 4))
         t = np.arange(len(scores))
-        ax.plot(t, scores, lw=0.6, color="#4C72B0", label="score")
+        normal = labels == 0
+        anomaly = ~normal
+
+        for i, (s, e) in enumerate(find_segments(labels)):
+            ax.axvspan(
+                s, e, alpha=0.18, color="orange",
+                label="anomaly region" if i == 0 else "",
+            )
+        # Per-window points coloured by GT, so normal vs anomaly scores are distinguishable.
+        if normal.any():
+            ax.scatter(t[normal], scores[normal], s=0.5, c="#888888", alpha=0.3,
+                       label="normal", rasterized=True)
+        if anomaly.any():
+            ax.scatter(t[anomaly], scores[anomaly], s=1.5, c="#cc2222", alpha=0.7,
+                       label="anomaly", rasterized=True)
         ax.axhline(
-            threshold,
-            color="crimson",
-            lw=1.0,
-            ls="--",
+            threshold, color="#0055cc", lw=1.2, ls="--",
             label=f"threshold={threshold:.4f}",
         )
 
-        segments = find_segments(labels)
-        for i, (s, e) in enumerate(segments):
-            ax.axvspan(
-                s, e, alpha=0.18, color="orange", label="anomaly" if i == 0 else ""
-            )
-
         ax.set_xlabel("window index")
         ax.set_ylabel("anomaly score")
-        ax.legend(loc="upper right", fontsize=8)
+        ax.set_xlim(0, len(scores))
+        ax.legend(loc="upper right", fontsize=8, markerscale=6)
         ax.set_title("Score timeline")
         fig.tight_layout()
-        fig.savefig(out / "score_timeline.png", dpi=120)
+        fig.savefig(out / "score_timeline.png", dpi=150, bbox_inches="tight")
         plt.close(fig)
 
     # ── Score distributions ───────────────────────────────────────────────────
@@ -166,6 +175,7 @@ class MaeTxAdDebugger(Debugger):
         for seg_id, (s, e) in enumerate(find_segments(labels)):
             seg_scores = scores[s:e]
             seg_preds = preds[s:e]
+            max_score = float(seg_scores.max())
             rows.append(
                 {
                     "seg_id": seg_id,
@@ -173,16 +183,24 @@ class MaeTxAdDebugger(Debugger):
                     "end": e,
                     "length": e - s,
                     "detected": bool(seg_preds.any()),
-                    "max_score": float(seg_scores.max()),
-                    "mean_score": float(seg_scores.mean()),
-                    "detected_fraction": float(seg_preds.mean()),
+                    "max_score": round(max_score, 6),
+                    "mean_score": round(float(seg_scores.mean()), 6),
+                    "min_score": round(float(seg_scores.min()), 6),
+                    "threshold": round(float(threshold), 6),
+                    # >=0 → detected; <0 → how far the best window fell short of threshold
+                    "margin": round(max_score - float(threshold), 6),
+                    "detected_fraction": round(float(seg_preds.mean()), 4),
                 }
             )
-        if rows:
-            with (out / "event_analysis.csv").open("w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-                writer.writeheader()
-                writer.writerows(rows)
+        if not rows:
+            return
+        rows.sort(key=lambda r: r["max_score"])  # hardest events first
+        with (out / "event_analysis.csv").open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
+        n_missed = sum(1 for r in rows if not r["detected"])
+        log.info("  event_analysis.csv (%d events, %d missed)", len(rows), n_missed)
 
     # ── Sample reconstructions ────────────────────────────────────────────────
 

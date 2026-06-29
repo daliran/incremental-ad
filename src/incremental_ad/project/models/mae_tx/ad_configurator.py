@@ -3,11 +3,11 @@ from typing import Any, Self
 
 from torch import Tensor
 
-from incremental_ad.framework.contracts.dataset import Dataset, TimeSeriesDataset
+from incremental_ad.framework.contracts.dataset import Dataset, DatasetCapability, TimeSeriesDataset
 from incremental_ad.framework.contracts.debugger import Debugger
 from incremental_ad.framework.contracts.evaluator import Evaluator
 from incremental_ad.framework.contracts.model import Model, TaskModelConfigurator
-from incremental_ad.framework.contracts.task import Task
+from incremental_ad.project.task import Task
 from incremental_ad.framework.evaluators.ad_val_evaluator import AdValEvaluator
 from incremental_ad.framework.evaluators.ad_test_evaluator import AdTestEvaluator
 from incremental_ad.project.models.mae_tx.mae import InferenceMode, MaeTx
@@ -60,6 +60,11 @@ class MaeTxAdConfigurator(TaskModelConfigurator):
         assert isinstance(
             dataset, TimeSeriesDataset
         ), f"expected TimeSeriesDataset, got {type(dataset).__name__}"
+        # AD scores windows against ground-truth anomaly labels at test time.
+        assert DatasetCapability.TEST_LABELS in dataset.capabilities, (
+            f"{type(dataset).__name__} must provide test labels (DatasetCapability.TEST_LABELS) "
+            "to be used for anomaly detection."
+        )
         
         model.n_features = dataset.n_features
         model.seq_len = dataset.window_len

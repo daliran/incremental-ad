@@ -67,9 +67,11 @@ def _create_random_mask(
 
 
 def _create_causal_mask(
-    batch_size: int, n_patches: int, device: torch.device
+    batch_size: int, n_patches: int, device: torch.device, n_masked: int | None = None
 ) -> tuple[Tensor, Tensor]:
-    n_visible = n_patches - n_patches // 2
+    if n_masked is None:
+        n_masked = n_patches // 2  # AD-causal default: mask the back half
+    n_visible = n_patches - n_masked
     visible = torch.arange(n_visible, device=device).unsqueeze(0).expand(batch_size, -1)
     masked = (
         torch.arange(n_visible, n_patches, device=device)
@@ -303,6 +305,14 @@ class MaeTx(_MaeTxBase):
         """Construct all layers. Called by the task configurator after n_features/seq_len are injected."""
         self._build_encoder()
         self._build_decoder()
+        # Only meaningful in forecast mode; forecast_patches is None for AD/imputation.
+        if self.forecast_patches is not None and not (
+            0 < self.forecast_patches < self.n_patches
+        ):
+            raise ValueError(
+                f"forecast_patches ({self.forecast_patches}) must be in (0, n_patches={self.n_patches}); "
+                "check forecast_len, window_len, and patch_len."
+            )
         self._log_architecture()
 
     # ── Configurable interface ─────────────────────────────────────────────────
@@ -420,13 +430,23 @@ class MaeTx(_MaeTxBase):
     ) -> tuple[Tensor, Tensor]:
         config = self.config
         assert isinstance(config, MaeTxConfig)
+
+        # Forecast mode owns its masking: mask exactly the horizon patches that
+        # score() predicts at inference. Isolated here so the AD/imputation path
+        # below never references forecast_patches.
+        if self.inference_mode == InferenceMode.FORECAST:
+            assert self.forecast_patches is not None
+            return _create_causal_mask(
+                batch_size, self.n_patches, device, n_masked=self.forecast_patches
+            )
+
         mode = config.training_mode
         if mode == TrainingMode.RANDOM_MASK:
             return _create_random_mask(
                 batch_size, self.n_patches, config.mask_ratio, device
             )
         if mode == TrainingMode.CAUSAL_MASK:
-            return _create_causal_mask(batch_size, self.n_patches, device)
+            return _create_causal_mask(batch_size, self.n_patches, device)  # AD: back half
         return _create_next_step_mask(batch_size, self.n_patches, device)
 
     # ── Predict ───────────────────────────────────────────────────────────────
@@ -509,10 +529,8 @@ class MaeTx(_MaeTxBase):
             self._accumulate_errors(
                 decoder_output, tokens, mask_indices, error_sum, error_counts
             )
-        # Mean error per masked-token-instance — average only over tokens that were
-        # actually masked at least once. Averaging over all n_patches would dilute the
-        # score toward zero for tokens no pass happened to mask.
-        return error_sum.sum(dim=-1) / error_counts.sum(dim=-1).clamp(min=1)  # [B]
+        mean_token_errors = error_sum / error_counts.clamp(min=1)  # [B, n_patches]
+        return mean_token_errors.mean(dim=-1)  # [B]
 
     def _predict_deterministic(self, batch: Tensor) -> Tensor:
         B = batch.size(0)

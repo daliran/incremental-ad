@@ -1,7 +1,12 @@
-from incremental_ad.framework.contracts.dataset import ClassificationDataset, Dataset, TimeSeriesDataset
+from incremental_ad.framework.contracts.dataset import (
+    ClassificationDataset,
+    Dataset,
+    DatasetCapability,
+    TimeSeriesDataset,
+)
 from incremental_ad.framework.contracts.evaluator import Evaluator
 from incremental_ad.framework.contracts.model import Model, TaskModelConfigurator
-from incremental_ad.framework.contracts.task import Task
+from incremental_ad.project.task import Task
 from incremental_ad.framework.evaluators.classification_evaluator import ClassificationEvaluator
 from incremental_ad.project.models.mae_tx.mae_classifier import MaeTxClassifier
 
@@ -27,7 +32,13 @@ class MaeTxClassificationConfigurator(TaskModelConfigurator):
             f"{type(dataset).__name__} must expose a 'n_classes' property "
             "(implement the ClassificationDataset protocol) for use with MaeTxClassificationConfigurator."
         )
-        
+
+        # Classification scores against ground-truth class labels at test time.
+        assert DatasetCapability.TEST_LABELS in dataset.capabilities, (
+            f"{type(dataset).__name__} must provide test labels (DatasetCapability.TEST_LABELS) "
+            "to be used for classification."
+        )
+
         model.n_features = dataset.n_features
         model.seq_len = dataset.window_len
         model.n_classes = dataset.n_classes

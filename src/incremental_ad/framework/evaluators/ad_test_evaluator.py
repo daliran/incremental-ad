@@ -21,7 +21,7 @@ class AdTestEvaluator(Evaluator[tuple[Tensor, Tensor]]):
       - Event-level: F1 / precision / recall + TP / FP / FN
 
     threshold_strategy="oracle"     → best-F1 sweep over PR-curve candidates
-    threshold_strategy="percentile" → fixed threshold from set_reference_scores()
+    threshold_strategy="percentile" → fixed threshold from set_reference()
     """
 
     def __init__(
@@ -39,12 +39,12 @@ class AdTestEvaluator(Evaluator[tuple[Tensor, Tensor]]):
         self._last_point_labels: np.ndarray | None = None
         self._last_threshold: float | None = None
 
-    def needs_reference_scores(self) -> bool:
+    def needs_reference(self) -> bool:
         return self._threshold_strategy == "percentile"
 
-    def set_reference_scores(self, scores: np.ndarray) -> None:
+    def set_reference(self, outputs: np.ndarray) -> None:
         """Compute and store the percentile threshold from reference (baseline) scores."""
-        self._threshold = float(np.percentile(scores, self._threshold_percentile))
+        self._threshold = float(np.percentile(outputs, self._threshold_percentile))
 
     def update(self, outputs: tuple[Tensor, Tensor]) -> None:
         """outputs: (scores [B], labels [B, W]) — per-window anomaly score and full label slice."""

@@ -3,7 +3,7 @@ from dataclasses import replace
 from incremental_ad.framework.contracts.dataset import Dataset, ForecastDataset, TimeSeriesDataset
 from incremental_ad.framework.contracts.evaluator import Evaluator
 from incremental_ad.framework.contracts.model import Model, TaskModelConfigurator
-from incremental_ad.framework.contracts.task import Task
+from incremental_ad.project.task import Task
 from incremental_ad.framework.evaluators.forecasting_evaluator import ForecastingEvaluator
 from incremental_ad.project.models.mae_tx.mae import InferenceMode, MaeTx, TrainingMode
 

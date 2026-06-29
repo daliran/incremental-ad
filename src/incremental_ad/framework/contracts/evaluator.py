@@ -25,11 +25,12 @@ class Evaluator(ABC, Generic[T]):
 
 
 @runtime_checkable
-class ReferenceScoredEvaluator(Protocol):
-    """Optional capability: evaluator that sets its threshold from a reference score distribution."""
+class ReferenceEvaluator(Protocol):
+    """Optional capability: evaluator that configures its internal state from a reference
+    pass — model outputs collected over an auxiliary dataset before the main eval pass."""
 
-    def needs_reference_scores(self) -> bool: ...
-    def set_reference_scores(self, scores: np.ndarray) -> None: ...
+    def needs_reference(self) -> bool: ...
+    def set_reference(self, outputs: np.ndarray) -> None: ...
 
 
 @runtime_checkable

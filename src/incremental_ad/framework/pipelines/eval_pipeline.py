@@ -12,7 +12,7 @@ from incremental_ad.framework.contracts.dataset import (
     DatasetCapability,
 )
 from incremental_ad.framework.contracts.evaluator import (
-    ReferenceScoredEvaluator,
+    ReferenceEvaluator,
     WandbChartsEvaluator,
 )
 from incremental_ad.framework.contracts.pipeline import Pipeline, RunContext, StepResult
@@ -65,7 +65,7 @@ class EvalPipeline(Pipeline):
 
             reference_ds = (
                 context.dataset.get_train_eval_dataset()
-                if isinstance(evaluator, ReferenceScoredEvaluator)
+                if isinstance(evaluator, ReferenceEvaluator)
                 else None
             )
 

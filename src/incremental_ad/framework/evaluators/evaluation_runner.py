@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset as TorchDataset
 
 from incremental_ad.framework.contracts.dataset import DataLoaderConfig
-from incremental_ad.framework.contracts.evaluator import Evaluator, ReferenceScoredEvaluator
+from incremental_ad.framework.contracts.evaluator import Evaluator, ReferenceEvaluator
 from incremental_ad.framework.contracts.model import Model
 from incremental_ad.framework.core.device import move_to_device
 from incremental_ad.framework.core.seed import set_seed
@@ -75,9 +75,9 @@ class EvaluationRunner:
 
         evaluator.reset()
 
-        if reference_dataset is not None and isinstance(evaluator, ReferenceScoredEvaluator):
-            if evaluator.needs_reference_scores():
-                evaluator.set_reference_scores(self.collect_scores(model, reference_dataset))
+        if reference_dataset is not None and isinstance(evaluator, ReferenceEvaluator):
+            if evaluator.needs_reference():
+                evaluator.set_reference(self.collect_reference_outputs(model, reference_dataset))
 
         loader = self.loader_config.make_loader(dataset, shuffle=False)
 
@@ -89,20 +89,20 @@ class EvaluationRunner:
 
         return evaluator.compute()
 
-    def collect_scores(self, model: Model, dataset: TorchDataset) -> np.ndarray:
-        """Collect per-sample anomaly scores from an unlabeled single-tensor dataset.
+    def collect_reference_outputs(self, model: Model, dataset: TorchDataset) -> np.ndarray:
+        """Run the model over an auxiliary (reference) dataset and gather its per-sample
+        outputs, for evaluators that configure themselves from a reference pass.
 
-        Used to populate a ReferenceScoredEvaluator before test evaluation.
-        Expects the dataset to yield plain tensors (no labels), e.g. SlidingWindowDataset.
+        Expects the dataset to yield plain tensors (no targets), e.g. SlidingWindowDataset.
         """
         loader = self.loader_config.make_loader(dataset, shuffle=False)
         model.to(self.device)
         model.eval()
-        all_scores = []
-        
+        all_outputs = []
+
         with torch.no_grad():
             for batch in loader:
-                scores = model.score(batch.to(self.device))
-                all_scores.append(scores.detach().cpu().numpy())
+                outputs = model.score(batch.to(self.device))
+                all_outputs.append(outputs.detach().cpu().numpy())
 
-        return np.concatenate(all_scores, axis=0)
+        return np.concatenate(all_outputs, axis=0)

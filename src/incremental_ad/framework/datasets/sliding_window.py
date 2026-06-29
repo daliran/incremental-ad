@@ -7,8 +7,8 @@ class SlidingWindowDataset(torch.utils.data.Dataset):
 
     Each sample is a window of shape [window_len, F].
     When labels are provided, each sample is (window, labels[start:start+window_len]).
-    Labels can be binary anomaly labels [T], feature targets [T, F], or any tensor
-    whose first dimension aligns with the time axis.
+    Labels can be any per-timestep tensor whose first dimension aligns with the time
+    axis (e.g. class/anomaly labels [T], feature targets [T, F]).
     """
 
     def __init__(

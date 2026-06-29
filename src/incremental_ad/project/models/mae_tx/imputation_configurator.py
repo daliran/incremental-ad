@@ -1,7 +1,7 @@
 from incremental_ad.framework.contracts.dataset import Dataset, ImputationDataset, TimeSeriesDataset
 from incremental_ad.framework.contracts.evaluator import Evaluator
 from incremental_ad.framework.contracts.model import Model, TaskModelConfigurator
-from incremental_ad.framework.contracts.task import Task
+from incremental_ad.project.task import Task
 from incremental_ad.framework.evaluators.imputation_evaluator import ImputationEvaluator
 from incremental_ad.project.models.mae_tx.mae import InferenceMode, MaeTx
 

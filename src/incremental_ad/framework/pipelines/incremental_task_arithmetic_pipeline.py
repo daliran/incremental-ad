@@ -12,7 +12,7 @@ from incremental_ad.framework.contracts.dataset import (
     PartitionedDataset,
 )
 from incremental_ad.framework.contracts.evaluator import (
-    ReferenceScoredEvaluator,
+    ReferenceEvaluator,
     WandbChartsEvaluator,
 )
 from incremental_ad.framework.contracts.pipeline import Pipeline, RunContext, StepResult
@@ -155,7 +155,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
             started_at_eval = datetime.now(timezone.utc)
 
             baseline_val_metrics = self.runner.run(
-                model, val_evaluator, dataset.get_val_eval_dataset(),
+                model, val_evaluator, dataset.get_baseline_val_eval_dataset(),
                 seed=context.eval_seed,
             )
 
@@ -184,7 +184,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
 
             reference_ds = (
                 dataset.get_train_eval_dataset()
-                if isinstance(evaluator, ReferenceScoredEvaluator)
+                if isinstance(evaluator, ReferenceEvaluator)
                 else None
             )
 
@@ -284,7 +284,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
 
                 reference_ds = (
                     dataset.get_train_eval_dataset()
-                    if isinstance(evaluator, ReferenceScoredEvaluator)
+                    if isinstance(evaluator, ReferenceEvaluator)
                     else None
                 )
 
@@ -337,7 +337,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
 
             torch.save({"model_state_dict": merged_state}, merged_path)
 
-            # --- Merged val eval (sanity-check: does the merge hurt reconstruction?) ---
+            # --- Merged val eval (sanity-check: does the merge hurt validation loss?) ---
             if DatasetCapability.VAL in caps:
                 val_evaluator = context.configurator.create_val_evaluator()
                 merged_val_step = "merged/val"
@@ -345,7 +345,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 started_at_eval = datetime.now(timezone.utc)
 
                 merged_val_metrics = self.runner.run(
-                    model, val_evaluator, dataset.get_val_eval_dataset(),
+                    model, val_evaluator, dataset.get_incremental_val_eval_dataset(),
                     seed=context.eval_seed,
                 )
 
@@ -377,7 +377,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
 
             reference_ds = (
                 dataset.get_train_eval_dataset()
-                if isinstance(evaluator, ReferenceScoredEvaluator)
+                if isinstance(evaluator, ReferenceEvaluator)
                 else None
             )
 

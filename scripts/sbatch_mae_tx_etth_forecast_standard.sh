@@ -42,6 +42,8 @@ source .venv/bin/activate
 # window_len = context_len + forecast_len (432 = 336 + 96).
 # MaeTxForecastingConfigurator forces CAUSAL_MASK; --mae_tx_training_mode is
 # overridden at runtime but must still be a valid value.
+# Val sizing: val = val_fraction × train must exceed window_len (432).
+#   train = 0.8 × 17420 = 13936;  0.1 × 13936 = 1393 ≥ 432 (single segment) — OK.
 # Output lands in $RUNS_ROOT/<experiment_name>/<run_id>/.
 python -m incremental_ad.main \
     --experiment_name mae_tx_etth_forecast \
@@ -62,6 +64,7 @@ python -m incremental_ad.main \
     --mae_tx_mask_ratio 0.75 \
     --mae_tx_n_eval_passes 1 \
     --mae_tx_training_mode causal_mask \
+    --mae_tx_instance_norm true \
     \
     --dataset_window_len 432 \
     --dataset_forecast_len 96 \

@@ -65,6 +65,7 @@ python -m incremental_ad.main \
     --mae_tx_mask_ratio 0.75 \
     --mae_tx_n_eval_passes 1 \
     --mae_tx_training_mode causal_mask \
+    --mae_tx_instance_norm true \
     \
     --dataset_window_len 432 \
     --dataset_forecast_len 96 \

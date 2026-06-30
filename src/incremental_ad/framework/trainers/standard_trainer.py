@@ -99,7 +99,18 @@ class StandardTrainer(Trainer):
                 f"Training segment has 0 windows (step_name={step_name!r}). "
                 "Check dataset split config: window_len or stride may be too large for the segment size."
             )
-        
+
+        # A non-None but empty val set silently makes the val loss inf every epoch, which
+        # corrupts early-stopping/checkpoint selection (it keeps epoch-1 weights). Fail loudly
+        # instead — this happens when the val slice is shorter than window_len.
+        if segment.val is not None and len(cast(Sized, segment.val)) == 0:
+            raise ValueError(
+                f"Validation segment has 0 windows (step_name={step_name!r}). "
+                "The val slice is shorter than window_len, so early stopping would be meaningless. "
+                "Increase the val fraction, reduce n_finetune_segments, or reduce window_len so each "
+                "segment's val length (val_fraction × segment_size) exceeds the window length."
+            )
+
         train_loader = self.loader_config.make_loader(segment.train, shuffle=True)
 
         val_loader = (

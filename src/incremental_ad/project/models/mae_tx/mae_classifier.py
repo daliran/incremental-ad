@@ -15,8 +15,8 @@ class MaeTxClassifier(_MaeTxBase):
     and compute_loss() uses cross-entropy. At inference score() returns raw logits
     [B, n_classes] — the ClassificationEvaluator handles argmax and metrics.
 
-    CLI args are the encoder-only subset of --mae_tx_* (patch_len, encoder_*,
-    patch_norm). Decoder and masking args are not required.
+    CLI args are the encoder-only subset of --mae_tx_* (patch_len, encoder_*).
+    Decoder, masking, and reconstruction args (including patch_norm) are not required.
     """
 
     # ARG_PREFIX inherited from _MaeTxBase ("mae_tx")

@@ -43,6 +43,10 @@ source .venv/bin/activate
 # of training data, fine-tune independently on each of --dataset_n_finetune_segments
 # remaining chunks, merge via task arithmetic (θ_merged = θ_base + scale × Σ task_vectors),
 # then evaluate the merged model.
+# Val sizing: each fine-tune segment's val = val_fraction × segment_size must exceed
+# window_len (432), else the val loader is empty and early-stopping breaks:
+#   train = 0.8 × 17420 = 13936;  segment = (1−0.5) × 13936 / 3 = 2322;
+#   0.25 × 2322 = 580 ≥ 432 (~149 val windows).   0.1 → 232 < 432 (empty!)
 # Output: $RUNS_ROOT/<experiment_name>/<run_id>/{baseline,finetune_0..N,merged}/.
 python -m incremental_ad.main \
     --experiment_name mae_tx_etth_forecast \
@@ -63,6 +67,7 @@ python -m incremental_ad.main \
     --mae_tx_mask_ratio 0.75 \
     --mae_tx_n_eval_passes 1 \
     --mae_tx_training_mode causal_mask \
+    --mae_tx_instance_norm true \
     \
     --dataset_window_len 432 \
     --dataset_forecast_len 96 \
@@ -71,7 +76,7 @@ python -m incremental_ad.main \
     --dataset_baseline_fraction 0.5 \
     --dataset_baseline_use_fraction 1.0 \
     --dataset_n_finetune_segments 3 \
-    --dataset_val_fraction 0.1 \
+    --dataset_val_fraction 0.25 \
     --dataset_test_fraction 0.2 \
     \
     --loader_batch_size 128 \

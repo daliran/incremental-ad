@@ -198,7 +198,7 @@ The bridge between a specific task and a specific model. Does four things:
 1. **`_configure(model, dataset)`** — injects dataset-derived values into the model (`n_features`, `seq_len`, etc.) and sets task-specific model state (`inference_mode`, `forecast_patches`, `n_classes`). Always called before `model._build()`.
 2. **`create_val_evaluator()`** — returns the evaluator for training-time validation.
 3. **`create_test_evaluator()`** — returns the evaluator for final test evaluation.
-4. **`create_debugger()`** — optionally returns a `Debugger` for post-eval visualizations (AD only; enabled via `--configurator_debug`).
+4. **`create_debugger()`** — optionally returns a `Debugger` for post-eval visualizations (AD and forecasting; enabled via `--configurator_debug`).
 
 `_configure()` is also where each configurator asserts dataset compatibility, in one place: the structural protocol checks (`isinstance(dataset, ForecastDataset)`, etc.) plus any `DatasetCapability` the task needs — e.g. AD and classification assert `TEST_LABELS` (the dataset's test set carries ground-truth labels). An incompatible (task, model, dataset) pairing fails fast here, before the model is built.
 
@@ -250,7 +250,7 @@ Evaluators by task:
 
 #### `Debugger`
 
-Called after test evaluation when `create_debugger()` returns a non-None instance. `MaeTxAdDebugger` retrieves scores and labels via `DebugDataEvaluator.debug_data()` and writes score timeline and distribution plots to `step_dir`. Enabled with `--configurator_debug`.
+Called after test evaluation when `create_debugger()` returns a non-None instance. `MaeTxAdDebugger` (AD) retrieves scores/labels via `DebugDataEvaluator.debug_data()` and writes a score timeline (normal/anomaly scatter), score distributions, an event-detection CSV (per segment: max/min score, margin to threshold, detected), and FP/FN/TP reconstruction samples. `MaeTxForecastDebugger` (forecasting) plots sample windows as context + actual-vs-predicted future, falling back to the val set when there is no test set. Both write to `step_dir/debug/` and are enabled with `--configurator_debug`.
 
 ---
 
@@ -271,7 +271,7 @@ Three training modes (`--mae_tx_training_mode`):
 At inference, the mode set by the configurator determines how the model scores a window:
 
 - **AD** (`random_mask`): `n_eval_passes` forward passes with independent random masks are run per batch. Per-patch errors accumulate across passes and are averaged — a Monte Carlo estimate of the expected reconstruction error. The final window score is the mean per-patch error. For `causal_mask`/`next_step`, a single deterministic pass is used.
-- **Forecasting**: the context patches are visible; the model predicts the forecast-horizon patches (`forecast_len // patch_len`). Training masks exactly those horizon patches (causal), so the masked span seen during training matches what is predicted at inference. Only the forecast positions are extracted from the decoder output.
+- **Forecasting**: the context patches are visible; the model predicts the forecast-horizon patches (`forecast_len // patch_len`). Training masks exactly those horizon patches (causal), so the masked span seen during training matches what is predicted at inference. Only the forecast positions are extracted from the decoder output. With `--mae_tx_instance_norm` (default on, forecast-only) each window is normalized by its visible-context mean/std before encoding and the forecast is de-normalized afterwards — RevIN-style instance normalization that removes per-window level/trend shift (the dominant error on non-stationary series like ETTh1). It is leakage-free (stats come only from the context) and a no-op for AD/imputation.
 - **Imputation**: the dataset applies a fixed deterministic mask per window (seeded by window index) and provides `visible_idx` alongside the masked input. The model encodes only visible patches and predicts at masked positions; the evaluator compares predictions vs. original only at those positions.
 
 #### `MaeTxClassifier` — supervised classification
@@ -282,13 +282,17 @@ Extends the same encoder backbone with a mean-pooled linear classification head.
 
 ### Datasets
 
-Both real datasets use a sliding window over a `[T, F]` time series, with configurable `window_len` and `stride`. Standard scaling is fitted on training data only.
+The real datasets use a sliding window over a `[T, F]` time series, with configurable `window_len` and `stride`. Standard scaling is fitted on training data only.
 
 | dataset | `--dataset` | features | anomaly rate |
 |---------|------------|----------|--------------|
 | SWaT | `Swat` | 51 | ~12% |
 | PSM | `Psm` | 25 | ~28% |
 | ETTh1 | `EtthForecastDataset` / `EtthImputationDataset` | 7 | — |
+
+SWaT and PSM ship separate train/test splits with per-timestep anomaly labels. ETTh1 is a single continuous series with no separate test split and no labels, so `EtthForecastDataset`/`EtthImputationDataset` carve a chronological test set from the tail via `--dataset_test_fraction` (default 0.2; set `0` for train+val only), fitting the scaler on the train portion to avoid leakage.
+
+For incremental (`PartitionedDataset`) runs, each fine-tune segment carves its own val tail, so `val_fraction × segment_size` must exceed `window_len` — otherwise the val loader is empty and training fails fast with a clear error (the SLURM/launch configs document the arithmetic inline).
 
 Data is loaded from HuggingFace (`thuml/Time-Series-Library`) on first use. PSM has scattered NaN values (~2% of rows) that are forward- then backward-filled before scaling.
 

@@ -439,12 +439,15 @@
                 "--mae_tx_mask_ratio", "0.75",
                 "--mae_tx_n_eval_passes", "1",
                 "--mae_tx_training_mode", "causal_mask",
+                "--mae_tx_instance_norm", "true",  // RevIN; forecast-only — flip to false to compare
 
-                // --- ETTh1 dataset (window_len = context_len + forecast_len = 336 + 96) ---
+                // --- ETTh1 dataset (window_len = context_len + forecast_len = 336 + 32) ---
                 "--dataset_window_len", "432",
-                "--dataset_forecast_len", "96",
+                "--dataset_forecast_len", "32",
                 "--dataset_stride", "1",
                 "--dataset_normalization", "standard",
+                // val = val_fraction × train must exceed window_len 432:
+                //   train = 0.8 × 17420 = 13936;  0.1 × 13936 = 1393 ≥ 432 (single segment) — OK.
                 "--dataset_val_fraction", "0.1",
                 "--dataset_test_fraction", "0.2",  // last 20% of the series held out as test
 
@@ -501,16 +504,21 @@
                 "--mae_tx_mask_ratio", "0.75",
                 "--mae_tx_n_eval_passes", "1",
                 "--mae_tx_training_mode", "causal_mask",
+                "--mae_tx_instance_norm", "true",  // RevIN; forecast-only — flip to false to compare
 
                 // --- ETTh1 dataset + incremental split (over the train portion) ---
                 "--dataset_window_len", "432",
-                "--dataset_forecast_len", "96",
+                "--dataset_forecast_len", "32",
                 "--dataset_stride", "1",
                 "--dataset_normalization", "standard",
                 "--dataset_baseline_fraction", "0.5",
                 "--dataset_baseline_use_fraction", "1.0",
                 "--dataset_n_finetune_segments", "3",
-                "--dataset_val_fraction", "0.1",
+                // Each fine-tune segment's val = val_fraction × segment_size must exceed
+                // window_len 432, else the val loader is empty and early-stopping breaks:
+                //   train = 0.8 × 17420 = 13936;  segment = (1−0.5) × 13936 / 3 = 2322;
+                //   0.25 × 2322 = 580 ≥ 432 (~149 windows).   0.1 → 232 < 432 (empty!)
+                "--dataset_val_fraction", "0.25",
                 "--dataset_test_fraction", "0.2",
 
                 // --- DataLoader ---
@@ -576,6 +584,7 @@
                 "--mae_tx_mask_ratio", "0.75",
                 "--mae_tx_n_eval_passes", "1",
                 "--mae_tx_training_mode", "causal_mask",
+                "--mae_tx_instance_norm", "true",  // RevIN; forecast-only — must match the checkpoint's training
 
                 // --- ETTh1 dataset ---
                 "--dataset_window_len", "432",
@@ -726,12 +735,11 @@
                 "--pipeline", "StandardPipeline",
                 "--seed", "42",
 
-                // --- MaeTxClassifier: encoder-only, no decoder/masking args required ---
+                // --- MaeTxClassifier: encoder-only, no decoder/masking/reconstruction args ---
                 "--mae_tx_patch_len", "8",
                 "--mae_tx_encoder_embed_dim", "64",
                 "--mae_tx_encoder_layers", "2",
                 "--mae_tx_encoder_heads", "4",
-                "--mae_tx_patch_norm", "false",
 
                 // --- Dataset ---
                 "--dataset_window_len", "64",

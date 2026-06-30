@@ -33,7 +33,6 @@ class MaeTxEncoderConfig:
     encoder_embed_dim: int
     encoder_layers: int
     encoder_heads: int
-    patch_norm: bool
 
 
 @dataclass
@@ -45,6 +44,8 @@ class MaeTxConfig(MaeTxEncoderConfig):
     mask_ratio: float
     n_eval_passes: int  # forward passes at eval time (random mask only)
     training_mode: TrainingMode
+    patch_norm: bool  # normalize each GT patch before the reconstruction MSE (decoder path)
+    instance_norm: bool = True  # RevIN-style per-window norm — forecast mode only
 
 
 def _str_to_bool(v: str) -> bool:
@@ -218,11 +219,6 @@ class _MaeTxBase(Model):
         x_div = x[:, : self.n_patches * self.config.patch_len, :]
         return x_div.reshape(B, self.n_patches, self.config.patch_len * self.n_features)
 
-    def _normalize_patches(self, patches: Tensor) -> Tensor:
-        mean = patches.mean(dim=-1, keepdim=True)
-        var = patches.var(dim=-1, keepdim=True)
-        return (patches - mean) / (var + 1e-6).sqrt()
-
     def _log_architecture(self) -> None:
         assert self.n_features is not None, "model not built"
         n_params = sum(p.numel() for p in self.parameters())
@@ -245,7 +241,6 @@ class _MaeTxBase(Model):
         parser.add_argument(f"--{p}_encoder_embed_dim", type=int, required=True)
         parser.add_argument(f"--{p}_encoder_layers", type=int, required=True)
         parser.add_argument(f"--{p}_encoder_heads", type=int, required=True)
-        parser.add_argument(f"--{p}_patch_norm", type=_str_to_bool, required=True)
 
     @classmethod
     def from_config(cls, cfg: Namespace, prefix: str | None = None) -> Self:
@@ -255,7 +250,6 @@ class _MaeTxBase(Model):
             encoder_embed_dim=getattr(cfg, f"{p}_encoder_embed_dim"),
             encoder_layers=getattr(cfg, f"{p}_encoder_layers"),
             encoder_heads=getattr(cfg, f"{p}_encoder_heads"),
-            patch_norm=getattr(cfg, f"{p}_patch_norm"),
         ))
 
 
@@ -332,6 +326,15 @@ class MaeTx(_MaeTxBase):
             choices=list(TrainingMode),
             required=True,
         )
+        parser.add_argument(f"--{p}_patch_norm", type=_str_to_bool, required=True)
+        parser.add_argument(
+            f"--{p}_instance_norm",
+            type=_str_to_bool,
+            default=True,
+            help="RevIN-style per-window instance normalization (forecast mode only): "
+            "normalize each window by its visible-context mean/std and de-normalize the "
+            "forecast, removing per-window level/trend shift. No effect for AD/imputation.",
+        )
 
     @classmethod
     def from_config(cls, cfg: Namespace, prefix: str | None = None) -> Self:
@@ -348,13 +351,27 @@ class MaeTx(_MaeTxBase):
             mask_ratio=getattr(cfg, f"{p}_mask_ratio"),
             n_eval_passes=getattr(cfg, f"{p}_n_eval_passes"),
             training_mode=getattr(cfg, f"{p}_training_mode"),
+            instance_norm=getattr(cfg, f"{p}_instance_norm"),
         ))
 
     # ── Model interface ────────────────────────────────────────────────────────
 
+    def _normalize_patches(self, patches: Tensor) -> Tensor:
+        """Per-patch normalization of ground-truth patches before the reconstruction MSE."""
+        mean = patches.mean(dim=-1, keepdim=True)
+        var = patches.var(dim=-1, keepdim=True)
+        return (patches - mean) / (var + 1e-6).sqrt()
+
     def compute_loss(self, batch: Any) -> Tensor:
         # Self-supervised reconstruction (all MAE tasks): batch is a single Tensor or (inputs, _)
         inputs: Tensor = batch[0] if isinstance(batch, (list, tuple)) else batch
+        # Forecast: instance-normalize the window by its context so the loss is on shape, not level.
+        if (
+            self.inference_mode == InferenceMode.FORECAST
+            and isinstance(self.config, MaeTxConfig)
+            and self.config.instance_norm
+        ):
+            inputs, _, _ = self._instance_normalize(inputs)
         mask_indices, unmask_indices = self._create_mask(inputs.size(0), inputs.device)
         decoder_output, tokens = self._forward(inputs, unmask_indices)
         return self._reconstruction_loss(decoder_output, tokens, mask_indices)
@@ -451,22 +468,44 @@ class MaeTx(_MaeTxBase):
 
     # ── Predict ───────────────────────────────────────────────────────────────
 
+    def _instance_normalize(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        """RevIN-style per-window instance norm using only the visible context (leakage-free).
+
+        Returns (x_normalized, mean, std), each stat shaped [B, 1, F]. Forecast mode only —
+        the context is the first (n_patches - forecast_patches) patches, so the stats never
+        see the future being predicted.
+        """
+        assert self.forecast_patches is not None
+        ctx_len = (self.n_patches - self.forecast_patches) * self.config.patch_len
+        ctx = x[:, :ctx_len, :]
+        mean = ctx.mean(dim=1, keepdim=True)
+        std = ctx.std(dim=1, keepdim=True) + 1e-5
+        return (x - mean) / std, mean, std
+
     def _score_forecast(self, inputs: Tensor) -> Tensor:
         """Causal inference: context patches visible, forecast patches predicted.
 
         Returns [B, forecast_patches * patch_len, F].
         Requires training_mode=CAUSAL_MASK and forecast_patches to be set.
         """
+        config = self.config
+        assert isinstance(config, MaeTxConfig)
         assert self.forecast_patches is not None
         B = inputs.size(0)
         n_context = self.n_patches - self.forecast_patches
+
+        x, mean, std = (
+            self._instance_normalize(inputs)
+            if config.instance_norm
+            else (inputs, None, None)
+        )
 
         visible = (
             torch.arange(n_context, device=inputs.device)
             .unsqueeze(0).expand(B, -1).contiguous()
         )
 
-        decoder_output, _ = self._forward(inputs, visible)
+        decoder_output, _ = self._forward(x, visible)
 
         forecast_idx = (
             torch.arange(n_context, self.n_patches, device=inputs.device)
@@ -474,10 +513,13 @@ class MaeTx(_MaeTxBase):
         )
 
         pred_patches = _get_by_mask(decoder_output, forecast_idx)   # [B, fp, patch_len*F]
-        forecast_len = self.forecast_patches * self.config.patch_len
-        
+        forecast_len = self.forecast_patches * config.patch_len
+
         assert self.n_features is not None
-        return pred_patches.reshape(B, forecast_len, self.n_features)  # [B, H, F]
+        pred = pred_patches.reshape(B, forecast_len, self.n_features)  # [B, H, F]
+        if mean is not None and std is not None:
+            pred = pred * std + mean  # de-normalize back to the input's (scaled) space
+        return pred
 
     def _predict_imputation(
         self,

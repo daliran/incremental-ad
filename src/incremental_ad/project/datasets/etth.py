@@ -312,11 +312,12 @@ class EtthForecastDataset(_EtthBase, PartitionedDataset):
                 train=SlidingWindowDataset(
                     self._train_data[tr_start:tr_end], self._window_len, self.stride
                 ),
-                val=_ForecastWindowDataset(
-                    self._train_data[val_start:val_end],
-                    self._window_len,
-                    self._forecast_len,
-                    self.stride,
+                # Same shape as train (bare windows, not (window, future) pairs) — Segment.val
+                # feeds model.compute_loss() for early-stopping, so it must match train's batch
+                # format exactly (mirrors Swat/Psm). The separate, (window, future)-shaped metric
+                # eval path lives in get_baseline_val_eval_dataset/get_finetune_val_eval_dataset.
+                val=SlidingWindowDataset(
+                    self._train_data[val_start:val_end], self._window_len, self.stride
                 ),
             )
         return Segment(

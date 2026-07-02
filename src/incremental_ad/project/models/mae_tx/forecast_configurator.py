@@ -55,7 +55,15 @@ class MaeTxForecastingConfigurator(TaskModelConfigurator):
                 f"dataset.forecast_len ({dataset.forecast_len}) must be divisible by "
                 f"mae_tx_patch_len ({model.config.patch_len})."
             )
-        
+
+        if dataset.window_len % model.config.patch_len != 0:
+            raise ValueError(
+                f"dataset.window_len ({dataset.window_len}) must be divisible by "
+                f"mae_tx_patch_len ({model.config.patch_len}) for forecasting — otherwise "
+                "tokenization silently truncates trailing timesteps (see _build_encoder's "
+                "warning) and misaligns the context/forecast patch boundary."
+            )
+
         if model.config.patch_norm:
             raise ValueError(
                 "patch_norm=True is not supported for forecasting: the decoder outputs patches "

@@ -6,6 +6,7 @@ from typing import Literal, Self, Sized, cast
 
 import torch
 import wandb
+from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -36,6 +37,8 @@ class StandardTrainer(Trainer):
         loader_config: DataLoaderConfig,
         device: str = "auto",
         checkpoint_interval: int = 0,
+        reg_lambda: float = 0.0,
+        reg_exclude: list[str] | None = None,
     ) -> None:
         self.n_epochs = n_epochs
         self.patience = patience
@@ -47,6 +50,11 @@ class StandardTrainer(Trainer):
         self.warmup_ratio = warmup_ratio
         self.loader_config = loader_config
         self.checkpoint_interval = checkpoint_interval
+        # reference_state regularization (L2-SP): penalize drift from a fixed anchor passed
+        # into fit() (e.g. IncrementalTaskArithmeticPipeline's baseline_state). reg_lambda=0
+        # (default) makes this a no-op, so plain baseline/StandardPipeline training is unaffected.
+        self.reg_lambda = reg_lambda
+        self.reg_exclude = reg_exclude if reg_exclude is not None else ["norm", "bias"]
         self.device = (
             torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if device == "auto"
@@ -66,6 +74,18 @@ class StandardTrainer(Trainer):
         parser.add_argument(f"--{p}_warmup_ratio", type=float, default=0.1)
         parser.add_argument(f"--{p}_device", type=str, default="auto")
         parser.add_argument(f"--{p}_checkpoint_interval", type=int, default=0)
+        parser.add_argument(
+            f"--{p}_reg_lambda", type=float, default=0.0,
+            help="L2-SP weight: penalizes drift from the reference_state passed into fit() "
+                 "(e.g. baseline weights during incremental fine-tuning). 0 = disabled. "
+                 "Has no effect unless the caller actually passes a reference_state.",
+        )
+        parser.add_argument(
+            f"--{p}_reg_exclude", nargs="*", default=["norm", "bias"],
+            help="Parameter-name substrings excluded from the reg_lambda penalty "
+                 "(default excludes LayerNorm and bias params, per common L2-SP practice). "
+                 "Pass no values to disable exclusion.",
+        )
 
     @classmethod
     def from_config(cls, cfg: Namespace, prefix: str | None = None) -> Self:
@@ -82,6 +102,8 @@ class StandardTrainer(Trainer):
             loader_config=DataLoaderConfig.from_config(cfg),
             device=getattr(cfg, f"{p}_device"),
             checkpoint_interval=getattr(cfg, f"{p}_checkpoint_interval"),
+            reg_lambda=getattr(cfg, f"{p}_reg_lambda"),
+            reg_exclude=getattr(cfg, f"{p}_reg_exclude"),
         )
 
     def fit(
@@ -92,8 +114,9 @@ class StandardTrainer(Trainer):
         secondary_loaders: dict[str, DataLoader] | None = None,
         step_name: str = "",
         step_offset: int = 0,
+        reference_state: dict[str, Tensor] | None = None,
     ) -> TrainSummary:
-        
+
         if len(cast(Sized, segment.train)) == 0:
             raise ValueError(
                 f"Training segment has 0 windows (step_name={step_name!r}). "
@@ -121,6 +144,14 @@ class StandardTrainer(Trainer):
 
         model.to(self.device)
 
+        # Moved once per fit() call (not per-batch): one transient extra copy of the
+        # reference weights on-device, released when this call returns.
+        reference_state_dev = (
+            {k: v.to(self.device) for k, v in reference_state.items()}
+            if reference_state is not None
+            else None
+        )
+
         optimizer = self._build_optimizer(model)
         scheduler = self._build_scheduler(optimizer)
 
@@ -147,7 +178,7 @@ class StandardTrainer(Trainer):
                 epochs_trained = epoch
 
                 train_loss, grad_norm = self._train_epoch(
-                    model, train_loader, optimizer, epoch
+                    model, train_loader, optimizer, epoch, reference_state_dev
                 )
 
                 final_train_loss = train_loss
@@ -161,12 +192,12 @@ class StandardTrainer(Trainer):
                 val_loss: float | None = None
 
                 if val_loader is not None:
-                    val_loss = self._compute_loader_loss(model, val_loader)
+                    val_loss = self._compute_loader_loss(model, val_loader, reference_state_dev)
                     final_val_loss = val_loss
 
                 if secondary_loaders:
                     final_secondary_losses = {
-                        name: self._compute_loader_loss(model, loader)
+                        name: self._compute_loader_loss(model, loader, reference_state_dev)
                         for name, loader in secondary_loaders.items()
                     }
 
@@ -293,7 +324,12 @@ class StandardTrainer(Trainer):
         )
 
     def _train_epoch(
-        self, model: Model, loader, optimizer: torch.optim.Optimizer, epoch: int
+        self,
+        model: Model,
+        loader,
+        optimizer: torch.optim.Optimizer,
+        epoch: int,
+        reference_state: dict[str, Tensor] | None = None,
     ) -> tuple[float, float]:
         model.train()
 
@@ -303,7 +339,7 @@ class StandardTrainer(Trainer):
             for batch in pbar:
                 batch = move_to_device(batch, self.device)
                 optimizer.zero_grad()
-                loss = model.compute_loss(batch)
+                loss = model.compute_loss(batch) + self._reg_penalty(model, reference_state)
                 loss.backward()
                 gnorm = torch.nn.utils.clip_grad_norm_(
                     model.parameters(), self.grad_clip
@@ -317,7 +353,9 @@ class StandardTrainer(Trainer):
         n = count if count > 0 else 1
         return total_loss / n, total_gnorm / n
 
-    def _compute_loader_loss(self, model: Model, loader) -> float:
+    def _compute_loader_loss(
+        self, model: Model, loader, reference_state: dict[str, Tensor] | None = None
+    ) -> float:
         model.eval()
 
         total, count = 0.0, 0
@@ -326,9 +364,24 @@ class StandardTrainer(Trainer):
             for batch in loader:
                 batch = move_to_device(batch, self.device)
                 total += model.compute_loss(batch).item()
+                total += self._reg_penalty(model, reference_state).item()
                 count += 1
-                
+
         return total / count if count > 0 else float("inf")
+
+    def _reg_penalty(
+        self, model: Model, reference_state: dict[str, Tensor] | None
+    ) -> Tensor:
+        """L2-SP penalty: lambda * sum ||p - reference_state[name]||^2 over included params.
+        No-op (returns 0) when there's no reference_state or reg_lambda is 0."""
+        if reference_state is None or self.reg_lambda == 0.0:
+            return torch.zeros((), device=self.device)
+        penalty = torch.zeros((), device=self.device)
+        for name, p in model.named_parameters():
+            if any(pat in name for pat in self.reg_exclude):
+                continue
+            penalty = penalty + (p - reference_state[name]).pow(2).sum()
+        return self.reg_lambda * penalty
 
     def _build_optimizer(self, model: Model) -> torch.optim.Optimizer:
         if self.optimizer_type == "adamw":

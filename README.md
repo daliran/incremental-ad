@@ -50,7 +50,7 @@ Every run is launched via `python -m incremental_ad.main` with a set of `--compo
 θ_merged = θ_base + scale × Σᵢ (θ_ft_i − θ_base)
 ```
 
-The scale is controlled by `--pipeline_merge_scale`. Each fine-tuned model contributes a *task vector* (the difference from baseline); these are summed and added back. Baseline and fine-tuned states are stored on CPU between phases so only the active model occupies GPU memory. `--pipeline_ft_test_eval` optionally runs test evaluation after each fine-tuning step before the merge.
+The scale is controlled by `--pipeline_merge_scale`. Each fine-tuned model contributes a *task vector* (the difference from baseline); these are summed and added back. Baseline and fine-tuned states are stored on CPU between phases so only the active model occupies GPU memory. Baseline, each fine-tune segment, and the merged model are all evaluated the same way — val (on their own segment's held-out slice) and test (on the global test set) — before/after the merge.
 
 **`EvalPipeline`** — loads a saved checkpoint and runs evaluation only. Useful for re-evaluating a trained model with a different threshold strategy or for running the debugger visualizations. Pass `--pipeline_checkpoint_path` and the same model/dataset args used during training.
 
@@ -90,11 +90,13 @@ Each run writes to `$RUNS_ROOT/<experiment_name>/<run_id>/`.
 ├── baseline/               # IncrementalTaskArithmeticPipeline
 │   ├── result.json
 │   ├── checkpoints/
+│   ├── val/result.json
 │   └── test/result.json
 ├── finetune_0/ ... finetune_N/
 │   ├── result.json
 │   ├── checkpoints/
-│   └── test/result.json    # only if --pipeline_ft_test_eval
+│   ├── val/result.json
+│   └── test/result.json
 ├── merged/
 │   ├── checkpoints/best.pt
 │   ├── val/result.json

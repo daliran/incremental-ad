@@ -279,7 +279,7 @@ class EtthForecastDataset(_EtthBase, PartitionedDataset):
         start, end = baseline_range(len(self._train_data), self.split_config)
         return self._val_eval_for_range(start, end)
 
-    def get_incremental_val_eval_dataset(self) -> ConcatDataset:
+    def get_merged_val_eval_dataset(self) -> ConcatDataset:
         """Incremental merged/val: union of every segment's held-out val slice
         (baseline + each finetune), so the merge is checked across all regimes."""
         return ConcatDataset(
@@ -290,6 +290,11 @@ class EtthForecastDataset(_EtthBase, PartitionedDataset):
                 )
             ]
         )
+
+    def get_finetune_val_eval_dataset(self, index: int) -> _ForecastWindowDataset:
+        """Incremental finetune_i/val: that finetune segment's own held-out slice."""
+        start, end = finetune_ranges(len(self._train_data), self.split_config)[index]
+        return self._val_eval_for_range(start, end)
 
     def get_test_dataset(self) -> _ForecastWindowDataset:
         return _ForecastWindowDataset(

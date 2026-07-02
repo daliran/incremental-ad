@@ -230,7 +230,7 @@ class PartitionedDataset(Dataset, ABC):
             f"{type(self).__name__} does not implement get_baseline_val_eval_dataset()"
         )
 
-    def get_incremental_val_eval_dataset(self) -> TorchDataset:
+    def get_merged_val_eval_dataset(self) -> TorchDataset:
         """Eval-stride windowing over the union of every segment's held-out val slice
         (baseline + each finetune).
 
@@ -238,7 +238,18 @@ class PartitionedDataset(Dataset, ABC):
         across all regimes and never on training data. Raises NotImplementedError for
         datasets that do not support it."""
         raise NotImplementedError(
-            f"{type(self).__name__} does not implement get_incremental_val_eval_dataset()"
+            f"{type(self).__name__} does not implement get_merged_val_eval_dataset()"
+        )
+
+    def get_finetune_val_eval_dataset(self, index: int) -> TorchDataset:
+        """Eval-stride windowing over the held-out val slice of finetune segment `index`.
+
+        Used by the incremental pipeline for finetune_i/val, so each fine-tuned model is
+        scored on its own segment's validation data (mirrors get_baseline_val_eval_dataset,
+        but for one of get_incremental_segments() instead of the baseline). Raises
+        NotImplementedError for datasets that do not support it."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement get_finetune_val_eval_dataset()"
         )
 
 

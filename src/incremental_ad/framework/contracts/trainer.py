@@ -2,7 +2,7 @@ import inspect
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from torch.utils.data import DataLoader
 
@@ -47,6 +47,7 @@ class Trainer(Configurable, ABC):
         secondary_loaders: dict[str, DataLoader] | None = None,
         step_name: str = "",
         step_offset: int = 0,
+        reference_state: dict[str, Any] | None = None,
     ) -> TrainSummary:
         """Train for one phase on the given segment.
 
@@ -54,5 +55,8 @@ class Trainer(Configurable, ABC):
         secondary_loaders: named extra val loaders evaluated each epoch for monitoring (no effect on early stopping).
         step_name: label used for log prefixes and wandb metric keys (e.g. "baseline", "finetune_0").
         step_offset: added to the local epoch number when logging to wandb, so multiple phases don't share x-axis values.
+        reference_state: optional fixed parameter snapshot (e.g. a baseline's state_dict) to
+            regularize toward — implementations that support this add a penalty term to the
+            loss; implementations/configs that don't use it must ignore it (default: no-op).
         """
         ...

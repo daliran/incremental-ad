@@ -28,12 +28,14 @@ log = logging.getLogger(__name__)
 
 class IncrementalTaskArithmeticPipeline(Pipeline):
     """
-    1. Train on baseline  (uses trainer, registered under --trainer_*)
-    2. For each finetune segment, reset to baseline weights and fine-tune
-       (uses finetune_trainer, registered under --finetune_trainer_*)
-    3. Optionally evaluate each fine-tuned model before merging  (--pipeline_ft_test_eval)
-    4. Merge via task arithmetic: theta = theta_base + scale * sum_i(theta_ft_i - theta_base)
-    5. Evaluate the merged model
+    1. Train on baseline  (uses trainer, registered under --trainer_*), then evaluate it
+       (val on its own held-out slice, test on the global test set)
+    2. For each finetune segment, reset to baseline weights, fine-tune
+       (uses finetune_trainer, registered under --finetune_trainer_*), then evaluate it
+       the same way (val on its own segment's held-out slice, test on the global test set)
+    3. Merge via task arithmetic: theta = theta_base + scale * sum_i(theta_ft_i - theta_base)
+    4. Evaluate the merged model (val on the union of every segment's held-out slice, test
+       on the global test set)
     """
 
     def __init__(
@@ -42,20 +44,17 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
         finetune_trainer: StandardTrainer,
         runner: EvaluationRunner,
         merge_scale: float = 1.0,
-        ft_test_eval: bool = False,
     ) -> None:
         self.trainer = trainer
         self.finetune_trainer = finetune_trainer
         self.runner = runner
         self.merge_scale = merge_scale
-        self.ft_test_eval = ft_test_eval
 
     @classmethod
     def add_args(cls, parser: ArgumentParser, prefix: str | None = None) -> None:
         p = prefix or cls.ARG_PREFIX
         DataLoaderConfig.add_args(parser)
         parser.add_argument(f"--{p}_merge_scale", type=float, default=1.0)
-        parser.add_argument(f"--{p}_ft_test_eval", action="store_true", default=False)
         StandardTrainer.add_args(parser, prefix="trainer")
         StandardTrainer.add_args(parser, prefix="finetune_trainer")
 
@@ -68,7 +67,6 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
             finetune_trainer=StandardTrainer.from_config(cfg, prefix="finetune_trainer"),
             runner=EvaluationRunner(DataLoaderConfig.from_config(cfg), device=trainer.device),
             merge_scale=getattr(cfg, f"{p}_merge_scale"),
-            ft_test_eval=getattr(cfg, f"{p}_ft_test_eval"),
         )
 
     def run(self, context: RunContext) -> list[StepResult]:
@@ -241,6 +239,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 checkpoint_dir=step_dir / "checkpoints",
                 step_name=step_name,
                 step_offset=global_step,
+                reference_state=baseline_state,
             )
 
             global_step += ft_summary.epochs_trained
@@ -278,8 +277,39 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
             # Store on CPU — N GPU copies would OOM on large models with many segments.
             ft_states.append({k: v.cpu() for k, v in model.state_dict().items()})
 
-            # Optional: evaluate this finetune model on test before the merge
-            if self.ft_test_eval and DatasetCapability.TEST in caps:
+            # --- finetune_i/val (this segment's own held-out slice, mirrors baseline/val) ---
+            if DatasetCapability.VAL in caps:
+                val_evaluator = context.configurator.create_val_evaluator()
+                ft_val_step = f"{step_name}/val"
+                log.info(f"[{ft_val_step}] Starting evaluation")
+                started_at_eval = datetime.now(timezone.utc)
+
+                ft_val_metrics = self.runner.run(
+                    model, val_evaluator, dataset.get_finetune_val_eval_dataset(i),
+                    seed=context.eval_seed,
+                )
+
+                for k, v in ft_val_metrics.items():
+                    log.info(f"  [{ft_val_step}] {k}: {v:.4f}")
+                log.info(f"[{ft_val_step}] Evaluation complete")
+
+                if wandb.run is not None:
+                    wandb.run.summary.update(
+                        {f"{ft_val_step}/{k}": v for k, v in ft_val_metrics.items()}
+                    )
+
+                ft_val_result = EvalStepResult(
+                    step_name=ft_val_step,
+                    started_at=started_at_eval,
+                    finished_at=datetime.now(timezone.utc),
+                    metrics=ft_val_metrics,
+                )
+
+                ft_val_result.write(step_dir / "val")
+                results.append(ft_val_result)
+
+            # --- finetune_i/test (this finetuned model on the global test set, before merging) ---
+            if DatasetCapability.TEST in caps:
                 evaluator = context.configurator.create_test_evaluator()
 
                 reference_ds = (
@@ -315,11 +345,12 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                     started_at=started_at_eval,
                     finished_at=datetime.now(timezone.utc),
                     metrics=metrics,
-    
+
                 )
 
                 ft_eval_result.write(step_dir / "test")
                 results.append(ft_eval_result)
+                self._run_debugger(evaluator, context, model, step_dir)
 
         # --- Task arithmetic merge ---
         if ft_states:
@@ -345,7 +376,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 started_at_eval = datetime.now(timezone.utc)
 
                 merged_val_metrics = self.runner.run(
-                    model, val_evaluator, dataset.get_incremental_val_eval_dataset(),
+                    model, val_evaluator, dataset.get_merged_val_eval_dataset(),
                     seed=context.eval_seed,
                 )
 

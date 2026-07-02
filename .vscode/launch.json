@@ -536,10 +536,10 @@
                 "--finetune_trainer_learning_rate", "1e-4",
                 "--finetune_trainer_grad_clip", "1.0",
                 "--finetune_trainer_scheduler", "cosine",
-                "--finetune_trainer_reg_lambda", "1e-3",
+                "--finetune_trainer_reg_lambda", "0.0",
 
                 // --- Task arithmetic ---
-                "--pipeline_merge_scale", "0.3"
+                "--pipeline_merge_scale", "0.5"
             ]
         },
 

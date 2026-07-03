@@ -48,7 +48,7 @@ python -m incremental_ad.main \
     --pipeline IncrementalTaskArithmeticPipeline \
     --seed 42 \
     \
-    --mae_tx_patch_len 10 \
+    --mae_tx_patch_len 5 \
     --mae_tx_encoder_embed_dim 256 \
     --mae_tx_encoder_layers 2 \
     --mae_tx_encoder_heads 2 \
@@ -56,7 +56,7 @@ python -m incremental_ad.main \
     --mae_tx_decoder_layers 1 \
     --mae_tx_decoder_heads 2 \
     --mae_tx_patch_norm false \
-    --mae_tx_mask_ratio 0.80 \
+    --mae_tx_mask_ratio 0.8 \
     --mae_tx_n_eval_passes 30 \
     --mae_tx_training_mode random_mask \
     \

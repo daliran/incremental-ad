@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Submit one sweep's trials as SLURM jobs.
 
 Usage:

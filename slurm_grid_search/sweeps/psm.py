@@ -16,8 +16,8 @@ ARCH_ARGS = [
     "--mae_tx_encoder_embed_dim", "256",
     "--mae_tx_encoder_layers", "2",
     "--mae_tx_encoder_heads", "2",
-    "--mae_tx_patch_len", "10",
-    "--mae_tx_mask_ratio", "0.80",
+    "--mae_tx_patch_len", "5",
+    "--mae_tx_mask_ratio", "0.8",
 ]
 
 _NON_ARCH_MAE_ARGS = [
@@ -75,7 +75,7 @@ MODEL_SWEEP = Sweep(
     trials=expand_trials(
         cross={
             "mae_tx_patch_len": ["5", "10", "20"],
-            "mae_tx_mask_ratio": ["0.5", "0.65", "0.80"],
+            "mae_tx_mask_ratio": ["0.5", "0.65", "0.8"],
         },
         one_at_a_time={
             "mae_tx_encoder_layers": ["3", "4"],

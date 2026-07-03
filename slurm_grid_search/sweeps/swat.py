@@ -1,10 +1,12 @@
 """SWaT sweeps: model architecture, then training parameters for both pipelines.
 
 Base config anchors on the current proven recipe in
-scripts/sbatch_mae_tx_swat_ad_standard.sh / _incremental.sh (patch_len=10, embed_dim=256,
-encoder_layers=2, encoder_heads=2, decoder_embed_dim=128, decoder_layers=1,
-decoder_heads=2, mask_ratio=0.80) -- not the older patch_len=5 config from the (now
-removed) local grid_search_ad.py, which predates this anchor being updated.
+scripts/sbatch_mae_tx_swat_ad_standard.sh / _incremental.sh, kept in sync with
+.vscode/launch.json's "SWaT" configs (patch_len=5, embed_dim=256, encoder_layers=2,
+encoder_heads=2, decoder_embed_dim=128, decoder_layers=1, decoder_heads=2,
+mask_ratio=0.8). The sbatch scripts briefly drifted to patch_len=10/mask_ratio=0.80
+independently of launch.json; both were reverted back to match launch.json, which is
+the source of truth for this recipe.
 
 Architecture args are kept separate from everything else: MODEL_SWEEP anchors them at
 the proven values above and sweeps around them; TRAIN_STANDARD_SWEEP/
@@ -25,8 +27,8 @@ ARCH_ARGS = [
     "--mae_tx_encoder_embed_dim", "256",
     "--mae_tx_encoder_layers", "2",
     "--mae_tx_encoder_heads", "2",
-    "--mae_tx_patch_len", "10",
-    "--mae_tx_mask_ratio", "0.80",
+    "--mae_tx_patch_len", "5",
+    "--mae_tx_mask_ratio", "0.8",
 ]
 
 # mae_tx_* flags that are required but not part of the architecture search -- fixed in
@@ -87,7 +89,7 @@ MODEL_SWEEP = Sweep(
     trials=expand_trials(
         cross={
             "mae_tx_patch_len": ["5", "10", "20"],
-            "mae_tx_mask_ratio": ["0.5", "0.65", "0.80"],
+            "mae_tx_mask_ratio": ["0.5", "0.65", "0.8"],
         },
         one_at_a_time={
             "mae_tx_encoder_layers": ["3", "4"],

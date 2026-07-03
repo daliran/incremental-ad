@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH --job-name=etth_forecast_incremental
+#SBATCH --job-name=traffic_forecast_incremental
 #SBATCH --account=tesi_ddellacasaventurelli01
 #SBATCH --partition=all_usr_prod
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
-#SBATCH --mem=18G
-#SBATCH --time=03:00:00
+#SBATCH --mem=24G
+#SBATCH --time=05:00:00
 #SBATCH --output=/work/tesi_ddellacasaventurelli01/incremental-ad/logs/job_%j.log
 #SBATCH --error=/work/tesi_ddellacasaventurelli01/incremental-ad/logs/job_%j.log
 
@@ -39,24 +39,19 @@ cd $PROJECT_ROOT
 source .venv/bin/activate
 
 # ── IncrementalTaskArithmeticPipeline ─────────────────────────────────────────
-# Recipe found by grid search (2026-07-03, see EXPERIMENTS.md): patch_len=4/
-# embed_dim=128/instance_norm=false won the model-architecture sweep;
-# reg_lambda=0 (no L2-SP) beat every reg_lambda tried at every merge_scale;
-# merge_scale=0.5 beat 0.3 and 1.0 (though a follow-up 3-seed sweep on 0.4/0.5/0.6
-# found that finer distinction is within noise — see EXPERIMENTS.md §1.4).
-# Full pipeline in one job: train baseline on the first --dataset_baseline_fraction
-# of training data, fine-tune independently on each of --dataset_n_finetune_segments
-# remaining chunks, merge via task arithmetic (θ_merged = θ_base + scale × Σ task_vectors),
-# then evaluate the merged model.
+# Same recipe as ETTh1's winning config (see sbatch_mae_tx_etth_forecast_incremental.sh),
+# except a smaller batch size and larger --mem/--time: Traffic has 862 features (vs
+# ETTh1's 7 / Weather's 21) — noticeably heavier per epoch (see the standard script's
+# note on the ~1m45s/epoch smoke test). This job runs baseline + 3 fine-tunes + merge.
 # Val sizing: each fine-tune segment's val = val_fraction × segment_size must exceed
 # window_len (120):
-#   train = 0.8 × 17420 = 13936;  baseline = 0.5 × 13936 = 6968;
-#   segment = (1 − 0.5) × 13936 / 3 = 2322;  0.1 × 2322 = 232 ≥ 120 — OK.
+#   train = 0.8 × 17544 = 14036;  baseline = 0.5 × 14036 = 7018;
+#   segment = (1 − 0.5) × 14036 / 3 = 2339;  0.1 × 2339 = 234 ≥ 120 — OK.
 # Output: $RUNS_ROOT/<experiment_name>/<run_id>/{baseline,finetune_0..N,merged}/.
 python -m incremental_ad.main \
-    --experiment_name mae_tx_etth_forecast \
+    --experiment_name mae_tx_traffic_forecast \
     --model MaeTx \
-    --dataset EtthForecastDataset \
+    --dataset TrafficForecastDataset \
     --task forecast \
     --pipeline IncrementalTaskArithmeticPipeline \
     --seed 42 \
@@ -84,7 +79,7 @@ python -m incremental_ad.main \
     --dataset_val_fraction 0.1 \
     --dataset_test_fraction 0.2 \
     \
-    --loader_batch_size 128 \
+    --loader_batch_size 64 \
     --loader_num_workers 4 \
     \
     --trainer_n_epochs 100 \

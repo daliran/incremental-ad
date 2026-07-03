@@ -29,6 +29,7 @@ from incremental_ad.framework.contracts.dataset import (
     SplitConfig,
     TimeSeriesDataset,
 )
+from incremental_ad.framework.datasets.forecast_window import ForecastWindowDataset
 from incremental_ad.framework.datasets.sliding_window import SlidingWindowDataset
 from incremental_ad.framework.datasets.splitting import (
     all_segment_ranges,
@@ -47,29 +48,6 @@ Normalization = Literal["standard", "none"]
 
 
 # ── Eval window dataset helpers ────────────────────────────────────────────────
-
-
-class _ForecastWindowDataset(TorchDataset):
-    """Yields (full_window [W, F], future [forecast_len, F]) 2-tuples."""
-
-    def __init__(
-        self, data: Tensor, window_len: int, forecast_len: int, stride: int
-    ) -> None:
-        self.data = data
-        self.window_len = window_len
-        self.context_len = window_len - forecast_len
-        self.forecast_len = forecast_len
-        self.stride = stride
-
-    def __len__(self) -> int:
-        if len(self.data) < self.window_len:
-            return 0
-        return (len(self.data) - self.window_len) // self.stride + 1
-
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        start = idx * self.stride
-        full_window = self.data[start : start + self.window_len]
-        return full_window, full_window[self.context_len :]
 
 
 class _ImputationWindowDataset(TorchDataset):
@@ -257,24 +235,24 @@ class EtthForecastDataset(_EtthBase, PartitionedDataset):
             for start, end in finetune_ranges(len(self._train_data), self.split_config)
         ]
 
-    def _val_eval_for_range(self, start: int, end: int) -> _ForecastWindowDataset:
+    def _val_eval_for_range(self, start: int, end: int) -> ForecastWindowDataset:
         """Eval-stride windowing over the val tail _make_segment() holds out from
         [start, end) — same val range, but eval_stride=1 covers every timestep."""
         _, (val_start, val_end) = val_tail_split(
             start, end, self.split_config.val_fraction
         )
-        return _ForecastWindowDataset(
+        return ForecastWindowDataset(
             self._train_data[val_start:val_end],
             self._window_len,
             self._forecast_len,
             self._eval_stride,
         )
 
-    def get_val_eval_dataset(self) -> _ForecastWindowDataset:
+    def get_val_eval_dataset(self) -> ForecastWindowDataset:
         """StandardPipeline val-eval: the global val tail (mirrors get_train_segment())."""
         return self._val_eval_for_range(0, len(self._train_data))
 
-    def get_baseline_val_eval_dataset(self) -> _ForecastWindowDataset:
+    def get_baseline_val_eval_dataset(self) -> ForecastWindowDataset:
         """Incremental baseline/val: the baseline segment's own held-out slice."""
         start, end = baseline_range(len(self._train_data), self.split_config)
         return self._val_eval_for_range(start, end)
@@ -291,13 +269,13 @@ class EtthForecastDataset(_EtthBase, PartitionedDataset):
             ]
         )
 
-    def get_finetune_val_eval_dataset(self, index: int) -> _ForecastWindowDataset:
+    def get_finetune_val_eval_dataset(self, index: int) -> ForecastWindowDataset:
         """Incremental finetune_i/val: that finetune segment's own held-out slice."""
         start, end = finetune_ranges(len(self._train_data), self.split_config)[index]
         return self._val_eval_for_range(start, end)
 
-    def get_test_dataset(self) -> _ForecastWindowDataset:
-        return _ForecastWindowDataset(
+    def get_test_dataset(self) -> ForecastWindowDataset:
+        return ForecastWindowDataset(
             self._test_data, self._window_len, self._forecast_len, self._eval_stride
         )
 

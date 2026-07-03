@@ -71,6 +71,12 @@ Ready-to-submit scripts live in [`scripts/`](scripts/). Edit `PROJECT_ROOT` and 
 | [`sbatch_mae_tx_etth_forecast_eval.sh`](scripts/sbatch_mae_tx_etth_forecast_eval.sh) | ETTh1 | EvalPipeline |
 | [`sbatch_mae_tx_etth_imputation_standard.sh`](scripts/sbatch_mae_tx_etth_imputation_standard.sh) | ETTh1 | StandardPipeline |
 | [`sbatch_mae_tx_etth_imputation_eval.sh`](scripts/sbatch_mae_tx_etth_imputation_eval.sh) | ETTh1 | EvalPipeline |
+| [`sbatch_mae_tx_weather_forecast_standard.sh`](scripts/sbatch_mae_tx_weather_forecast_standard.sh) | Weather | StandardPipeline |
+| [`sbatch_mae_tx_weather_forecast_incremental.sh`](scripts/sbatch_mae_tx_weather_forecast_incremental.sh) | Weather | IncrementalTaskArithmeticPipeline |
+| [`sbatch_mae_tx_traffic_forecast_standard.sh`](scripts/sbatch_mae_tx_traffic_forecast_standard.sh) | Traffic | StandardPipeline |
+| [`sbatch_mae_tx_traffic_forecast_incremental.sh`](scripts/sbatch_mae_tx_traffic_forecast_incremental.sh) | Traffic | IncrementalTaskArithmeticPipeline |
+| [`sbatch_mae_tx_exchange_forecast_standard.sh`](scripts/sbatch_mae_tx_exchange_forecast_standard.sh) | ExchangeRate | StandardPipeline |
+| [`sbatch_mae_tx_exchange_forecast_incremental.sh`](scripts/sbatch_mae_tx_exchange_forecast_incremental.sh) | ExchangeRate | IncrementalTaskArithmeticPipeline |
 
 ### Local debugging
 
@@ -138,6 +144,7 @@ src/incremental_ad/
 │
 ├── project/                # Specific to this project
 │   ├── datasets/           # Swat, Psm, EtthForecastDataset, EtthImputationDataset,
+│   │                       # WeatherForecastDataset, TrafficForecastDataset, ExchangeRateForecastDataset,
 │   │                       # TestForecastDataset, TestImputationDataset, TestClassificationDataset
 │   ├── models/mae_tx/      # MaeTx + MaeTxClassifier, configurators, debugger
 │   └── task.py             # Task enum (ad, forecast, imputation, classification)
@@ -273,7 +280,7 @@ Three training modes (`--mae_tx_training_mode`):
 At inference, the mode set by the configurator determines how the model scores a window:
 
 - **AD** (`random_mask`): `n_eval_passes` forward passes with independent random masks are run per batch. Per-patch errors accumulate across passes and are averaged — a Monte Carlo estimate of the expected reconstruction error. The final window score is the mean per-patch error. For `causal_mask`/`next_step`, a single deterministic pass is used.
-- **Forecasting**: the context patches are visible; the model predicts the forecast-horizon patches (`forecast_len // patch_len`). Training masks exactly those horizon patches (causal), so the masked span seen during training matches what is predicted at inference. Only the forecast positions are extracted from the decoder output. With `--mae_tx_instance_norm` (default on, forecast-only) each window is normalized by its visible-context mean/std before encoding and the forecast is de-normalized afterwards — RevIN-style instance normalization that removes per-window level/trend shift (the dominant error on non-stationary series like ETTh1). It is leakage-free (stats come only from the context) and a no-op for AD/imputation.
+- **Forecasting**: the context patches are visible; the model predicts the forecast-horizon patches (`forecast_len // patch_len`). Training masks exactly those horizon patches (causal), so the masked span seen during training matches what is predicted at inference. Only the forecast positions are extracted from the decoder output. With `--mae_tx_instance_norm` (default on, forecast-only) each window is normalized by its visible-context mean/std before encoding and the forecast is de-normalized afterwards — RevIN-style instance normalization intended to remove per-window level/trend shift. It is leakage-free (stats come only from the context) and a no-op for AD/imputation. Empirically (see `EXPERIMENTS.md`) this hasn't paid off on ETTh1: a grid search found `instance_norm=false` wins at the 96-24 horizon (the effect is small/mixed there), and `instance_norm=true` is dramatically *worse* at the longer 96-96 horizon (MSE 0.895 vs 0.516) — the opposite of what the mechanism is meant to buy. `false` is the current recipe in the launch/SLURM configs; treat the CLI default of `true` as a knob to test per-dataset, not a settled recommendation.
 - **Imputation**: the dataset applies a fixed deterministic mask per window (seeded by window index) and provides `visible_idx` alongside the masked input. The model encodes only visible patches and predicts at masked positions; the evaluator compares predictions vs. original only at those positions.
 
 #### `MaeTxClassifier` — supervised classification
@@ -291,8 +298,13 @@ The real datasets use a sliding window over a `[T, F]` time series, with configu
 | SWaT | `Swat` | 51 | ~12% |
 | PSM | `Psm` | 25 | ~28% |
 | ETTh1 | `EtthForecastDataset` / `EtthImputationDataset` | 7 | — |
+| Weather | `WeatherForecastDataset` | 21 | — |
+| Traffic | `TrafficForecastDataset` | 862 | — |
+| ExchangeRate | `ExchangeRateForecastDataset` | 8 | — |
 
-SWaT and PSM ship separate train/test splits with per-timestep anomaly labels. ETTh1 is a single continuous series with no separate test split and no labels, so `EtthForecastDataset`/`EtthImputationDataset` carve a chronological test set from the tail via `--dataset_test_fraction` (default 0.2; set `0` for train+val only), fitting the scaler on the train portion to avoid leakage.
+SWaT and PSM ship separate train/test splits with per-timestep anomaly labels. ETTh1, Weather, Traffic, and ExchangeRate are each a single continuous series with no separate test split and no labels, so their forecast datasets carve a chronological test set from the tail via `--dataset_test_fraction` (default 0.2; set `0` for train+val only), fitting the scaler on the train portion to avoid leakage. Weather/Traffic/ExchangeRate share this loading + splitting logic via `HfSeriesForecastDataset` (`project/datasets/hf_series_forecast.py`) — each is a ~15-line subclass that only sets the HuggingFace config name; ETTh1 keeps its own separate (near-identical) implementation since it also supports imputation, which the shared base does not.
+
+ExchangeRate is much smaller (~7588 daily rows) than the others, so it uses a smaller `--dataset_window_len`/`--dataset_forecast_len` (48/12 vs 120/24) — see its module docstring for the val-sizing arithmetic that makes 120/24 unsafe there. Traffic's 862 features make it noticeably heavier per epoch than the other forecast datasets (patch embedding's input dimension scales with feature count) — its launch/SLURM configs use a smaller batch size accordingly.
 
 For incremental (`PartitionedDataset`) runs, each fine-tune segment carves its own val tail, so `val_fraction × segment_size` must exceed `window_len` — otherwise the val loader is empty and training fails fast with a clear error (the SLURM/launch configs document the arithmetic inline).
 

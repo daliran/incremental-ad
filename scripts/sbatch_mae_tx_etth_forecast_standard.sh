@@ -39,11 +39,13 @@ cd $PROJECT_ROOT
 source .venv/bin/activate
 
 # ── StandardPipeline: train on all training data, then evaluate ───────────────
-# window_len = context_len + forecast_len (432 = 336 + 96).
+# Recipe found by grid search (2026-07-03, see EXPERIMENTS.md) — supersedes the
+# original 336-context/patch_len=16 config. window_len = context_len + forecast_len
+# (120 = 96 + 24), matching the literature's "96-24" context/horizon convention.
 # MaeTxForecastingConfigurator forces CAUSAL_MASK; --mae_tx_training_mode is
 # overridden at runtime but must still be a valid value.
-# Val sizing: val = val_fraction × train must exceed window_len (432).
-#   train = 0.8 × 17420 = 13936;  0.1 × 13936 = 1393 ≥ 432 (single segment) — OK.
+# Val sizing: val = val_fraction × train must exceed window_len (120).
+#   train = 0.8 × 17420 = 13936;  0.1 × 13936 = 1393 ≥ 120 — OK.
 # Output lands in $RUNS_ROOT/<experiment_name>/<run_id>/.
 python -m incremental_ad.main \
     --experiment_name mae_tx_etth_forecast \
@@ -53,21 +55,21 @@ python -m incremental_ad.main \
     --pipeline StandardPipeline \
     --seed 42 \
     \
-    --mae_tx_patch_len 16 \
-    --mae_tx_encoder_embed_dim 256 \
-    --mae_tx_encoder_layers 4 \
+    --mae_tx_patch_len 4 \
+    --mae_tx_encoder_embed_dim 128 \
+    --mae_tx_encoder_layers 3 \
     --mae_tx_encoder_heads 4 \
-    --mae_tx_decoder_embed_dim 128 \
+    --mae_tx_decoder_embed_dim 64 \
     --mae_tx_decoder_layers 2 \
     --mae_tx_decoder_heads 4 \
     --mae_tx_patch_norm false \
-    --mae_tx_mask_ratio 0.75 \
+    --mae_tx_mask_ratio 0.5 \
     --mae_tx_n_eval_passes 1 \
     --mae_tx_training_mode causal_mask \
-    --mae_tx_instance_norm true \
+    --mae_tx_instance_norm false \
     \
-    --dataset_window_len 432 \
-    --dataset_forecast_len 96 \
+    --dataset_window_len 120 \
+    --dataset_forecast_len 24 \
     --dataset_stride 1 \
     --dataset_normalization standard \
     --dataset_val_fraction 0.1 \
@@ -80,7 +82,7 @@ python -m incremental_ad.main \
     --trainer_patience 15 \
     --trainer_optimizer adamw \
     --trainer_weight_decay 1e-4 \
-    --trainer_learning_rate 1e-4 \
+    --trainer_learning_rate 1e-3 \
     --trainer_grad_clip 1.0 \
     --trainer_scheduler cosine \
     --trainer_warmup_ratio 0.1 \

@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH --job-name=etth_forecast_incremental
+#SBATCH --job-name=weather_forecast_standard
 #SBATCH --account=tesi_ddellacasaventurelli01
 #SBATCH --partition=all_usr_prod
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --mem=18G
-#SBATCH --time=03:00:00
+#SBATCH --time=01:00:00
 #SBATCH --output=/work/tesi_ddellacasaventurelli01/incremental-ad/logs/job_%j.log
 #SBATCH --error=/work/tesi_ddellacasaventurelli01/incremental-ad/logs/job_%j.log
 
@@ -38,27 +38,18 @@ nvidia-smi
 cd $PROJECT_ROOT
 source .venv/bin/activate
 
-# ── IncrementalTaskArithmeticPipeline ─────────────────────────────────────────
-# Recipe found by grid search (2026-07-03, see EXPERIMENTS.md): patch_len=4/
-# embed_dim=128/instance_norm=false won the model-architecture sweep;
-# reg_lambda=0 (no L2-SP) beat every reg_lambda tried at every merge_scale;
-# merge_scale=0.5 beat 0.3 and 1.0 (though a follow-up 3-seed sweep on 0.4/0.5/0.6
-# found that finer distinction is within noise — see EXPERIMENTS.md §1.4).
-# Full pipeline in one job: train baseline on the first --dataset_baseline_fraction
-# of training data, fine-tune independently on each of --dataset_n_finetune_segments
-# remaining chunks, merge via task arithmetic (θ_merged = θ_base + scale × Σ task_vectors),
-# then evaluate the merged model.
-# Val sizing: each fine-tune segment's val = val_fraction × segment_size must exceed
-# window_len (120):
-#   train = 0.8 × 17420 = 13936;  baseline = 0.5 × 13936 = 6968;
-#   segment = (1 − 0.5) × 13936 / 3 = 2322;  0.1 × 2322 = 232 ≥ 120 — OK.
-# Output: $RUNS_ROOT/<experiment_name>/<run_id>/{baseline,finetune_0..N,merged}/.
+# ── StandardPipeline: train on all training data, then evaluate ───────────────
+# Same recipe as ETTh1's winning config (see sbatch_mae_tx_etth_forecast_standard.sh).
+# window_len = context_len + forecast_len (120 = 96 + 24).
+# Val sizing: val = val_fraction × train must exceed window_len (120).
+#   train = 0.8 × 52696 = 42157;  0.1 × 42157 = 4216 ≥ 120 — OK.
+# Output lands in $RUNS_ROOT/<experiment_name>/<run_id>/.
 python -m incremental_ad.main \
-    --experiment_name mae_tx_etth_forecast \
+    --experiment_name mae_tx_weather_forecast \
     --model MaeTx \
-    --dataset EtthForecastDataset \
+    --dataset WeatherForecastDataset \
     --task forecast \
-    --pipeline IncrementalTaskArithmeticPipeline \
+    --pipeline StandardPipeline \
     --seed 42 \
     \
     --mae_tx_patch_len 4 \
@@ -78,9 +69,6 @@ python -m incremental_ad.main \
     --dataset_forecast_len 24 \
     --dataset_stride 1 \
     --dataset_normalization standard \
-    --dataset_baseline_fraction 0.5 \
-    --dataset_baseline_use_fraction 1.0 \
-    --dataset_n_finetune_segments 3 \
     --dataset_val_fraction 0.1 \
     --dataset_test_fraction 0.2 \
     \
@@ -95,16 +83,6 @@ python -m incremental_ad.main \
     --trainer_grad_clip 1.0 \
     --trainer_scheduler cosine \
     --trainer_warmup_ratio 0.1 \
-    --trainer_checkpoint_interval 0 \
-    \
-    --finetune_trainer_n_epochs 30 \
-    --finetune_trainer_patience 10 \
-    --finetune_trainer_weight_decay 1e-4 \
-    --finetune_trainer_learning_rate 1e-4 \
-    --finetune_trainer_grad_clip 1.0 \
-    --finetune_trainer_scheduler cosine \
-    --finetune_trainer_reg_lambda 0.0 \
-    \
-    --pipeline_merge_scale 0.5
+    --trainer_checkpoint_interval 0
 
 echo "Finished at: $(date)"

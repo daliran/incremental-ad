@@ -52,6 +52,8 @@ Every run is launched via `python -m incremental_ad.main` with a set of `--compo
 
 The scale is controlled by `--pipeline_merge_scale`. Each fine-tuned model contributes a *task vector* (the difference from baseline); these are summed and added back. Baseline and fine-tuned states are stored on CPU between phases so only the active model occupies GPU memory. Baseline, each fine-tune segment, and the merged model are all evaluated the same way — val (on their own segment's held-out slice) and test (on the global test set) — before/after the merge.
 
+Fine-tuning optionally supports L2-SP regularization: `--finetune_trainer_reg_lambda` (default `0`, a no-op) penalizes each segment's drift from the baseline weights during fine-tuning, added directly to the loss. `--finetune_trainer_reg_exclude` (default `norm bias`) excludes matching parameter-name substrings from the penalty. See `EXPERIMENTS.md` for findings so far (harmful on ETTh1 at every value/merge_scale tried; no measurable effect on SWaT/PSM).
+
 **`EvalPipeline`** — loads a saved checkpoint and runs evaluation only. Useful for re-evaluating a trained model with a different threshold strategy or for running the debugger visualizations. Pass `--pipeline_checkpoint_path` and the same model/dataset args used during training.
 
 ### SLURM scripts
@@ -227,6 +229,8 @@ Owns device management for training: `model.to(device)` is called inside `fit()`
 `secondary_loaders` are named val loaders evaluated every epoch but not used for early stopping. Used in `IncrementalTaskArithmeticPipeline` to track each fine-tuning segment's val loss during baseline training on one wandb chart. `step_offset` is added to the local epoch number when logging, giving all training phases a single monotonic x-axis.
 
 `IncrementalTaskArithmeticPipeline` registers `StandardTrainer` twice: `--trainer_*` for the baseline and `--finetune_trainer_*` for fine-tuning. All args must be explicitly stated for both — there is no fallback.
+
+`fit()` also accepts an optional `reference_state` (a fixed parameter snapshot, e.g. a baseline's `state_dict()`): when `reg_lambda > 0`, `reg_lambda * sum ||p - reference_state[p]||^2` (over parameters not matching `reg_exclude`) is added to the loss during both training and val-loss computation — L2-SP regularization toward the reference weights. `reg_lambda=0` and `reference_state=None` (both default) make this an exact no-op, so `StandardPipeline` and baseline training are always unaffected; only `IncrementalTaskArithmeticPipeline`'s fine-tuning phase ever passes a `reference_state` (the baseline's weights).
 
 #### `EvaluationRunner`
 

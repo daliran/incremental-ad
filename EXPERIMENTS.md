@@ -1,11 +1,17 @@
 # Experiment Summary — ETTh1 Forecasting & SWaT/PSM Anomaly Detection
 
-Snapshot as of 2026-07-03. Covers every run under `runs/` from this session, including
-the now-complete SWaT/PSM AD grid (§2.2) and the ETTh1 grid searches (§1.2-1.6) — both
-originally run via local tooling since replaced by `slurm_grid_search/` (§3); the raw
-CSVs those runs produced (`scripts/grid_search_results/`) have been deleted, but the
+Snapshot as of 2026-07-04. Covers every run under `runs/` from this session, including
+the now-complete SWaT/PSM AD grid (§2.2), the model-architecture grids run via the new
+`slurm_grid_search/` harness (§1.8, §2.3), and the ETTh1 grid searches (§1.2-1.6) — the
+latter originally run via local tooling since replaced by `slurm_grid_search/` (§3); the
+raw CSVs those runs produced (`scripts/grid_search_results/`) have been deleted, but the
 findings below remain valid. Written as a working reference, not a polished report —
 update it as new SLURM sweeps finish.
+
+§1.8 (ETTh1 model arch) and §2.3 (PSM model arch) are now both fully collected —
+the `/tmp`-exhaustion retries and the PSM `patch_len ∈ {25,50}` follow-up batch all
+completed and are reflected below. A decision on which PSM architecture to carry
+forward is still open — see §5.
 
 ## TL;DR
 
@@ -37,6 +43,30 @@ update it as new SLURM sweeps finish.
 - **Two real code bugs found and fixed this session** (§3): `Segment.val` had a
   latent format mismatch in `EtthForecastDataset` (harmless by luck, not by design);
   `window_len % patch_len` wasn't validated for forecasting (only `forecast_len` was).
+- **SWaT model-arch grid (18/18, §2.3): architecture barely matters for window/point/
+  AUROC metrics** (spreads <1%) **except `event_f1`, where it matters a lot** (spread
+  0.144-0.372). `mae_tx_decoder_heads=4` looks like a free win: ties-or-beats the base
+  recipe on every other metric while lifting `event_f1` from 0.291 to 0.372 (+28%
+  relative).
+- **PSM model-arch grid (24/24 complete, §2.3): `patch_len` trades off window-level
+  vs. event-level detection, monotonically and in opposite directions** as it grows
+  from 5→10→20→25 (window_auroc 0.795→0.817), peaking at **`patch_len=25`** then
+  slightly reversing at 50 — while `event_f1` falls the whole way (0.275→0.139 at
+  patch_len=50). No single winner — `patch_len=25/mask_ratio=0.8` is best on
+  window/point/AUROC, `encoder_embed_dim=128` (at the base `patch_len=5`) is best on
+  `event_f1` (0.396) *without* costing anything on the other four metrics, making it
+  the safer default of the two. `pa_f1` tracks neither trend, peaking instead at
+  `patch_len=50` — a third, independent pattern. **Decision on which to carry forward
+  is still open, see §5.**
+- **ETTh1 model-arch grid, extended and seed-checked (§1.8): the apparent
+  `decoder_embed_dim=128` winner does NOT hold up across seeds** — ranking flips at
+  seed 123 (128 scores 15% *worse* there), and the 3-seed average slightly favors the
+  original `decoder_embed_dim=64` recipe (0.3924 vs. 0.3970). **Recommendation:
+  keep the original §1.2/§1.7 recipe as-is**, no architecture change. Bonus: an exact
+  same-seed repeat of the base recipe gave a different result (0.3829 vs. 0.3911,
+  ~2.1%), now directly confirming the previously-unconfirmed reproducibility problem
+  in §4 with hard evidence. `patch_len=4` and `encoder_embed_dim ∈ {64,128}` remain
+  best (256 and patch_len 6/8 both consistently worse, confirming §1.2).
 
 ---
 
@@ -192,6 +222,73 @@ at longer horizons.
 ```
 Already reflected in `.vscode/launch.json`'s "ETTh1 — Forecast Incremental" config.
 
+### 1.8 SLURM grid search — extended model architecture (complete, 22/24 usable rows)
+
+`slurm_grid_search/sweeps/etth_forecast.py::MODEL_SWEEP`,
+`etth_forecast_model_results.csv`. Goes beyond stage 1 (§1.2, which only varied
+patch_len/embed_dim/instance_norm): cross of `patch_len ∈ {4,6,8}` ×
+`encoder_embed_dim ∈ {64,128,256}` (9 trials) plus one-at-a-time
+`encoder_layers ∈ {2,4}`, `encoder_heads=2`, `decoder_layers ∈ {1,3}`,
+`decoder_heads=2`, `decoder_embed_dim ∈ {32,128}` (8 trials), plus a follow-up 3-seed
+repro check on the apparent `decoder_embed_dim` winner (5 more trials) — 24 submitted,
+22 complete (2 stale `TIMEOUT` rows superseded by their retries, see below).
+
+| run | seed | patch_len | encoder_embed_dim | decoder_embed_dim | other changes | test MSE |
+|---|---|---|---|---|---|---|
+| 58391 | 42 | 4 | 128 | 128 | — | 0.3663 |
+| 58384 | 42 | 4 | 128 | 64 | encoder_layers=2 | 0.3738 |
+| 58376 (base recipe) | 42 | 4 | 128 | 64 | — | 0.3829 |
+| 58838 | 123 | 4 | 128 | 64 | — | 0.3831 |
+| 58841 | 7 | 4 | 128 | 128 | — | 0.3844 |
+| 58837 | 42 | 4 | 128 | 64 | — (exact repeat of 58376) | 0.3911 |
+| 58839 | 7 | 4 | 128 | 64 | — | 0.4071 |
+| 58840 | 123 | 4 | 128 | 128 | — | 0.4402 (worst of this group) |
+
+Same two monotonic patterns as before hold up: `patch_len=4` still beats 6/8 at every
+`encoder_embed_dim`, and `encoder_embed_dim=256` is still consistently worse than
+64/128. **The `decoder_embed_dim=128` "winner" from the first pass does not survive
+multi-seed testing.** Isolating `decoder_embed_dim ∈ {64,128}` across seeds 42/123/7
+(everything else fixed at the base recipe):
+
+| decoder_embed_dim | seed 42 | seed 123 | seed 7 | avg |
+|---|---|---|---|---|
+| 64 (base recipe) | 0.3829 / 0.3911 | 0.3831 | 0.4071 | **0.3924** |
+| 128 | 0.3663 | 0.4402 | 0.3844 | 0.3970 |
+
+The ranking **flips at seed 123** (128 is 15% *worse* than 64 there), and on average
+across seeds `decoder_embed_dim=64` (the simpler, original recipe) is marginally
+*better*, not worse. Same pattern as the `merge_scale` seed-flip in §1.4 — the
+single-seed 4.3% "improvement" was noise, not a real architecture effect.
+**Recommendation: keep the original §1.2/§1.7 recipe (`decoder_embed_dim=64`)** rather
+than adopting 128; there's no evidence it's actually better.
+
+**Bonus finding, confirms §4**: running the *exact same config and seed* (42) twice —
+run 58376 (0.3829) vs. its verbatim repeat, run 58837 (0.3911) — gives measurably
+different results (~2.1% relative). This directly confirms §4's previously
+"suspected but unconfirmed" ETTh1 non-reproducibility with hard evidence: even a
+literal same-seed rerun isn't bit-for-bit here, unlike SWaT/PSM. See updated §4.
+
+**The 2 retried trials** (`decoder_layers=3` → run 58835, MSE 0.3858;
+`decoder_embed_dim=32` → run 58836, MSE 0.4270) both landed after retrying past a
+`TIMEOUT` — the original attempts (jobs 58388/58390, still showing as `incomplete`
+rows in the CSV) both landed on compute node `rezzonico` and died in an identical
+`OSError: [Errno 28] No space left on device` loop while `DataLoader` workers
+(`--loader_num_workers 4`) tried to create their multiprocessing temp dir under
+`$TMPDIR=/tmp` — that node's local `/tmp` was full, and PyTorch's
+`multiprocessing.resource_sharer` retries `mkdtemp` in a loop instead of failing fast,
+so the job spun until the wall-clock limit killed it; not a real compute-time or
+architecture issue. Neither retried config beats 0.3663/0.3829 — no change to the
+recipe recommendation above.
+
+**Framework fix made in passing**: `collect_sweep_results` (harness.py) used to derive
+which `mae_tx_*` columns to show from the sweep's *current* `trials`/`grid`, so trimming
+a sweep file down to just its remaining/follow-up trials (done here and for PSM, §2.3)
+silently dropped architecture columns for already-collected historical rows on the next
+`collect.py` run — the values were still in each run's `config.json`, just no longer
+surfaced. Fixed to scan every `mae_tx_*`-prefixed arg actually recorded per run instead,
+independent of the sweep object's current state — same "capture everything found, don't
+hand-pick" principle CLAUDE.md already documents for metrics (§3).
+
 ---
 
 ## 2. SWaT / PSM (Anomaly Detection)
@@ -249,8 +346,7 @@ that SWaT/PSM (industrial telemetry with distinct attack-scenario segments) are 
 more plausible place for L2-SP's anti-forgetting value to show up than ETTh1 (one
 fairly homogeneous series). 6 trials per dataset (`reg_lambda ∈ {0.0, 1e-3}` ×
 `merge_scale ∈ {0.3, 0.5, 1.0}`), model architecture fixed at the proven values
-above (no model-arch sweep for SWaT/PSM yet — see slurm_grid_search's `MODEL_SWEEP`
-for that, not yet run).
+above (the model-arch sweep for SWaT/PSM has since been run — see §2.3).
 
 **SWaT** — `reg_lambda` made no measurable difference at any `merge_scale` (every
 pair within ~0.0001 pa_f1 of its counterpart at the other reg_lambda). Only
@@ -275,6 +371,61 @@ entirely on which metric you read for PSM, and on hitting `merge_scale=1.0`
 specifically for SWaT. Neither pattern matches ETTh1, where merging helped clearly
 and consistently by MSE/MAE at every merge_scale tried.
 
+### 2.3 SLURM grid search — model architecture (SWaT 18/18 complete; PSM 24/24 complete)
+
+`slurm_grid_search/sweeps/{swat,psm}.py::MODEL_SWEEP`,
+`{swat,psm}_model_results.csv`. Same shape both datasets: cross of
+`patch_len ∈ {5,10,20}` × `mask_ratio ∈ {0.5,0.65,0.8}` (9 trials) plus one-at-a-time
+`encoder_layers ∈ {3,4}`, `encoder_heads=4`, `encoder_embed_dim ∈ {128,512}`,
+`decoder_layers=2`, `decoder_heads=4`, `decoder_embed_dim ∈ {64,256}` (9 trials)
+around the proven recipe (`patch_len=5, mask_ratio=0.8, encoder_layers=2,
+encoder_heads=2, encoder_embed_dim=256, decoder_layers=1, decoder_heads=2,
+decoder_embed_dim=128`).
+
+**SWaT (18/18 complete)** — architecture barely moves window/point-level metrics:
+
+| metric | min | max | spread |
+|---|---|---|---|
+| window_auroc | 0.804 | 0.813 | 0.009 |
+| window_f1 | 0.747 | 0.752 | 0.005 |
+| point_f1 | 0.764 | 0.768 | 0.004 |
+| pa_f1 | 0.826 | 0.850 | 0.024 |
+| event_f1 | 0.144 | 0.372 | 0.228 |
+
+`event_f1` is the one axis where architecture has real signal, and
+`decoder_heads=4` (run 58266) is essentially a free win: window_auroc 0.8089 (base
+0.8088), window_f1 0.7514 (base 0.7509), pa_f1 0.8427 (exactly tied with base),
+`event_f1` 0.372 vs. the base recipe's 0.291 (+28% relative, best of all 18 trials) —
+no cost anywhere else.
+
+**PSM (24/24 complete)** — much more architecture-sensitive than SWaT, and
+`patch_len` drives a genuine trade-off (averaged over the mask_ratio cross, rest at
+base recipe; extended with the `{25,50}` follow-up batch):
+
+| patch_len | window_auroc | window_f1 | point_f1 | event_f1 |
+|---|---|---|---|---|
+| 5 | 0.795 | 0.664 | 0.606 | **0.275** |
+| 10 | 0.805 | 0.678 | 0.624 | 0.182 |
+| 20 | 0.812 | 0.697 | 0.648 | 0.194 |
+| 25 | **0.817** | **0.712** | **0.660** | 0.194 |
+| 50 | 0.813 | 0.704 | 0.654 | 0.139 (worst) |
+
+The trend **peaks at `patch_len=25`, then slightly reverses at 50** on
+window_auroc/window_f1/point_f1 — so it does saturate rather than climbing forever, and
+`event_f1` keeps getting worse the whole way, hitting its overall floor at
+`patch_len=50`. Best single trial overall: run 58831, `patch_len=25, mask_ratio=0.8`
+(window_auroc=0.8205, the best of all 24 trials); `pa_f1` behaves differently again,
+peaking instead at `patch_len=50` (0.811, its own overall best) — a third pattern that
+doesn't track window/point/AUROC or event_f1, reinforcing §2.2's point that no single
+metric tells the whole story here.
+
+No single winner, same as before: `patch_len=25, mask_ratio=0.8` (run 58831) is best
+on window/point/AUROC; `encoder_embed_dim=128` (run 58337, at base `patch_len=5,
+mask_ratio=0.8`) is still the best `event_f1` across all 24 trials (0.396) while
+staying at-or-above the base recipe on every other metric — a strict win-or-tie, and
+still the safer default absent a specific reason to prioritize window-level metrics.
+**Decision needed before moving to training-param sweeps** — see §5.
+
 ---
 
 ## 3. Code changes made this session
@@ -293,6 +444,16 @@ and consistently by MSE/MAE at every merge_scale tried.
 - **Added missing validation**: `MaeTxForecastingConfigurator` now asserts
   `window_len % patch_len == 0` (previously only checked `forecast_len % patch_len`),
   closing a silent-truncation footgun.
+- **Fixed a `collect_sweep_results` column-selection bug** (`slurm_grid_search/
+  harness.py`): it used to derive which `mae_tx_*` columns to display from the
+  sweep's *current* `trials`/`grid`, so trimming a sweep file down to just its
+  remaining/follow-up trials (done for both `psm.py` and `etth_forecast.py` this
+  session, §1.8/§2.3) silently dropped architecture columns for already-collected
+  historical rows on the next `collect.py` run — values were still in each run's
+  `config.json`, just no longer surfaced into the CSV. Fixed to scan every
+  `mae_tx_*`-prefixed arg actually recorded per run instead, independent of the sweep
+  object's current state — matches the "capture everything found, don't hand-pick"
+  principle already applied to metrics below. `_all_trial_keys` (now unused) removed.
 - **Built, then fully replaced, a local grid-search harness.** The original
   `scripts/_grid_search_harness.py` (shared by `grid_search_etth_forecast.py` and
   `grid_search_ad.py`) proved the `Sweep`/`run_sweep` design — cartesian-product
@@ -353,12 +514,20 @@ of evidence, pointing in different directions:
   floor actually is (comparable in magnitude to several of the effects being
   measured, e.g. patch_len=4 vs 8 in §1.2, or the whole segments sweep in §1.5).
 
-**Recommended diagnostic** (cheap, hasn't been run yet): launch the exact same ETTh1
-incremental config twice in a row with `--seed 42` and nothing else changed, and
-check whether `baseline/test/result.json` matches bit-for-bit. That single
-experiment would definitively separate "inherent non-determinism in this code path"
-from "some hidden dependency I haven't found" — worth doing before trusting any
-further single-seed ETTh1 grid results.
+**Recommended diagnostic — now done, confirms the problem is real** (§1.8): submitted
+the exact same ETTh1 `StandardPipeline` config (base recipe, `--seed 42`) a second
+time, verbatim. Run 58376 (original) gave test MSE 0.3829; its exact repeat, run
+58837, gave 0.3911 — a ~2.1% difference with nothing at all changed between the two
+submissions. This settles the question this diagnostic was designed to answer:
+**it's inherent non-determinism in this code path, not a hidden config/seed-handling
+bug** (a hidden dependency would more plausibly have produced identical results
+whenever the actual inputs happened to match, which they did here). Root cause within
+that non-determinism (cuDNN attention kernels, RNG interference, or something else)
+is still not pinned down, but "is this reproducible at all" is now answered: no. A
+3-seed check of the `decoder_embed_dim=64` vs. `128` architectures (§1.8) reinforces
+this at a coarser grain — `128` wins at seeds 42 and 7 but loses badly at seed 123,
+confirming the noise floor is large enough to flip real-looking single-seed
+conclusions.
 
 ---
 
@@ -366,10 +535,12 @@ further single-seed ETTh1 grid results.
 
 Ranked by what I'd actually do next, not by neatness:
 
-1. **Run the repro-check in §4 first.** Everything else here is built on top of
-   single-seed ETTh1 numbers; knowing whether that ~20% baseline swing is inherent
-   noise or a real bug changes how much weight to put on the finer-grained findings
-   (patch_len, merge_scale precision, segment count).
+1. **Done: the repro-check in §4 confirms the noise is inherent, not a bug** — an
+   exact same-seed repeat gave a different result, and the ranking between
+   `decoder_embed_dim=64` and `128` flips across seeds. Treat every single-seed ETTh1
+   architecture finding smaller than ~5% MSE as unconfirmed; the base recipe
+   (`decoder_embed_dim=64`, i.e. no change from §1.2/§1.7) is the one to carry
+   forward, since the apparent 128 improvement didn't survive multi-seed testing.
 2. **L2-SP's ETTh1-harmful finding did not generalize to SWaT/PSM** (§2.2, now
    complete) — reg_lambda made no measurable difference there at all, in either
    direction. Not much more to chase on L2-SP itself until/unless a stronger
@@ -389,8 +560,16 @@ Ranked by what I'd actually do next, not by neatness:
    hyperparameter tuning — it would say task-arithmetic merging itself doesn't
    transfer to this AD setup the way it does for ETTh1 forecasting, which would be
    worth its own investigation rather than more grid search.
-5. Lower priority, easy to defer: model-arch sweep for SWaT/PSM (§2.2 doesn't have
-   one yet), multi-seed repeats for the segments/patch_len findings, and the
-   literature-standard ETTh1 split (discussed earlier in this conversation, not
-   implemented) for a paper-comparable number — none of these change what to *do*
-   next, just add polish once the more fundamental questions above are settled.
+5. Lower priority, easy to defer: multi-seed repeats for the segments/patch_len
+   findings, and the literature-standard ETTh1 split (discussed earlier in this
+   conversation, not implemented) for a paper-comparable number — neither changes
+   what to *do* next, just adds polish once the more fundamental questions above are
+   settled.
+6. **PSM's `patch_len` trade-off (§2.3) needs a decision now, not more tuning** —
+   the `{25,50}` follow-up batch is in and the picture is settled: window/point/AUROC
+   peak at `patch_len=25` then reverse, `event_f1` falls monotonically throughout.
+   Pick `patch_len=25` (window-optimized) or `encoder_embed_dim=128` at the base
+   `patch_len=5` (event-optimized, no cost elsewhere — the safer default absent a
+   specific reason to prioritize window-level detection) and carry that architecture
+   through `train_standard`/`train_incremental` rather than running more of the same
+   cross.

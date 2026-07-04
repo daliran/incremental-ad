@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Gather results for a sweep from $RUNS_ROOT into a CSV.
 
 Usage:

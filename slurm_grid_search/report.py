@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Compare Standard vs Incremental (baseline/merged) performance for a dataset, once
 both training-parameter sweeps have been collected.
 

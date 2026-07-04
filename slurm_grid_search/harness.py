@@ -320,10 +320,15 @@ def collect_sweep_results(sweep: Sweep) -> Path:
             args = cfg.get("args", {})
 
             row: dict[str, Any] = {"run_id": run_dir.name, "seed": args.get("seed")}
-            for k in sweep.grid.keys() if not sweep.trials else _all_trial_keys(sweep):
-                if k in args and k not in fieldnames:
-                    fieldnames.append(k)
-                row[k] = args.get(k)
+            # Every mae_tx_* (architecture) arg actually recorded for this run -- not derived
+            # from the sweep's *current* trials/grid, which may since have been trimmed to
+            # only the trials still worth (re-)submitting and would otherwise silently drop
+            # columns for historical rows that swept other axes.
+            for k, v in args.items():
+                if k.startswith("mae_tx_"):
+                    if k not in fieldnames:
+                        fieldnames.append(k)
+                    row[k] = v
 
             metrics = _flatten_metrics(run_dir)
             row.update(metrics)
@@ -343,10 +348,3 @@ def collect_sweep_results(sweep: Sweep) -> Path:
     n_complete = sum(1 for r in rows if r["status"] == "complete")
     print(f"Collected {len(rows)} run(s) ({n_complete} complete) -> {results_path}")
     return results_path
-
-
-def _all_trial_keys(sweep: Sweep) -> set[str]:
-    keys: set[str] = set()
-    for t in sweep.trials or []:
-        keys.update(t.keys())
-    return keys

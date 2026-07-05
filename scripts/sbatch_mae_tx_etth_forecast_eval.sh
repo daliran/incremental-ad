@@ -23,7 +23,15 @@ export RUNS_ROOT=$WORK/runs
 export WANDB_MODE=online
 export WANDB_PROJECT=incremental_ad
 export WANDB_ENTITY=kirrel-research
-export TMPDIR=/tmp
+# Node-local /tmp is shared with every other job on that node and frequently runs out
+# of space -- when it does, Python's tempfile falls back through its candidate list to
+# the current working directory (PROJECT_ROOT, since we cd there below), littering the
+# repo with empty pymp-* dirs; when it doesn't fall back cleanly, DataLoader workers can
+# spin retrying a failed mkdtemp instead of failing fast, burning the whole time limit.
+# Use a per-job dir on $WORK (BeeGFS, effectively never full) instead, cleaned up on exit.
+export TMPDIR=$WORK/tmp/$SLURM_JOB_ID
+mkdir -p $TMPDIR
+trap 'rm -rf "$TMPDIR"' EXIT
 
 # ── Pre-create the log dir (required before SLURM writes the log file) ────────
 mkdir -p /work/tesi_ddellacasaventurelli01/incremental-ad/logs

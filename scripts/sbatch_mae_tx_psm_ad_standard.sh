@@ -23,7 +23,15 @@ export RUNS_ROOT=$WORK/runs
 export WANDB_MODE=online
 export WANDB_PROJECT=incremental_ad
 export WANDB_ENTITY=kirrel-research
-export TMPDIR=/tmp
+# Node-local /tmp is shared with every other job on that node and frequently runs out
+# of space -- when it does, Python's tempfile falls back through its candidate list to
+# the current working directory (PROJECT_ROOT, since we cd there below), littering the
+# repo with empty pymp-* dirs; when it doesn't fall back cleanly, DataLoader workers can
+# spin retrying a failed mkdtemp instead of failing fast, burning the whole time limit.
+# Use a per-job dir on $WORK (BeeGFS, effectively never full) instead, cleaned up on exit.
+export TMPDIR=$WORK/tmp/$SLURM_JOB_ID
+mkdir -p $TMPDIR
+trap 'rm -rf "$TMPDIR"' EXIT
 
 # ── Pre-create the log dir (required before SLURM writes the log file) ────────
 mkdir -p /work/tesi_ddellacasaventurelli01/incremental-ad/logs
@@ -49,7 +57,7 @@ python -m incremental_ad.main \
     --seed 42 \
     \
     --mae_tx_patch_len 5 \
-    --mae_tx_encoder_embed_dim 256 \
+    --mae_tx_encoder_embed_dim 128 \
     --mae_tx_encoder_layers 2 \
     --mae_tx_encoder_heads 2 \
     --mae_tx_decoder_embed_dim 128 \
@@ -63,7 +71,7 @@ python -m incremental_ad.main \
     --dataset_window_len 100 \
     --dataset_stride 50 \
     --dataset_normalization standard \
-    --dataset_val_fraction 0.15 \
+    --dataset_val_fraction 0.20 \
     \
     --loader_batch_size 64 \
     --loader_num_workers 4 \
@@ -72,7 +80,7 @@ python -m incremental_ad.main \
     --trainer_patience 30 \
     --trainer_optimizer adamw \
     --trainer_weight_decay 1e-2 \
-    --trainer_learning_rate 1e-4 \
+    --trainer_learning_rate 3e-4 \
     --trainer_grad_clip 0.5 \
     --trainer_scheduler cosine \
     --trainer_warmup_ratio 0.1 \

@@ -1,17 +1,18 @@
 # Experiment Summary — ETTh1 Forecasting & SWaT/PSM Anomaly Detection
 
-Snapshot as of 2026-07-04. Covers every run under `runs/` from this session, including
-the now-complete SWaT/PSM AD grid (§2.2), the model-architecture grids run via the new
-`slurm_grid_search/` harness (§1.8, §2.3), and the ETTh1 grid searches (§1.2-1.6) — the
-latter originally run via local tooling since replaced by `slurm_grid_search/` (§3); the
-raw CSVs those runs produced (`scripts/grid_search_results/`) have been deleted, but the
-findings below remain valid. Written as a working reference, not a polished report —
-update it as new SLURM sweeps finish.
+Snapshot as of 2026-07-05. Covers every run under `runs/` from this session, including
+the now-complete SWaT/PSM AD grid (§2.2), the model-architecture grids (§1.8, §2.3),
+the training-parameter grids (§1.9, §2.4) — all four run via `slurm_grid_search/` — and
+the ETTh1 grid searches (§1.2-1.6) — the latter originally run via local tooling since
+replaced by `slurm_grid_search/` (§3); the raw CSVs those runs produced
+(`scripts/grid_search_results/`) have been deleted, but the findings below remain valid.
+Written as a working reference, not a polished report — update it as new SLURM sweeps
+finish.
 
-§1.8 (ETTh1 model arch) and §2.3 (PSM model arch) are now both fully collected —
-the `/tmp`-exhaustion retries and the PSM `patch_len ∈ {25,50}` follow-up batch all
-completed and are reflected below. A decision on which PSM architecture to carry
-forward is still open — see §5.
+All four SLURM stages (`model`, `train_standard`, `train_incremental` × SWaT/PSM/ETTh1)
+are now complete. Architecture decisions (§2.3) are already reflected in
+`scripts/sbatch_mae_tx_{swat,psm}_ad_*.sh` and `.vscode/launch.json` (SWaT
+`decoder_heads=4`; PSM `patch_len=25`; ETTh1 unchanged).
 
 ## TL;DR
 
@@ -56,8 +57,25 @@ forward is still open — see §5.
   window/point/AUROC, `encoder_embed_dim=128` (at the base `patch_len=5`) is best on
   `event_f1` (0.396) *without* costing anything on the other four metrics, making it
   the safer default of the two. `pa_f1` tracks neither trend, peaking instead at
-  `patch_len=50` — a third, independent pattern. **Decision on which to carry forward
-  is still open, see §5.**
+  `patch_len=50` — a third, independent pattern. **Decision made: `patch_len=25`
+  (window-optimized) carried forward** into training-param sweeps and the "proven
+  recipe" files (scripts/launch.json/ARCH_ARGS).
+- **Training-parameter grids, all three datasets complete (§1.9, §2.4)**: SWaT/PSM
+  both get a real `pa_f1` win from `dataset_val_fraction=0.20` (SWaT +0.9%, PSM +5.4%
+  relative vs. the base recipe) — though `window_auroc` prefers `val_fraction=0.15`
+  on PSM, the same metric-disagreement pattern as architecture. SWaT's incremental
+  sweep reconfirms `merge_scale=1.0` as best-in-cross, but three one-at-a-time trials
+  at the *default* `merge_scale=0.5` beat it anyway (best: `n_finetune_segments=2`,
+  pa_f1 0.8438) despite a *worse* baseline — unexplained, worth a combined sweep.
+  PSM's merge_scale-vs-window-metrics relationship **flipped direction** now that the
+  architecture is `patch_len=25` instead of 5: low `merge_scale=0.3` now helps
+  window_auroc/event_f1 and high `merge_scale=1.0` now hurts them — the opposite of
+  §2.2's old-architecture finding. ETTh1's training-param sweep reconfirms
+  `merge_scale=0.5, reg_lambda=0` (MSE 0.4236, consistent with §1.3's 0.4197), but
+  found one dramatic new failure mode: `dataset_baseline_fraction=0.3` makes merging
+  **actively catastrophic** (MSE 1.0076→1.9766, nearly doubling) — the only case in
+  this entire document where merging made things clearly worse rather than better or
+  neutral.
 - **ETTh1 model-arch grid, extended and seed-checked (§1.8): the apparent
   `decoder_embed_dim=128` winner does NOT hold up across seeds** — ranking flips at
   seed 123 (128 scores 15% *worse* there), and the 3-seed average slightly favors the
@@ -289,6 +307,49 @@ surfaced. Fixed to scan every `mae_tx_*`-prefixed arg actually recorded per run 
 independent of the sweep object's current state — same "capture everything found, don't
 hand-pick" principle CLAUDE.md already documents for metrics (§3).
 
+### 1.9 SLURM grid search — training parameters (`train_standard` 7/7, `train_incremental` 15/16)
+
+`slurm_grid_search/sweeps/etth_forecast.py::TRAIN_STANDARD_SWEEP` /
+`TRAIN_INCREMENTAL_SWEEP`, using the unchanged §1.2/§1.7/§1.8 architecture recipe
+(`decoder_embed_dim=64` — the apparent 128 winner didn't survive §1.8's seed check).
+
+**`train_standard`**: `dataset_val_fraction ∈ {0.05,0.1,0.15}` × `trainer_learning_rate
+∈ {1e-3,3e-4}` + `trainer_weight_decay=1e-3` one-at-a-time. Best: `val_fraction=0.1,
+learning_rate=3e-4` (MSE 0.3838) vs. the base recipe's own row (`val_fraction=0.1,
+learning_rate=1e-3`, MSE 0.3911) — only a ~1.9% improvement, i.e. **smaller than the
+~2.1% same-seed noise floor confirmed in §1.8/§4**, so treat this as "plausible, not
+confirmed" rather than a real win. `val_fraction=0.15` is consistently worst regardless
+of learning rate (0.43-0.45) — that part of the trend looks real, not noise-sized.
+
+**`train_incremental`**: `pipeline_merge_scale ∈ {0.3,0.5,1.0}` ×
+`finetune_trainer_reg_lambda ∈ {0.0,1e-3,1e-2}` cross + `dataset_baseline_fraction ∈
+{0.3,0.7}` / `dataset_val_fraction ∈ {0.1,0.15}` / `dataset_n_finetune_segments ∈
+{2,5}` one-at-a-time (14/15 valid — the `val_fraction=0.05` row is the degenerate-split
+failure from earlier, excluded). Reconfirms §1.3's `merge_scale=0.5, reg_lambda=0` as
+best-in-cross (MSE 0.4236 here vs. 0.4197 there — consistent). `reg_lambda` mostly
+confirms §1.3 (higher is worse) **except one exception at `merge_scale=1.0`,
+`reg_lambda=1e-3` (MSE 0.4486, beating `reg_lambda=0`'s 0.4684)** — but that row's own
+*baseline* MSE (0.6873) differs from its cross-mates (0.6132) despite nominally
+identical config, i.e. it's the same unresolved ETTh1 non-reproducibility problem
+(§4) confounding the comparison, not a clean reversal of the reg_lambda trend.
+
+**Notable one-at-a-time finding**: `dataset_baseline_fraction=0.3` (baseline gets only
+30% of the data, 3 finetune segments cover the rest) makes merging **actively
+catastrophic** — MSE goes from baseline 1.0076 to merged 1.9766, nearly *doubling* —
+the only row in this entire session where merging made things dramatically worse
+rather than better or flat. Plausible mechanism: with too little baseline data, the
+baseline task vector itself is unreliable, so merging in that direction actively hurts
+rather than helps. Worth a dedicated follow-up if low-baseline-fraction incremental
+setups are ever actually used, since every other finding in this document assumes
+merging helps or is neutral.
+
+**Follow-up**: paired `dataset_val_fraction=0.05` with `dataset_n_finetune_segments=2`
+(instead of the default 3) as a one-off check — this clears the degenerate-split guard
+that killed the plain `val_fraction=0.05` trial, and gives a normal result (baseline
+MSE 0.6301 → merged 0.4562), in line with the rest of the `train_incremental` grid.
+Confirms the earlier failure was specifically about segment count interacting with
+`val_fraction`, not `val_fraction=0.05` being unworkable on its own.
+
 ---
 
 ## 2. SWaT / PSM (Anomaly Detection)
@@ -424,7 +485,85 @@ on window/point/AUROC; `encoder_embed_dim=128` (run 58337, at base `patch_len=5,
 mask_ratio=0.8`) is still the best `event_f1` across all 24 trials (0.396) while
 staying at-or-above the base recipe on every other metric — a strict win-or-tie, and
 still the safer default absent a specific reason to prioritize window-level metrics.
-**Decision needed before moving to training-param sweeps** — see §5.
+**Decision made: `patch_len=25` (window-optimized) carried forward** into
+`train_standard`/`train_incremental` below — `scripts/sbatch_mae_tx_psm_ad_*.sh` and
+`.vscode/launch.json`'s "PSM" configs updated to match. SWaT similarly carries
+`decoder_heads=4` forward (same files updated for SWaT too).
+
+### 2.4 SLURM grid search — training parameters (SWaT 7/7 + 15/15; PSM 14/14 + 30/30, two architectures)
+
+`slurm_grid_search/sweeps/{swat,psm}.py::TRAIN_STANDARD_SWEEP` / `TRAIN_INCREMENTAL_SWEEP`,
+using the §2.3 architecture decisions (SWaT `decoder_heads=4`; PSM `patch_len=25`).
+
+**`train_standard`** (`dataset_val_fraction ∈ {0.10,0.15,0.20}` × `trainer_learning_rate
+∈ {1e-4,3e-4}` + `trainer_weight_decay=1e-3` one-at-a-time, ranked by `pa_f1`):
+
+- **SWaT**: best `val_fraction=0.20, learning_rate=1e-4` (pa_f1=0.8503) vs. the base
+  recipe's own row (`val_fraction=0.15, learning_rate=1e-4`, pa_f1=0.8427) — a real,
+  if modest, +0.9% relative improvement. `val_fraction=0.20` appears twice in the top 4.
+- **PSM**: same combo wins more decisively — `val_fraction=0.20, learning_rate=1e-4`
+  (pa_f1=0.8141) clearly beats the base recipe's `val_fraction=0.15` row (0.7725,
+  +5.4% relative) and every other trial (next-best 0.7729). Note `window_auroc`
+  disagrees again (peaks at `val_fraction=0.15` combos, 0.8205/0.8197) — the same
+  "pa_f1 vs. window-level metrics" split from §2.2/§2.3, now showing up on a training
+  hyperparameter too, not just architecture.
+
+**`train_incremental`** (`pipeline_merge_scale ∈ {0.3,0.5,1.0}` ×
+`finetune_trainer_reg_lambda ∈ {0.0,1e-3,1e-2}` cross + `dataset_baseline_fraction ∈
+{0.3,0.7}` / `dataset_val_fraction ∈ {0.1,0.2}` / `dataset_n_finetune_segments ∈
+{2,5}` one-at-a-time):
+
+- **SWaT** (15/15 valid): `merge_scale=1.0, reg_lambda=0.0` best-in-cross (pa_f1
+  0.8373→0.8408), confirming §2.2's SWaT finding that `merge_scale=1.0` is the one
+  value that clearly beats baseline there. `reg_lambda` again makes only a tiny,
+  slightly-negative difference (0.8408→0.8407→0.8402 as it increases) — consistent
+  with §2.2's "no measurable difference" call, just barely visible here. **Three
+  one-at-a-time trials beat the cross's own best**: `val_fraction=0.10` (pa_f1
+  0.8436), `n_finetune_segments=2` (0.8438, the best of all 15), `val_fraction=0.20`
+  (0.8434) — all at the *default* `merge_scale=0.5`, and all despite their *baseline*
+  pa_f1 being noticeably lower (0.830-0.837 vs. 0.8373 default) — i.e. a worse
+  baseline merged into a *better* final result. Not yet explained; worth a combined
+  sweep of `merge_scale` × these specific axes rather than treating `merge_scale=1.0`
+  as the final answer.
+- **PSM** (15/15 valid): `pa_f1` is worse after merging at every merge_scale (baseline
+  0.798 → merged 0.771-0.776), same direction as §2.2 but the *window-level* pattern
+  has flipped from §2.2 now that the architecture is `patch_len=25` instead of 5:
+  `window_auroc` and `event_f1` are now **best at low `merge_scale=0.3`** (auroc
+  0.7904→0.7853, event_f1 0.1652→0.2096) and **worst at `merge_scale=1.0`** (auroc
+  →0.7689, event_f1 →0.1630, actually below baseline) — the opposite ranking from
+  §2.2's old-architecture result, where every merge_scale improved window-level
+  metrics. The architecture change appears to have changed which merge_scale is
+  "good," not just the absolute numbers — another reason architecture and
+  training-hyperparameter decisions aren't fully separable here.
+
+**Confirmation batch — PSM re-run at `patch_len=5` (event-optimized arch, same
+`train_standard`/`train_incremental` grids, 22 more trials)**: this makes the
+`patch_len` comparison a controlled one — same training-hyperparameter grid, only
+`patch_len` differs (25 vs. 5), settling the "why did merging used to help PSM"
+question from a genuine architecture/merge_scale interaction, not a fluke:
+
+| | `patch_len=25` | `patch_len=5` |
+|---|---|---|
+| `train_standard` best pa_f1 | **0.8141** | 0.8035 |
+| `train_standard` best window_auroc | **0.8185** | 0.8033 |
+| `train_standard` best event_f1 | 0.1891 | **0.2582** |
+| `train_incremental` avg window_auroc: baseline→merged | 0.7891→0.7722 (**worse**) | 0.7748→**0.7950** (better) |
+| `train_incremental` avg event_f1: baseline→merged | 0.1606→0.1741 | 0.2272→**0.2459** |
+| `train_incremental` avg pa_f1: baseline→merged | 0.8015→0.7745 | 0.8029→0.7706 |
+
+`patch_len=5`'s incremental `window_auroc` improves after merging (matching §2.2's
+original finding, now reproduced with the current codebase/session); `patch_len=25`'s
+gets worse (matching §2.4's finding above). Same training-hyperparameter grid, same
+codebase, only `patch_len` differs — about as clean a confirmation as this kind of
+comparison gets. `pa_f1` is a wash either way (merging hurts it regardless of
+`patch_len`). **Working hypothesis for the mechanism** (not directly tested): at
+`patch_len=25` PSM only has 4 total patches per window, and at `mask_ratio=0.8` that
+leaves just 1 visible patch during MAE training (`n_patches=100//25=4`,
+`n_masked=int(4×0.8)=3`) — a far coarser, lower-context reconstruction task than
+`patch_len=5`'s 20 patches (4 visible), which may make the coarse-patch model more
+fragile to the weight-space perturbation that task-arithmetic merging performs.
+Untested: intermediate `patch_len` values against the same `merge_scale` cross, which
+would show whether this is a gradual effect or a sharp threshold.
 
 ---
 
@@ -454,6 +593,20 @@ still the safer default absent a specific reason to prioritize window-level metr
   `mae_tx_*`-prefixed arg actually recorded per run instead, independent of the sweep
   object's current state — matches the "capture everything found, don't hand-pick"
   principle already applied to metrics below. `_all_trial_keys` (now unused) removed.
+  **Follow-up fix**: restricting to `mae_tx_*` was itself too narrow — it silently
+  dropped the `dataset_*`/`trainer_*`/`pipeline_*`/`finetune_trainer_*` columns that
+  `train_standard`/`train_incremental` sweep (only `MODEL_SWEEP` varies `mae_tx_*`).
+  Fixed again to capture every recorded arg (minus `seed`, which already has its own
+  column), not just `mae_tx_*` ones.
+- **Data-quality gotcha found while analyzing §2.4/§1.9 results**: `collect_sweep_results`
+  marks a row `"complete"` if *any* `result.json` is found anywhere under the run dir —
+  for `IncrementalTaskArithmeticPipeline` runs that crash partway through (e.g. the
+  wandb `ENOSPC` failures below), this means a row can show `status=complete` with a
+  fully populated `baseline_test_*` but **empty `merged_test_*`** columns, since
+  baseline/finetune stages already wrote their own `result.json` before the crash.
+  Two SWaT `train_incremental` rows (58944, 58946) are exactly this — stale partial
+  duplicates of their successful retries (59055, 59056). Anyone re-analyzing these
+  CSVs should filter on the target metric being non-empty, not just `status=="complete"`.
 - **Built, then fully replaced, a local grid-search harness.** The original
   `scripts/_grid_search_harness.py` (shared by `grid_search_etth_forecast.py` and
   `grid_search_ad.py`) proved the `Sweep`/`run_sweep` design — cartesian-product
@@ -565,11 +718,28 @@ Ranked by what I'd actually do next, not by neatness:
    conversation, not implemented) for a paper-comparable number — neither changes
    what to *do* next, just adds polish once the more fundamental questions above are
    settled.
-6. **PSM's `patch_len` trade-off (§2.3) needs a decision now, not more tuning** —
-   the `{25,50}` follow-up batch is in and the picture is settled: window/point/AUROC
-   peak at `patch_len=25` then reverse, `event_f1` falls monotonically throughout.
-   Pick `patch_len=25` (window-optimized) or `encoder_embed_dim=128` at the base
-   `patch_len=5` (event-optimized, no cost elsewhere — the safer default absent a
-   specific reason to prioritize window-level detection) and carry that architecture
-   through `train_standard`/`train_incremental` rather than running more of the same
-   cross.
+6. **Done: PSM's `patch_len` decision (§2.3) was made — `patch_len=25`** carried
+   through `train_standard`/`train_incremental` (§2.4) and into
+   `scripts/sbatch_mae_tx_psm_ad_*.sh`/`launch.json`. Worth remembering this was a
+   deliberate window-optimized choice, not a free win like SWaT's `decoder_heads=4` —
+   `encoder_embed_dim=128` at the base `patch_len=5` remains the better pick if
+   event-level detection ever becomes the priority.
+7. **New, unexplained finding worth a follow-up sweep (§2.4)**: on SWaT incremental,
+   three one-at-a-time trials (`val_fraction=0.10/0.20`, `n_finetune_segments=2`) beat
+   the cross's own best (`merge_scale=1.0`) despite worse baselines and all sitting at
+   the *default* `merge_scale=0.5`. Worth an explicit cross of `merge_scale` × these
+   three axes to see whether combining them pushes pa_f1 even higher, or whether
+   they're independently-noisy wins that happen not to stack.
+8. **New, higher-priority finding (§2.4/§1.9)**: `dataset_baseline_fraction=0.3` made
+   ETTh1 incremental merging catastrophically worse (MSE nearly doubled) — the only
+   case anywhere in this document where merging clearly hurt rather than helped or
+   stayed neutral. Before trusting task-arithmetic merging in any low-baseline-data
+   regime, this deserves its own targeted check (repeat at a couple of seeds, and try
+   the same low-baseline-fraction setting on SWaT/PSM) rather than being left as a
+   single data point.
+9. **PSM's merge_scale ranking flipped when the architecture changed** (§2.4):
+   `patch_len=5`'s merge_scale=well-away-from-1.0 was best for window-level metrics in
+   §2.2, but at `patch_len=25` it's the opposite — low `merge_scale` now wins on
+   window-level metrics. This means architecture and incremental-pipeline
+   hyperparameters aren't cleanly separable for PSM; if `patch_len` is ever revisited,
+   the training-param sweep should be re-run rather than assumed to transfer.

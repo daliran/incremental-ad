@@ -192,5 +192,9 @@ logs/
 analysis/
 debug/
 
+# stray dirs from tempfile's cwd-fallback when a compute node's local /tmp is full
+# (see TMPDIR handling in slurm_grid_search/harness.py and scripts/sbatch_mae_tx_*.sh)
+pymp-*/
+
 # unignore project scripts excluded by the VirtualEnv template above
 !scripts/

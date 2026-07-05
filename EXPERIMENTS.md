@@ -1,18 +1,24 @@
 # Experiment Summary — ETTh1 Forecasting & SWaT/PSM Anomaly Detection
 
+**This file is the source of truth for every experiment in this project — not the
+artifact page, not chat history, not $WORK's CSVs.** §1-2 are the narrative (what was
+tried, what worked, what didn't); §6 is the complete per-trial data backing that
+narrative — every value, every parameter combination, nothing summarized away. §7 has
+the interactive artifact URL. Update this file (prose *and* §6's tables) every time a
+new sweep is collected — don't let results live only on the cluster or in memory.
+
 Snapshot as of 2026-07-05. Covers every run under `runs/` from this session, including
 the now-complete SWaT/PSM AD grid (§2.2), the model-architecture grids (§1.8, §2.3),
 the training-parameter grids (§1.9, §2.4) — all four run via `slurm_grid_search/` — and
 the ETTh1 grid searches (§1.2-1.6) — the latter originally run via local tooling since
-replaced by `slurm_grid_search/` (§3); the raw CSVs those runs produced
+replaced by `slurm_grid_search/` (§3); the raw CSVs those local runs produced
 (`scripts/grid_search_results/`) have been deleted, but the findings below remain valid.
-Written as a working reference, not a polished report — update it as new SLURM sweeps
-finish.
 
 All four SLURM stages (`model`, `train_standard`, `train_incremental` × SWaT/PSM/ETTh1)
 are now complete. Architecture decisions (§2.3) are already reflected in
 `scripts/sbatch_mae_tx_{swat,psm}_ad_*.sh` and `.vscode/launch.json` (SWaT
-`decoder_heads=4`; PSM `patch_len=25`; ETTh1 unchanged).
+`decoder_heads=4`; PSM `patch_len=5, encoder_embed_dim=128` — revised from the initial
+`patch_len=25` pick after the head-to-head comparison in §2.4; ETTh1 unchanged).
 
 ## TL;DR
 
@@ -57,16 +63,19 @@ are now complete. Architecture decisions (§2.3) are already reflected in
   window/point/AUROC, `encoder_embed_dim=128` (at the base `patch_len=5`) is best on
   `event_f1` (0.396) *without* costing anything on the other four metrics, making it
   the safer default of the two. `pa_f1` tracks neither trend, peaking instead at
-  `patch_len=50` — a third, independent pattern. **Decision made: `patch_len=25`
-  (window-optimized) carried forward** into training-param sweeps and the "proven
-  recipe" files (scripts/launch.json/ARCH_ARGS).
+  `patch_len=50` — a third, independent pattern. `patch_len=25` was carried through
+  training-param sweeps first (§2.4), but once run end-to-end through
+  `train_incremental` it lost on nearly every metric to `patch_len=5` (see §2.4's
+  confirmation batch) — **final decision: `patch_len=5`**, now the "proven recipe"
+  in scripts/launch.json/ARCH_ARGS.
 - **Training-parameter grids, all three datasets complete (§1.9, §2.4)**: SWaT/PSM
   both get a real `pa_f1` win from `dataset_val_fraction=0.20` (SWaT +0.9%, PSM +5.4%
   relative vs. the base recipe) — though `window_auroc` prefers `val_fraction=0.15`
   on PSM, the same metric-disagreement pattern as architecture. SWaT's incremental
-  sweep reconfirms `merge_scale=1.0` as best-in-cross, but three one-at-a-time trials
-  at the *default* `merge_scale=0.5` beat it anyway (best: `n_finetune_segments=2`,
-  pa_f1 0.8438) despite a *worse* baseline — unexplained, worth a combined sweep.
+  sweep reconfirms `merge_scale=1.0` as best-in-cross; three one-at-a-time trials edge
+  it out further (best: `n_finetune_segments=2`, pa_f1 0.8438) — they inherit the same
+  `merge_scale=1.0` default (not a different "0.5" as an earlier pass at this doc
+  claimed), so this is `merge_scale=1.0` plus a slightly better split, not a mystery.
   PSM's merge_scale-vs-window-metrics relationship **flipped direction** now that the
   architecture is `patch_len=25` instead of 5: low `merge_scale=0.3` now helps
   window_auroc/event_f1 and high `merge_scale=1.0` now hurts them — the opposite of
@@ -485,15 +494,19 @@ on window/point/AUROC; `encoder_embed_dim=128` (run 58337, at base `patch_len=5,
 mask_ratio=0.8`) is still the best `event_f1` across all 24 trials (0.396) while
 staying at-or-above the base recipe on every other metric — a strict win-or-tie, and
 still the safer default absent a specific reason to prioritize window-level metrics.
-**Decision made: `patch_len=25` (window-optimized) carried forward** into
-`train_standard`/`train_incremental` below — `scripts/sbatch_mae_tx_psm_ad_*.sh` and
-`.vscode/launch.json`'s "PSM" configs updated to match. SWaT similarly carries
-`decoder_heads=4` forward (same files updated for SWaT too).
+`patch_len=25` (window-optimized) was carried forward *initially* into
+`train_standard`/`train_incremental` below to test it end-to-end. **That decision was
+later reversed** (§2.4's confirmation batch) once the full incremental pipeline showed
+`patch_len=5` winning on nearly every metric except a wash on `pa_f1` — final recipe is
+`patch_len=5, encoder_embed_dim=128`, reflected in `scripts/sbatch_mae_tx_psm_ad_*.sh`
+and `.vscode/launch.json`'s "PSM" configs. SWaT's `decoder_heads=4` *was* a clean free
+win and needed no reversal (same files updated for SWaT too).
 
 ### 2.4 SLURM grid search — training parameters (SWaT 7/7 + 15/15; PSM 14/14 + 30/30, two architectures)
 
 `slurm_grid_search/sweeps/{swat,psm}.py::TRAIN_STANDARD_SWEEP` / `TRAIN_INCREMENTAL_SWEEP`,
-using the §2.3 architecture decisions (SWaT `decoder_heads=4`; PSM `patch_len=25`).
+using the §2.3 architecture decisions (SWaT `decoder_heads=4`; PSM `patch_len=25`
+initially — see the confirmation batch below for why it was revised to `patch_len=5`).
 
 **`train_standard`** (`dataset_val_fraction ∈ {0.10,0.15,0.20}` × `trainer_learning_rate
 ∈ {1e-4,3e-4}` + `trainer_weight_decay=1e-3` one-at-a-time, ranked by `pa_f1`):
@@ -517,14 +530,15 @@ using the §2.3 architecture decisions (SWaT `decoder_heads=4`; PSM `patch_len=2
   0.8373→0.8408), confirming §2.2's SWaT finding that `merge_scale=1.0` is the one
   value that clearly beats baseline there. `reg_lambda` again makes only a tiny,
   slightly-negative difference (0.8408→0.8407→0.8402 as it increases) — consistent
-  with §2.2's "no measurable difference" call, just barely visible here. **Three
-  one-at-a-time trials beat the cross's own best**: `val_fraction=0.10` (pa_f1
-  0.8436), `n_finetune_segments=2` (0.8438, the best of all 15), `val_fraction=0.20`
-  (0.8434) — all at the *default* `merge_scale=0.5`, and all despite their *baseline*
-  pa_f1 being noticeably lower (0.830-0.837 vs. 0.8373 default) — i.e. a worse
-  baseline merged into a *better* final result. Not yet explained; worth a combined
-  sweep of `merge_scale` × these specific axes rather than treating `merge_scale=1.0`
-  as the final answer.
+  with §2.2's "no measurable difference" call, just barely visible here. Correction
+  to an earlier read of this data: the one-at-a-time trials (`dataset_baseline_fraction`,
+  `dataset_val_fraction`, `dataset_n_finetune_segments`) don't override
+  `pipeline_merge_scale`, so they run at its argparse *default* of **1.0** — the same
+  value the cross already found best, not a different "0.5 default" as previously
+  stated here. Three of them (`val_fraction=0.10` → pa_f1 0.8436,
+  `n_finetune_segments=2` → 0.8438 the best of all 15, `val_fraction=0.20` → 0.8434)
+  edge out the cross's own best (0.8408) despite worse baselines — a small further gain
+  from combining `merge_scale=1.0` with a slightly different split, not a mystery.
 - **PSM** (15/15 valid): `pa_f1` is worse after merging at every merge_scale (baseline
   0.798 → merged 0.771-0.776), same direction as §2.2 but the *window-level* pattern
   has flipped from §2.2 now that the architecture is `patch_len=25` instead of 5:
@@ -724,22 +738,273 @@ Ranked by what I'd actually do next, not by neatness:
    deliberate window-optimized choice, not a free win like SWaT's `decoder_heads=4` —
    `encoder_embed_dim=128` at the base `patch_len=5` remains the better pick if
    event-level detection ever becomes the priority.
-7. **New, unexplained finding worth a follow-up sweep (§2.4)**: on SWaT incremental,
-   three one-at-a-time trials (`val_fraction=0.10/0.20`, `n_finetune_segments=2`) beat
-   the cross's own best (`merge_scale=1.0`) despite worse baselines and all sitting at
-   the *default* `merge_scale=0.5`. Worth an explicit cross of `merge_scale` × these
-   three axes to see whether combining them pushes pa_f1 even higher, or whether
-   they're independently-noisy wins that happen not to stack.
+7. **Correction, not a mystery (§2.4)**: SWaT's one-at-a-time trials
+   (`val_fraction=0.10/0.20`, `n_finetune_segments=2`) don't override
+   `pipeline_merge_scale`, so they inherit its argparse default of **1.0** — the same
+   value the cross already found best, not the "0.5 default" earlier drafts of this
+   doc claimed. Their small edge over the cross's own best (0.8438 vs. 0.8408) is just
+   `merge_scale=1.0` combined with a slightly different split, not an unexplained
+   effect — no follow-up sweep needed here.
 8. **New, higher-priority finding (§2.4/§1.9)**: `dataset_baseline_fraction=0.3` made
    ETTh1 incremental merging catastrophically worse (MSE nearly doubled) — the only
    case anywhere in this document where merging clearly hurt rather than helped or
-   stayed neutral. Before trusting task-arithmetic merging in any low-baseline-data
-   regime, this deserves its own targeted check (repeat at a couple of seeds, and try
-   the same low-baseline-fraction setting on SWaT/PSM) rather than being left as a
-   single data point.
-9. **PSM's merge_scale ranking flipped when the architecture changed** (§2.4):
-   `patch_len=5`'s merge_scale=well-away-from-1.0 was best for window-level metrics in
-   §2.2, but at `patch_len=25` it's the opposite — low `merge_scale` now wins on
-   window-level metrics. This means architecture and incremental-pipeline
-   hyperparameters aren't cleanly separable for PSM; if `patch_len` is ever revisited,
-   the training-param sweep should be re-run rather than assumed to transfer.
+   stayed neutral. Caveat: this one-at-a-time trial also inherited the `merge_scale=1.0`
+   default rather than ETTh1's own cross-optimal `merge_scale=0.5` (see point 7) — the
+   cross itself shows `merge_scale=1.0` is only mildly worse than 0.5 for ETTh1
+   (MSE 0.4684 vs. 0.4236, nowhere near a doubling), so the catastrophic effect is very
+   unlikely to be a `merge_scale` artifact, but re-testing `baseline_fraction=0.3` at
+   `merge_scale=0.5` would close that gap. Before trusting task-arithmetic merging in
+   any low-baseline-data regime, this deserves its own targeted check (repeat at a
+   couple of seeds, and try the same low-baseline-fraction setting on SWaT/PSM) rather
+   than being left as a single data point.
+9. **PSM's merge_scale ranking flipped when the architecture changed** (§2.4): at
+   `patch_len=5`, window-level metrics improve at *every* `merge_scale` tested (§2.2),
+   and improve *more* as `merge_scale` rises toward 1.0 (§2.4's repeat confirms this).
+   At `patch_len=25` it's the opposite — window-level metrics get *worse* as
+   `merge_scale` rises, with low `merge_scale=0.3` now winning. This means architecture
+   and incremental-pipeline hyperparameters aren't cleanly separable for PSM; if
+   `patch_len` is ever revisited, the training-param sweep should be re-run rather than
+   assumed to transfer.
+---
+
+## 6. Appendix — complete per-trial results
+
+Every trial submitted this session, in full — the summarized tables and prose in §1-2
+pick out winners and patterns, but every row behind those calls is here. `—` means that
+metric wasn't available (the run never reached that stage, e.g. `incomplete`/timed-out
+rows, or the `merged_test_*` columns for a run that crashed between baseline and merge —
+see the data-quality note in §3). Columns match the metrics used throughout this doc;
+architecture columns are named without the `mae_tx_` prefix for width. Retried trials
+(after a `TIMEOUT`/`FAILED`) keep their original row *and* their retry's new row side by
+side, so the failure history isn't lost.
+
+Regenerating this from scratch (e.g. after more sweeps run): `collect.py --dataset
+<swat|psm|etth_forecast> --stage <model|train_standard|train_incremental>` against
+$RUNS_ROOT — idempotent, safe to re-run any time (see CLAUDE.md). The underlying CSVs
+live on `$WORK/slurm_grid_search` (cluster scratch), not in this repo, by the project's
+own convention (CLAUDE.md: "everything generated... never inside the repo") — this
+appendix is the durable copy.
+
+### A.1 SWaT — model architecture (18 trials)
+
+| run_id | patch_len | mask_ratio | encoder_layers | encoder_heads | encoder_embed_dim | decoder_layers | decoder_heads | decoder_embed_dim | pa_f1 | window_auroc | window_auprc | window_f1 | point_auroc | point_auprc | point_f1 | event_f1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 58251 | 5 | 0.5 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8459 | 0.8039 | 0.7041 | 0.7520 | 0.8190 | 0.7069 | 0.7678 | 0.3636 |
+| 58252 | 5 | 0.65 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8433 | 0.8075 | 0.7052 | 0.7515 | 0.8226 | 0.7067 | 0.7676 | 0.3636 |
+| 58253 | 5 | 0.8 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8427 | 0.8088 | 0.7022 | 0.7509 | 0.8232 | 0.7008 | 0.7670 | 0.2909 |
+| 58254 | 10 | 0.5 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8378 | 0.8087 | 0.7054 | 0.7515 | 0.8234 | 0.7058 | 0.7676 | 0.3636 |
+| 58255 | 10 | 0.65 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8259 | 0.8110 | 0.7072 | 0.7499 | 0.8257 | 0.7080 | 0.7658 | 0.1441 |
+| 58256 | 10 | 0.8 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8445 | 0.8127 | 0.7053 | 0.7474 | 0.8268 | 0.7061 | 0.7642 | 0.3182 |
+| 58257 | 20 | 0.5 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8427 | 0.8063 | 0.7050 | 0.7514 | 0.8208 | 0.7064 | 0.7673 | 0.3478 |
+| 58258 | 20 | 0.65 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8451 | 0.8078 | 0.7041 | 0.7473 | 0.8221 | 0.7028 | 0.7641 | 0.3256 |
+| 58259 | 20 | 0.8 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8450 | 0.8112 | 0.7099 | 0.7467 | 0.8254 | 0.7231 | 0.7638 | 0.3111 |
+| 58260 | 5 | 0.8 | 3 | 2 | 256 | 1 | 2 | 128 | 0.8424 | 0.8081 | 0.7021 | 0.7510 | 0.8226 | 0.6991 | 0.7673 | 0.3636 |
+| 58261 | 5 | 0.8 | 4 | 2 | 256 | 1 | 2 | 128 | 0.8425 | 0.8095 | 0.7026 | 0.7508 | 0.8239 | 0.7007 | 0.7671 | 0.3265 |
+| 58262 | 5 | 0.8 | 2 | 4 | 256 | 1 | 2 | 128 | 0.8431 | 0.8092 | 0.7030 | 0.7500 | 0.8235 | 0.7014 | 0.7662 | 0.2162 |
+| 58263 | 5 | 0.8 | 2 | 2 | 128 | 1 | 2 | 128 | 0.8433 | 0.8083 | 0.7028 | 0.7514 | 0.8230 | 0.7031 | 0.7673 | 0.3404 |
+| 58264 | 5 | 0.8 | 2 | 2 | 512 | 1 | 2 | 128 | 0.8430 | 0.8106 | 0.7033 | 0.7490 | 0.8252 | 0.7040 | 0.7652 | 0.2769 |
+| 58265 | 5 | 0.8 | 2 | 2 | 256 | 2 | 2 | 128 | 0.8499 | 0.8069 | 0.7036 | 0.7505 | 0.8222 | 0.7117 | 0.7669 | 0.3265 |
+| 58266 | 5 | 0.8 | 2 | 2 | 256 | 1 | 4 | 128 | 0.8427 | 0.8089 | 0.7028 | 0.7514 | 0.8235 | 0.7027 | 0.7674 | 0.3721 |
+| 58267 | 5 | 0.8 | 2 | 2 | 256 | 1 | 2 | 64 | 0.8423 | 0.8071 | 0.7049 | 0.7468 | 0.8217 | 0.7069 | 0.7639 | 0.3182 |
+| 58268 | 5 | 0.8 | 2 | 2 | 256 | 1 | 2 | 256 | 0.8499 | 0.8089 | 0.7030 | 0.7511 | 0.8235 | 0.7005 | 0.7673 | 0.3137 |
+
+### A.2 SWaT — train_standard (7 trials)
+
+| run_id | dataset_val_fraction | trainer_learning_rate | trainer_weight_decay | pa_f1 | window_auroc | window_auprc | window_f1 | point_auroc | point_auprc | point_f1 | event_f1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 58928 | 0.1 | 0.0001 | 0.01 | 0.8449 | 0.8093 | 0.7035 | 0.7509 | 0.8239 | 0.7056 | 0.7671 | 0.3265 |
+| 58929 | 0.1 | 0.0003 | 0.01 | 0.8492 | 0.8107 | 0.7020 | 0.7485 | 0.8254 | 0.6999 | 0.7648 | 0.2250 |
+| 58930 | 0.15 | 0.0001 | 0.01 | 0.8427 | 0.8089 | 0.7028 | 0.7514 | 0.8235 | 0.7027 | 0.7674 | 0.3721 |
+| 58931 | 0.15 | 0.0003 | 0.01 | 0.8490 | 0.8097 | 0.7011 | 0.7486 | 0.8243 | 0.6985 | 0.7649 | 0.2571 |
+| 58932 | 0.2 | 0.0001 | 0.01 | 0.8503 | 0.8100 | 0.7029 | 0.7511 | 0.8245 | 0.7025 | 0.7672 | 0.3200 |
+| 58933 | 0.2 | 0.0003 | 0.01 | 0.8486 | 0.8108 | 0.7025 | 0.7478 | 0.8254 | 0.7028 | 0.7640 | 0.2500 |
+| 58934 | 0.15 | 0.0001 | 0.001 | 0.8452 | 0.8091 | 0.7031 | 0.7512 | 0.8236 | 0.7034 | 0.7674 | 0.3721 |
+
+### A.3 SWaT — train_incremental (19 rows: 15 trial slots + 4 pre-retry failures/timeouts)
+
+| run_id | status | pipeline_merge_scale | finetune_trainer_reg_lambda | dataset_baseline_fraction | dataset_val_fraction | dataset_n_finetune_segments | base_pa_f1 | base_window_auroc | base_window_auprc | base_window_f1 | base_point_auroc | base_point_auprc | base_point_f1 | base_event_f1 | merg_pa_f1 | merg_window_auroc | merg_window_auprc | merg_window_f1 | merg_point_auroc | merg_point_auprc | merg_point_f1 | merg_event_f1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 58935 | complete | 0.3 | 0.0 | 0.5 | 0.15 | 3 | 0.8373 | 0.8005 | 0.7035 | 0.7508 | 0.8159 | 0.7086 | 0.7673 | 0.3478 | 0.8371 | 0.8008 | 0.7036 | 0.7510 | 0.8161 | 0.7077 | 0.7674 | 0.3556 |
+| 58936 | complete | 0.3 | 0.001 | 0.5 | 0.15 | 3 | 0.8373 | 0.8005 | 0.7035 | 0.7508 | 0.8159 | 0.7086 | 0.7673 | 0.3478 | 0.8370 | 0.8007 | 0.7036 | 0.7510 | 0.8161 | 0.7075 | 0.7673 | 0.3556 |
+| 58937 | complete | 0.3 | 0.01 | 0.5 | 0.15 | 3 | 0.8373 | 0.8005 | 0.7035 | 0.7508 | 0.8159 | 0.7086 | 0.7673 | 0.3478 | 0.8370 | 0.8007 | 0.7035 | 0.7509 | 0.8161 | 0.7076 | 0.7673 | 0.3556 |
+| 58938 | complete | 0.5 | 0.0 | 0.5 | 0.15 | 3 | 0.8373 | 0.8005 | 0.7035 | 0.7508 | 0.8159 | 0.7086 | 0.7673 | 0.3478 | 0.8386 | 0.8031 | 0.7039 | 0.7511 | 0.8183 | 0.7077 | 0.7674 | 0.3556 |
+| 58939 | complete | 0.5 | 0.001 | 0.5 | 0.15 | 3 | 0.8373 | 0.8005 | 0.7035 | 0.7508 | 0.8159 | 0.7086 | 0.7673 | 0.3478 | 0.8388 | 0.8030 | 0.7038 | 0.7511 | 0.8181 | 0.7073 | 0.7673 | 0.3556 |
+| 58940 | complete | 0.5 | 0.01 | 0.5 | 0.15 | 3 | 0.8373 | 0.8005 | 0.7035 | 0.7508 | 0.8159 | 0.7086 | 0.7673 | 0.3478 | 0.8384 | 0.8023 | 0.7037 | 0.7510 | 0.8174 | 0.7071 | 0.7673 | 0.3556 |
+| 58941 | complete | 1.0 | 0.0 | 0.5 | 0.15 | 3 | 0.8373 | 0.8005 | 0.7035 | 0.7508 | 0.8159 | 0.7086 | 0.7673 | 0.3478 | 0.8408 | 0.8060 | 0.7046 | 0.7513 | 0.8209 | 0.7085 | 0.7674 | 0.3478 |
+| 58942 | complete | 1.0 | 0.001 | 0.5 | 0.15 | 3 | 0.8373 | 0.8005 | 0.7035 | 0.7508 | 0.8159 | 0.7086 | 0.7673 | 0.3478 | 0.8407 | 0.8059 | 0.7043 | 0.7513 | 0.8208 | 0.7074 | 0.7674 | 0.3478 |
+| 58943 | complete | 1.0 | 0.01 | 0.5 | 0.15 | 3 | 0.8373 | 0.8005 | 0.7035 | 0.7508 | 0.8159 | 0.7086 | 0.7673 | 0.3478 | 0.8402 | 0.8054 | 0.7041 | 0.7512 | 0.8202 | 0.7065 | 0.7674 | 0.3556 |
+| 58944 | complete | 1.0 | 0.0 | 0.3 | 0.15 | 3 | 0.8408 | 0.7993 | 0.7004 | 0.7498 | 0.8143 | 0.7019 | 0.7668 | 0.3478 | — | — | — | — | — | — | — | — |
+| 58945 | complete | 1.0 | 0.0 | 0.7 | 0.15 | 3 | 0.8434 | 0.8034 | 0.7020 | 0.7507 | 0.8185 | 0.7050 | 0.7669 | 0.3333 | 0.8428 | 0.8065 | 0.7021 | 0.7510 | 0.8211 | 0.7030 | 0.7671 | 0.3721 |
+| 58946 | complete | 1.0 | 0.0 | 0.5 | 0.1 | 3 | 0.8301 | 0.8022 | 0.7045 | 0.7482 | 0.8178 | 0.7107 | 0.7646 | 0.1875 | — | — | — | — | — | — | — | — |
+| 58947 | incomplete | 1.0 | 0.0 | 0.5 | 0.2 | 3 | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| 58948 | incomplete | 1.0 | 0.0 | 0.5 | 0.15 | 2 | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| 58949 | complete | 1.0 | 0.0 | 0.5 | 0.15 | 5 | 0.8303 | 0.8011 | 0.7034 | 0.7505 | 0.8164 | 0.7085 | 0.7670 | 0.2388 | 0.8408 | 0.8057 | 0.7039 | 0.7514 | 0.8206 | 0.7071 | 0.7674 | 0.3636 |
+| 59055 | complete | 1.0 | 0.0 | 0.3 | 0.15 | 3 | 0.8424 | 0.7993 | 0.7016 | 0.7491 | 0.8143 | 0.7089 | 0.7660 | 0.2807 | 0.8422 | 0.7908 | 0.6940 | 0.7510 | 0.8078 | 0.7089 | 0.7664 | 0.3404 |
+| 59056 | complete | 1.0 | 0.0 | 0.5 | 0.1 | 3 | 0.8301 | 0.8022 | 0.7045 | 0.7482 | 0.8178 | 0.7107 | 0.7646 | 0.1875 | 0.8436 | 0.8082 | 0.7063 | 0.7506 | 0.8232 | 0.7115 | 0.7672 | 0.3265 |
+| 59080 | complete | 1.0 | 0.0 | 0.5 | 0.2 | 3 | 0.8312 | 0.7958 | 0.7003 | 0.7477 | 0.8114 | 0.7020 | 0.7645 | 0.1684 | 0.8434 | 0.8040 | 0.7034 | 0.7498 | 0.8188 | 0.7064 | 0.7666 | 0.1928 |
+| 59081 | complete | 1.0 | 0.0 | 0.5 | 0.15 | 2 | 0.8373 | 0.8009 | 0.7034 | 0.7498 | 0.8164 | 0.7103 | 0.7663 | 0.1798 | 0.8438 | 0.8065 | 0.7047 | 0.7509 | 0.8214 | 0.7098 | 0.7673 | 0.3333 |
+
+### A.4 PSM — model architecture (24 trials: 18 original + 6 patch_len∈{25,50} follow-up)
+
+| run_id | patch_len | mask_ratio | encoder_layers | encoder_heads | encoder_embed_dim | decoder_layers | decoder_heads | decoder_embed_dim | pa_f1 | window_auroc | window_auprc | window_f1 | point_auroc | point_auprc | point_f1 | event_f1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 58325 | 5 | 0.5 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7883 | 0.7890 | 0.6521 | 0.6579 | 0.7790 | 0.5566 | 0.5967 | 0.2425 |
+| 58326 | 5 | 0.65 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7665 | 0.7945 | 0.6547 | 0.6582 | 0.7870 | 0.5619 | 0.5993 | 0.2967 |
+| 58327 | 5 | 0.8 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7660 | 0.8017 | 0.6511 | 0.6761 | 0.7987 | 0.5645 | 0.6209 | 0.2857 |
+| 58328 | 10 | 0.5 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7670 | 0.7993 | 0.6555 | 0.6675 | 0.7915 | 0.5603 | 0.6074 | 0.1647 |
+| 58329 | 10 | 0.65 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7670 | 0.8031 | 0.6570 | 0.6723 | 0.7975 | 0.5647 | 0.6154 | 0.1729 |
+| 58330 | 10 | 0.8 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7707 | 0.8119 | 0.6508 | 0.6955 | 0.8105 | 0.5647 | 0.6476 | 0.2095 |
+| 58331 | 20 | 0.5 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7858 | 0.8076 | 0.6597 | 0.6859 | 0.8021 | 0.5616 | 0.6321 | 0.1987 |
+| 58332 | 20 | 0.65 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7694 | 0.8144 | 0.6553 | 0.7062 | 0.8135 | 0.5677 | 0.6590 | 0.1867 |
+| 58333 | 20 | 0.8 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7715 | 0.8129 | 0.6461 | 0.6994 | 0.8134 | 0.5596 | 0.6517 | 0.1966 |
+| 58334 | 5 | 0.8 | 3 | 2 | 256 | 1 | 2 | 128 | 0.7665 | 0.8048 | 0.6553 | 0.6726 | 0.8014 | 0.5649 | 0.6215 | 0.2068 |
+| 58335 | 5 | 0.8 | 4 | 2 | 256 | 1 | 2 | 128 | 0.7652 | 0.8024 | 0.6538 | 0.6678 | 0.7980 | 0.5625 | 0.6152 | 0.2676 |
+| 58336 | 5 | 0.8 | 2 | 4 | 256 | 1 | 2 | 128 | 0.7661 | 0.8021 | 0.6512 | 0.6728 | 0.7986 | 0.5638 | 0.6164 | 0.2340 |
+| 58337 | 5 | 0.8 | 2 | 2 | 128 | 1 | 2 | 128 | 0.7676 | 0.8002 | 0.6532 | 0.6918 | 0.7977 | 0.5643 | 0.6391 | 0.3960 |
+| 58338 | 5 | 0.8 | 2 | 2 | 512 | 1 | 2 | 128 | 0.7654 | 0.8078 | 0.6596 | 0.6925 | 0.8044 | 0.5686 | 0.6404 | 0.2132 |
+| 58339 | 5 | 0.8 | 2 | 2 | 256 | 2 | 2 | 128 | 0.7740 | 0.8096 | 0.6606 | 0.6896 | 0.8049 | 0.5672 | 0.6349 | 0.1731 |
+| 58340 | 5 | 0.8 | 2 | 2 | 256 | 1 | 4 | 128 | 0.7660 | 0.8036 | 0.6497 | 0.6852 | 0.8003 | 0.5610 | 0.6311 | 0.2803 |
+| 58341 | 5 | 0.8 | 2 | 2 | 256 | 1 | 2 | 64 | 0.7647 | 0.8063 | 0.6518 | 0.6905 | 0.8034 | 0.5634 | 0.6378 | 0.3287 |
+| 58342 | 5 | 0.8 | 2 | 2 | 256 | 1 | 2 | 256 | 0.8022 | 0.8050 | 0.6625 | 0.6726 | 0.8003 | 0.5701 | 0.6188 | 0.2736 |
+| 58829 | 25 | 0.5 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7742 | 0.8155 | 0.6684 | 0.7083 | 0.8110 | 0.5750 | 0.6553 | 0.1977 |
+| 58830 | 25 | 0.65 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7742 | 0.8155 | 0.6684 | 0.7083 | 0.8110 | 0.5750 | 0.6553 | 0.1977 |
+| 58831 | 25 | 0.8 | 2 | 2 | 256 | 1 | 2 | 128 | 0.7725 | 0.8205 | 0.6631 | 0.7191 | 0.8193 | 0.5753 | 0.6697 | 0.1879 |
+| 58832 | 50 | 0.5 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8103 | 0.8126 | 0.6516 | 0.7031 | 0.8103 | 0.5625 | 0.6538 | 0.1336 |
+| 58833 | 50 | 0.65 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8116 | 0.8131 | 0.6528 | 0.7042 | 0.8105 | 0.5637 | 0.6546 | 0.1413 |
+| 58834 | 50 | 0.8 | 2 | 2 | 256 | 1 | 2 | 128 | 0.8116 | 0.8131 | 0.6528 | 0.7042 | 0.8105 | 0.5637 | 0.6546 | 0.1413 |
+
+### A.5 PSM — train_standard (14 trials: 7 at patch_len=25, 7 at patch_len=5)
+
+| run_id | dataset_val_fraction | trainer_learning_rate | trainer_weight_decay | pa_f1 | window_auroc | window_auprc | window_f1 | point_auroc | point_auprc | point_f1 | event_f1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 58950 | 0.1 | 0.0001 | 0.01 | 0.7729 | 0.8173 | 0.6691 | 0.7074 | 0.8152 | 0.5824 | 0.6552 | 0.1440 |
+| 58951 | 0.1 | 0.0003 | 0.01 | 0.7724 | 0.8081 | 0.6509 | 0.6881 | 0.8059 | 0.5602 | 0.6364 | 0.1507 |
+| 58952 | 0.15 | 0.0001 | 0.01 | 0.7725 | 0.8205 | 0.6631 | 0.7191 | 0.8193 | 0.5753 | 0.6697 | 0.1879 |
+| 58953 | 0.15 | 0.0003 | 0.01 | 0.7714 | 0.8059 | 0.6503 | 0.6902 | 0.8065 | 0.5597 | 0.6372 | 0.2065 |
+| 58954 | 0.2 | 0.0001 | 0.01 | 0.8141 | 0.8185 | 0.6691 | 0.7159 | 0.8171 | 0.5802 | 0.6682 | 0.1891 |
+| 58955 | 0.2 | 0.0003 | 0.01 | 0.7726 | 0.8087 | 0.6594 | 0.6897 | 0.8065 | 0.5661 | 0.6358 | 0.1680 |
+| 58956 | 0.15 | 0.0001 | 0.001 | 0.7724 | 0.8197 | 0.6619 | 0.7172 | 0.8183 | 0.5738 | 0.6674 | 0.1934 |
+| 59088 | 0.1 | 0.0001 | 0.01 | 0.7653 | 0.8046 | 0.6521 | 0.6948 | 0.8020 | 0.5620 | 0.6453 | 0.3654 |
+| 59089 | 0.1 | 0.0003 | 0.01 | 0.7664 | 0.8032 | 0.6540 | 0.6745 | 0.7994 | 0.5625 | 0.6186 | 0.2243 |
+| 59090 | 0.15 | 0.0001 | 0.01 | 0.7676 | 0.8002 | 0.6532 | 0.6918 | 0.7977 | 0.5643 | 0.6391 | 0.3960 |
+| 59091 | 0.15 | 0.0003 | 0.01 | 0.7799 | 0.8011 | 0.6567 | 0.6826 | 0.7979 | 0.5613 | 0.6278 | 0.3012 |
+| 59092 | 0.2 | 0.0001 | 0.01 | 0.7727 | 0.7996 | 0.6509 | 0.6857 | 0.7958 | 0.5585 | 0.6311 | 0.3288 |
+| 59093 | 0.2 | 0.0003 | 0.01 | 0.8035 | 0.8033 | 0.6571 | 0.6681 | 0.7980 | 0.5607 | 0.6190 | 0.2582 |
+| 59094 | 0.15 | 0.0001 | 0.001 | 0.7678 | 0.8002 | 0.6532 | 0.6918 | 0.7977 | 0.5643 | 0.6391 | 0.4027 |
+
+### A.6 PSM — train_incremental, patch_len=25 (15 trials, initial architecture pick)
+
+| run_id | status | pipeline_merge_scale | finetune_trainer_reg_lambda | dataset_baseline_fraction | dataset_val_fraction | dataset_n_finetune_segments | base_pa_f1 | base_window_auroc | base_window_auprc | base_window_f1 | base_point_auroc | base_point_auprc | base_point_f1 | base_event_f1 | merg_pa_f1 | merg_window_auroc | merg_window_auprc | merg_window_f1 | merg_point_auroc | merg_point_auprc | merg_point_f1 | merg_event_f1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 58957 | complete | 0.3 | 0.0 | 0.5 | 0.15 | 3 | 0.7977 | 0.7904 | 0.6480 | 0.6534 | 0.7931 | 0.5721 | 0.6050 | 0.1652 | 0.7710 | 0.7853 | 0.6360 | 0.6417 | 0.7795 | 0.5527 | 0.5864 | 0.2096 |
+| 58958 | complete | 0.3 | 0.001 | 0.5 | 0.15 | 3 | 0.7977 | 0.7904 | 0.6480 | 0.6534 | 0.7931 | 0.5721 | 0.6050 | 0.1652 | 0.7710 | 0.7853 | 0.6360 | 0.6416 | 0.7795 | 0.5527 | 0.5864 | 0.2077 |
+| 58959 | complete | 0.3 | 0.01 | 0.5 | 0.15 | 3 | 0.7977 | 0.7904 | 0.6480 | 0.6534 | 0.7931 | 0.5721 | 0.6050 | 0.1652 | 0.7710 | 0.7852 | 0.6361 | 0.6415 | 0.7795 | 0.5529 | 0.5866 | 0.1971 |
+| 58960 | complete | 0.5 | 0.0 | 0.5 | 0.15 | 3 | 0.7977 | 0.7904 | 0.6480 | 0.6534 | 0.7931 | 0.5721 | 0.6050 | 0.1652 | 0.7740 | 0.7761 | 0.6255 | 0.6343 | 0.7671 | 0.5394 | 0.5750 | 0.2017 |
+| 58961 | complete | 0.5 | 0.001 | 0.5 | 0.15 | 3 | 0.7977 | 0.7904 | 0.6480 | 0.6534 | 0.7931 | 0.5721 | 0.6050 | 0.1652 | 0.7740 | 0.7761 | 0.6255 | 0.6343 | 0.7671 | 0.5394 | 0.5750 | 0.2013 |
+| 58962 | complete | 0.5 | 0.01 | 0.5 | 0.15 | 3 | 0.7977 | 0.7904 | 0.6480 | 0.6534 | 0.7931 | 0.5721 | 0.6050 | 0.1652 | 0.7740 | 0.7761 | 0.6256 | 0.6342 | 0.7672 | 0.5395 | 0.5748 | 0.2044 |
+| 58963 | complete | 1.0 | 0.0 | 0.5 | 0.15 | 3 | 0.7977 | 0.7904 | 0.6480 | 0.6534 | 0.7931 | 0.5721 | 0.6050 | 0.1652 | 0.7763 | 0.7689 | 0.6153 | 0.6270 | 0.7695 | 0.5345 | 0.5739 | 0.1630 |
+| 58964 | complete | 1.0 | 0.001 | 0.5 | 0.15 | 3 | 0.7977 | 0.7904 | 0.6480 | 0.6534 | 0.7931 | 0.5721 | 0.6050 | 0.1652 | 0.7763 | 0.7690 | 0.6154 | 0.6271 | 0.7696 | 0.5346 | 0.5739 | 0.1594 |
+| 58965 | complete | 1.0 | 0.01 | 0.5 | 0.15 | 3 | 0.7977 | 0.7904 | 0.6480 | 0.6534 | 0.7931 | 0.5721 | 0.6050 | 0.1652 | 0.7763 | 0.7697 | 0.6159 | 0.6279 | 0.7699 | 0.5348 | 0.5745 | 0.1913 |
+| 58966 | complete | 1.0 | 0.0 | 0.3 | 0.15 | 3 | 0.8132 | 0.7747 | 0.6451 | 0.6380 | 0.7799 | 0.5772 | 0.5930 | 0.1541 | 0.7754 | 0.7484 | 0.6188 | 0.6232 | 0.7401 | 0.5335 | 0.5628 | 0.1493 |
+| 58967 | complete | 1.0 | 0.0 | 0.7 | 0.15 | 3 | 0.7983 | 0.8002 | 0.6417 | 0.6760 | 0.8007 | 0.5606 | 0.6259 | 0.1478 | 0.7759 | 0.7708 | 0.6147 | 0.6380 | 0.7629 | 0.5278 | 0.5780 | 0.1733 |
+| 58968 | complete | 1.0 | 0.0 | 0.5 | 0.1 | 3 | 0.8093 | 0.7895 | 0.6444 | 0.6536 | 0.7911 | 0.5663 | 0.6068 | 0.1637 | 0.7764 | 0.7769 | 0.6215 | 0.6379 | 0.7787 | 0.5405 | 0.5836 | 0.1189 |
+| 58969 | complete | 1.0 | 0.0 | 0.5 | 0.2 | 3 | 0.7959 | 0.7917 | 0.6483 | 0.6612 | 0.7944 | 0.5717 | 0.6146 | 0.1700 | 0.7760 | 0.7708 | 0.6293 | 0.6414 | 0.7672 | 0.5460 | 0.5876 | 0.1659 |
+| 58970 | complete | 1.0 | 0.0 | 0.5 | 0.15 | 2 | 0.8133 | 0.7827 | 0.6443 | 0.6429 | 0.7834 | 0.5670 | 0.5911 | 0.1475 | 0.7744 | 0.7775 | 0.6217 | 0.6425 | 0.7688 | 0.5323 | 0.5813 | 0.1581 |
+| 58971 | complete | 1.0 | 0.0 | 0.5 | 0.15 | 5 | 0.8140 | 0.7846 | 0.6449 | 0.6433 | 0.7847 | 0.5673 | 0.5915 | 0.1385 | 0.7759 | 0.7469 | 0.6107 | 0.6074 | 0.7440 | 0.5284 | 0.5560 | 0.1105 |
+
+### A.7 PSM — train_incremental, patch_len=5 (15 trials, final architecture pick)
+
+| run_id | status | pipeline_merge_scale | finetune_trainer_reg_lambda | dataset_baseline_fraction | dataset_val_fraction | dataset_n_finetune_segments | base_pa_f1 | base_window_auroc | base_window_auprc | base_window_f1 | base_point_auroc | base_point_auprc | base_point_f1 | base_event_f1 | merg_pa_f1 | merg_window_auroc | merg_window_auprc | merg_window_f1 | merg_point_auroc | merg_point_auprc | merg_point_f1 | merg_event_f1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 59095 | complete | 0.3 | 0.0 | 0.5 | 0.15 | 3 | 0.8067 | 0.7740 | 0.6379 | 0.6361 | 0.7711 | 0.5630 | 0.5817 | 0.2294 | 0.7667 | 0.7899 | 0.6404 | 0.6507 | 0.7851 | 0.5586 | 0.5958 | 0.2857 |
+| 59096 | complete | 0.3 | 0.001 | 0.5 | 0.15 | 3 | 0.8067 | 0.7740 | 0.6379 | 0.6361 | 0.7711 | 0.5630 | 0.5817 | 0.2294 | 0.7666 | 0.7899 | 0.6404 | 0.6507 | 0.7851 | 0.5586 | 0.5958 | 0.2842 |
+| 59097 | complete | 0.3 | 0.01 | 0.5 | 0.15 | 3 | 0.8067 | 0.7740 | 0.6379 | 0.6361 | 0.7711 | 0.5630 | 0.5817 | 0.2294 | 0.7666 | 0.7894 | 0.6401 | 0.6498 | 0.7846 | 0.5584 | 0.5949 | 0.2689 |
+| 59098 | complete | 0.5 | 0.0 | 0.5 | 0.15 | 3 | 0.8074 | 0.7718 | 0.6375 | 0.6331 | 0.7683 | 0.5635 | 0.5785 | 0.2208 | 0.7709 | 0.7939 | 0.6418 | 0.6566 | 0.7904 | 0.5598 | 0.5983 | 0.3448 |
+| 59099 | complete | 0.5 | 0.001 | 0.5 | 0.15 | 3 | 0.8067 | 0.7740 | 0.6379 | 0.6361 | 0.7711 | 0.5630 | 0.5817 | 0.2294 | 0.7699 | 0.7973 | 0.6435 | 0.6619 | 0.7940 | 0.5601 | 0.6037 | 0.2084 |
+| 59100 | complete | 0.5 | 0.01 | 0.5 | 0.15 | 3 | 0.8067 | 0.7740 | 0.6379 | 0.6361 | 0.7711 | 0.5630 | 0.5817 | 0.2294 | 0.7699 | 0.7968 | 0.6431 | 0.6598 | 0.7934 | 0.5597 | 0.6016 | 0.2060 |
+| 59101 | complete | 1.0 | 0.0 | 0.5 | 0.15 | 3 | 0.8067 | 0.7740 | 0.6379 | 0.6361 | 0.7711 | 0.5630 | 0.5817 | 0.2294 | 0.7716 | 0.7991 | 0.6467 | 0.6790 | 0.8019 | 0.5663 | 0.6289 | 0.2749 |
+| 59102 | complete | 1.0 | 0.001 | 0.5 | 0.15 | 3 | 0.8074 | 0.7718 | 0.6375 | 0.6331 | 0.7683 | 0.5635 | 0.5785 | 0.2208 | 0.7733 | 0.7988 | 0.6452 | 0.6788 | 0.8006 | 0.5647 | 0.6268 | 0.2007 |
+| 59103 | complete | 1.0 | 0.01 | 0.5 | 0.15 | 3 | 0.8067 | 0.7740 | 0.6379 | 0.6361 | 0.7711 | 0.5630 | 0.5817 | 0.2294 | 0.7719 | 0.8000 | 0.6474 | 0.6796 | 0.8025 | 0.5667 | 0.6296 | 0.2392 |
+| 59104 | complete | 1.0 | 0.0 | 0.3 | 0.15 | 3 | 0.8140 | 0.7743 | 0.6365 | 0.6420 | 0.7813 | 0.5656 | 0.5974 | 0.2609 | 0.7696 | 0.7719 | 0.6296 | 0.6501 | 0.7728 | 0.5455 | 0.5923 | 0.2764 |
+| 59105 | complete | 1.0 | 0.0 | 0.7 | 0.15 | 3 | 0.7745 | 0.7887 | 0.6447 | 0.6486 | 0.7840 | 0.5629 | 0.5917 | 0.1729 | 0.7721 | 0.7941 | 0.6399 | 0.6679 | 0.7926 | 0.5525 | 0.6128 | 0.1519 |
+| 59106 | complete | 1.0 | 0.0 | 0.5 | 0.1 | 3 | 0.7982 | 0.7770 | 0.6397 | 0.6387 | 0.7718 | 0.5636 | 0.5793 | 0.2053 | 0.7729 | 0.8015 | 0.6491 | 0.6898 | 0.8057 | 0.5705 | 0.6433 | 0.2434 |
+| 59107 | complete | 1.0 | 0.0 | 0.5 | 0.2 | 3 | 0.8092 | 0.7730 | 0.6368 | 0.6410 | 0.7710 | 0.5621 | 0.5873 | 0.2412 | 0.7724 | 0.8003 | 0.6496 | 0.6796 | 0.8025 | 0.5689 | 0.6301 | 0.1890 |
+| 59108 | complete | 1.0 | 0.0 | 0.5 | 0.15 | 2 | 0.8060 | 0.7713 | 0.6347 | 0.6324 | 0.7681 | 0.5608 | 0.5774 | 0.2361 | 0.7692 | 0.8053 | 0.6562 | 0.7114 | 0.8086 | 0.5761 | 0.6579 | 0.2759 |
+| 59109 | complete | 1.0 | 0.0 | 0.5 | 0.15 | 5 | 0.7804 | 0.7753 | 0.6339 | 0.6362 | 0.7717 | 0.5585 | 0.5761 | 0.2432 | 0.7751 | 0.7973 | 0.6449 | 0.6911 | 0.8009 | 0.5638 | 0.6376 | 0.2391 |
+
+### A.8 ETTh1 — model architecture (24 rows: 17 original + 2 retries + 5-row seed-repro check)
+
+| run_id | seed | patch_len | encoder_embed_dim | encoder_layers | encoder_heads | decoder_embed_dim | decoder_layers | decoder_heads | mse | rmse | mae |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 58375 | 42 | 4 | 64 | 3 | 4 | 64 | 2 | 4 | 0.3877 | 0.6227 | 0.4419 |
+| 58376 | 42 | 4 | 128 | 3 | 4 | 64 | 2 | 4 | 0.3829 | 0.6188 | 0.4285 |
+| 58377 | 42 | 4 | 256 | 3 | 4 | 64 | 2 | 4 | 0.4110 | 0.6411 | 0.4577 |
+| 58378 | 42 | 6 | 64 | 3 | 4 | 64 | 2 | 4 | 0.3944 | 0.6280 | 0.4467 |
+| 58379 | 42 | 6 | 128 | 3 | 4 | 64 | 2 | 4 | 0.3915 | 0.6257 | 0.4404 |
+| 58380 | 42 | 6 | 256 | 3 | 4 | 64 | 2 | 4 | 0.4311 | 0.6566 | 0.4518 |
+| 58381 | 42 | 8 | 64 | 3 | 4 | 64 | 2 | 4 | 0.4133 | 0.6429 | 0.4462 |
+| 58382 | 42 | 8 | 128 | 3 | 4 | 64 | 2 | 4 | 0.3919 | 0.6260 | 0.4490 |
+| 58383 | 42 | 8 | 256 | 3 | 4 | 64 | 2 | 4 | 0.4170 | 0.6458 | 0.4590 |
+| 58384 | 42 | 4 | 128 | 2 | 4 | 64 | 2 | 4 | 0.3738 | 0.6114 | 0.4250 |
+| 58385 | 42 | 4 | 128 | 4 | 4 | 64 | 2 | 4 | 0.3817 | 0.6178 | 0.4274 |
+| 58386 | 42 | 4 | 128 | 3 | 2 | 64 | 2 | 4 | 0.4061 | 0.6373 | 0.4439 |
+| 58387 | 42 | 4 | 128 | 3 | 4 | 64 | 1 | 4 | 0.4071 | 0.6381 | 0.4411 |
+| 58388 | 42 | 4 | 128 | 3 | 4 | 64 | 3 | 4 | — | — | — |
+| 58389 | 42 | 4 | 128 | 3 | 4 | 64 | 2 | 2 | 0.3974 | 0.6304 | 0.4348 |
+| 58390 | 42 | 4 | 128 | 3 | 4 | 32 | 2 | 4 | — | — | — |
+| 58391 | 42 | 4 | 128 | 3 | 4 | 128 | 2 | 4 | 0.3663 | 0.6052 | 0.4235 |
+| 58835 | 42 | 4 | 128 | 3 | 4 | 64 | 3 | 4 | 0.3858 | 0.6211 | 0.4299 |
+| 58836 | 42 | 4 | 128 | 3 | 4 | 32 | 2 | 4 | 0.4270 | 0.6534 | 0.4564 |
+| 58837 | 42 | 4 | 128 | 3 | 4 | 64 | 2 | 4 | 0.3911 | 0.6253 | 0.4342 |
+| 58838 | 123 | 4 | 128 | 3 | 4 | 64 | 2 | 4 | 0.3831 | 0.6189 | 0.4328 |
+| 58839 | 7 | 4 | 128 | 3 | 4 | 64 | 2 | 4 | 0.4071 | 0.6380 | 0.4474 |
+| 58840 | 123 | 4 | 128 | 3 | 4 | 128 | 2 | 4 | 0.4402 | 0.6635 | 0.4720 |
+| 58841 | 7 | 4 | 128 | 3 | 4 | 128 | 2 | 4 | 0.3844 | 0.6200 | 0.4283 |
+
+### A.9 ETTh1 — train_standard (7 trials)
+
+| run_id | dataset_val_fraction | trainer_learning_rate | trainer_weight_decay | mse | rmse | mae |
+|---|---|---|---|---|---|---|
+| 59058 | 0.05 | 0.001 | 0.0001 | 0.4171 | 0.6458 | 0.4398 |
+| 59059 | 0.05 | 0.0003 | 0.0001 | 0.3881 | 0.6230 | 0.4288 |
+| 59060 | 0.1 | 0.001 | 0.0001 | 0.3911 | 0.6253 | 0.4342 |
+| 59061 | 0.1 | 0.0003 | 0.0001 | 0.3838 | 0.6195 | 0.4363 |
+| 59062 | 0.15 | 0.001 | 0.0001 | 0.4271 | 0.6535 | 0.4573 |
+| 59063 | 0.15 | 0.0003 | 0.0001 | 0.4547 | 0.6743 | 0.4707 |
+| 59064 | 0.1 | 0.001 | 0.001 | 0.3916 | 0.6257 | 0.4344 |
+
+### A.10 ETTh1 — train_incremental (16 rows: 15 trial slots + 1 degenerate-split failure)
+
+`val_fraction=0.05` alone (default `n_finetune_segments=3`) fails the split-size guard
+(§1.9) — that row is included below with `status=incomplete` and empty merged metrics,
+since it's a real, deterministic, reproducible outcome, not noise to discard.
+
+| run_id | status | pipeline_merge_scale | finetune_trainer_reg_lambda | dataset_baseline_fraction | dataset_val_fraction | dataset_n_finetune_segments | base_mse | base_rmse | base_mae | merg_mse | merg_rmse | merg_mae |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 59065 | complete | 0.3 | 0.0 | 0.5 | 0.1 | 3 | 0.6873 | 0.8291 | 0.6013 | 0.4565 | 0.6757 | 0.4631 |
+| 59066 | complete | 0.3 | 0.001 | 0.5 | 0.1 | 3 | 0.6132 | 0.7831 | 0.5675 | 0.4540 | 0.6738 | 0.4647 |
+| 59067 | complete | 0.3 | 0.01 | 0.5 | 0.1 | 3 | 0.6132 | 0.7831 | 0.5675 | 0.4620 | 0.6797 | 0.4706 |
+| 59068 | complete | 0.5 | 0.0 | 0.5 | 0.1 | 3 | 0.6132 | 0.7831 | 0.5675 | 0.4236 | 0.6508 | 0.4528 |
+| 59069 | complete | 0.5 | 0.001 | 0.5 | 0.1 | 3 | 0.6132 | 0.7831 | 0.5675 | 0.4249 | 0.6519 | 0.4536 |
+| 59070 | complete | 0.5 | 0.01 | 0.5 | 0.1 | 3 | 0.6132 | 0.7831 | 0.5675 | 0.4313 | 0.6567 | 0.4580 |
+| 59071 | complete | 1.0 | 0.0 | 0.5 | 0.1 | 3 | 0.6132 | 0.7831 | 0.5675 | 0.4684 | 0.6844 | 0.5035 |
+| 59072 | complete | 1.0 | 0.001 | 0.5 | 0.1 | 3 | 0.6873 | 0.8291 | 0.6013 | 0.4486 | 0.6698 | 0.4950 |
+| 59073 | complete | 1.0 | 0.01 | 0.5 | 0.1 | 3 | 0.6132 | 0.7831 | 0.5675 | 0.4778 | 0.6912 | 0.5133 |
+| 59074 | complete | 1.0 | 0.0 | 0.3 | 0.1 | 3 | 1.0076 | 1.0038 | 0.7197 | 1.9766 | 1.4059 | 1.0558 |
+| 59075 | complete | 1.0 | 0.0 | 0.7 | 0.1 | 3 | 0.4977 | 0.7055 | 0.5038 | 0.5170 | 0.7190 | 0.5586 |
+| 59076 | complete | 1.0 | 0.0 | 0.5 | 0.05 | 3 | 0.7490 | 0.8655 | 0.6280 | — | — | — |
+| 59077 | complete | 1.0 | 0.0 | 0.5 | 0.15 | 3 | 0.7023 | 0.8380 | 0.6131 | 0.5918 | 0.7693 | 0.5661 |
+| 59078 | complete | 1.0 | 0.0 | 0.5 | 0.1 | 2 | 0.6741 | 0.8211 | 0.5872 | 0.4404 | 0.6636 | 0.4934 |
+| 59079 | complete | 1.0 | 0.0 | 0.5 | 0.1 | 5 | 0.6820 | 0.8258 | 0.5964 | 0.7261 | 0.8521 | 0.6386 |
+| 59110 | complete | 1.0 | 0.0 | 0.5 | 0.05 | 2 | 0.6301 | 0.7938 | 0.5874 | 0.4562 | 0.6754 | 0.5001 |
+
+---
+
+## 7. Resources
+
+- **Interactive results overview** (Standard vs. Incremental, every dataset/variant,
+  grid-average and best-config side by side, mobile-friendly):
+  https://claude.ai/code/artifact/b9478404-0c3d-4629-a43b-0aedb1ee24bf
+- **This file** is the source of truth for every experiment run this session — keep it
+  updated (§6) whenever a new sweep is collected, rather than letting results live only
+  in the artifact or in memory.

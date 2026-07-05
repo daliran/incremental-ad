@@ -155,7 +155,15 @@ export RUNS_ROOT=$WORK/runs
 export WANDB_MODE=online
 export WANDB_PROJECT=incremental_ad
 export WANDB_ENTITY=kirrel-research
-export TMPDIR=/tmp
+# Node-local /tmp is shared with every other job on that node and frequently runs out of
+# space -- when it does, Python's tempfile falls back through its candidate list to the
+# current working directory (PROJECT_ROOT, since we cd there below), littering the repo
+# with empty pymp-* dirs; when it doesn't fall back cleanly, DataLoader workers can spin
+# retrying a failed mkdtemp instead of failing fast, burning the whole time limit. Use a
+# per-job dir on $WORK (BeeGFS, effectively never full) instead, cleaned up on exit.
+export TMPDIR=$WORK/tmp/$SLURM_JOB_ID
+mkdir -p $TMPDIR
+trap 'rm -rf "$TMPDIR"' EXIT
 
 mkdir -p $WORK/logs
 
@@ -320,15 +328,17 @@ def collect_sweep_results(sweep: Sweep) -> Path:
             args = cfg.get("args", {})
 
             row: dict[str, Any] = {"run_id": run_dir.name, "seed": args.get("seed")}
-            # Every mae_tx_* (architecture) arg actually recorded for this run -- not derived
-            # from the sweep's *current* trials/grid, which may since have been trimmed to
-            # only the trials still worth (re-)submitting and would otherwise silently drop
-            # columns for historical rows that swept other axes.
+            # Every arg actually recorded for this run -- not derived from the sweep's
+            # *current* trials/grid, which may since have been trimmed to only the trials
+            # still worth (re-)submitting and would otherwise silently drop columns for
+            # historical rows that swept other axes (architecture, training, or
+            # incremental-pipeline params alike).
             for k, v in args.items():
-                if k.startswith("mae_tx_"):
-                    if k not in fieldnames:
-                        fieldnames.append(k)
-                    row[k] = v
+                if k in ("seed",):
+                    continue
+                if k not in fieldnames:
+                    fieldnames.append(k)
+                row[k] = v
 
             metrics = _flatten_metrics(run_dir)
             row.update(metrics)

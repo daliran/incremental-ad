@@ -1,8 +1,18 @@
 """PSM sweeps: model architecture, then training parameters for both pipelines.
 
-Same shape and base config as swat.py (identical proven architecture anchor) -- only
---dataset and --configurator_threshold_percentile differ (PSM's anomaly rate is ~28%,
-hence 72 instead of SWaT's 99, matching scripts/sbatch_mae_tx_psm_ad_*.sh).
+Architecture is a genuine trade-off for PSM (see EXPERIMENTS.md §2.3-§2.4): MODEL_SWEEP
+found patch_len=25 wins on window/point AUROC/F1 (0.817 vs. 0.802 window_auroc) but
+patch_len=5 + encoder_embed_dim=128 wins clearly on event_f1 (0.396 vs. 0.189) and, once
+carried all the way through train_standard/train_incremental, patch_len=5 also gets a
+broader *positive* effect from merging (window/point AUROC+F1 and event_f1 all improve,
+only pa_f1 drops) whereas patch_len=25 makes merging net-negative almost everywhere.
+**Decision: patch_len=5, encoder_embed_dim=128** carried forward here (and in
+scripts/sbatch_mae_tx_psm_ad_*.sh / .vscode/launch.json's "PSM" configs) -- event-level
+detection and merge-friendliness won out over patch_len=25's higher raw Standard-pipeline
+pa_f1/window_auroc. decoder_heads stays at 2 for PSM either way -- unlike SWaT,
+decoder_heads=4 did not help here (event_f1 0.280 vs. base 0.286, slightly worse). Also
+unlike swat.py: --dataset and --configurator_threshold_percentile differ (PSM's anomaly
+rate is ~28%, hence 72 instead of SWaT's 99).
 """
 
 from __future__ import annotations
@@ -13,7 +23,7 @@ ARCH_ARGS = [
     "--mae_tx_decoder_embed_dim", "128",
     "--mae_tx_decoder_layers", "1",
     "--mae_tx_decoder_heads", "2",
-    "--mae_tx_encoder_embed_dim", "256",
+    "--mae_tx_encoder_embed_dim", "128",
     "--mae_tx_encoder_layers", "2",
     "--mae_tx_encoder_heads", "2",
     "--mae_tx_patch_len", "5",
@@ -34,7 +44,7 @@ _COMMON_ARGS = [
     "--dataset_window_len", "100",
     "--dataset_stride", "50",
     "--dataset_normalization", "standard",
-    "--dataset_val_fraction", "0.15",
+    "--dataset_val_fraction", "0.20",
 
     "--loader_batch_size", "64",
     "--loader_num_workers", "4",
@@ -43,7 +53,7 @@ _COMMON_ARGS = [
     "--trainer_patience", "30",
     "--trainer_optimizer", "adamw",
     "--trainer_weight_decay", "1e-2",
-    "--trainer_learning_rate", "1e-4",
+    "--trainer_learning_rate", "3e-4",
     "--trainer_grad_clip", "0.5",
     "--trainer_scheduler", "cosine",
     "--trainer_warmup_ratio", "0.1",
@@ -72,9 +82,16 @@ MODEL_SWEEP = Sweep(
     experiment_name="slurm_grid_psm_model",
     base_args=[*_COMMON_ARGS, *_NON_ARCH_MAE_ARGS, *ARCH_ARGS, "--pipeline", "StandardPipeline"],
     slurm=SlurmConfig(job_name="psm_model", time="01:30:00"),
+    # Full grid actually run this session (24 trials, see psm_model_results.csv): initial
+    # cross + one-at-a-time axes found window AUROC/F1/point_f1 rising monotonically with
+    # patch_len while event_f1 fell; the patch_len={25,50} follow-up confirmed the trend
+    # peaks at patch_len=25 (both divide dataset_window_len=100) then slightly reverses at
+    # 50. See EXPERIMENTS.md §2.3 -- patch_len=5 was chosen anyway for event_f1 + merge
+    # behavior (see module docstring), so this MODEL_SWEEP no longer matches ARCH_ARGS'
+    # patch_len exactly; that's expected; it's a record of the search, not a resubmit target.
     trials=expand_trials(
         cross={
-            "mae_tx_patch_len": ["5", "10", "20"],
+            "mae_tx_patch_len": ["5", "10", "20", "25", "50"],
             "mae_tx_mask_ratio": ["0.5", "0.65", "0.8"],
         },
         one_at_a_time={

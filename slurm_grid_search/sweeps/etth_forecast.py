@@ -57,7 +57,7 @@ _COMMON_ARGS = [
     "--trainer_patience", "15",
     "--trainer_optimizer", "adamw",
     "--trainer_weight_decay", "1e-4",
-    "--trainer_learning_rate", "1e-3",
+    "--trainer_learning_rate", "3e-4",
     "--trainer_grad_clip", "1.0",
     "--trainer_scheduler", "cosine",
     "--trainer_warmup_ratio", "0.1",
@@ -79,6 +79,12 @@ _INCREMENTAL_EXTRA_ARGS = [
 
 # patch_len must divide both dataset_window_len=120 and dataset_forecast_len=24 --
 # divisors of gcd(120,24)=24 used below: 4, 6, 8.
+#
+# Full grid actually run this session (24 trials, see etth_forecast_model_results.csv):
+# patch_len=4 and encoder_embed_dim in {64,128} came out best (256 and patch_len 6/8 all
+# consistently worse); decoder_embed_dim=128 looked like a further win at seed=42 alone,
+# but a 3-seed check (SEED_REPRO_CHECK below) showed that ranking flips at seed 123 and
+# doesn't hold on average -- decoder_embed_dim stays at 64. See EXPERIMENTS.md §1.8.
 MODEL_SWEEP = Sweep(
     name="etth_forecast_model",
     pipeline="StandardPipeline",
@@ -98,6 +104,25 @@ MODEL_SWEEP = Sweep(
             "mae_tx_decoder_embed_dim": ["32", "128"],
         },
     ),
+)
+
+# One-off diagnostic (not wired into submit.py's --stage dispatch -- run directly via
+# harness.submit_sweep, see EXPERIMENTS.md §1.8/§4): repro-checks the apparent
+# decoder_embed_dim=128 winner against the base recipe's 64 across 3 seeds. Kept here,
+# not folded into MODEL_SWEEP, since it varies `seeds` per-trial rather than sweeping an
+# architecture axis -- mixing the two would silently apply 3 seeds to every MODEL_SWEEP
+# trial. Result: 128 wins at seeds 42/7, loses badly at 123: not a real effect.
+SEED_REPRO_CHECK = Sweep(
+    name="etth_forecast_model",
+    pipeline="StandardPipeline",
+    experiment_name="slurm_grid_etth_forecast_model",
+    base_args=[*_COMMON_ARGS, *_NON_ARCH_MAE_ARGS, *ARCH_ARGS, "--pipeline", "StandardPipeline"],
+    slurm=SlurmConfig(job_name="etth_fc_model", time="02:00:00"),
+    trials=[
+        {"mae_tx_decoder_embed_dim": "64"},
+        {"mae_tx_decoder_embed_dim": "128"},
+    ],
+    seeds=["42", "123", "7"],
 )
 
 TRAIN_STANDARD_SWEEP = Sweep(
@@ -124,6 +149,11 @@ TRAIN_INCREMENTAL_SWEEP = Sweep(
     base_args=[*_COMMON_ARGS, *_NON_ARCH_MAE_ARGS, *_INCREMENTAL_EXTRA_ARGS,
                "--pipeline", "IncrementalTaskArithmeticPipeline"],
     slurm=SlurmConfig(job_name="etth_fc_train_inc", time="01:30:00"),
+    # dataset_val_fraction=0.05 alone (default n_finetune_segments=3) fails a split-size
+    # guard -- each finetune segment's val slice ends up shorter than window_len=120. Paired
+    # here with n_finetune_segments=2 instead, which clears the guard (see EXPERIMENTS.md
+    # §1.9); the plain val_fraction=0.05/segments=3 combo is intentionally not listed since
+    # it deterministically fails, not a trial worth resubmitting.
     trials=expand_trials(
         cross={
             "pipeline_merge_scale": ["0.3", "0.5", "1.0"],
@@ -131,8 +161,8 @@ TRAIN_INCREMENTAL_SWEEP = Sweep(
         },
         one_at_a_time={
             "dataset_baseline_fraction": ["0.3", "0.7"],
-            "dataset_val_fraction": ["0.05", "0.15"],
+            "dataset_val_fraction": ["0.15"],
             "dataset_n_finetune_segments": ["2", "5"],
         },
-    ),
+    ) + [{"dataset_val_fraction": "0.05", "dataset_n_finetune_segments": "2"}],
 )

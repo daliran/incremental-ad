@@ -3,10 +3,10 @@
 Base config anchors on the current proven recipe in
 scripts/sbatch_mae_tx_swat_ad_standard.sh / _incremental.sh, kept in sync with
 .vscode/launch.json's "SWaT" configs (patch_len=5, embed_dim=256, encoder_layers=2,
-encoder_heads=2, decoder_embed_dim=128, decoder_layers=1, decoder_heads=2,
-mask_ratio=0.8). The sbatch scripts briefly drifted to patch_len=10/mask_ratio=0.80
-independently of launch.json; both were reverted back to match launch.json, which is
-the source of truth for this recipe.
+encoder_heads=2, decoder_embed_dim=128, decoder_layers=1, decoder_heads=4,
+mask_ratio=0.8). decoder_heads was updated 2->4 after slurm_grid_search's MODEL_SWEEP
+(see EXPERIMENTS.md §2.3) found it a free win: +28% relative event_f1 with no cost on
+any other AD metric.
 
 Architecture args are kept separate from everything else: MODEL_SWEEP anchors them at
 the proven values above and sweeps around them; TRAIN_STANDARD_SWEEP/
@@ -23,7 +23,7 @@ from harness import Sweep, SlurmConfig, expand_trials
 ARCH_ARGS = [
     "--mae_tx_decoder_embed_dim", "128",
     "--mae_tx_decoder_layers", "1",
-    "--mae_tx_decoder_heads", "2",
+    "--mae_tx_decoder_heads", "4",
     "--mae_tx_encoder_embed_dim", "256",
     "--mae_tx_encoder_layers", "2",
     "--mae_tx_encoder_heads", "2",

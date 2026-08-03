@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Self
 
-import torch
 import wandb
 
 from incremental_ad.framework.contracts.dataset import (
@@ -16,6 +15,7 @@ from incremental_ad.framework.contracts.evaluator import (
     WandbChartsEvaluator,
 )
 from incremental_ad.framework.contracts.pipeline import Pipeline, RunContext, StepResult
+from incremental_ad.framework.core.checkpoints import load_model_state
 from incremental_ad.framework.evaluators.evaluation_runner import EvaluationRunner
 from incremental_ad.framework.pipelines.standard_pipeline import EvalStepResult
 
@@ -51,9 +51,7 @@ class EvalPipeline(Pipeline):
     def run(self, context: RunContext) -> list[StepResult]:
         log.info(f"Loading checkpoint from {self.checkpoint_path}")
         
-        ckpt = torch.load(self.checkpoint_path, map_location="cpu", weights_only=True)
-        
-        context.model.load_state_dict(ckpt["model_state_dict"])
+        context.model.load_state_dict(load_model_state(self.checkpoint_path))
         # runner.run() moves the model to device before inference
 
         results: list[StepResult] = []

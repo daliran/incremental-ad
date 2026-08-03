@@ -3,7 +3,6 @@ from argparse import ArgumentParser, Namespace
 from datetime import datetime, timezone
 from typing import Self
 
-import torch
 import wandb
 
 from incremental_ad.framework.contracts.dataset import (
@@ -16,6 +15,7 @@ from incremental_ad.framework.contracts.evaluator import (
     WandbChartsEvaluator,
 )
 from incremental_ad.framework.contracts.pipeline import Pipeline, RunContext, StepResult
+from incremental_ad.framework.core.checkpoints import save_model_state
 from incremental_ad.framework.evaluators.evaluation_runner import EvaluationRunner
 from incremental_ad.framework.merging.task_vectors import merge_task_arithmetic
 from incremental_ad.framework.pipelines.standard_pipeline import (
@@ -364,10 +364,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
             model.load_state_dict(merged_state)
 
             merged_dir = context.step_dir("merged")
-            merged_path = merged_dir / "checkpoints" / "best.pt"
-            merged_path.parent.mkdir(parents=True, exist_ok=True)
-
-            torch.save({"model_state_dict": merged_state}, merged_path)
+            save_model_state(merged_dir / "checkpoints" / "best.pt", merged_state)
 
             # --- Merged val eval (sanity-check: does the merge hurt validation loss?) ---
             if DatasetCapability.VAL in caps:

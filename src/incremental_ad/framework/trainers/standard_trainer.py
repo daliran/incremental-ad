@@ -14,6 +14,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from incremental_ad.framework.contracts.dataset import DataLoaderConfig, Segment
 from incremental_ad.framework.contracts.model import Model
 from incremental_ad.framework.contracts.trainer import TrainSummary, Trainer
+from incremental_ad.framework.core.checkpoints import save_model_state
 from incremental_ad.framework.core.device import move_to_device
 
 log = logging.getLogger(__name__)
@@ -202,24 +203,24 @@ class StandardTrainer(Trainer):
                     }
 
                 if checkpoint_dir is not None:
-                    self._save_checkpoint(
+                    save_model_state(
                         checkpoint_dir / "last.pt",
                         model.state_dict(),
-                        epoch,
-                        train_loss,
-                        val_loss,
+                        epoch=epoch,
+                        train_loss=train_loss,
+                        val_loss=val_loss,
                     )
 
                     if (
                         self.checkpoint_interval > 0
                         and epoch % self.checkpoint_interval == 0
                     ):
-                        self._save_checkpoint(
+                        save_model_state(
                             checkpoint_dir / f"epoch_{epoch:04d}.pt",
                             model.state_dict(),
-                            epoch,
-                            train_loss,
-                            val_loss,
+                            epoch=epoch,
+                            train_loss=train_loss,
+                            val_loss=val_loss,
                         )
 
                 lr = optimizer.param_groups[0]["lr"]
@@ -286,12 +287,12 @@ class StandardTrainer(Trainer):
             model.load_state_dict(best_state)
             if checkpoint_dir is not None:
                 checkpoint_path = checkpoint_dir / "best.pt"
-                self._save_checkpoint(
+                save_model_state(
                     checkpoint_path,
                     best_state,
-                    best_epoch,
-                    best_epoch_train_loss,
-                    best_val_loss,
+                    epoch=best_epoch,
+                    train_loss=best_epoch_train_loss,
+                    val_loss=best_val_loss,
                 )
 
         return TrainSummary(
@@ -303,24 +304,6 @@ class StandardTrainer(Trainer):
             epochs_trained=epochs_trained,
             checkpoint_path=checkpoint_path,
             secondary_val_losses=final_secondary_losses,
-        )
-
-    @staticmethod
-    def _save_checkpoint(
-        path: Path,
-        state_dict: dict,
-        epoch: int | None,
-        train_loss: float,
-        val_loss: float | None,
-    ) -> None:
-        torch.save(
-            {
-                "model_state_dict": state_dict,
-                "epoch": epoch,
-                "train_loss": train_loss,
-                "val_loss": val_loss,
-            },
-            path,
         )
 
     def _train_epoch(

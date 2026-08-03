@@ -184,17 +184,20 @@ fabric.properties
 # idea folder, uncomment if you don't need it
 .idea
 
-# project specific
-hf_cache/
-runs/
-wandb/
-logs/
-analysis/
-debug/
+# project specific — generated output, all at the repo root. Anchored with a leading
+# slash: unanchored these match at ANY depth and silently swallow source directories
+# (e.g. src/incremental_ad/analysis/). Nested instances written inside run dirs —
+# <run>/<step>/debug/, <run>/wandb/ — are already covered by /runs/.
+/hf_cache/
+/runs/
+/wandb/
+/logs/
+/analysis/
+/debug/
 
 # stray dirs from tempfile's cwd-fallback when a compute node's local /tmp is full
 # (see TMPDIR handling in slurm_grid_search/harness.py and scripts/sbatch_mae_tx_*.sh)
-pymp-*/
+/pymp-*/
 
 # unignore project scripts excluded by the VirtualEnv template above
 !scripts/

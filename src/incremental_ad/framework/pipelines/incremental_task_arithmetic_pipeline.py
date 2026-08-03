@@ -1,3 +1,4 @@
+import csv
 import logging
 from argparse import ArgumentParser, Namespace
 from datetime import datetime, timezone
@@ -17,7 +18,11 @@ from incremental_ad.framework.contracts.evaluator import (
 from incremental_ad.framework.contracts.pipeline import Pipeline, RunContext, StepResult
 from incremental_ad.framework.core.checkpoints import save_model_state
 from incremental_ad.framework.evaluators.evaluation_runner import EvaluationRunner
-from incremental_ad.framework.merging.task_vectors import merge_task_arithmetic
+from incremental_ad.framework.merging.task_vectors import (
+    apply_task_vectors,
+    merge_task_arithmetic,
+    task_vector,
+)
 from incremental_ad.framework.pipelines.standard_pipeline import (
     EvalStepResult,
     TrainStepResult,
@@ -37,6 +42,13 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
     3. Merge via task arithmetic: theta = theta_base + scale * sum_i(theta_ft_i - theta_base)
     4. Evaluate the merged model (val on the union of every segment's held-out slice, test
        on the global test set)
+    5. Optionally evaluate the same merge at further scales (extra_merge_scales), which
+       needs no extra training — the task vectors are already in hand
+
+    Two scale settings, deliberately distinct. ``merge_scale`` is the *primary* scale:
+    the one this run commits to, producing the merged checkpoint and the merged/ results,
+    and the one swept as a grid axis across trials. ``extra_merge_scales`` are *secondary*:
+    evaluated but never materialised, purely to trace the scale-vs-metric curve.
     """
 
     def __init__(
@@ -45,17 +57,36 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
         finetune_trainer: StandardTrainer,
         runner: EvaluationRunner,
         merge_scale: float = 1.0,
+        extra_merge_scales: list[float] | None = None,
     ) -> None:
         self.trainer = trainer
         self.finetune_trainer = finetune_trainer
         self.runner = runner
         self.merge_scale = merge_scale
+        self.extra_merge_scales = extra_merge_scales or []
 
     @classmethod
     def add_args(cls, parser: ArgumentParser, prefix: str | None = None) -> None:
         p = prefix or cls.ARG_PREFIX
         DataLoaderConfig.add_args(parser)
-        parser.add_argument(f"--{p}_merge_scale", type=float, default=1.0)
+        parser.add_argument(
+            f"--{p}_merge_scale",
+            type=float,
+            default=1.0,
+            help="the primary merge scale: produces merged/checkpoints and merged/ results.",
+        )
+        parser.add_argument(
+            f"--{p}_extra_merge_scales",
+            type=float,
+            nargs="*",
+            default=[],
+            help="further scales to evaluate alongside the primary one. Evaluation only: "
+            "no training, no checkpoints, and merged/ still comes from --{p}_merge_scale. "
+            "Writes merged/merge_scale_curve.csv covering the primary scale and these. "
+            "Because every point shares one set of checkpoints, the curve carries none of "
+            "the run-to-run training noise a curve assembled from separate runs would."
+            .replace("{p}", p),
+        )
         StandardTrainer.add_args(parser, prefix="trainer")
         StandardTrainer.add_args(parser, prefix="finetune_trainer")
 
@@ -68,6 +99,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
             finetune_trainer=StandardTrainer.from_config(cfg, prefix="finetune_trainer"),
             runner=EvaluationRunner(DataLoaderConfig.from_config(cfg), device=trainer.device),
             merge_scale=getattr(cfg, f"{p}_merge_scale"),
+            extra_merge_scales=getattr(cfg, f"{p}_extra_merge_scales"),
         )
 
     def run(self, context: RunContext) -> list[StepResult]:
@@ -353,6 +385,11 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 results.append(ft_eval_result)
                 self._run_debugger(evaluator, context, model, step_dir)
 
+        # Kept so the extra-merge-scale curve can reuse the merge's own metrics as its
+        # primary-scale row instead of paying for an identical extra evaluation pass.
+        merged_val_metrics: dict[str, float] | None = None
+        merged_test_metrics: dict[str, float] | None = None
+
         # --- Task arithmetic merge ---
         if ft_states:
             log.info(f"[merged] Merging {len(ft_states)} finetune models (scale={self.merge_scale})")
@@ -432,6 +469,8 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
             if isinstance(evaluator, WandbChartsEvaluator):
                 evaluator.log_wandb_charts(full_step)
 
+            merged_test_metrics = metrics
+
             result = EvalStepResult(
                 step_name=full_step,
                 started_at=started_at,
@@ -442,7 +481,107 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
 
             result.write(eval_step_dir / "test")
             results.append(result)
-            
+
             self._run_debugger(evaluator, context, model, eval_step_dir)
 
+        # --- Extra merge scales (evaluation only; runs last so a failure here cannot
+        #     cost the merged/ artifacts already written above) ---
+        if ft_states and self.extra_merge_scales:
+            self._write_merge_scale_curve(
+                context, model, baseline_state, ft_states,
+                merged_val_metrics, merged_test_metrics,
+            )
+
         return results
+
+    def _write_merge_scale_curve(
+        self,
+        context: RunContext,
+        model,
+        baseline_state: dict,
+        ft_states: list[dict],
+        merged_val_metrics: dict[str, float] | None,
+        merged_test_metrics: dict[str, float] | None,
+    ) -> None:
+        """Trace metrics against merge scale over the primary scale plus each extra one.
+
+        The primary scale's row is the merge's own already-computed metrics — reused
+        rather than recomputed, so it costs nothing and is the merged/ result by
+        construction rather than a value that merely ought to match it.
+
+        The task vectors are built once and re-applied per scale, so every point shares
+        one set of checkpoints. That is what makes the curve's shape readable: it carries
+        none of the run-to-run training noise a curve assembled from separate runs would.
+
+        Rows go to a CSV rather than per-scale result.json files — at 19 AD metrics the
+        latter would add hundreds of columns to the sweep-collection CSV, with a column
+        set that shifts whenever the scale list changes.
+        """
+        dataset = context.dataset
+        caps = dataset.capabilities
+        evaluate_val = DatasetCapability.VAL in caps
+        evaluate_test = DatasetCapability.TEST in caps
+        if not (evaluate_val or evaluate_test):
+            return
+
+        rows: list[tuple[float, str, str, float]] = []
+        if merged_val_metrics is not None:
+            rows.extend((self.merge_scale, "val", k, v) for k, v in merged_val_metrics.items())
+        if merged_test_metrics is not None:
+            rows.extend((self.merge_scale, "test", k, v) for k, v in merged_test_metrics.items())
+
+        # The primary scale is already covered above; asking for it again is harmless.
+        scales = [s for s in dict.fromkeys(self.extra_merge_scales) if s != self.merge_scale]
+
+        # Build the datasets once — re-windowing them per scale would dominate the runtime.
+        val_dataset = dataset.get_merged_val_eval_dataset() if evaluate_val else None
+        test_dataset = dataset.get_test_dataset() if evaluate_test else None
+        reference_dataset = (
+            dataset.get_train_eval_dataset()
+            if evaluate_test
+            and isinstance(context.configurator.create_test_evaluator(), ReferenceEvaluator)
+            else None
+        )
+
+        task_vectors = [task_vector(baseline_state, ft) for ft in ft_states]
+
+        log.info(
+            f"[merge_scale_curve] Primary scale {self.merge_scale} reused; "
+            f"evaluating {len(scales)} extra scale(s): {scales}"
+        )
+
+        for scale in scales:
+            model.load_state_dict(apply_task_vectors(baseline_state, task_vectors, scale))
+
+            if val_dataset is not None:
+                metrics = self.runner.run(
+                    model, context.configurator.create_val_evaluator(), val_dataset,
+                    seed=context.eval_seed,
+                )
+                rows.extend((scale, "val", k, v) for k, v in metrics.items())
+
+            if test_dataset is not None:
+                metrics = self.runner.run(
+                    model, context.configurator.create_test_evaluator(), test_dataset,
+                    reference_dataset=reference_dataset,
+                    seed=context.eval_seed,
+                )
+                rows.extend((scale, "test", k, v) for k, v in metrics.items())
+                log.info(
+                    f"  [merge_scale_curve] scale={scale}: "
+                    + "  ".join(f"{k}={v:.4f}" for k, v in metrics.items())
+                )
+
+        rows.sort(key=lambda row: (row[1], row[0]))
+        curve_path = context.step_dir("merged") / "merge_scale_curve.csv"
+        with curve_path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["merge_scale", "split", "metric", "value"])
+            writer.writerows(rows)
+
+        # Leave the model at the primary scale, so evaluating the extras has no effect
+        # on anything that runs afterwards.
+        model.load_state_dict(
+            apply_task_vectors(baseline_state, task_vectors, self.merge_scale)
+        )
+        log.info(f"[merge_scale_curve] Wrote {len(rows)} rows to {curve_path}")

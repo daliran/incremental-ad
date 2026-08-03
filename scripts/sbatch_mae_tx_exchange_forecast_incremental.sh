@@ -58,6 +58,12 @@ source .venv/bin/activate
 # against an actual run: baseline val=303 rows (256 windows), each fine-tune segment
 # val=101 rows (54 windows), all comfortably ≥ 48.
 # Output: $RUNS_ROOT/<experiment_name>/<run_id>/{baseline,finetune_0..N,merged}/.
+# --pipeline_extra_merge_scales traces the merge-scale/metric curve in the same job:
+# each listed scale is evaluated from the already-trained task vectors (no extra
+# training, no extra checkpoints; merged/ still comes from --pipeline_merge_scale),
+# and merged/merge_scale_curve.csv covers the primary scale plus these. Empty = off.
+# Because every point shares one set of checkpoints, the curve carries none of the
+# run-to-run training noise a curve built from separate runs would (EXPERIMENTS.md §4).
 python -m incremental_ad.main \
     --experiment_name mae_tx_exchange_forecast \
     --model MaeTx \
@@ -110,6 +116,7 @@ python -m incremental_ad.main \
     --finetune_trainer_scheduler cosine \
     --finetune_trainer_reg_lambda 0.0 \
     \
-    --pipeline_merge_scale 0.5
+    --pipeline_merge_scale 0.5 \
+    --pipeline_extra_merge_scales
 
 echo "Finished at: $(date)"

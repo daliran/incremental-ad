@@ -19,7 +19,12 @@ from incremental_ad.framework.contracts.evaluator import ReferenceEvaluator
 from incremental_ad.framework.contracts.pipeline import Pipeline, RunContext, StepResult
 from incremental_ad.framework.core.checkpoints import load_model_state
 from incremental_ad.framework.evaluators.evaluation_runner import EvaluationRunner
-from incremental_ad.framework.merging.task_vectors import StateDict, merge_task_arithmetic
+from incremental_ad.framework.merging.task_vectors import (
+    StateDict,
+    apply_task_vectors,
+    merge_task_arithmetic,
+    task_vector,
+)
 from incremental_ad.framework.pipelines.standard_pipeline import EvalStepResult
 
 log = logging.getLogger(__name__)
@@ -101,6 +106,7 @@ class MergeDiagnosticsPipeline(Pipeline):
         runner: EvaluationRunner,
         standard_run_dir: Path | None = None,
         checkpoint_name: str = "best",
+        merge_scales: list[float] | None = None,
         eval_seeds: list[int] | None = None,
         allow_config_mismatch: bool = False,
         compared_args: dict | None = None,
@@ -109,6 +115,7 @@ class MergeDiagnosticsPipeline(Pipeline):
         self.runner = runner
         self.standard_run_dir = standard_run_dir
         self.checkpoint_name = checkpoint_name
+        self.merge_scales = merge_scales or []
         self.eval_seeds = eval_seeds or []
         self.allow_config_mismatch = allow_config_mismatch
         # Captured in from_config: RunContext carries the built model and dataset, not the
@@ -133,6 +140,16 @@ class MergeDiagnosticsPipeline(Pipeline):
             f"--{p}_checkpoint_name", choices=["best", "last"], default="best",
         )
         parser.add_argument(
+            f"--{p}_merge_scales", type=float, nargs="*", default=[],
+            help="merge scales to trace against the test metrics, e.g. 0.0 0.25 ... 1.5. "
+            "Empty skips the curve. The source run's own scale is always included, and "
+            "since every point reuses one set of checkpoints the curve carries none of "
+            "the training noise a curve built from separate runs would. The shape is the "
+            "diagnostic: a peak near 1.0 means the task vectors combine at full magnitude, "
+            "a peak at 0.3-0.7 that they overlap and the full sum overshoots, and a "
+            "monotone decline that any contribution is harmful.",
+        )
+        parser.add_argument(
             f"--{p}_eval_seeds", type=int, nargs="*", default=[],
             help="evaluation seeds. Defaults to the run's own eval_seed. Pass several to "
             "measure evaluation noise, which for AD is real: scoring averages "
@@ -153,6 +170,7 @@ class MergeDiagnosticsPipeline(Pipeline):
             runner=EvaluationRunner.from_config(cfg),
             standard_run_dir=getattr(cfg, f"{p}_standard_run_dir"),
             checkpoint_name=getattr(cfg, f"{p}_checkpoint_name"),
+            merge_scales=getattr(cfg, f"{p}_merge_scales"),
             eval_seeds=getattr(cfg, f"{p}_eval_seeds"),
             allow_config_mismatch=getattr(cfg, f"{p}_allow_config_mismatch"),
             compared_args={
@@ -367,6 +385,11 @@ class MergeDiagnosticsPipeline(Pipeline):
 
         self._write_matrix(step_dir, rows, columns, seeds, cells)
         summary = self._summarise(rows, columns, seeds, cells)
+        summary.update(
+            self._write_merge_scale_curve(
+                context, step_dir, source_config, rows, columns, seeds[0], cells
+            )
+        )
         self._write_source(step_dir, source_config, rows, columns)
 
         result = EvalStepResult(
@@ -504,6 +527,82 @@ class MergeDiagnosticsPipeline(Pipeline):
                     )
 
         return recovery
+
+    def _write_merge_scale_curve(
+        self, context, step_dir, source_config, rows, columns, seed, cells
+    ) -> dict[str, float]:
+        """Trace the test metrics against the merge scale, from the source run's weights.
+
+        Answers the question the source run structurally cannot: a training run fixes its
+        scale before training, so tracing the curve that way costs one full retrain per
+        point *and* confounds the shape with seed-to-seed variance. Here every point
+        shares one set of checkpoints, so the only thing varying is the scale.
+
+        Two anchors cost nothing. alpha = 0 is bitwise the base model, and alpha = the
+        source run's own scale is the merged model -- both already evaluated for the
+        transfer matrix, so their rows are reused rather than recomputed, which also makes
+        the curve exactly consistent with the matrix it sits beside.
+
+        Test block only: the merge_scale figures the analysis calls for (a ranking metric
+        against pa_f1) are test metrics, and the val slices are already covered per-shard
+        by the matrix.
+        """
+        if not self.merge_scales:
+            return {}
+
+        test_columns = [c for c in columns if c.block == "test"]
+        if not test_columns:
+            log.warning("[merge_scale_curve] no test set - skipping")
+            return {}
+        column = test_columns[0]
+
+        source_scale = source_config.get("args", {}).get("pipeline_merge_scale", 1.0)
+        reused = {0.0: BASE_ROW, source_scale: MERGED_ROW}
+
+        curve: dict[float, dict[str, float]] = {}
+        for scale in reused:
+            metrics = {
+                metric: value
+                for (r, c, metric, s), value in cells.items()
+                if r == reused[scale] and c == column.name and s == seed
+            }
+            if metrics:
+                curve[scale] = metrics
+
+        base_state = rows[BASE_ROW]
+        task_vectors = [
+            task_vector(base_state, rows[f"ft_{i}"])
+            for i in range(sum(1 for name in rows if name.startswith("ft_")))
+        ]
+        to_evaluate = [s for s in dict.fromkeys(self.merge_scales) if s not in curve]
+
+        log.info(
+            "[merge_scale_curve] %d scale(s) reused from the matrix (%s), evaluating %d more",
+            len(curve), ", ".join(str(s) for s in sorted(curve)), len(to_evaluate),
+        )
+        for scale in to_evaluate:
+            context.model.load_state_dict(apply_task_vectors(base_state, task_vectors, scale))
+            curve[scale] = self._evaluate(context, column, seed)
+            log.info("  [merge_scale_curve] scale=%s evaluated", scale)
+
+        path = step_dir / "merge_scale_curve.csv"
+        with path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["merge_scale", "split", "metric", "value", "n_windows", "eval_seed"])
+            for scale in sorted(curve):
+                for metric, value in curve[scale].items():
+                    writer.writerow([scale, column.block, metric, value, column.n_windows, seed])
+        log.info("[merge_scale_curve] Wrote %s", path)
+
+        # Both extremes, because whether the optimum is the min or the max depends on
+        # whether the metric is a loss or a score -- which the framework does not know.
+        summary: dict[str, float] = {}
+        for metric in sorted({m for values in curve.values() for m in values}):
+            points = [(s, v[metric]) for s, v in curve.items() if metric in v]
+            if points:
+                summary[f"{metric}/scale_at_min"] = min(points, key=lambda p: p[1])[0]
+                summary[f"{metric}/scale_at_max"] = max(points, key=lambda p: p[1])[0]
+        return summary
 
     def _write_source(self, step_dir, source_config, rows, columns) -> None:
         (step_dir / "source.json").write_text(

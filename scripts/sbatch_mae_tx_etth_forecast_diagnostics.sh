@@ -89,12 +89,20 @@ source .venv/bin/activate
 # these checkpoints were fine-tuned on, and every number would look plausible while
 # meaning nothing. Keep this block in sync with sbatch_mae_tx_etth_forecast_incremental.sh.
 #
+# --pipeline_merge_scales additionally traces test metrics against the merge scale, from
+# these same checkpoints. The source run fixed its scale before training, so tracing the
+# curve that way costs a full retrain per point and confounds the shape with seed-to-seed
+# variance (EXPERIMENTS.md §4); here only the scale varies. alpha=0 and the source run's
+# own scale are reused from the matrix, so two of the points are free.
+#
 # Output: $RUNS_ROOT/<experiment_name>/<run_id>/merge_diagnostics/
-#   transfer_matrix.csv  long format: model, column, block, metric, value,
-#                        ratio_to_base, n_windows, eval_seed
-#   result.json          per-metric summary scalars (diag/offdiag/specialisation/
-#                        merged/base_slice ratios) -- picked up by collect.py
-#   source.json          which run was analysed, its merge_scale, columns, window counts
+#   transfer_matrix.csv    long format: model, column, block, metric, value,
+#                          ratio_to_base, n_windows, eval_seed
+#   merge_scale_curve.csv  merge_scale, split, metric, value, n_windows, eval_seed
+#   result.json            per-metric summary scalars (diag/offdiag/specialisation/
+#                          merged/base_slice ratios, GRR + gap, scale_at_min/max)
+#                          -- picked up by collect.py
+#   source.json            which run was analysed, its merge_scale, columns, window counts
 # The source run is never written to; it stays an immutable artifact.
 python -m incremental_ad.main \
     --experiment_name mae_tx_etth_forecast_diagnostics \
@@ -131,6 +139,7 @@ python -m incremental_ad.main \
     \
     --pipeline_source_run_dir "$SOURCE_RUN" \
     --pipeline_checkpoint_name best \
+    --pipeline_merge_scales 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5 \
     ${STANDARD_RUN:+--pipeline_standard_run_dir "$STANDARD_RUN"}
 
 echo "Finished at: $(date)"

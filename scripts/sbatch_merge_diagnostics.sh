@@ -22,8 +22,14 @@ set -euo pipefail
 #              test set), so a coarser grid there is reasonable.
 # EXTRA_ARGS   passed through to the pipeline verbatim, e.g. "--pipeline_eval_seeds 43 44"
 #
-#   sbatch --export=ALL,SOURCE_RUN=$WORK/runs/mae_tx_etth_forecast/<run_id> \
-#          scripts/sbatch_merge_diagnostics.sh
+#   SOURCE_RUN=$WORK/runs/mae_tx_etth_forecast/<run_id> \
+#       sbatch scripts/sbatch_merge_diagnostics.sh
+#
+# Set the variables in the submitting shell rather than with `--export`. On this cluster
+# any explicit `--export=VAR=value` (with or without `ALL`, and equally `--export=NONE`)
+# gets the job "CANCELLED by 0" -- killed by root about two seconds in, before the batch
+# script runs, so no log file is ever written and there is nothing to debug. Bare
+# `--export=ALL`, which is the default, is fine, and an env prefix rides along on it.
 #
 # This script is dataset-agnostic on purpose. Every model and dataset argument is read
 # back out of the source run's own config.json, so one script covers SWaT, PSM and ETTh1,

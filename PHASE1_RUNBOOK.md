@@ -140,13 +140,20 @@ local ETTh1 fixture, `finetune_0` had a τ 25× smaller than its siblings and
 ### Step 3 — diagnostics per target run
 
 ```bash
-sbatch --export=ALL,SOURCE_RUN=$WORK/runs/<experiment>/<run_id>,\
+SOURCE_RUN=$WORK/runs/<experiment>/<run_id> \
 STANDARD_RUN=$WORK/runs/<std_experiment>/<run_id> \
-    scripts/sbatch_merge_diagnostics.sh
+    sbatch scripts/sbatch_merge_diagnostics.sh
 ```
 
 Env vars the script accepts: `SOURCE_RUN` (required), `STANDARD_RUN`, `MERGE_SCALES`
 (defaults to `0.0 0.1 … 1.5`), `EXTRA_ARGS` (passed through verbatim).
+
+**Pass them as an env prefix, not with `--export`.** On this cluster any explicit
+`--export=VAR=value` — with `ALL`, without it, and equally `--export=NONE` — gets the job
+`CANCELLED by 0` roughly two seconds in, killed by root before the batch script runs, so
+**no log file is written at all** and there is nothing to inspect. Bare `--export=ALL` (the
+default) works, and an env prefix rides along on it. Measured, not inferred: `--export=ALL`
+alone completes, `--export=ALL,FOO=bar` does not.
 
 **Cost control — read this before submitting AD jobs.** The default 16-point curve is
 trivial for ETTh1 (~3.4k test windows, 1 eval pass) and expensive for SWaT/PSM: PSM's test

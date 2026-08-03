@@ -1024,3 +1024,195 @@ since it's a real, deterministic, reproducible outcome, not noise to discard.
 - **This file** is the source of truth for every experiment run this session — keep it
   updated (§6) whenever a new sweep is collected, rather than letting results live only
   in the artifact or in memory.
+
+---
+
+## 8. Phase 1 — merge diagnostics (transfer matrix, GRR, scale curve), 2026-08-03/04
+
+Training-free cross-evaluation of checkpoints already on disk, per `PHASE1_RUNBOOK.md`.
+These are measurements; the research reading is stated where the evidence supports one and
+withheld where it does not.
+
+### 8.0 What was run
+
+| dataset | source run | standard ref | diagnostics run | walltime |
+|---|---|---|---|---|
+| SWaT | `slurm_grid_swat_train_incremental/58941` | `slurm_grid_swat_train_standard/58930` | `..._diagnostics/78070` | 1:24:44 |
+| PSM (patch_len=5) | `slurm_grid_psm_train_incremental/59101` | `slurm_grid_psm_train_standard/59090` | `..._diagnostics/78071` | 0:15:36 |
+| ETTh1 | `slurm_grid_etth_forecast_train_incremental/59071` | `slurm_grid_etth_forecast_train_standard/59060` | `..._diagnostics/78072` | 0:00:34 |
+
+All three are the `reg_lambda=0`, `merge_scale=1.0`, `baseline_fraction=0.5`,
+`n_finetune_segments=3` trial of their sweep, with the Standard run matched on trainer args
+(same lr / weight decay / epochs / seed) as well as on the guarded `dataset_*`/`mae_tx_*`.
+
+**Not run, and it matters:** a single `eval_seed` throughout, and a coarse 7-point scale
+grid on SWaT/PSM (ETTh1 got the full 16-point grid). The runbook asks for
+`--pipeline_eval_seeds 43 44 45` on AD; at the production `n_eval_passes=30` a 3-seed SWaT
+matrix costs ~4.2 h and needs the 2 h `--time` raised. **No per-shard event metric below
+should be quoted without that spread.** The readings here rest on the reconstruction val
+block and on AUROC/F1, not on event metrics.
+
+**Prerequisite check:** all **60/60** `merged/checkpoints/best.pt` under `$WORK/runs`
+recompute bitwise from baseline + finetunes (`torch.equal` on every tensor). Merging is
+reproducible on the cluster.
+
+**Parameter-space coverage:** every complete incremental run on disk (60) has at least one
+complete Standard run passing the config guard. **No missing training** — Phase 1 needed no
+new jobs.
+
+### 8.1 Geometry (all 62 incremental runs, no GPU)
+
+Cosine **does** decay with temporal distance on all three datasets, pooled over runs
+(distances 3–4 come from the single 5-segment run each):
+
+| distance | SWaT | PSM | ETTh1 |
+|---|---|---|---|
+| 1 | 0.776 | 0.361 | 0.169 |
+| 2 | 0.676 | 0.262 | 0.112 |
+| 3 | 0.631 | 0.195 | 0.183 |
+| 4 | 0.551 | 0.104 | −0.006 |
+
+So temporal distribution shift does differentiate the task vectors, monotonically on
+SWaT and PSM. The thesis framing survives this check.
+
+Per-dataset character (headline runs): SWaT vectors are near-collinear
+(mean off-diag cosine 0.737, effective rank **1.63/3**, ‖τ‖/‖θ₀‖ 0.0044–0.0074); PSM is the
+most spread (0.466/0.265, eff. rank ~2.5/3); ETTh1 is nearly orthogonal (0.121/0.042).
+
+**Degenerate fine-tuning on ETTh1.** In **11 of 15** ETTh1 runs one τ is 6–24× smaller than
+its siblings. In headline run 59071, `finetune_0` has ‖τ‖/‖θ₀‖ = **0.0012** vs 0.0197 /
+0.0283, with `best_epoch=1` — its third singular value carries 0.1% of the energy. **That
+run's 3-vector merge is effectively a 2-vector merge**, and its `ft_0` row below is inert by
+construction. One PSM run (59109, 5 segments) shows the same at 5.8×. No SWaT run does.
+
+### 8.2 ETTh1 — interference, plus one dead segment
+
+Val block, `forecast/mse` as ratio to base (lower better); test column raw:
+
+```
+         val_base   val_0   val_1   val_2  |  test MSE
+base       1.000    1.000   1.000   1.000  |   0.6132
+ft_0       0.966    0.958   0.908   0.959  |   0.6334
+ft_1       0.940    0.541   0.757   1.063  |   0.4721
+ft_2       1.222    0.791   0.583   0.481  |   0.4575
+merged     1.207    1.127   0.738   0.871  |   0.4684
+standard      —        —       —       —   |   0.3911
+```
+
+- `specialisation` **+0.076** (diag 0.732 < offdiag 0.808) — specialists do help more on
+  their own shard than on others.
+- **The diagonal is the column minimum only for segment 2.** `ft_1` beats `ft_0` on `val_0`
+  (0.541 vs 0.958) and `ft_2` beats `ft_1` on `val_1`. `ft_0` is inert everywhere — the
+  degenerate τ from §8.1.
+- `base_slice_ratio_mean` **1.043**, and `ft_2` costs **1.222** on `val_base` — forgetting,
+  now measured.
+- Merged at scale 1.0 is *worse than base* on `val_0` (1.127) and `val_base` (1.207) while
+  better on `val_1`/`val_2`, and worse than each specialist on that specialist's shard.
+- `grr` = **0.652** on a gap of −0.222 (**36% of base**, far above the 2% noise floor).
+- Curve: clean U, minimum at **scale 0.6** (MSE 0.4228 vs 0.4684 at the run's own 1.0),
+  monotone worsening past it. At 0.6 the implied GRR would be 0.857.
+
+**Reading: interference** (decision-table row 2 — diag ≪ 1, offdiag > diag, moderate ‖τ‖,
+curve peaked below 1.0 and falling after), *contaminated by* degenerate fine-tuning on
+segment 0. The run's own `merge_scale=1.0` overshoots by a measurable margin.
+
+### 8.3 PSM — interference, the cleanest AD case
+
+Val block, `reconstruction/score_mean` ratio to base:
+
+```
+         val_base   val_0   val_1   val_2  |  test AUROC  window_f1   pa_f1  event_f1
+base       1.000    1.000   1.000   1.000  |     0.7740     0.6361  0.8067    0.2294
+ft_0       1.039    0.774   0.845   0.909  |     0.7832     0.6517  0.7667    0.2957
+ft_1       1.125    0.763   0.770   0.875  |     0.7936     0.6546  0.7675    0.1971
+ft_2       1.090    0.950   0.665   0.714  |     0.7932     0.6557  0.7667    0.2145
+merged     1.650    0.859   0.734   1.096  |     0.7991     0.6790  0.7716    0.2749
+standard      —        —       —       —   |     0.8002     0.6918  0.7676    0.3960
+```
+
+- `specialisation` **+0.082** (diag 0.753 < offdiag 0.835).
+- Same pattern as ETTh1: **the diagonal is the column minimum only for segment 2.**
+- `base_slice_ratio_mean` **1.085**, merged **1.650** on `val_base` — the merge forgets the
+  base regime substantially more than any single specialist does.
+- Merged beats base on `val_0`/`val_1` but is *worse than base* on `val_2` (1.096), and
+  worse than the best specialist on every column.
+- `grr`: window_auroc **0.958** (gap 0.0262 = 3.4% of base — above the floor but not by
+  much), window_f1 **0.770** (gap 8.8% of base — solidly informative).
+- Curve peaks at **scale 0.75** (AUROC 0.8018) and falls to 0.7801 by 1.5; window_f1 peaks
+  at 0.75 as well.
+
+**Metrics disagree, as they have before on PSM (§2.4).** `pa_f1` has a *negative* gap
+(standard 0.7676 < base 0.8067), so its GRR of 0.897 describes recovery toward a worse
+model; on `event_f1` Standard is far ahead (0.396 vs 0.229) and the merge recovers only 27%.
+Ranking PSM by a single metric remains unsafe.
+
+**Reading: interference.** Each τᵢ improves reconstruction on every shard; the sum at full
+scale overshoots (worse than base on `val_2`, 1.65× on `val_base`) and the test curve peaks
+below 1.0.
+
+### 8.4 SWaT — the merge wrecks reconstruction and the detector does not notice
+
+Val block, `reconstruction/score_mean` ratio to base:
+
+```
+         val_base   val_0   val_1   val_2  |  test AUROC  window_f1   pa_f1
+base       1.000    1.000   1.000   1.000  |     0.8005     0.7508  0.8373
+ft_0       1.026    0.740   0.698   0.750  |     0.7991     0.7508  0.8370
+ft_1       1.235    0.770   0.603   0.538  |     0.8016     0.7510  0.8373
+ft_2       1.413    0.861   0.638   0.481  |     0.8029     0.7511  0.8383
+merged     5.122    3.180   2.487   1.625  |     0.8060     0.7513  0.8407
+standard      —        —       —       —   |     0.8089     0.7514  0.8428
+```
+
+- `specialisation` **+0.101** (diag 0.608 < offdiag 0.709) — the *strongest* specialisation
+  of the three datasets. Here the diagonal **is** the column minimum for **all three**
+  segments — the only dataset where every specialist wins on its own shard.
+- `base_slice_ratio_mean` **1.225**, rising monotonically with segment index (1.03 → 1.24 →
+  1.41) — clean, monotone forgetting.
+- `merged_ratio_mean` **2.43**, and **5.12 on `val_base`**. Summing three near-collinear τ
+  (cosine 0.67–0.85, eff. rank 1.63/3) at full scale blows reconstruction error up by 2–5×.
+  This is the textbook interference signature, in its most extreme form on record here.
+- **And yet every test metric barely moves**: AUROC 0.8005 → 0.8060, window_f1 0.7508 →
+  0.7513. The curve rises monotonically to 1.5 (0.8067) and never peaks.
+- **Every GRR warning fired.** All test gaps are ≤1% of base (window_auroc 0.0084 = 1.0%,
+  window_f1 0.0006 = 0.1%, point_f1 0.0001 = 0.0%). Every SWaT GRR in `result.json` is a
+  ratio of two noise terms and **must not be quoted**.
+
+**Reading: cannot tell from the test column — report SWaT as a control, as planned.** But
+the val block is unambiguous and is new information: the merge destroys the reconstruction
+model (2–5× worse) while AUROC/F1 shift by <1%. That is direct evidence that **SWaT's
+detection metrics are insensitive to large changes in model quality**, i.e. the dataset is
+saturation-limited, sharpening the earlier finding (§2.4, and the "benchmarks too
+stationary" note) from "merging gives no gain" to "the metric cannot see a 5× change in the
+underlying model."
+
+### 8.5 Cross-dataset summary
+
+| | SWaT | PSM | ETTh1 |
+|---|---|---|---|
+| mean off-diag cosine | 0.737 | 0.466 | 0.121 |
+| effective rank (of 3) | 1.63 | ~2.5 | 1.88 |
+| mean ‖τ‖/‖θ₀‖ | 0.0061 | 0.0059 | 0.0164 |
+| `specialisation` | +0.101 | +0.082 | +0.076 |
+| `diag_ratio_mean` | 0.608 | 0.753 | 0.732 |
+| `offdiag_ratio_mean` | 0.709 | 0.835 | 0.808 |
+| `base_slice_ratio_mean` | 1.225 | 1.085 | 1.043 |
+| `merged_ratio_mean` | 2.431 | 0.896 | 0.912 |
+| curve optimum | none (rises to 1.5) | 0.75 | 0.60 |
+| primary gap vs base | 1.0% (below floor) | 3.4% | 36% |
+| GRR usable? | **no** | marginally (0.958) | yes (0.652) |
+| mechanism | interference in val; test uninformative | **interference** | **interference** + dead segment |
+
+Specialisation is positive on all three, so **degenerate fine-tuning is ruled out as the
+global explanation** — with the documented exception of ETTh1 `finetune_0` and PSM 59109.
+Redundancy is ruled out too: diagonal ratios of 0.61–0.75 are far from 1.0. **Interference
+is the mechanism the evidence supports on all three**, which is the reading that licenses
+the non-orthogonality argument. Note the ordering: specialisation is *highest* where the
+vectors are *most collinear* (SWaT), and the merge damage tracks collinearity
+(`merged_ratio_mean` 2.43 at cosine 0.74, ~0.90 at cosine 0.47/0.12) — consistent with
+interference being driven by overlap, and the natural next test for §5's
+geometry-predicts-outcome question.
+
+Every source run used its own `merge_scale=1.0`, and on both datasets with a usable curve
+the optimum is **below** 1.0 (0.75 PSM, 0.60 ETTh1). The reported incremental numbers are
+therefore not the best this merge can do.

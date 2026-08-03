@@ -17,6 +17,7 @@ from incremental_ad.framework.contracts.evaluator import (
 )
 from incremental_ad.framework.contracts.pipeline import Pipeline, RunContext, StepResult
 from incremental_ad.framework.evaluators.evaluation_runner import EvaluationRunner
+from incremental_ad.framework.merging.task_vectors import merge_task_arithmetic
 from incremental_ad.framework.pipelines.standard_pipeline import (
     EvalStepResult,
     TrainStepResult,
@@ -355,7 +356,7 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
         # --- Task arithmetic merge ---
         if ft_states:
             log.info(f"[merged] Merging {len(ft_states)} finetune models (scale={self.merge_scale})")
-            merged_state = _task_arithmetic_merge(
+            merged_state = merge_task_arithmetic(
                 baseline_state, ft_states, self.merge_scale
             )
             log.info("[merged] Merge complete")
@@ -448,20 +449,3 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
             self._run_debugger(evaluator, context, model, eval_step_dir)
 
         return results
-
-
-def _task_arithmetic_merge(
-    base_state: dict,
-    ft_states: list[dict],
-    scale: float,
-) -> dict:
-    merged = {}
-    for key, base_tensor in base_state.items():
-        if base_tensor.is_floating_point():
-            task_vectors = [
-                ft[key].to(base_tensor.device) - base_tensor for ft in ft_states
-            ]
-            merged[key] = base_tensor + scale * torch.stack(task_vectors).sum(dim=0)
-        else:
-            merged[key] = base_tensor.clone()
-    return merged

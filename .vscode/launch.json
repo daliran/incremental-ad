@@ -609,18 +609,20 @@
         },
 
         {
-            // Post-hoc transfer matrix over a finished ETTh1 incremental run. Trains
-            // nothing: reloads that run's checkpoints and cross-evaluates every model
-            // (base, each specialist, merged) against every shard's val slice plus the
-            // full test set. Fills in the off-diagonal the training run never produces —
-            // theta_0 + tau_i scored on shard j — which is what tells shard-specific
-            // learning apart from a fine-tune that simply improved everywhere.
-            // Dataset args MUST match the source run; the pipeline hard-errors otherwise,
-            // since mismatched splits would silently evaluate the wrong regions.
-            "name": "ETTh1 — Merge Diagnostics (transfer matrix)",
+            // Post-hoc diagnostics over a finished incremental run. Trains nothing:
+            // reloads that run's checkpoints and cross-evaluates every model (base, each
+            // specialist, merged, optionally Standard) against every shard's val slice
+            // plus the full test set, then traces the metrics against the merge scale.
+            // Fills in the off-diagonal a training run never produces — theta_0 + tau_i
+            // scored on shard j — which is what tells shard-specific learning apart from
+            // a fine-tune that simply improved everywhere.
+            // No model/dataset args here on purpose: they are read back out of the source
+            // run's config.json, so they cannot drift out of sync with it, and this one
+            // config works for SWaT and PSM runs too.
+            "name": "Merge Diagnostics (transfer matrix + merge-scale curve)",
             "type": "debugpy",
             "request": "launch",
-            "module": "incremental_ad.main",
+            "module": "incremental_ad.analysis.diagnose",
             "cwd": "${workspaceFolder}",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
@@ -631,57 +633,18 @@
                 "WANDB_ENTITY": "kirrel-research"
             },
             "args": [
-                // --- Dispatch ---
-                "--experiment_name", "dev_mae_tx_etth_forecast_diagnostics",
-                "--model", "MaeTx",
-                "--dataset", "EtthForecastDataset",
-                "--task", "forecast",
-                "--pipeline", "MergeDiagnosticsPipeline",
-                "--seed", "42",
+                "--source_run_dir", "${input:diagnosticsSourceRun}",
 
-                // --- MAE transformer (must match the source run) ---
-                "--mae_tx_patch_len", "4",
-                "--mae_tx_encoder_embed_dim", "128",
-                "--mae_tx_encoder_layers", "3",
-                "--mae_tx_encoder_heads", "4",
-                "--mae_tx_decoder_embed_dim", "64",
-                "--mae_tx_decoder_layers", "2",
-                "--mae_tx_decoder_heads", "4",
-                "--mae_tx_patch_norm", "false",
-                "--mae_tx_mask_ratio", "0.5",
-                "--mae_tx_n_eval_passes", "1",
-                "--mae_tx_training_mode", "causal_mask",
-                "--mae_tx_instance_norm", "false",
+                // optional StandardPipeline run: the GRR reference row (test block only)
+                // "--standard_run_dir", "runs/etth_forecast_grid_model/<run_id>",
 
-                // --- ETTh1 dataset + incremental split (must match the source run) ---
-                "--dataset_window_len", "120",
-                "--dataset_forecast_len", "24",
-                "--dataset_stride", "1",
-                "--dataset_normalization", "standard",
-                "--dataset_baseline_fraction", "0.5",
-                "--dataset_baseline_use_fraction", "1.0",
-                "--dataset_n_finetune_segments", "3",
-                "--dataset_val_fraction", "0.1",
-                "--dataset_test_fraction", "0.2",
-
-                // --- DataLoader ---
-                "--loader_batch_size", "128",
-
-                // --- Diagnostics ---
-                "--pipeline_source_run_dir", "${input:diagnosticsSourceRun}",
-                // optional StandardPipeline run added as a reference row (test block only):
-                // "--pipeline_standard_run_dir", "runs/mae_tx_etth_forecast/<run_id>",
-                // several seeds measure evaluation noise; matters for AD, where scoring
-                // averages n_eval_passes random masks, and when val slices are small:
-                // "--pipeline_eval_seeds", "43", "44", "45",
-                "--pipeline_checkpoint_name", "best",
-
-                // trace test metrics against the merge scale from these same checkpoints
-                // (alpha=0 and the source run's own scale are reused from the matrix, so
-                // two points are free). Empty skips the curve.
-                "--pipeline_merge_scales",
+                // scales for the merge-scale curve; omit the flag to skip the curve
+                "--merge_scales",
                 "0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7",
                 "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5"
+
+                // anything after "--" is passed to the pipeline verbatim, e.g.
+                // "--", "--pipeline_eval_seeds", "43", "44", "45"
             ]
         },
 

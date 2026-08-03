@@ -20,14 +20,12 @@ from incremental_ad.framework.contracts.pipeline import Pipeline
 from incremental_ad.framework.experiment import Experiment
 
 
-def main() -> None:
+def parse_components(argv: list[str] | None = None) -> argparse.Namespace:
+    """Resolve and validate --model/--dataset/--task/--pipeline before anything else.
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-
-    # Pre arguments parsing for validation
+    Which args exist at all depends on these four, so they are parsed first and the rest
+    of the parser is built from them.
+    """
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument("--model", required=True)
     pre.add_argument("--dataset", required=True)
@@ -35,13 +33,20 @@ def main() -> None:
         "--task", required=True, choices=TaskModelConfigurator.registered_tasks()
     )
     pre.add_argument("--pipeline", required=True)
-    known, _ = pre.parse_known_args()
+    known, _ = pre.parse_known_args(argv)
 
     _validate_component("model", known.model, Model._registry)
     _validate_component("dataset", known.dataset, Dataset._registry)
     _validate_component("pipeline", known.pipeline, Pipeline._registry)
+    return known
 
-    # Actual arguments registration
+
+def build_parser(known: argparse.Namespace) -> argparse.ArgumentParser:
+    """The full parser for one (model, dataset, task, pipeline) combination.
+
+    Split out from main() so other entry points can ask what a given invocation accepts,
+    and reuse argparse's own type conversion, rather than reimplementing either.
+    """
     parser = argparse.ArgumentParser()
 
     Experiment.add_args(parser)
@@ -63,8 +68,19 @@ def main() -> None:
         sys.exit(1)
 
     configurator_cls.add_args(parser)
+    return parser
 
-    # Actual arguments parsing
+
+def main() -> None:
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    known = parse_components()
+    parser = build_parser(known)
+
     args = parser.parse_args()
 
     experiment = Experiment.from_config(args)

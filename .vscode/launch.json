@@ -608,6 +608,76 @@
             ]
         },
 
+        {
+            // Post-hoc transfer matrix over a finished ETTh1 incremental run. Trains
+            // nothing: reloads that run's checkpoints and cross-evaluates every model
+            // (base, each specialist, merged) against every shard's val slice plus the
+            // full test set. Fills in the off-diagonal the training run never produces —
+            // theta_0 + tau_i scored on shard j — which is what tells shard-specific
+            // learning apart from a fine-tune that simply improved everywhere.
+            // Dataset args MUST match the source run; the pipeline hard-errors otherwise,
+            // since mismatched splits would silently evaluate the wrong regions.
+            "name": "ETTh1 — Merge Diagnostics (transfer matrix)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "incremental_ad.main",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+                "HF_HOME": "${workspaceFolder}/hf_cache",
+                "RUNS_ROOT": "${workspaceFolder}/runs",
+                "WANDB_MODE": "disabled",
+                "WANDB_PROJECT": "incremental_ad",
+                "WANDB_ENTITY": "kirrel-research"
+            },
+            "args": [
+                // --- Dispatch ---
+                "--experiment_name", "dev_mae_tx_etth_forecast_diagnostics",
+                "--model", "MaeTx",
+                "--dataset", "EtthForecastDataset",
+                "--task", "forecast",
+                "--pipeline", "MergeDiagnosticsPipeline",
+                "--seed", "42",
+
+                // --- MAE transformer (must match the source run) ---
+                "--mae_tx_patch_len", "4",
+                "--mae_tx_encoder_embed_dim", "128",
+                "--mae_tx_encoder_layers", "3",
+                "--mae_tx_encoder_heads", "4",
+                "--mae_tx_decoder_embed_dim", "64",
+                "--mae_tx_decoder_layers", "2",
+                "--mae_tx_decoder_heads", "4",
+                "--mae_tx_patch_norm", "false",
+                "--mae_tx_mask_ratio", "0.5",
+                "--mae_tx_n_eval_passes", "1",
+                "--mae_tx_training_mode", "causal_mask",
+                "--mae_tx_instance_norm", "false",
+
+                // --- ETTh1 dataset + incremental split (must match the source run) ---
+                "--dataset_window_len", "120",
+                "--dataset_forecast_len", "24",
+                "--dataset_stride", "1",
+                "--dataset_normalization", "standard",
+                "--dataset_baseline_fraction", "0.5",
+                "--dataset_baseline_use_fraction", "1.0",
+                "--dataset_n_finetune_segments", "3",
+                "--dataset_val_fraction", "0.1",
+                "--dataset_test_fraction", "0.2",
+
+                // --- DataLoader ---
+                "--loader_batch_size", "128",
+
+                // --- Diagnostics ---
+                "--pipeline_source_run_dir", "${input:diagnosticsSourceRun}",
+                // optional StandardPipeline run added as a reference row (test block only):
+                // "--pipeline_standard_run_dir", "runs/mae_tx_etth_forecast/<run_id>",
+                // several seeds measure evaluation noise; matters for AD, where scoring
+                // averages n_eval_passes random masks, and when val slices are small:
+                // "--pipeline_eval_seeds", "43", "44", "45",
+                "--pipeline_checkpoint_name", "best"
+            ]
+        },
+
         // ── Weather — Forecasting ──────────────────────────────────────────────
         // Same recipe as ETTh1's winning config (see "ETTh1 — Forecast Incremental").
         // 21 features, 1 full calendar year (2020) — spans all 4 seasons, so unlike
@@ -1232,6 +1302,12 @@
             "type": "promptString",
             "description": "Path to checkpoint (relative to workspace, e.g. runs/mae_tx_swat/<run_id>/merged/checkpoints/best.pt)",
             "default": ""
+        },
+        {
+            "id": "diagnosticsSourceRun",
+            "type": "promptString",
+            "description": "Finished IncrementalTaskArithmeticPipeline run dir to analyse (e.g. runs/etth_forecast_grid_incremental/<run_id>)",
+            "default": "runs/etth_forecast_grid_incremental/20260703_001736_3a8afef1"
         }
     ]
 }

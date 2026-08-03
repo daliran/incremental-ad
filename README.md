@@ -71,6 +71,7 @@ Ready-to-submit scripts live in [`scripts/`](scripts/). Edit `PROJECT_ROOT` and 
 | [`sbatch_mae_tx_etth_forecast_standard.sh`](scripts/sbatch_mae_tx_etth_forecast_standard.sh) | ETTh1 | StandardPipeline |
 | [`sbatch_mae_tx_etth_forecast_incremental.sh`](scripts/sbatch_mae_tx_etth_forecast_incremental.sh) | ETTh1 | IncrementalTaskArithmeticPipeline |
 | [`sbatch_mae_tx_etth_forecast_eval.sh`](scripts/sbatch_mae_tx_etth_forecast_eval.sh) | ETTh1 | EvalPipeline |
+| [`sbatch_mae_tx_etth_forecast_diagnostics.sh`](scripts/sbatch_mae_tx_etth_forecast_diagnostics.sh) | ETTh1 | MergeDiagnosticsPipeline (needs `SOURCE_RUN=`) |
 | [`sbatch_mae_tx_etth_imputation_standard.sh`](scripts/sbatch_mae_tx_etth_imputation_standard.sh) | ETTh1 | StandardPipeline |
 | [`sbatch_mae_tx_etth_imputation_eval.sh`](scripts/sbatch_mae_tx_etth_imputation_eval.sh) | ETTh1 | EvalPipeline |
 | [`sbatch_mae_tx_weather_forecast_standard.sh`](scripts/sbatch_mae_tx_weather_forecast_standard.sh) | Weather | StandardPipeline |

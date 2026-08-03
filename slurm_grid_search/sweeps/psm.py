@@ -89,6 +89,17 @@ MODEL_SWEEP = Sweep(
     # 50. See EXPERIMENTS.md §2.3 -- patch_len=5 was chosen anyway for event_f1 + merge
     # behavior (see module docstring), so this MODEL_SWEEP no longer matches ARCH_ARGS'
     # patch_len exactly; that's expected; it's a record of the search, not a resubmit target.
+    #
+    # 10 of these 15 cross trials NO LONGER SUBMIT: MaeTx now rejects a pretext task with
+    # fewer than 4 visible patches, and at dataset_window_len=100 every patch_len >= 10 at
+    # mask_ratio 0.8, plus all of patch_len in {20, 25, 50}, falls below it -- patch_len=25
+    # /mask_ratio=0.8 tokenises to 4 patches with 1 visible. That is the configuration
+    # §2.3 reports as the window/point-metric winner, so that comparison was made on a
+    # degenerate objective: a model collapsed toward the global prior still ranks anomalies
+    # (they deviate from the prior more than normal data does) while having learned nothing
+    # shard-specific. patch_len=5 was chosen on other grounds so no recipe changes, but the
+    # patch_len axis cannot be explored at a fixed window -- hold the token count constant
+    # by scaling window_len with patch_len instead (100/5, 200/10, 500/25 all give 20).
     trials=expand_trials(
         cross={
             "mae_tx_patch_len": ["5", "10", "20", "25", "50"],

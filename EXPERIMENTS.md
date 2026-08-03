@@ -443,6 +443,22 @@ and consistently by MSE/MAE at every merge_scale tried.
 
 ### 2.3 SLURM grid search — model architecture (SWaT 18/18 complete; PSM 24/24 complete)
 
+> **Caveat added later — most of the `patch_len` axis in this section is degenerate.**
+> `MaeTx` now refuses to build a pretext task leaving fewer than 4 visible patches
+> (`_assert_pretext_non_degenerate`). At `dataset_window_len=100` that rejects **10 of
+> PSM's 15 cross trials and 4 of SWaT's 9**. The one that matters: PSM's reported
+> window/point-metric winner, `patch_len=25 / mask_ratio=0.8`, tokenises to **4 patches
+> with 1 visible** — the model is asked to reconstruct three quarters of the window from a
+> single patch. Its good ranking scores are consistent with a model collapsed toward the
+> global prior, since anomalies deviate from that prior more than normal data does; what
+> such a model has *not* learned is anything shard-specific, which is why its task vectors
+> carried so little (see §2.4, where `patch_len=25` lost end-to-end to `patch_len=5`).
+> **No recipe changes** — `patch_len=5` was chosen on `event_f1` and merge behaviour
+> anyway — but the `patch_len` comparison here should not be read as a clean architecture
+> result. To vary `patch_len` honestly, hold the token count fixed by scaling the window
+> with it (100/5, 200/10, 500/25 all give 20 tokens). Note also that the chosen recipe
+> sits at *exactly* 4 visible patches, i.e. with no margin.
+
 `slurm_grid_search/sweeps/{swat,psm}.py::MODEL_SWEEP`,
 `{swat,psm}_model_results.csv`. Same shape both datasets: cross of
 `patch_len ∈ {5,10,20}` × `mask_ratio ∈ {0.5,0.65,0.8}` (9 trials) plus one-at-a-time

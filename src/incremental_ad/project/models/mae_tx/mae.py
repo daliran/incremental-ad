@@ -20,6 +20,12 @@ class TrainingMode(str, Enum):
     NEXT_STEP = "next_step"  # reconstruct the last patch given all preceding patches
 
 
+# Fewest visible patches a reconstruction objective is still meaningful with. A judgement
+# call, not a derived bound -- both proven AD recipes (window 100 / patch 5 / mask 0.8)
+# sit at exactly this value, so raising it would reject them.
+_MIN_VISIBLE_PATCHES = 4
+
+
 class InferenceMode(str, Enum):
     AD = "ad"              # anomaly score [B] via reconstruction error
     FORECAST = "forecast"  # future values [B, H, F] via causal masking
@@ -307,7 +313,52 @@ class MaeTx(_MaeTxBase):
                 f"forecast_patches ({self.forecast_patches}) must be in (0, n_patches={self.n_patches}); "
                 "check forecast_len, window_len, and patch_len."
             )
+        self._assert_pretext_non_degenerate()
         self._log_architecture()
+
+    def _assert_pretext_non_degenerate(self) -> None:
+        """Refuse configurations that leave the encoder almost nothing to condition on.
+
+        At window_len 100 with patch_len 25 the sequence is 4 tokens; at mask_ratio 0.8
+        exactly one stays visible, so the model is asked to reconstruct three quarters of
+        the window from a single patch. Such a model still trains and still produces
+        respectable task-level scores -- a reconstruction-based anomaly score survives
+        collapse toward the global prior, because anomalies deviate from the prior more
+        than normal data does -- while having learned nothing shard-specific. That makes
+        the failure silent, and silent is why this is an error rather than a warning.
+
+        The visible count is computed per mode rather than from mask_ratio alone, because
+        mask_ratio is inert outside RANDOM_MASK: in forecast the mask is exactly the
+        horizon, in causal it is the back half, in next-step a single patch. Using it
+        blindly would reject valid configurations -- two ETTh1 causal runs in this repo's
+        history have 4 and 9 real context patches but a nominal mask_ratio implying fewer.
+        """
+        config = self.config
+        assert isinstance(config, MaeTxConfig)
+
+        if self.forecast_patches is not None:
+            n_visible = self.n_patches - self.forecast_patches
+            regime = f"forecast horizon of {self.forecast_patches} patch(es)"
+        elif config.training_mode == TrainingMode.CAUSAL_MASK:
+            n_visible = self.n_patches - self.n_patches // 2
+            regime = "causal masking of the back half"
+        elif config.training_mode == TrainingMode.NEXT_STEP:
+            n_visible = self.n_patches - 1
+            regime = "next-step masking of the final patch"
+        else:
+            # Mirrors _create_random_mask: int(), not round().
+            n_visible = self.n_patches - int(self.n_patches * config.mask_ratio)
+            regime = f"random masking at mask_ratio={config.mask_ratio}"
+
+        if n_visible < _MIN_VISIBLE_PATCHES:
+            raise ValueError(
+                f"degenerate pretext task: window_len={self.seq_len} // "
+                f"patch_len={config.patch_len} = {self.n_patches} patches, and {regime} "
+                f"leaves only {n_visible} visible (minimum {_MIN_VISIBLE_PATCHES}). The "
+                "encoder has too little context for the reconstruction objective to mean "
+                "anything, yet the model will still train and still score plausibly. "
+                "Lower patch_len, raise window_len, or lower mask_ratio."
+            )
 
     # ── Configurable interface ─────────────────────────────────────────────────
 

@@ -86,6 +86,12 @@ MODEL_SWEEP = Sweep(
     experiment_name="slurm_grid_swat_model",
     base_args=[*_COMMON_ARGS, *_NON_ARCH_MAE_ARGS, *ARCH_ARGS, "--pipeline", "StandardPipeline"],
     slurm=SlurmConfig(job_name="swat_model", time="01:30:00"),
+    # 4 of these 9 cross trials NO LONGER SUBMIT: MaeTx now rejects a pretext task with
+    # fewer than 4 visible patches, and at dataset_window_len=100 that rules out
+    # patch_len=10 at mask_ratio 0.8 (2 visible) and all three patch_len=20 trials (5
+    # patches, 1-3 visible). The chosen recipe (patch_len=5, mask_ratio=0.8) sits at
+    # exactly 4 visible, so it passes with no margin -- raising mask_ratio or patch_len
+    # from here requires raising window_len in step. Kept as a record of the search.
     trials=expand_trials(
         cross={
             "mae_tx_patch_len": ["5", "10", "20"],

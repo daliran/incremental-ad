@@ -52,6 +52,10 @@ Every run is launched via `python -m incremental_ad.main` with a set of `--compo
 
 The scale is controlled by `--pipeline_merge_scale`. Each fine-tuned model contributes a *task vector* (the difference from baseline); these are summed and added back. Baseline and fine-tuned states are stored on CPU between phases so only the active model occupies GPU memory. Baseline, each fine-tune segment, and the merged model are all evaluated the same way — val (on their own segment's held-out slice) and test (on the global test set) — before/after the merge.
 
+`--pipeline_extra_merge_scales` optionally evaluates the same merge at further scales once training is done, writing `merged/merge_scale_curve.csv`. This is evaluation only — no extra training, no extra checkpoints, and `merged/` still comes from `--pipeline_merge_scale`. Because every point on the curve shares one set of checkpoints, its shape is free of the run-to-run training noise a curve assembled from separate runs carries (see EXPERIMENTS.md §4).
+
+**`MergeDiagnosticsPipeline`** — training-free post-hoc analysis of a finished `IncrementalTaskArithmeticPipeline` run. See [Merge diagnostics](#merge-diagnostics) below.
+
 Fine-tuning optionally supports L2-SP regularization: `--finetune_trainer_reg_lambda` (default `0`, a no-op) penalizes each segment's drift from the baseline weights during fine-tuning, added directly to the loss. `--finetune_trainer_reg_exclude` (default `norm bias`) excludes matching parameter-name substrings from the penalty. See `EXPERIMENTS.md` for findings so far (harmful on ETTh1 at every value/merge_scale tried; no measurable effect on SWaT/PSM).
 
 **`EvalPipeline`** — loads a saved checkpoint and runs evaluation only. Useful for re-evaluating a trained model with a different threshold strategy or for running the debugger visualizations. Pass `--pipeline_checkpoint_path` and the same model/dataset args used during training.
@@ -81,6 +85,33 @@ Ready-to-submit scripts live in [`scripts/`](scripts/). Edit `PROJECT_ROOT` and 
 | [`sbatch_mae_tx_exchange_forecast_incremental.sh`](scripts/sbatch_mae_tx_exchange_forecast_incremental.sh) | ExchangeRate | IncrementalTaskArithmeticPipeline |
 | [`sbatch_merge_diagnostics.sh`](scripts/sbatch_merge_diagnostics.sh) | *any* | MergeDiagnosticsPipeline — dataset-agnostic; pass `SOURCE_RUN=<incremental run dir>` |
 
+### Merge diagnostics
+
+Two training-free analyses over runs that already exist on disk. Both read checkpoints only; neither writes into the run it analyses.
+
+**Transfer matrix + merge-scale curve** — `MergeDiagnosticsPipeline`, driven by [`analysis/diagnose.py`](src/incremental_ad/analysis/diagnose.py):
+
+```bash
+python -m incremental_ad.analysis.diagnose \
+    --source_run_dir runs/<experiment>/<run_id> \
+    --standard_run_dir runs/<experiment>/<run_id> \
+    --merge_scales 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5
+```
+
+A training run already scores each specialist on *its own* shard's val slice and on the full test set — the matrix diagonal and the test column. What it cannot produce is the **off-diagonal**: `θ₀ + τᵢ` scored on shard *j*. Without it the diagonal proves nothing, since "τ₁ improved on shard 1" cannot be told apart from "τ₁ improved everywhere"; only improving *more* on its own shard demonstrates anything shard-specific was learned. Columns come in two blocks — the per-shard val slices (loss-shaped, reported as a ratio to the base model on the same column, so lower is better and shards of differing difficulty compare) and the full unpartitioned test set with every task metric. An optional Standard row supplies the GRR denominator; it is scored on the test block only, because Standard trains on everything but the global tail so the interior val slices sit inside its training data.
+
+`diagnose.py` reads every model and dataset argument back out of the source run's `config.json`. That matters beyond convenience: the pipeline hard-errors on any `dataset_*`/`mae_tx_*` difference, and the sweeps deliberately vary `baseline_fraction`, `val_fraction` and `n_finetune_segments` across trials — so a script with hardcoded args could only analyse the subset matching its own values. Pass `--dry-run` to print the composed command line.
+
+**Geometry** — [`analysis/geometry_report.py`](src/incremental_ad/analysis/geometry_report.py), no dataset and no GPU:
+
+```bash
+python -m incremental_ad.analysis.geometry_report runs/<experiment>/*
+```
+
+Measures where the task vectors point relative to each other: pairwise and per-tensor cosine, `‖τᵢ‖/‖θ₀‖`, effective rank, principal angles between the leading subspaces of each 2-D weight delta, sequential overlap ρ, and cosine against temporal distance `|i−j|`. That last one is the load-bearing plot: if similarity does not decay as segments grow further apart in time, temporal distribution shift is not what differentiates the task vectors. Per-run CSVs plus one `geometry_summary.csv` across all named runs, which is the table to correlate against merging outcome.
+
+Parameter-space geometry is a cheap *proxy*, not weight disentanglement — two updates can be geometrically orthogonal and still interfere, because orthogonal weight updates may modify the same features.
+
 ### Local debugging
 
 [`.vscode/launch.json`](.vscode/launch.json) contains debug configurations for all datasets, tasks, and pipelines — including synthetic datasets for quick smoke tests. `WANDB_MODE` is set to `disabled` in all local configs.
@@ -108,15 +139,26 @@ Each run writes to `$RUNS_ROOT/<experiment_name>/<run_id>/`.
 │   └── test/result.json
 ├── merged/
 │   ├── checkpoints/best.pt
+│   ├── merge_scale_curve.csv   # only with --pipeline_extra_merge_scales
 │   ├── val/result.json
 │   └── test/result.json
 │
-└── train/                  # StandardPipeline
-    ├── result.json
-    ├── checkpoints/
-    ├── val/result.json
-    └── test/result.json
+├── train/                  # StandardPipeline
+│   ├── result.json
+│   ├── checkpoints/
+│   ├── val/result.json
+│   └── test/result.json
+│
+└── merge_diagnostics/      # MergeDiagnosticsPipeline
+    ├── transfer_matrix.csv     # model, column, block, metric, value, ratio_to_base, n_windows, eval_seed
+    ├── merge_scale_curve.csv   # merge_scale, split, metric, value, n_windows, eval_seed
+    ├── result.json             # summary scalars (see below)
+    └── source.json             # which run was analysed: id, git commit, merge_scale, columns
 ```
+
+`merge_diagnostics/result.json` holds a bounded, stable set of scalars so `collect.py` yields one row per run. Per val metric: `diag_ratio_mean` (each specialist on its own shard), `offdiag_ratio_mean` (on the others), `specialisation` (the difference — positive means shard-specific learning happened), `merged_ratio_mean`, and `base_slice_ratio_mean` (each specialist on the baseline's own slice, i.e. forgetting). Per test metric, when a Standard row is supplied: `grr` and the `gap` it divides by — the gap travels with the ratio because GRR is only meaningful when `|standard − base|` clears the noise floor, and where the base model already sits near the ceiling it is a ratio of two noise terms. Plus `scale_at_min`/`scale_at_max` from the curve (both, since whether the optimum is the min or the max depends on the metric).
+
+The matrices are long-format CSVs rather than more `result.json` files on purpose: at 19 AD metrics, a file per cell would add hundreds of columns to the sweep-collection CSV, with a column set that changes whenever `n_finetune_segments` does.
 
 Checkpoint paths inside `result.json` are stored relative to `run_dir` so run directories remain self-contained when moved.
 
@@ -141,6 +183,7 @@ src/incremental_ad/
 │   ├── core/               # Stateless utilities (seed, device, git, wandb)
 │   ├── datasets/           # Reusable building blocks (SlidingWindowDataset, splitting, analysis)
 │   ├── evaluators/         # EvaluationRunner + reusable evaluators (AD, forecasting, imputation, classification)
+│   ├── merging/            # Task-vector construction, merge operators, parameter-space geometry
 │   ├── pipelines/          # Concrete pipeline implementations
 │   ├── trainers/           # Concrete trainer implementations
 │   └── experiment.py       # Orchestrator: wires components and runs
@@ -152,6 +195,7 @@ src/incremental_ad/
 │   ├── models/mae_tx/      # MaeTx + MaeTxClassifier, configurators, debugger
 │   └── task.py             # Task enum (ad, forecast, imputation, classification)
 │
+├── analysis/               # Post-hoc entry points over finished runs (geometry_report, diagnose)
 └── main.py                 # CLI entry point
 ```
 

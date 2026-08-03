@@ -138,11 +138,116 @@ def cosine_vs_distance(cosine: np.ndarray) -> dict[int, dict[str, float | list[f
     return grouped
 
 
-def geometry_report(base_state: StateDict, ft_states: Sequence[StateDict]) -> dict:
+def sequential_overlap(
+    taus: Sequence[StateDict], keys: Sequence[str], *, energy: float = 0.90
+) -> dict:
+    """How much of each incoming task vector already lies in the span of its predecessors.
+
+    At merge step k, ``rho_k = ||P(tau_k)||^2 / ||tau_k||^2`` where P projects onto the
+    leading right-singular subspace of the matrix stacking tau_0..tau_{k-1}, truncated at
+    the rank covering ``energy`` of its squared singular values. rho near 1 means the new
+    shard is re-editing directions already claimed; near 0 means it is opening new ones.
+
+    This is the per-merge diagnostic the model-materialisation question needs: a rho that
+    stays high says continuing to merge adds little, which is a candidate trigger for
+    starting a new model instead.
+
+    Note the accumulated update is treated as the *matrix* of previous task vectors, not
+    their sum -- summing first collapses the subspace to a single direction and makes the
+    rank truncation vacuous. A consequence worth checking: at k=1 the subspace is
+    necessarily 1-D, so rho_1 equals the squared cosine between tau_0 and tau_1 exactly.
+    """
+    flat = _stack(taus, keys)
+    rho: list[float] = []
+    ranks: list[int] = []
+
+    for k in range(1, len(taus)):
+        previous = flat[:k]
+        _, singular_values, right = torch.linalg.svd(previous, full_matrices=False)
+        squared = singular_values**2
+        total = squared.sum()
+        if total <= 0:
+            rho.append(float("nan"))
+            ranks.append(0)
+            continue
+
+        cumulative = torch.cumsum(squared / total, dim=0)
+        rank = int(torch.searchsorted(cumulative, torch.tensor(energy, dtype=cumulative.dtype))) + 1
+        rank = min(rank, right.shape[0])
+
+        incoming = flat[k]
+        norm_squared = incoming.dot(incoming)
+        projected = right[:rank] @ incoming
+        rho.append(float(projected.dot(projected) / norm_squared) if norm_squared > 0 else float("nan"))
+        ranks.append(rank)
+
+    return {"rho": rho, "rank_used": ranks, "energy": energy}
+
+
+def principal_angles(a: torch.Tensor, b: torch.Tensor) -> np.ndarray:
+    """Principal angles in radians between two column-orthonormal bases, ascending.
+
+    Zero means the subspaces share a direction exactly; pi/2 means that direction of one
+    is orthogonal to all of the other.
+    """
+    singular_values = torch.linalg.svdvals(a.T @ b)
+    return np.arccos(np.clip(singular_values.numpy(), -1.0, 1.0))
+
+
+def subspace_principal_angles(
+    taus: Sequence[StateDict], keys: Sequence[str], *, rank: int = 8
+) -> dict[str, dict]:
+    """Principal angles between the leading column subspaces of each 2-D weight delta.
+
+    Flattening a weight matrix into one long vector throws away its structure, so two
+    updates spanning the same subspace can still look uncorrelated by cosine. This is the
+    quantity subspace-projection merging methods actually operate on, so it is the one to
+    have measured before comparing against them.
+
+    2-D tensors are selected structurally (``ndim == 2``) rather than by name: that picks
+    every linear weight including fused attention projections, and excludes 1-D norm
+    parameters and 3-D positional encodings, without hardcoding any model's naming.
+    """
+    report: dict[str, dict] = {}
+    for key in keys:
+        if taus[0][key].ndim != 2:
+            continue
+
+        bases = []
+        for tau in taus:
+            delta = tau[key].to(torch.float64)
+            left, _, _ = torch.linalg.svd(delta, full_matrices=False)
+            bases.append(left[:, : min(rank, *delta.shape)])
+
+        n = len(bases)
+        angles = [[None] * n for _ in range(n)]
+        mean_angle = [[0.0] * n for _ in range(n)]
+        for i in range(n):
+            for j in range(n):
+                pair = principal_angles(bases[i], bases[j])
+                angles[i][j] = pair.tolist()
+                mean_angle[i][j] = float(pair.mean())
+
+        report[key] = {
+            "rank": bases[0].shape[1],
+            "shape": list(taus[0][key].shape),
+            "angles_rad": angles,
+            "mean_angle_rad": mean_angle,
+        }
+    return report
+
+
+def geometry_report(
+    base_state: StateDict,
+    ft_states: Sequence[StateDict],
+    *,
+    svd_rank: int = 8,
+    energy: float = 0.90,
+) -> dict:
     """Every measurement above for one set of fine-tunes, as one serialisable dict.
 
-    ``ft_states`` must be in temporal order — ``cosine_vs_distance`` reads the index as
-    the segment's position on the time axis.
+    ``ft_states`` must be in temporal order — ``cosine_vs_distance`` and
+    ``sequential_overlap`` both read the index as the segment's position on the time axis.
     """
     keys = float_keys(base_state)
     taus = [task_vector(base_state, ft) for ft in ft_states]
@@ -157,4 +262,6 @@ def geometry_report(base_state: StateDict, ft_states: Sequence[StateDict]) -> di
         "norms": delta_norms(taus, base_state, keys),
         "effective_rank": effective_rank(taus, keys),
         "cosine_vs_distance": cosine_vs_distance(cosine),
+        "sequential_overlap": sequential_overlap(taus, keys, energy=energy),
+        "subspace_principal_angles": subspace_principal_angles(taus, keys, rank=svd_rank),
     }

@@ -45,6 +45,9 @@ SUMMARY_FIELDS = [
     "mean_tau_over_base",
     "min_tau_over_base",
     "max_tau_over_base",
+    "mean_sequential_overlap",
+    "last_sequential_overlap",
+    "mean_principal_angle_rad",
     "run_dir",
 ]
 
@@ -140,12 +143,39 @@ def write_run_csvs(report: dict, out_dir: Path) -> None:
                     if i != j:
                         writer.writerow([parameter, i, j, value])
 
+    overlap = report["sequential_overlap"]
+    with (out_dir / "sequential_overlap.csv").open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["merge_step", "rho", "rank_used", "energy"])
+        for step, (value, rank) in enumerate(zip(overlap["rho"], overlap["rank_used"]), start=1):
+            writer.writerow([step, value, rank, overlap["energy"]])
+
+    with (out_dir / "principal_angles.csv").open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["parameter", "shape", "rank", "i", "j", "angle_index", "angle_rad"])
+        for parameter, entry in report["subspace_principal_angles"].items():
+            shape = "x".join(str(d) for d in entry["shape"])
+            for i, row in enumerate(entry["angles_rad"]):
+                for j, angles in enumerate(row):
+                    if i == j:
+                        continue
+                    for index, angle in enumerate(angles):
+                        writer.writerow([parameter, shape, entry["rank"], i, j, index, angle])
+
 
 def summary_row(config: dict, report: dict, run_dir: Path) -> dict:
     args = config.get("args", {})
     offdiag = _offdiag(report["cosine"])
     distance_1 = report["cosine_vs_distance"].get(1, {}).get("mean", float("nan"))
     ratios = report["norms"]["tau_over_base"]
+    rho = [v for v in report["sequential_overlap"]["rho"] if v == v]  # drop nan
+    off_diagonal_angles = [
+        entry["mean_angle_rad"][i][j]
+        for entry in report["subspace_principal_angles"].values()
+        for i in range(len(entry["mean_angle_rad"]))
+        for j in range(len(entry["mean_angle_rad"]))
+        if i != j
+    ]
 
     return {
         "experiment_name": config.get("experiment_name"),
@@ -165,6 +195,11 @@ def summary_row(config: dict, report: dict, run_dir: Path) -> dict:
         "mean_tau_over_base": _mean(ratios),
         "min_tau_over_base": min(ratios),
         "max_tau_over_base": max(ratios),
+        "mean_sequential_overlap": _mean(rho),
+        # The final step is the one the materialisation question asks about: how much of
+        # the last shard was already covered by everything merged before it.
+        "last_sequential_overlap": rho[-1] if rho else float("nan"),
+        "mean_principal_angle_rad": _mean(off_diagonal_angles),
         "run_dir": str(run_dir),
     }
 

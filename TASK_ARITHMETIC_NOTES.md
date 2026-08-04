@@ -285,24 +285,42 @@ invalidate the whole framing.
 
 > **Q: Is high effective rank good and low bad?**
 
-Mostly, but not straightforwardly, for two reasons.
+Mostly, but not straightforwardly, for three reasons.
 
-**Reason one: near-orthogonality is the default, not an achievement.** For two *random*
-vectors in D dimensions the cosine is ~0 with standard deviation 1/√D. So:
+**Reason one: pairwise cosine in ℝ^D is the wrong statistic.** In very high dimensions two
+*random* vectors are almost always near-orthogonal (cosine ~0 ± 1/√D), which invites the
+objection: "if orthogonality is free, why discuss it?"
 
-| | D | mean cosine | 1/√D | distance from chance |
-|---|---|---|---|---|
-| SWaT | 1,917,695 | 0.737 | 0.00072 | **~1020 σ** |
-| PSM | 649,341 | 0.399 | 0.00124 | ~321 σ |
-| ETTh1 | 714,780 | 0.095 | 0.00118 | ~80 σ |
+The objection is right about the statistic and wrong about the concept. Random vectors are
+not the relevant null — task vectors are gradients of the same loss, on similar data, from
+the same starting point, so they are confined to a small structured region and nobody
+expected them to be random. **The question that matters is not the angle between two arrows
+but whether a new arrow carries information the earlier ones didn't.**
 
-Even ETTh1 — which *looks* nearly orthogonal — is 80 standard deviations from random.
-**None of these vector sets is meaningfully orthogonal.** They all encode strongly
-overlapping information. A high rank could also mean the fine-tunes learned nothing and
-merely drifted: random noise in high dimensions is automatically near-orthogonal and
-full-rank. Always read rank alongside the norms and the diagonal.
+That has its own measurement, `sequential_overlap` in
+[framework/merging/geometry.py](src/incremental_ad/framework/merging/geometry.py): the
+fraction of τ_k lying inside the span of τ₀…τ_{k−1}. **0 = all new, 1 = nothing new.**
 
-**Reason two: rank conflates direction with magnitude.**
+| | mean sequential overlap | last | mean principal angle |
+|---|---|---|---|
+| SWaT | **0.607** | 0.737 | 44° |
+| PSM | 0.226 | 0.149 | 48° |
+| ETTh1 | 0.016 | 0.026 | 60° |
+
+This inverts the "orthogonality is free" worry. On SWaT each new task vector sits 60–74%
+inside the span of its predecessors — genuine redundancy, not an artefact of dimensionality.
+Fine-tuning on shard 2 largely re-learned what shards 0 and 1 already taught.
+
+Two consequences. Orthogonality is a **continuum, not a binary** — you never need it exactly,
+you need ‖Στ‖ not to blow up, which is quantitative. And **low overlap is not sufficient**:
+ETTh1's vectors are essentially independent (0.016) and its merge still costs 1.32×, because
+its problem is the dead `ft_0` and the 23× magnitude imbalance, not overlap.
+
+**Reason two: high rank can mean the fine-tunes learned nothing.** Random drift in high
+dimensions is automatically near-orthogonal and full-rank. Always read rank alongside the
+norms and the diagonal.
+
+**Reason three: rank conflates direction with magnitude.**
 
 - **SWaT**: cosine 0.737, rank 1.63 → low rank *because the arrows are parallel*.
 - **ETTh1**: cosine 0.095, rank 1.88 → nearly orthogonal, yet still low rank. Its norms are
@@ -545,6 +563,48 @@ the first and left the second essentially untouched.
 metric is *capable* of registering X. On SWaT a 5× change in the underlying model shows up
 as +0.008 AUROC. That makes SWaT a **control**, not evidence.
 
+### 7.3 Why improving the val block does not improve AUROC
+
+> **Q: If we improve the transfer matrix, why don't AUROC/AUPRC improve? What *would* improve
+> them?**
+
+Be careful with the invariance claim above: AUROC is invariant to a **monotone rescaling**,
+not to model improvement in general. A genuinely better detector *does* raise AUROC. The
+deeper reason the val block and AUROC are only loosely coupled is different:
+
+> **The val block measures reconstruction error on *normal* data only. Detection depends on
+> the *contrast* between normal and anomalous.**
+
+The val slices are unlabelled training-regime data — normal by construction. So a better val
+number means "reconstructs ordinary data better." That raises AUROC only if it does *not*
+equally improve reconstruction of anomalies — and for reconstruction-based detection that is
+exactly the trap: a better autoencoder reconstructs **everything** better, anomalies
+included. The gap can stay flat while every raw number improves. (This is the standard
+over-generalisation failure of reconstruction-based AD.)
+
+Analogy: making a smoke alarm's sensor more sensitive doesn't help if it becomes equally more
+sensitive to burnt toast and to real fires. You need a bigger *difference*.
+
+**So what would move AUROC?**
+
+- **On SWaT: essentially nothing, and that is a property of the benchmark.** Frozen base
+  0.8005; training on all data at once 0.8089. That 0.0084 is the entire prize available to
+  *any* adaptation method. There is no headroom to compete for.
+- **On PSM: 2.6 AUROC points are genuinely available, and merging captures them.** Base
+  0.7740 → joint training 0.8002, and the merge reaches 0.7991 at α = 1 and 0.8018 at
+  α = 0.75. That is a real, measurable gain produced by task arithmetic — see §9.0.
+- **Beyond that: change the detector, not the merge** — scoring function, architecture,
+  anomaly definition. Different research question; merging is not its lever.
+
+**The structural point, stated carefully.** Merging *retains* performance across regimes
+without replay, so its ceiling is set by how much the frozen base gives up relative to joint
+training. Where that gap is large (ETTh1, 36% of base) there is a lot to recover; where it is
+small (PSM, 3.4%) there is a little, and merging gets it; where it is inside the noise floor
+(SWaT, 1.0%) there is nothing to recover and no method can show a gain.
+
+**This is not the same as "merging cannot help on these datasets"** — an earlier draft of
+these notes said that, and it was wrong. It is true only of SWaT.
+
 ### 7.3 GRR and the noise floor
 
 > **GRR = (merged − base) / (standard − base)** on a test metric.
@@ -679,6 +739,52 @@ inflates the off-diagonal and therefore *deflates* `specialisation`. Unresolved.
 
 ## 9. Conclusions: supported and not supported
 
+### 9.0 The headline question, answered
+
+> **The question the project exists to answer:** *if I build a base model on some data and
+> then continue learning incrementally, can task-arithmetic merging match a model trained on
+> all the data at once?*
+
+That is exactly what GRR measures, and the comparison is fair: the incremental base trains on
+50% of the training data, the joint reference on 100%, both holding out the same validation
+fraction.
+
+| dataset | metric | base (50% data) | merged @α=1 | merged @best α | joint training | gap closed |
+|---|---|---|---|---|---|---|
+| **PSM** | window AUROC | 0.7740 | 0.7991 | **0.8018** @0.75 | 0.8002 | **~100%** |
+| **PSM** | window F1 | 0.6361 | 0.6790 | 0.6802 @0.75 | 0.6918 | 79% |
+| **ETTh1** | MSE | 0.6132 | 0.4684 | **0.4228** @0.60 | 0.3911 | 86% |
+| **ETTh1** | MAE | 0.5675 | 0.5035 | 0.4528 @0.50 | 0.4342 | 86% |
+| SWaT | window AUROC | 0.8005 | 0.8060 | 0.8067 @1.5 | 0.8089 | *gap is noise* |
+
+Testing the *remaining* shortfall against the same 2%-of-base floor used for the gap:
+
+| | gap vs base | shortfall @best α | verdict |
+|---|---|---|---|
+| PSM window AUROC | 3.4% | 0.2% | inside floor — **merging matches joint training** |
+| PSM window F1 | 8.8% | 1.8% | inside floor — no real remaining gap claimable |
+| ETTh1 MSE | 36.2% | **5.2%** | **REAL shortfall** |
+| ETTh1 MAE | 23.5% | **3.3%** | **REAL shortfall** |
+| SWaT | ≤1.0% | ≤0.3% | gap never cleared the floor — unanswerable |
+
+**Answer: yes on PSM, not quite on ETTh1, unanswerable on SWaT.** Merging half-data plus
+task vectors reaches full joint training on PSM. On ETTh1 it closes 86% of a large gap and
+the residual is genuine, not measurement error. SWaT's frozen base is already within 1% of
+joint training, so no method could show a gain — a fact about the benchmark, not about
+merging.
+
+**Three caveats bound all of this.**
+
+1. **α was selected on the test set.** The curve traces *test* metrics, so "best α" is chosen
+   by looking at the reported number. The curve's *shape* is trustworthy and "α = 1.0 is
+   suboptimal" is safe, but the @best-α values are optimistic and are not a defensible
+   headline until α is chosen on validation data and then reported on test. **This is the
+   biggest methodological hole in the whole analysis.**
+2. **The 2% floor is imported, not measured.** It comes from a same-seed ETTh1 MSE repeat and
+   is applied to AUROC/F1 by assumption. No reproducibility floor has been measured for the
+   AD metrics.
+3. **One evaluation seed, one training seed.** There are no error bars anywhere.
+
 ### Supported
 
 - **Fine-tuning learns something real and shard-specific.** Diagonal ratios of 0.61–0.75 and
@@ -703,6 +809,46 @@ inflates the off-diagonal and therefore *deflates* `specialisation`. Unresolved.
 - **Anything from SWaT's test column.** Every gap is inside the noise floor.
 - **That geometry predicts outcome.** Two usable points, correctly ordered. Not evidence.
 - **That the specialisation ordering is real** — the training-budget confound is unresolved.
+
+### What this analysis actually bought — the "isn't diagnosis useless?" question
+
+> **Q: If we can only see *why* it may not work but can't do anything about it, isn't the
+> analysis useless?**
+
+Partly fair, and the fair part first: on SWaT the verdict is "this dataset cannot answer your
+question" — a stop sign, not a lever. And geometry does not reliably predict outcome. **The
+analysis cannot make a saturated benchmark unsaturated.** What it delivered instead:
+
+0. **The headline answer itself** (§9.0). Merging matches joint training on PSM and closes
+   86% of the gap on ETTh1. That is the project's central question, and no training run
+   could answer it — a run fixes α before training, so it reports one point on a curve whose
+   shape it cannot see.
+
+1. **A 9.7% improvement on ETTh1 with no retraining.** Every reported result used α = 1.0;
+   the curve minimum is 0.6. Test MSE 0.4684 → **0.4228**, GRR 0.652 → **0.857** — subject to
+   the test-set-selection caveat in §9.0. (Honest scope: on PSM the same fix is worth
+   +0.0027 AUROC, i.e. nothing. This is an ETTh1 win specifically.)
+2. **A training bug.** ETTh1's `finetune_0` stops at epoch 1 and learns nothing, in **11 of
+   15** runs. Found by geometry in seconds on CPU. Any ETTh1 conclusion drawn before fixing
+   it describes a 2-vector merge as a 3-vector merge.
+3. **A false claim prevented.** "Merging recovers 66% of the gap on SWaT" is noise ÷ noise —
+   every SWaT test gap is ≤1% of base. On a defended thesis this is arguably the highest-value
+   item on the list.
+4. **The central argument licensed.** Interference is the only one of the three mechanisms
+   that supports the non-orthogonality claim, and it is now measured on all three datasets.
+   Before this it could not be distinguished from "the fine-tunes never learned anything" —
+   and ETTh1's `ft_0` proves that wasn't a hypothetical worry.
+5. **The root cause named.** Equal-length time slices of near-stationary data make n
+   fine-tunes learn one thing n times (SWaT: 0.607 subspace overlap). That points at an
+   experimental-design change — change-point splits, or genuinely drifting data — rather than
+   at more merging tricks.
+
+**On benchmark choice — narrower than an earlier draft of these notes claimed.** *SWaT* is
+the wrong benchmark for this question: its frozen base is already within 1% of joint
+training, so nothing can be demonstrated on it either way. PSM and ETTh1 both produce
+interpretable answers, and ETTh1's 36%-of-base gap is the most informative signal in the
+whole study. The earlier blanket statement that "these are the wrong benchmarks" was an
+over-generalisation from SWaT and is withdrawn.
 
 ### The one-sentence version
 

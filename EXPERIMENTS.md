@@ -1221,3 +1221,58 @@ geometry-predicts-outcome question.
 Every source run used its own `merge_scale=1.0`, and on both datasets with a usable curve
 the optimum is **below** 1.0 (0.75 PSM, 0.60 ETTh1). The reported incremental numbers are
 therefore not the best this merge can do.
+
+### 8.6 The headline question: does merging reach joint training?
+
+The question the project exists to answer — *can a base model plus task-arithmetic merging
+of incrementally fine-tuned models match a model trained on all the data at once?* — is
+exactly what GRR measures. The comparison is fair: the incremental base trains on
+`baseline_fraction=0.5` of the training data and the Standard reference on `1.0`, with the
+same `val_fraction` held out on both (verified from both `config.json`s).
+
+Reading the answer off the merge-scale curve rather than off the single α the run happened
+to use:
+
+| dataset | metric | base (frozen, 50% data) | merged @α=1 | merged @best α | joint training | gap closed @best |
+|---|---|---|---|---|---|---|
+| **PSM** | window_auroc | 0.7740 | 0.7991 | **0.8018** @0.75 | 0.8002 | **~100%** |
+| **PSM** | window_f1 | 0.6361 | 0.6790 | 0.6802 @0.75 | 0.6918 | 79% |
+| **ETTh1** | forecast/mse | 0.6132 | 0.4684 | **0.4228** @0.60 | 0.3911 | 86% |
+| **ETTh1** | forecast/mae | 0.5675 | 0.5035 | 0.4528 @0.50 | 0.4342 | 86% |
+| SWaT | window_auroc | 0.8005 | 0.8060 | 0.8067 @1.5 | 0.8089 | *gap itself is noise* |
+
+**Which shortfalls are real.** Applying the same 2%-of-base floor used for the gap to the
+*remaining* shortfall (`standard − merged@best`):
+
+| | gap vs base | shortfall @best α | verdict |
+|---|---|---|---|
+| PSM window_auroc | 3.4% | **0.2%** | inside floor — **merging matches joint training** |
+| PSM window_f1 | 8.8% | **1.8%** | inside floor — cannot claim a real remaining gap |
+| ETTh1 forecast/mse | 36.2% | **5.2%** | **REAL** — a genuine shortfall remains |
+| ETTh1 forecast/mae | 23.5% | **3.3%** | **REAL** |
+| SWaT (all) | ≤1.0% | ≤0.3% | the gap never cleared the floor; unanswerable |
+
+**So the answer is yes on PSM and not-quite on ETTh1.** On PSM, merging half-data +
+task vectors reaches a model trained on everything, on both usable metrics. On ETTh1 it
+closes 86% of a large gap, and the remaining 5.2%-of-base shortfall clears the noise floor,
+so that one is a genuine limitation rather than measurement error. SWaT cannot answer the
+question at all — its frozen base is already within 1% of joint training, so there is no gap
+for any method to recover, which is a statement about the benchmark, not about merging.
+
+**Three caveats that bound all of the above, none of them small.**
+
+1. **α was selected on the test set.** `merge_scale_curve.csv` traces *test* metrics, so
+   "best α" is chosen by looking at the number being reported. The *shape* of the curve is
+   trustworthy and "α = 1.0 is suboptimal" is safe, but the @best-α values are optimistic and
+   are not a defensible headline until α is picked on validation data and then reported on
+   test. This is the single biggest methodological hole in §8.6.
+2. **The 2% floor is imported, not measured here.** It comes from the same-seed ETTh1 MSE
+   repeat (§4) and is applied to AUROC and F1 by assumption. No reproducibility floor has
+   ever been measured for the AD metrics, so every "inside floor" verdict above rests on that
+   transfer.
+3. **One evaluation seed and one training seed.** There are no error bars anywhere in §8.
+
+**Consistency checks run against this table** (all pass, all 19 test metrics per AD dataset,
+3 for ETTh1): the curve at α = the run's own scale reproduces the matrix `merged` test row
+exactly; the curve at α = 0 reproduces the `base` row exactly; and GRR recomputed by hand
+matches `result.json` to 1e-9.

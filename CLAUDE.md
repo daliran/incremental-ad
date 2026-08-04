@@ -2,6 +2,11 @@
 
 Agent-oriented context for this repo. Full architecture is in [README.md](README.md) ("Framework internals") — read it for the deep dive; this file is the high-signal map plus the non-obvious gotchas that aren't visible in the code.
 
+For the *research* concepts — task vectors, the transfer matrix, interference vs overshoot,
+weight disentanglement, why the AD metrics can't see model change — read
+[TASK_ARITHMETIC_NOTES.md](TASK_ARITHMETIC_NOTES.md). It explains the reasoning;
+[EXPERIMENTS.md](EXPERIMENTS.md) remains the source of truth for numbers.
+
 ## What this is
 
 Research codebase for **incremental anomaly detection on multivariate time series** via task arithmetic, generalized to 4 tasks (AD, forecasting, imputation, classification) on one MAE backbone. Entry point: `python -m incremental_ad.main --model … --dataset … --task … --pipeline …`.

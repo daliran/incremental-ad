@@ -1075,9 +1075,13 @@ Cosine **does** decay with temporal distance on all three datasets, pooled over 
 So temporal distribution shift does differentiate the task vectors, monotonically on
 SWaT and PSM. The thesis framing survives this check.
 
-Per-dataset character (headline runs): SWaT vectors are near-collinear
-(mean off-diag cosine 0.737, effective rank **1.63/3**, ‖τ‖/‖θ₀‖ 0.0044–0.0074); PSM is the
-most spread (0.466/0.265, eff. rank ~2.5/3); ETTh1 is nearly orthogonal (0.121/0.042).
+Per-dataset character (headline runs), quoting **mean off-diagonal cosine** (not the
+distance-1 value tabulated above): SWaT's vectors are near-collinear (0.737, effective rank
+**1.63/3**, ‖τ‖/‖θ₀‖ 0.0044–0.0074); PSM is the most spread (0.399, eff. rank **2.51/3**);
+ETTh1 looks nearly orthogonal (0.095) but its rank is only 1.88/3 — low because
+`finetune_0` is dead, not because two vectors are parallel. Note that near-orthogonality is
+the *default* in this many dimensions: for random vectors cosine would be ~0 ± 1/√D, so
+even ETTh1's 0.095 sits ~80σ above chance and none of these sets is meaningfully orthogonal.
 
 **Degenerate fine-tuning on ETTh1.** In **11 of 15** ETTh1 runs one τ is 6–24× smaller than
 its siblings. In headline run 59071, `finetune_0` has ‖τ‖/‖θ₀‖ = **0.0012** vs 0.0197 /
@@ -1190,8 +1194,9 @@ underlying model."
 
 | | SWaT | PSM | ETTh1 |
 |---|---|---|---|
-| mean off-diag cosine | 0.737 | 0.466 | 0.121 |
-| effective rank (of 3) | 1.63 | ~2.5 | 1.88 |
+| mean off-diag cosine | 0.737 | 0.399 | 0.095 |
+| cosine at temporal distance 1 | 0.771 | 0.466 | 0.121 |
+| effective rank (of 3) | 1.63 | 2.51 | 1.88 |
 | mean ‖τ‖/‖θ₀‖ | 0.0061 | 0.0059 | 0.0164 |
 | `specialisation` | +0.101 | +0.082 | +0.076 |
 | `diag_ratio_mean` | 0.608 | 0.753 | 0.732 |

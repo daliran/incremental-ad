@@ -1,3 +1,4 @@
+from .continual_finetuning_pipeline import ContinualFineTuningPipeline
 from .eval_pipeline import EvalPipeline
 from .incremental_task_arithmetic_pipeline import IncrementalTaskArithmeticPipeline
 from .merge_diagnostics_pipeline import MergeDiagnosticsPipeline

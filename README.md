@@ -52,7 +52,7 @@ Every run is launched via `python -m incremental_ad.main` with a set of `--compo
 
 The scale is controlled by `--pipeline_merge_scale`. Each fine-tuned model contributes a *task vector* (the difference from baseline); these are summed and added back. Baseline and fine-tuned states are stored on CPU between phases so only the active model occupies GPU memory. Baseline, each fine-tune segment, and the merged model are all evaluated the same way — val (on their own segment's held-out slice) and test (on the global test set) — before/after the merge.
 
-`--pipeline_extra_merge_scales` optionally evaluates the same merge at further scales once training is done, writing `merged/merge_scale_curve.csv`. This is evaluation only — no extra training, no extra checkpoints, and `merged/` still comes from `--pipeline_merge_scale`. Because every point on the curve shares one set of checkpoints, its shape is free of the run-to-run training noise a curve assembled from separate runs carries (see EXPERIMENTS.md §4).
+`--pipeline_extra_merge_scales` optionally evaluates the same merge at further scales once training is done, writing `merged/merge_scale_curve.csv`. This is evaluation only — no extra training, no extra checkpoints, and `merged/` still comes from `--pipeline_merge_scale`. Because every point on the curve shares one set of checkpoints, its shape is free of the run-to-run training noise a curve assembled from separate runs carries (see EXPERIMENTS.md §1.8 for the measured per-dataset floors).
 
 **`MergeDiagnosticsPipeline`** — training-free post-hoc analysis of a finished `IncrementalTaskArithmeticPipeline` run. See [Merge diagnostics](#merge-diagnostics) below.
 

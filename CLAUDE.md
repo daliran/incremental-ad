@@ -4,7 +4,7 @@ Agent-oriented context for this repo. Full architecture is in [README.md](README
 
 For the *research* concepts — task vectors, the transfer matrix, interference vs overshoot,
 weight disentanglement, why the AD metrics can't see model change — read
-[TASK_ARITHMETIC_NOTES.md](TASK_ARITHMETIC_NOTES.md). It explains the reasoning;
+[THEORY.md](THEORY.md). It explains the reasoning;
 [EXPERIMENTS.md](EXPERIMENTS.md) remains the source of truth for numbers.
 
 **[EXECUTION_PLAN.md](EXECUTION_PLAN.md) is the living plan** — what is done, what the results

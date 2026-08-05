@@ -1,12 +1,14 @@
-# Task Arithmetic for Incremental Learning — theory, reasoning, and findings
+# Theory and concepts — incremental learning by model merging
 
-The *why* behind this project. Self-contained: readable with no prior context, and written to
-be pasted into an LLM as background for follow-up questions.
+Written to be *studied*, not skimmed. It assumes no prior familiarity with task arithmetic,
+model merging or continual-learning evaluation, and builds each idea from the setup upward.
 
-- [EXPERIMENTS.md](EXPERIMENTS.md) — the numbers. If this file disagrees, that one wins.
-- [EXECUTION_PLAN.md](EXECUTION_PLAN.md) — what is done and what is next.
-- [PHASE1_RUNBOOK.md](PHASE1_RUNBOOK.md) — how to run the diagnostics.
-- [CLAUDE.md](CLAUDE.md) — code map and repo invariants.
+Self-contained, and safe to paste into an LLM as background for follow-up questions.
+
+**Where things live.** This file is the *why*: concepts, derivations and reasoning.
+[EXPERIMENTS.md](EXPERIMENTS.md) holds the detailed results and observations — if a number
+here disagrees with one there, that file wins. [EXECUTION_PLAN.md](EXECUTION_PLAN.md) tracks
+what has been run and what to run next. [CLAUDE.md](CLAUDE.md) is the code map.
 
 Every figure here is the current state at **three training seeds per dataset** (2026-08-05).
 `±` is the half-range over seeds; a difference is only claimed where two intervals do not
@@ -253,6 +255,91 @@ It does **not** predict outcome reliably, and that is not its job. Four reasons 
 4. **Whether it predicts outcome is itself the research question** — and the current answer,
    "not reliably", is the concrete evidence for the caveat that parameter-space cosine is not
    weight disentanglement (§6.3).
+
+---
+
+## 4.4 The regime indicator — measuring novelty exactly
+
+### What it is
+
+After fine-tuning segment *k* you hold τ_k and the accumulated history τ₀…τ_{k−1}. The useful
+question before folding τ_k in is: **how much of it is genuinely new?**
+
+Decompose τ_k against the subspace spanned by its predecessors. Write **P** for the
+orthogonal projection onto that span:
+
+> τ_k = **P**τ_k  +  (τ_k − **P**τ_k)
+>
+> ρ_k = ‖**P**τ_k‖² / ‖τ_k‖²   — the fraction of the update's *energy* already covered
+
+By Pythagoras the orthogonal remainder has norm ‖τ_k‖·√(1 − ρ_k). Dividing by ‖θ₀‖ makes it
+comparable across datasets and steps:
+
+> **new_k = ‖τ_k‖ · √(1 − ρ_k) / ‖θ₀‖**
+
+This is an **exact decomposition**, not a composite score: no weighting, no free parameters.
+ρ ∈ [0,1], where 0 means the update is entirely orthogonal to everything learned so far and 1
+means it adds no direction that wasn't already there.
+
+In practice the span is truncated to the leading singular directions covering ~90% of the
+accumulated update's energy, which keeps ρ from being inflated by numerical noise in the tail.
+That truncation rank is recorded alongside ρ.
+
+### Why it should matter
+
+The mechanism from §5: aligned vectors stack, so summing *n* near-parallel updates travels
+roughly *n* times too far. A vector that is mostly *inside* the existing span adds little new
+information but contributes its full magnitude to that stacking. So:
+
+- **ρ → 1**: new segments are re-learning what is already there. The merge has little unique
+  content to dilute, and scaling down costs almost nothing. **Accumulating is safe.**
+- **ρ → 0 with large new_k**: each segment contributes a genuinely new direction, which a
+  scaled sum averages away. **A separate model might preserve more.**
+
+That is the reasoning behind an *accumulate versus materialise* rule.
+
+### What it actually does — 3 of 4
+
+| dataset | per-step ρ and new component | ρ predicts | actual winner on new segments |
+|---|---|---|---|
+| SWaT | step 0: ρ=—, new=0.00441 · step 1: ρ=0.478, new=0.00471 · step 2: ρ=0.737, new=0.00379 | merge | **merge** ✓ |
+| PSM | step 0: ρ=—, new=0.00523 · step 1: ρ=0.303, new=0.00537 · step 2: ρ=0.149, new=0.00546 | sequential | **sequential** ✓ |
+| ETTh1 | step 0: ρ=—, new=0.01517 · step 1: ρ=0.067, new=0.02594 · step 2: ρ=0.085, new=0.01281 | sequential | **sequential** ✓ |
+| exchange_rate | step 0: ρ=—, new=0.01163 · step 1: ρ=0.208, new=0.01012 · step 2: ρ=0.026, new=0.03098 | sequential | **merge** ✗ |
+
+**It fails on exchange_rate**, which has the lowest ρ of the four (0.026) and yet the
+most decisive merge win (0.331 ±0.034 against sequential's
+0.474 ±0.061).
+
+### Why the failure is informative
+
+exchange_rate is also the dataset with the **largest headroom** (43.8% base-to-joint) and
+the **strongest input drift**, and it is the only one where the merge beats *joint training*
+outright (GRR 1.218 ±0.081). That points at a second, independent route by
+which merging can win:
+
+- **Route 1 — redundancy.** Updates repeat each other, sequential training drifts cumulatively
+  and forgets, merging caps the drift. ρ sees this. *(SWaT)*
+- **Route 2 — ensembling across regimes.** Under strong progressive drift, joint training
+  weights every regime equally and sequential training over-commits to the newest, while
+  base + scaled task vectors sits between them and generalises forward better than either.
+  **ρ cannot see this**, because it is a statement about the *data's* structure, not the task
+  vectors' geometry. *(exchange_rate)*
+
+So ρ is a **sufficient** condition for one route and blind to the other. A usable controller
+would need at least a headroom term alongside it — and headroom is not cheaply observable
+online, since measuring it is what joint training does.
+
+### The practical alternative
+
+Because merging is training-free, you rarely need to *predict* this. After each segment,
+build both candidates and score them on the held-out slices you have already accumulated:
+that measures the decision criterion directly rather than inferring it from a proxy validated
+on four points. See §8.
+
+The exception is unsupervised anomaly detection, where those accumulated slices carry no
+labels, so you can only measure reconstruction — and §7.3 shows reconstruction and detection
+come apart. There, a cheap proxy is all you have, and ρ being only 3-of-4 is a real problem.
 
 ---
 

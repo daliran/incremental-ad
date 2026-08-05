@@ -110,6 +110,7 @@ class MergeDiagnosticsPipeline(Pipeline):
         eval_seeds: list[int] | None = None,
         allow_config_mismatch: bool = False,
         compared_args: dict | None = None,
+        curve_include_val: bool = False,
     ) -> None:
         self.source_run_dir = source_run_dir
         self.runner = runner
@@ -117,6 +118,7 @@ class MergeDiagnosticsPipeline(Pipeline):
         self.checkpoint_name = checkpoint_name
         self.merge_scales = merge_scales or []
         self.eval_seeds = eval_seeds or []
+        self.curve_include_val = curve_include_val
         self.allow_config_mismatch = allow_config_mismatch
         # Captured in from_config: RunContext carries the built model and dataset, not the
         # args that built them, and validating against the source run needs the raw values.
@@ -156,6 +158,14 @@ class MergeDiagnosticsPipeline(Pipeline):
             "--mae_tx_n_eval_passes random masks. Useful when val slices are small.",
         )
         parser.add_argument(
+            f"--{p}_curve_include_val", action="store_true",
+            help="also trace the per-shard val columns against the merge scale, not just "
+            "test. Needed to select a scale without selecting on the test set, and to "
+            "separate overshoot (the merged val curve descends to the diagonal) from "
+            "irreducible interference (it plateaus above it). Off by default: it "
+            "multiplies the per-scale cost by the val/test window ratio.",
+        )
+        parser.add_argument(
             f"--{p}_allow_config_mismatch", action="store_true",
             help="proceed even when dataset/model args differ from the source run. Unsafe: "
             "the val slices may not be the shards those checkpoints were trained on, or "
@@ -173,6 +183,7 @@ class MergeDiagnosticsPipeline(Pipeline):
             merge_scales=getattr(cfg, f"{p}_merge_scales"),
             eval_seeds=getattr(cfg, f"{p}_eval_seeds"),
             allow_config_mismatch=getattr(cfg, f"{p}_allow_config_mismatch"),
+            curve_include_val=getattr(cfg, f"{p}_curve_include_val"),
             compared_args={
                 k: v for k, v in vars(cfg).items() if k.startswith(COMPARED_ARG_PREFIXES)
             },
@@ -543,65 +554,105 @@ class MergeDiagnosticsPipeline(Pipeline):
         transfer matrix, so their rows are reused rather than recomputed, which also makes
         the curve exactly consistent with the matrix it sits beside.
 
-        Test block only: the merge_scale figures the analysis calls for (a ranking metric
-        against pa_f1) are test metrics, and the val slices are already covered per-shard
-        by the matrix.
+        Test block by default. `--pipeline_curve_include_val` adds the per-shard val
+        columns, which answers two things the test-only curve cannot:
+
+        - **Selecting alpha honestly.** A curve over test metrics can only be read, not
+          selected on -- picking the argmin of a test curve and then quoting that test
+          value is selection on the reported number. The val columns give a selection
+          signal that is independent of the test set.
+        - **Separating overshoot from irreducible interference.** The merged val ratio at
+          alpha = 1 mixes "we travelled too far along a good direction" with "these
+          vectors genuinely cannot be combined." Tracing val against alpha splits them:
+          if the merged curve descends to the diagonal, the whole cost was overshoot; if
+          it plateaus above it, the residual is real interference.
+
+        Off by default because it multiplies the per-scale cost by the val/test window
+        ratio -- cheap on ETTh1, ~1.2x on SWaT and PSM.
         """
         if not self.merge_scales:
             return {}
 
-        test_columns = [c for c in columns if c.block == "test"]
-        if not test_columns:
-            log.warning("[merge_scale_curve] no test set - skipping")
+        curve_columns = [c for c in columns if c.block == "test"]
+        if self.curve_include_val:
+            curve_columns = [c for c in columns if c.block == "val"] + curve_columns
+        if not curve_columns:
+            log.warning("[merge_scale_curve] no columns to trace - skipping")
             return {}
-        column = test_columns[0]
 
         source_scale = source_config.get("args", {}).get("pipeline_merge_scale", 1.0)
         reused = {0.0: BASE_ROW, source_scale: MERGED_ROW}
 
-        curve: dict[float, dict[str, float]] = {}
-        for scale in reused:
-            metrics = {
-                metric: value
-                for (r, c, metric, s), value in cells.items()
-                if r == reused[scale] and c == column.name and s == seed
-            }
-            if metrics:
-                curve[scale] = metrics
+        # (scale, column name) -> {metric: value}
+        curve: dict[tuple[float, str], dict[str, float]] = {}
+        for scale, row_name in reused.items():
+            for column in curve_columns:
+                metrics = {
+                    metric: value
+                    for (r, c, metric, s), value in cells.items()
+                    if r == row_name and c == column.name and s == seed
+                }
+                if metrics:
+                    curve[(scale, column.name)] = metrics
 
         base_state = rows[BASE_ROW]
         task_vectors = [
             task_vector(base_state, rows[f"ft_{i}"])
             for i in range(sum(1 for name in rows if name.startswith("ft_")))
         ]
-        to_evaluate = [s for s in dict.fromkeys(self.merge_scales) if s not in curve]
+        scales = list(dict.fromkeys(self.merge_scales))
+        pending = {
+            scale: [c for c in curve_columns if (scale, c.name) not in curve]
+            for scale in scales
+        }
 
         log.info(
-            "[merge_scale_curve] %d scale(s) reused from the matrix (%s), evaluating %d more",
-            len(curve), ", ".join(str(s) for s in sorted(curve)), len(to_evaluate),
+            "[merge_scale_curve] %d column(s) x %d scale(s); %d cell(s) reused from the "
+            "matrix, %d to evaluate",
+            len(curve_columns), len(scales), len(curve),
+            sum(len(v) for v in pending.values()),
         )
-        for scale in to_evaluate:
+        for scale in scales:
+            if not pending[scale]:
+                continue
+            # One state load per scale, then every outstanding column for it.
             context.model.load_state_dict(apply_task_vectors(base_state, task_vectors, scale))
-            curve[scale] = self._evaluate(context, column, seed)
-            log.info("  [merge_scale_curve] scale=%s evaluated", scale)
+            for column in pending[scale]:
+                curve[(scale, column.name)] = self._evaluate(context, column, seed)
+            log.info("  [merge_scale_curve] scale=%s evaluated (%d column(s))",
+                     scale, len(pending[scale]))
 
+        blocks = {c.name: c for c in curve_columns}
         path = step_dir / "merge_scale_curve.csv"
         with path.open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["merge_scale", "split", "metric", "value", "n_windows", "eval_seed"])
-            for scale in sorted(curve):
-                for metric, value in curve[scale].items():
-                    writer.writerow([scale, column.block, metric, value, column.n_windows, seed])
+            writer.writerow([
+                "merge_scale", "column", "block", "metric", "value", "n_windows", "eval_seed",
+            ])
+            for scale, column_name in sorted(curve, key=lambda k: (k[0], k[1])):
+                column = blocks[column_name]
+                for metric, value in curve[(scale, column_name)].items():
+                    writer.writerow([
+                        scale, column_name, column.block, metric, value, column.n_windows, seed,
+                    ])
         log.info("[merge_scale_curve] Wrote %s", path)
 
         # Both extremes, because whether the optimum is the min or the max depends on
         # whether the metric is a loss or a score -- which the framework does not know.
+        # Test keys stay unprefixed so existing readers and collect.py are unaffected;
+        # val columns are namespaced by column name.
         summary: dict[str, float] = {}
-        for metric in sorted({m for values in curve.values() for m in values}):
-            points = [(s, v[metric]) for s, v in curve.items() if metric in v]
-            if points:
-                summary[f"{metric}/scale_at_min"] = min(points, key=lambda p: p[1])[0]
-                summary[f"{metric}/scale_at_max"] = max(points, key=lambda p: p[1])[0]
+        for column in curve_columns:
+            points_by_metric: dict[str, list[tuple[float, float]]] = {}
+            for (scale, column_name), metrics in curve.items():
+                if column_name != column.name:
+                    continue
+                for metric, value in metrics.items():
+                    points_by_metric.setdefault(metric, []).append((scale, value))
+            prefix = "" if column.block == "test" else f"{column.name}/"
+            for metric, points in sorted(points_by_metric.items()):
+                summary[f"{prefix}{metric}/scale_at_min"] = min(points, key=lambda p: p[1])[0]
+                summary[f"{prefix}{metric}/scale_at_max"] = max(points, key=lambda p: p[1])[0]
         return summary
 
     def _write_source(self, step_dir, source_config, rows, columns) -> None:

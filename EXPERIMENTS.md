@@ -1029,6 +1029,13 @@ since it's a real, deterministic, reproducible outcome, not noise to discard.
 
 ## 8. Phase 1 — merge diagnostics (transfer matrix, GRR, scale curve), 2026-08-03/04
 
+> **⚠ READ §8.7 FIRST.** Everything in §8.1–§8.6 was measured at the source runs' own
+> `merge_scale = 1.0`. A follow-up that traced the **val block** against the merge scale
+> (§8.7, 2026-08-05) shows that most of the damage attributed here to *interference* and
+> *forgetting* was **overshoot** — an error in the scale, not a conflict between the task
+> vectors. At a validation-selected scale the merge costs 1–8% rather than 19–300%, and
+> forgetting essentially disappears. The claims superseded by §8.7 are marked inline below.
+
 Training-free cross-evaluation of checkpoints already on disk, per `PHASE1_RUNBOOK.md`.
 These are measurements; the research reading is stated where the evidence supports one and
 withheld where it does not.
@@ -1154,7 +1161,12 @@ Ranking PSM by a single metric remains unsafe.
 scale overshoots (worse than base on `val_2`, 1.65× on `val_base`) and the test curve peaks
 below 1.0.
 
-### 8.4 SWaT — the merge wrecks reconstruction and the detector does not notice
+### 8.4 SWaT — at α = 1.0 the merge wrecks reconstruction and the detector does not notice
+
+> **Superseded in part by §8.7.** The wreckage below is an artefact of α = 1.0. At the
+> validation-selected α = 0.25 SWaT's merge costs **1.08×** and its base-slice ratio is
+> **1.022**, not 5.121. What survives is the second half of the finding: the detection
+> metrics cannot see *any* of it.
 
 Val block, `reconstruction/score_mean` ratio to base:
 
@@ -1210,13 +1222,18 @@ underlying model."
 
 Specialisation is positive on all three, so **degenerate fine-tuning is ruled out as the
 global explanation** — with the documented exception of ETTh1 `finetune_0` and PSM 59109.
-Redundancy is ruled out too: diagonal ratios of 0.61–0.75 are far from 1.0. **Interference
-is the mechanism the evidence supports on all three**, which is the reading that licenses
-the non-orthogonality argument. Note the ordering: specialisation is *highest* where the
-vectors are *most collinear* (SWaT), and the merge damage tracks collinearity
-(`merged_ratio_mean` 2.43 at cosine 0.74, ~0.90 at cosine 0.47/0.12) — consistent with
-interference being driven by overlap, and the natural next test for §5's
-geometry-predicts-outcome question.
+Redundancy is ruled out too: diagonal ratios of 0.61–0.75 are far from 1.0. Note the
+ordering: specialisation is *highest* where the vectors are *most collinear* (SWaT), and the
+merge damage tracks collinearity (`merged_ratio_mean` 2.43 at cosine 0.74, ~0.90 at cosine
+0.40/0.09).
+
+> **Superseded by §8.7.** This section originally concluded "**interference is the mechanism
+> the evidence supports on all three**." That conclusion was drawn at α = 1.0 and conflated
+> two different things. At a validation-selected α the residual is 1–8%, so the dominant
+> effect is **overshoot**, not interference. The collinearity ordering above survives and in
+> fact *explains* the overshoot — vectors that agree add up rather than cancelling, so the
+> more collinear the set, the smaller the α it needs (SWaT, the most collinear, needs the
+> smallest: 0.25).
 
 Every source run used its own `merge_scale=1.0`, and on both datasets with a usable curve
 the optimum is **below** 1.0 (0.75 PSM, 0.60 ETTh1). The reported incremental numbers are
@@ -1276,3 +1293,151 @@ for any method to recover, which is a statement about the benchmark, not about m
 3 for ETTh1): the curve at α = the run's own scale reproduces the matrix `merged` test row
 exactly; the curve at α = 0 reproduces the `base` row exactly; and GRR recomputed by hand
 matches `result.json` to 1e-9.
+
+
+### 8.7 The overshoot correction — what α = 1.0 was hiding (2026-08-05)
+
+Everything in §8.1–§8.6 was measured at the source runs' own `merge_scale = 1.0`, because
+that is the only scale a training run produces. `MergeDiagnosticsPipeline` gained
+`--pipeline_curve_include_val`, which traces the **val block** (actual model quality) against
+the merge scale rather than only the test metrics. That one measurement changes the reading
+of the whole section.
+
+**Merge cost** = merged error ÷ the error of that shard's own specialist, averaged over
+shards. 1.00× means merging costs nothing relative to keeping *n* separate models.
+**Forgetting** = the merged model's ratio on `val_base`, the regime only the base model
+trained on.
+
+| | merge cost @ α=1.0 | merge cost @ α\* | α\* | forgetting @ α=1.0 | forgetting @ α\* |
+|---|---|---|---|---|---|
+| **SWaT** | 4.00× | **1.08×** | 0.25 | 5.121 | **1.022** |
+| **PSM** | 1.19× | **1.01×** | 0.5 | 1.650 | **1.122** |
+| **ETTh1 · 59071 *(dead `ft_0`)*** | 1.25× | **0.82×** | 0.4 | 1.207 | **0.931** |
+| **ETTh1 · 59077 *(healthy)*** | 1.75× | **1.02×** | 0.3 | 1.559 | **0.943** |
+
+α\* is selected on the mean of the shard val slices — **never on test**.
+
+**Merging is essentially free on all three datasets once the scale is right.** SWaT's
+4.00× merge cost and 5.121 base-slice damage — the most dramatic numbers in §8, written up
+in §8.4 as "the merge wrecks reconstruction" — collapse to **1.08×** and **1.022** at
+α = 0.25. The model was never destroyed; it was pushed roughly three times too far.
+
+**Two claims from §8.1–§8.6 are therefore withdrawn:**
+
+1. *"Interference is the mechanism the evidence supports on all three."* True residual
+   interference is **1–8%**, not 19–300%. The dominant effect is **overshoot** — a scale
+   error. Interference survives only as the small residual, largest on SWaT (8%).
+2. *"`base_slice_ratio_mean` > 1 means forgetting, now measurable."* Forgetting is an
+   artefact of the same overshoot: 1.022 on SWaT, 1.122 on PSM, **0.943** on ETTh1 — i.e. at
+   the right scale the merged model is *better* than the base model on the base regime.
+
+**Why the vectors being non-orthogonal still matters.** It is precisely *because* the task
+vectors agree (SWaT's are 92% aligned) that summing them overshoots. Non-orthogonality does
+not make merging fail; it dictates a smaller α. The ordering holds: the most collinear
+dataset needs the smallest scale (SWaT 0.25), the least collinear the largest (PSM 0.50).
+
+#### The test-side result splits by task, and this is a genuine limitation
+
+| | GRR @ α=1.0 | GRR @ α\* (val-selected, honest) | GRR @ test-selected α *(not quotable)* | gap vs base |
+|---|---|---|---|---|
+| **SWaT AUROC** | 0.659 | **0.015** | 0.745 @1.5 | 1.1% *(all noise — gap 1.1% of base)* |
+| **PSM AUROC** | 0.958 | **0.890** | 1.062 @0.75 | 3.4% |
+| **ETTh1 MSE · 59071** | 0.652 | **0.814** | 0.857 @0.6 | 36.2% |
+| **ETTh1 MSE · 59077** | 0.401 | **0.764** | 0.818 @0.4 | 39.2% |
+
+**On ETTh1 validation-selected α works** — val and test are both MSE, so tuning on
+validation is legitimate and it lifts the honest result from 0.652 to **0.814**.
+
+**On PSM it makes the test result worse** (0.958 → 0.890). This is the reconstruction-vs-
+detection decoupling of §8.4 biting in practice: the val block measures reconstruction, the
+test metric measures detection, and the α that optimises one does not optimise the other.
+
+There is no clean way around it, and the reason is structural:
+
+> **In unsupervised anomaly detection the merge scale cannot be tuned honestly.** AD training
+> data carries no labels by construction, so the only data on which detection can be measured
+> is the test set — and selecting α there is selecting on the reported number.
+
+The practical consequence is that the right default differs by task: **α selected on
+validation for forecasting, a fixed principled α for AD.** On PSM the `merge_scale = 1.0`
+already used happens to be the best defensible choice available (GRR 0.958).
+
+#### Entanglement is not the cell value — it is merged ÷ specialist
+
+A small cell means the model is *good in absolute terms* on that column. **Entanglement is a
+comparison**: does adding the other vectors disturb what τᵢ does on its own shard? The
+measure is merged ÷ that shard's own specialist, at α\*, where 1.00 = perfectly disentangled:
+
+| | val_0 | val_1 | val_2 |
+|---|---|---|---|
+| SWaT | 0.97× | 1.04× | **1.28×** |
+| PSM | 1.01× | 0.92× | **1.11×** |
+| ETTh1 | 0.76× | 0.97× | **1.53×** |
+
+Below 1.00 is genuine positive transfer — the merge beats the lone specialist (ETTh1 shard 0
+at 0.76×, PSM shard 1 at 0.92×). Counterexample to reading the cell value directly: SWaT
+`val_2` is **0.616**, 38% better than base and visually one of the best cells in the matrix —
+but its specialist alone reaches **0.481**, so the merge gave up 28% there.
+
+**Entanglement is concentrated on the last shard in all three datasets** and is ~1.0
+everywhere else. Mechanically that follows from α\* < 1 scaling *every* vector down: the last
+segment sits furthest from θ₀ and is the one that most needed its vector at full strength.
+
+#### Why the test outcomes differ so much when the matrices look similar
+
+The transfer matrix and GRR use **different reference points**. The matrix compares the merge
+against the base model and against the specialists; GRR compares it against *joint training*.
+The room between those references varies by an order of magnitude:
+
+| | base (50% data) | best single specialist | merged @ α\* | joint training (100%) | recovered |
+|---|---|---|---|---|---|
+| **SWaT** (window_auroc) | 0.8005 | 0.8029 | 0.8006 | 0.8089 | 1.5% *(gap is noise)* |
+| **PSM** (window_auroc) | 0.7740 | 0.7936 | **0.7973** | 0.8002 | 89% |
+| **ETTh1** (forecast/mse) | 0.7023 | **0.4503** | 0.4920 | 0.4271 | 76% |
+
+- **SWaT** — every model sits within 0.008. Fine-tuning barely moves the *detector*, so there
+  is nothing to recover and nothing to lose. The matrix looks healthy because *reconstruction*
+  improved, which AUROC cannot see (§8.4).
+- **PSM** — the merge beats **every** single specialist (0.7973 vs 0.7936) and lands just short
+  of joint training. Merging working as advertised.
+- **ETTh1** — **the best single specialist beats the merge** (0.4503 vs 0.4920).
+
+#### The tail-test-split caveat — why ETTh1's merge loses to one specialist
+
+ETTh1's test set is the temporal **tail** of the series
+(`test = series[test_start:]`, `project/datasets/hf_series_forecast.py`), so it is the data
+most similar to segment 2, the last training segment. `ft_2` is therefore the best single
+model on test, and merging **dilutes** it with two older, less relevant vectors — the same
+1.53× entanglement on `val_2`, reappearing on test because the test set resembles shard 2.
+
+**This is ETTh1-specific**: SWaT and PSM use the benchmark's own separate test files, not a
+tail split, so the explanation is not claimed there.
+
+**Consideration for how results are read.** With a tail test split the evaluation
+systematically favours the most recent specialist over any merge, so "merging underperforms"
+on such a benchmark is partly an artefact of what the test set contains. The val block, which
+spans *all* shards, is the measurement that reflects what a merged model is actually for.
+
+#### Caveats
+
+- **One evaluation seed and one training seed.** No error bars anywhere in §8.
+- **SWaT's GRR column is uninterpretable** — its base-to-joint gap is 1.1% of base, inside
+  the reproducibility floor, so every SWaT GRR divides one noise term by another. Its val
+  block is the only part of SWaT that measures anything.
+- **ETTh1 59071 vs 59077 is not a clean `ft_0` experiment.** They differ in `val_fraction`
+  (0.10 vs 0.15), which changes the training data, the base model, the val slices *and* the
+  joint-training reference. 59077 is the trustworthy one for merge cost, because 59071's
+  0.82× is flattered by a diagonal that contains a broken specialist.
+- **`val_fraction = 0.10` breaks fine-tuning on ETTh1.** Run 59077 is identical to 59071
+  except for it, and its fine-tunes are healthy (best epochs 7/13/6 versus 1/8/19; smallest
+  ‖τ‖/‖θ₀‖ 0.0152 versus 0.0012). At 113 val windows the epoch-1 reading is low by luck and
+  patience can never beat it. **11 of 15 ETTh1 `train_incremental` sweep trials used 0.10**,
+  so §1.9's ETTh1 incremental conclusions rest partly on runs with one dead task vector.
+- **The val slice is the temporal *tail* of each segment** (`val_tail_split`), so `val_i`
+  sits adjacent to segment *i+1* and hands `ft_{i+1}` an unearned advantage. Tested on the
+  one column with both neighbours at equal distance (`val_1`), the successor beats the
+  predecessor on **3 of 3** datasets: SWaT 0.638 vs 0.698, PSM 0.665 vs 0.845, ETTh1 0.583 vs
+  0.908. This biases the off-diagonal down and therefore makes `specialisation`
+  *understate* the truth. It is not fixable by random splitting — with `stride=1,
+  window_len=120` adjacent windows share 119 of 120 timesteps, so the tail split is what
+  prevents leakage and is the correct design.

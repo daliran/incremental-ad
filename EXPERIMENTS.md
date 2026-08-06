@@ -1,5 +1,11 @@
 # Experiment Summary — incremental learning by model merging
 
+**The setting.** A model is trained on history and deployed; every period a new batch arrives
+and the model must be brought up to date, with *some* history retainable but not all. The
+question is whether task arithmetic — keep only what each period changed and add the deltas back
+— is a viable update strategy on time series, where shards are aligned rather than disjoint.
+[EXECUTION_PLAN.md §1](EXECUTION_PLAN.md) states the full question set.
+
 **This file is the source of truth for every number in this project.** §1 is the complete
 current snapshot and is self-contained — no run directory needs to be opened to reason about
 the results. §2 records the exact configuration of every run behind it, so the results survive
@@ -31,10 +37,18 @@ sequential arm and the joint-training reference.
 - **Merging is essentially free once the scale is right.** One merged model performs within
   ~1.0–1.1× of keeping a separate specialist per regime, on SWaT, PSM and ETTh1 — and this
   holds at **every segment count tested** (§1.11). exchange_rate is the outlier at 1.6–2.1×.
-- **The optimal merge is the *mean* of the task vectors.** α\*·n is constant within each
-  dataset: ≈1.0 on SWaT, PSM and ETTh1, ≈1.5 on exchange_rate, across n = 2, 3, 5. Since the
-  merge is θ₀ + α·Στᵢ, constant α·n means a fixed multiple of the arithmetic mean regardless
-  of how many vectors there are. Every seed agrees exactly. §1.11
+- **Start from the mean of the task vectors.** In the deployment parameterisation — fixed base
+  model, n shards tiling the data that arrived after it — α\*·n ≈ 1.0 on SWaT, PSM and ETTh1 and
+  ≈ 1.5 on exchange_rate. **This is an empirical regularity, not a law.** It does not survive a
+  fixed-shard control on exchange_rate, nor a prefix-merge design on either dataset, and no
+  experiment can settle it: `baseline + n × shard = total` means the count is never identifiable
+  in isolation. §1.18
+- **Recency is not relevance.** Excluding the trivial last regime, the newest specialist is the
+  best model for a regime in **1 case out of 16** — which regime the data belongs to is what
+  decides, not how recent the model is. §1.20
+- **Accumulated merges generalise forward.** Scored on shards no task vector has touched, the
+  merge beats the base model in 7 of 8 cases with no decay as vectors accumulate. This is the
+  direct evidence for the case merging exists for. §1.19
 - **On the most strongly drifting dataset, merging beats training on all the data at once.**
   exchange_rate GRR **1.421 / 1.164 / 1.238** at n = 2 / 3 / 5, all above 1.0, all with α
   chosen on validation rather than test.
@@ -469,11 +483,20 @@ merge cost and the merged model are all read at that α. The raw `result.json` v
 | **ETTh1** | 0.50 | 0.30 | 0.20 | 1.00 | 0.90 | 1.00 |
 | **exchange** | 0.70 | 0.53 | 0.30 | 1.40 | 1.60 | 1.50 |
 
-**α\*·n is constant within each dataset.** Since the merge is θ₀ + α·Στᵢ, a constant α·n
-means the optimal merge is a fixed multiple of the **arithmetic mean** of the task vectors —
-≈1.0× on SWaT, PSM and ETTh1, ≈1.5× on exchange_rate — regardless of how many there are.
-Every seed agrees exactly on ETTh1 and exchange_rate, on datasets whose absolute metrics
-wander by 8.2% and 5.3%.
+**α\*·n looks constant within each dataset.** Since the merge is θ₀ + α·Στᵢ, a constant α·n
+would mean the optimal merge is a fixed multiple of the **arithmetic mean** of the task vectors
+— ≈1.0× on SWaT, PSM and ETTh1, ≈1.5× on exchange_rate — regardless of how many there are.
+
+> **Two corrections to how this was first reported (2026-08-06).**
+>
+> **The apparent exact seed agreement was a grid artefact.** On the 0.1 grid all three seeds
+> returned the same α\*. Re-measured at 0.05 they disagree by one step. α\* is not
+> seed-invariant; the coarse grid was hiding its spread.
+>
+> **The error bars swamp the effect.** Quantisation alone contributes ±(grid × n), which at
+> n = 5 on a 0.1 grid is **±0.50** — a 50% uncertainty on the quantity whose constancy is the
+> claim. "1.00 ± 0.50" is not evidence of a constant. The numbers below are the measurements;
+> they are **not** yet a verified invariant. §1.18.
 
 > **The AD evidence for this is weak, and the α grid is why.** The AD runs step α by **0.25**
 > against **0.10** on the forecasting runs, and the products reflect that: SWaT's α\*·n spreads
@@ -694,6 +717,130 @@ It also sharpens [THEORY.md §6.6](THEORY.md): if the optimal merge is always k�
 you are averaging n noisy estimates of largely one drift direction — merging may be **denoising a
 single update** rather than composing distinct knowledge. ETTh1 losing to n = 1 is what that
 would look like.
+### 1.18 The α\*·n regularity — what it is, and what it is not
+
+This has been amended three times. Here is the whole thing in one place.
+
+#### The observation
+
+Selecting α on validation and multiplying by the number of shards gives a product that barely
+moves within a dataset:
+
+| dataset | n=2 | n=3 | n=5 |
+|---|---|---|---|
+| SWaT | 1.00 | 0.75 | 1.25 |
+| PSM | 1.00 | 1.12 | 1.25 |
+| ETTh1 | 1.00 | 0.90 | 1.00 |
+| exchange_rate | 1.40 | 1.60 | 1.50 |
+
+Since the merge is θ₀ + α·Στᵢ, writing α = k/n makes it θ₀ + k·**mean**(τ): a constant α·n
+means the best merge is a fixed multiple of the *average* task vector, whatever the count.
+That is a genuinely different regime from image classification, where the published scaling
+coefficients give a product that **grows** with task count.
+
+#### Three tests, and the claim narrowing each time
+
+**1. Fixed-shard-size control.** Hold the shard at 15% of train and let the baseline absorb the
+difference (`baseline_fraction` 0.70 / 0.55 / 0.25), 3 seeds, 0.05 α grid.
+
+| dataset | baseline fixed *(original)* | shard fixed *(control)* |
+|---|---|---|
+| ETTh1 | 1.00 / 0.90 / 1.00 | 1.00 / 1.10 / 1.08 — flat |
+| exchange_rate | 1.40 / 1.60 / 1.50 | **0.97 / 1.25 / 1.58 — grows** |
+
+exchange_rate's endpoints separate beyond both seed spread and quantisation. **The strong form
+— α\*·n as a constant of the dataset — is falsified here.**
+
+**2. Prefix merges.** From one n = 5 run, merge τ₀, then τ₀+τ₁, up to all five — base model and
+shard size both fixed, only the count varying. 3 seeds, 0.05 grid.
+
+| | k=1 | k=2 | k=3 | k=4 | k=5 |
+|---|---|---|---|---|---|
+| ETTh1 α\*·k | 0.48 | 0.57 | 0.85 | 0.87 | 0.83 |
+| exchange_rate α\*·k | 1.20 | 0.97 | 1.10 | 1.53 | 1.50 |
+
+Rises then plateaus, 1.6–1.8× spread. **Not constant here either.** (ETTh1 k=1 is unreliable —
+seeds gave 0.30, 0.40, 0.75.)
+
+**3. Why no test can settle it.** On a fixed series, `baseline + n × shard = total`. Fix any
+two and the third must move, so **every possible design confounds the count with something**:
+
+| design | held fixed | confounded with count |
+|---|---|---|
+| original sweep | baseline, total coverage | shard size |
+| fixed-shard control | shard size, total | baseline size |
+| prefix merges | baseline, shard size | total coverage |
+
+**"Does α\* depend on the count alone" is not identifiable on a fixed dataset.** More datasets
+do not help — each one reproduces the same algebraic constraint. This is why the invariant
+appears under one parameterisation and dissolves under the others.
+
+#### Measurement caveats that apply to every number above
+
+- **The apparent exact seed agreement was a grid artefact.** On the 0.1 grid all seeds returned
+  the same α\*; at 0.05 they differ by one step.
+- **Quantisation contributes ±(grid × n)** — ±0.50 at n = 5 on a 0.1 grid.
+- **The optimum itself is sharp enough to test**: 15–51% validation penalty between α·n = 1.0
+  and 1.5 against floors of 8.2% and 5.3%. The limit was resolution and identifiability, never
+  the sharpness of the minimum.
+
+#### What to claim
+
+> **In the deployment parameterisation — a fixed base model, with n shards tiling the data that
+> arrived after it — α\*·n ≈ 1 on SWaT, PSM and ETTh1, and ≈ 1.5 on exchange_rate.** Starting
+> from the mean of the task vectors is therefore a good default, and better than α = 1.
+
+State it as an empirical regularity in that setting. **Do not state it as a law**, do not claim
+it isolates the count, and do not claim seed-exactness.
+
+### 1.19 Forward transfer — does an accumulated merge help on a regime it has never seen?
+
+Each prefix scored on `val_k`, the first shard it has **not** seen, at the α selected only on
+the shards it *has* seen. Ratio to the base model on that same shard; below 1.0 means the merge
+beats the base on genuinely unseen data.
+
+| dataset | k=1 → val_1 | k=2 → val_2 | k=3 → val_3 | k=4 → val_4 |
+|---|---|---|---|---|
+| ETTh1 | 0.931 | 0.863 | 0.908 | 0.843 |
+| exchange_rate | 0.468 | **1.037** | 0.779 | 0.542 |
+
+**Seven of eight cases beat the base model on data no task vector has touched, and there is no
+decay as vectors accumulate** — ETTh1's best is at k = 4, exchange_rate's second best at k = 4.
+
+This is the first direct evidence for the case merging is actually *for*: not merely retaining
+old regimes, but generalising forward to the next one. It also bounds the "shard starvation"
+story — accumulating more, smaller vectors did not degrade forward transfer over this range.
+
+The exchange_rate k = 2 exception (1.037, no better than base) is worth keeping rather than
+smoothing: `val_2` is also the shard where §1.16 found the merged model furthest from the
+per-regime oracle. Something about that regime resists both merging and routing.
+
+**What this does not answer:** when a *freshly materialised* model would have been better. That
+comparator needs training, and is the open half of Q4 (EXECUTION_PLAN.md §3.2).
+
+
+### 1.20 Recency or regime? Which specialist is actually best where
+
+If the newest data were always the most relevant, the newest specialist would win every regime
+and there would be nothing to route between. It does not. Best per-regime model at n = 5,
+across all four datasets (20 regime-columns):
+
+| the winner is… | count |
+|---|---|
+| the **matching** specialist (trained on that regime) | 10 / 20 |
+| the **newest** specialist | 5 / 20 — but 4 of those are the last regime, where newest *is* matching |
+| some other specialist | 9 / 20 |
+
+**Excluding the trivial last regime, the newest specialist wins 1 of 16.** Recency does not
+determine relevance: *which regime the data belongs to* does. That is the empirical basis for
+treating old and new regimes as different targets rather than assuming the latest model
+supersedes the rest, and it is why routing has headroom at all (§1.16).
+
+**A caveat that inflates the "other" bucket.** The winner is frequently `ft_{i+1}` on column
+`val_i` — the *next* specialist rather than the matching one. That is the tail-adjacency
+artefact in §3: each validation slice is the temporal tail of its shard, so it sits immediately
+before the next shard and the next specialist trains on data adjacent to it. So regime-matching
+is *understated* here, and recency is if anything flattered.
 ---
 
 ## 2. Exact configurations

@@ -32,6 +32,7 @@ overlap.
 12. [What is established and what is not](#12-what-is-established-and-what-is-not)
 13. [Open questions](#13-open-questions)
 14. [Quick reference](#14-quick-reference)
+15. [Related work](#15-related-work)
 
 ---
 
@@ -468,7 +469,7 @@ dictates a smaller α.
 | technique | fixes | relevant here? |
 |---|---|---|
 | **Global α** | pure magnitude | yes, and proven — this is the whole finding |
-| **α = 1/n** (average, not sum) | magnitude, natural default when aligned | **measured correct** — see §6.6 |
+| **α = 1/n** (average, not sum) | magnitude, natural default when aligned | **approximately right for a fixed base** — §6.6 |
 | **Per-vector normalisation** | *imbalance* between vectors | when norms differ a lot |
 | **Norm-matching the sum** analytically | magnitude | gives roughly the right range but **does not** predict the measured optimum; sweep and measure |
 | **Strip the shared component** — apply it once, keep residuals at full strength | alignment specifically | aimed at SWaT's actual pathology |
@@ -525,10 +526,31 @@ stays nearly constant (3.05 → 3.39 → 3.49), because the vectors get smaller 
 mutually aligned (0.824 → 0.737 → 0.633) and the two effects cancel. So α\* tracks the
 **count**, not the size.
 
-**The caveat to hold.** The sweep varied n with the baseline fixed at 50%, so segment size
-fell as 1/n — count and size moved together. The geometry above argues the effect is
-count-driven, but the clean control (hold segment size fixed, vary n by moving the baseline
-fraction) has not been run. See EXECUTION_PLAN.md §4.1.
+**The caveat, and why it cannot be removed.** The sweep varied n with the baseline fixed, so
+shard size fell as 1/n. Two further designs tried to separate them:
+
+- *Fixed shard size*, letting the baseline shrink: ETTh1 stays flat (1.00 / 1.10 / 1.08),
+  **exchange_rate grows** (0.97 / 1.25 / 1.58).
+- *Prefix merges* from one run — base **and** shard size fixed, only the count varying:
+  **both grow** (ETTh1 0.48 → 0.83, exchange_rate 1.20 → 1.50).
+
+And there is no fourth design. On a fixed series `baseline + n × shard = total`, so fixing any
+two forces the third to move: **the count can never be varied alone.** Every design confounds it
+with shard size, baseline size, or total coverage. *"Is α\* a function of the count?"* is not an
+identifiable question here, and more datasets reproduce the same constraint rather than escaping
+it.
+
+So the honest status is: **an empirical regularity in one parameterisation, not a law.** In the
+setting that matters for deployment — a fixed base model with shards tiling what arrived after
+it — starting from the mean of the task vectors is a good default and much better than α = 1.
+That is what to carry forward.
+
+Two measurement cautions attach to every number here. The apparent *exact* agreement across
+seeds was an artefact of the 0.1 grid (at 0.05 the seeds differ by one step), and quantisation
+alone contributes ±(grid × n) — ±0.50 at n = 5. The minimum itself is sharp enough to test
+(15–51% penalty between α·n = 1.0 and 1.5, against floors of 8.2% and 5.3%), so resolution and
+identifiability were the binding limits, never the data.
+[EXPERIMENTS.md §1.18](EXPERIMENTS.md).
 
 ### Why this is not just "average the task vectors"
 
@@ -765,6 +787,36 @@ as ratios.
 
 ## 11. A decision rule — merge, route, or keep fine-tuning?
 
+### 11.0 First: can you keep the data?
+
+Before choosing among update strategies, settle the branch that decides whether you need one.
+
+**If history can be retained and periodic retraining is affordable — retrain.** A single
+fine-tune on the unsplit post-baseline data beats every merge on ETTh1 by 9.3%, ties on the AD
+pair, and loses only on exchange_rate ([EXPERIMENTS.md §1.17](EXPERIMENTS.md)). This is also
+what most deployed systems do. **Merging is not more accurate; it is available under constraints
+where retraining is not.**
+
+Those constraints are real — retention limits, data volume, per-update compute, updates arriving
+from separate teams that cannot pool raw data. But note the middle ground: *"cannot keep all
+history"* is not *"cannot keep any"*. The honest baseline is a **sliding window** — retrain on
+the last W periods — and how merging compares against a realistic W is, as of this writing,
+**not yet measured** (EXECUTION_PLAN.md §3.1a). Treat the strategies below as the answer for
+the no-retention case, and as provisional for the partial-retention case.
+
+### 11.0b Recency is not relevance
+
+A tempting simplification is that the newest model supersedes the older ones — serve the latest,
+discard the rest. The transfer matrix says otherwise: across 20 regime-columns the **matching**
+specialist wins 10, and excluding the trivial last regime the **newest** specialist wins
+**1 of 16** ([EXPERIMENTS.md §1.20](EXPERIMENTS.md)).
+
+Which regime the data belongs to determines which model is best — not how recent that model is.
+That is why old and new regimes are separate targets, why routing has headroom at all, and why
+"just keep fine-tuning on the newest data" is not automatically the right default.
+
+### 11.0c The three strategies
+
 Three strategies are on the table once data arrives over time.
 
 - **Merge and keep one model.** Fine-tune a copy per period, keep only what changed, add the
@@ -875,8 +927,8 @@ specialists to separate — which is what a drifting AD benchmark would be for.
   ETTh1, and **flat as the segment count grows** (n = 2, 3, 5).
 - **What looked like interference at α = 1.0 was overshoot.** Residual interference is small
   and concentrated on the newest segment.
-- **α\* is stable across seeds** on every dataset — exactly, at every segment count on the
-  forecasting pair.
+- ~~α\* is stable across seeds, exactly~~ — **withdrawn**, that was 0.1-grid quantisation; at
+  0.05 resolution the seeds differ by one step.
 - **α\*·n is constant**, so the optimal merge is a fixed multiple of the *mean* task vector
   (§6.6). Subject to the count-vs-size control in EXECUTION_PLAN.md §4.1.
 - **Validation cannot select α on AD.** The val and test optima point to different values, and
@@ -980,3 +1032,44 @@ python -m incremental_ad.main --pipeline ContinualFineTuningPipeline ...
 | what a val cell contains | [framework/evaluators/ad_val_evaluator.py](src/incremental_ad/framework/evaluators/ad_val_evaluator.py) |
 | oracle vs percentile thresholding | [framework/evaluators/ad_test_evaluator.py](src/incremental_ad/framework/evaluators/ad_test_evaluator.py) |
 | CLI entry points | [analysis/geometry_report.py](src/incremental_ad/analysis/geometry_report.py), [analysis/diagnose.py](src/incremental_ad/analysis/diagnose.py) |
+
+---
+
+## 15. Related work
+
+> **Recorded from prior knowledge, not fetched — verify every one against the source before it
+> goes into the thesis.** Titles, venues and years are the parts most likely to be wrong; the
+> ideas attributed to them are what matters for positioning this work.
+
+**Model merging / task arithmetic.** *Editing Models with Task Arithmetic* (Ilharco et al.,
+ICLR 2023) introduces τ = θ_ft − θ_base and the scaled sum this project uses. *Model Soups*
+(Wortsman et al., ICML 2022) averages fine-tuned checkpoints. *TIES-Merging* (Yadav et al.,
+NeurIPS 2023) resolves sign conflicts and parameter interference between task vectors; *DARE*
+(Yu et al., 2024) drops and rescales delta parameters. *Fisher-Weighted Averaging* (Matena &
+Raffel, NeurIPS 2022) weights by parameter importance. **OPCM** targets *continual* merging —
+folding in one model at a time without storing every vector — and **BECAME** derives the
+merging coefficient rather than tuning it, which is the property that matters most for the
+unsupervised-AD case (§8.4).
+
+*What is different here:* that literature merges **near-orthogonal** tasks (different image
+classes). Time-series shards are aligned, which is what changes the scale rule (§2, §6.6).
+
+**Concept drift and streaming adaptation.** The *"when do I rebuild"* question is classically a
+drift-detection problem: ADWIN (Bifet & Gavaldà, 2007), DDM (Gama et al., 2004), Page-Hinkley.
+Gama et al.'s *survey on concept drift adaptation* (ACM Computing Surveys, 2014) is the standard
+entry point. The **keep-n-experts-and-route** design is a dynamic weighted ensemble: Dynamic
+Weighted Majority (Kolter & Maloof, JMLR 2007), Learn++.NSE (Elwell & Polikar, 2011), AUE.
+Those methods add and prune experts on measured performance — which is the same trigger this
+project arrives at for materialisation (§11).
+
+**Continual learning.** EWC (Kirkpatrick et al., PNAS 2017) and L2-SP (Xuhong et al., ICML 2018)
+constrain drift from a reference; L2-SP is the one tested here and found neutral (§6.5).
+Rehearsal/replay methods assume retained data, which is exactly the constraint that motivates
+merging.
+
+**Anomaly-detection evaluation.** *Towards a Rigorous Evaluation of Time-series Anomaly
+Detection* (Kim et al., AAAI 2022) shows point-adjusted F1 is so permissive that a random score
+reaches state of the art; replacements include PA%K (same paper), range-based precision/recall
+(Tatbul et al., NeurIPS 2018), affiliation metrics (Huet et al., KDD 2022) and VUS-ROC/PR. This
+project follows their recommendation — threshold-free metrics primary, PA-F1 for legacy
+comparability only (EXPERIMENTS.md §1.5).

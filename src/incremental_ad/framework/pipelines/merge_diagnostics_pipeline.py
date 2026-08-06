@@ -107,6 +107,7 @@ class MergeDiagnosticsPipeline(Pipeline):
         standard_run_dir: Path | None = None,
         checkpoint_name: str = "best",
         merge_scales: list[float] | None = None,
+        prefix_merges: bool = False,
         eval_seeds: list[int] | None = None,
         allow_config_mismatch: bool = False,
         compared_args: dict | None = None,
@@ -117,6 +118,7 @@ class MergeDiagnosticsPipeline(Pipeline):
         self.standard_run_dir = standard_run_dir
         self.checkpoint_name = checkpoint_name
         self.merge_scales = merge_scales or []
+        self.prefix_merges = prefix_merges
         self.eval_seeds = eval_seeds or []
         self.curve_include_val = curve_include_val
         self.allow_config_mismatch = allow_config_mismatch
@@ -140,6 +142,14 @@ class MergeDiagnosticsPipeline(Pipeline):
         )
         parser.add_argument(
             f"--{p}_checkpoint_name", choices=["best", "last"], default="best",
+        )
+        parser.add_argument(
+            f"--{p}_prefix_merges", action="store_true",
+            help="also evaluate every PREFIX of the task vectors -- merge tau_0..tau_k for each "
+                 "k, across the merge_scales grid, on the validation columns. Holds the base "
+                 "model AND the shard size fixed while varying only how many vectors are "
+                 "added, which no training sweep can do, and scores each prefix on the first "
+                 "shard it has NOT seen (forward transfer). Writes prefix_merges.csv.",
         )
         parser.add_argument(
             f"--{p}_merge_scales", type=float, nargs="*", default=[],
@@ -181,6 +191,7 @@ class MergeDiagnosticsPipeline(Pipeline):
             standard_run_dir=getattr(cfg, f"{p}_standard_run_dir"),
             checkpoint_name=getattr(cfg, f"{p}_checkpoint_name"),
             merge_scales=getattr(cfg, f"{p}_merge_scales"),
+            prefix_merges=getattr(cfg, f"{p}_prefix_merges"),
             eval_seeds=getattr(cfg, f"{p}_eval_seeds"),
             allow_config_mismatch=getattr(cfg, f"{p}_allow_config_mismatch"),
             curve_include_val=getattr(cfg, f"{p}_curve_include_val"),
@@ -427,6 +438,10 @@ class MergeDiagnosticsPipeline(Pipeline):
                 context, step_dir, source_config, rows, columns, seeds[0], cells
             )
         )
+
+        if self.prefix_merges:
+            self._write_prefix_merges(context, step_dir, rows, columns, seeds[0])
+
         self._write_source(step_dir, source_config, rows, columns)
 
         result = EvalStepResult(
@@ -564,6 +579,60 @@ class MergeDiagnosticsPipeline(Pipeline):
                     )
 
         return recovery
+
+    def _write_prefix_merges(self, context, step_dir, rows, columns, seed) -> None:
+        """Merge tau_0..tau_k for every prefix k, across the scale grid, on the val columns.
+
+        This is the only design in the project that varies the *number* of task vectors while
+        holding both the base model and the shard size fixed -- a training sweep cannot, because
+        changing n changes how the data is cut. It also gives forward transfer directly: prefix
+        k has never seen shard k, so column val_k is unseen data for it.
+
+        Validation columns only. The test column is the expensive one and answers nothing here:
+        forward transfer is about a *held-out shard*, not the global test set.
+        """
+        val_columns = [c for c in columns if c.block == "val"]
+        if not val_columns:
+            log.warning("[prefix_merges] no validation columns - skipping")
+            return
+        base_state = rows[BASE_ROW]
+        n = sum(1 for name in rows if name.startswith("ft_"))
+        if n < 2:
+            log.warning("[prefix_merges] needs >= 2 task vectors, found %d - skipping", n)
+            return
+        task_vectors = [task_vector(base_state, rows[f"ft_{i}"]) for i in range(n)]
+        scales = list(dict.fromkeys(self.merge_scales)) or [self._committed_merge_scale(
+            self._read_config(self.source_run_dir, SOURCE_PIPELINE))]
+
+        log.info("[prefix_merges] %d prefix(es) x %d scale(s) x %d val column(s)",
+                 n, len(scales), len(val_columns))
+        out = []
+        for k in range(1, n + 1):
+            for scale in scales:
+                context.model.load_state_dict(
+                    apply_task_vectors(base_state, task_vectors[:k], scale)
+                )
+                for column in val_columns:
+                    # val_k is the first shard this prefix has not seen; val_0..k-1 are seen.
+                    if column.name == "val_base":
+                        seen = "base"
+                    elif column.name.startswith("val_"):
+                        idx = int(column.name.split("_")[1])
+                        seen = "seen" if idx < k else ("unseen_next" if idx == k else "unseen")
+                    else:
+                        seen = "?"
+                    for metric, value in self._evaluate(context, column, seed).items():
+                        out.append([k, scale, round(scale * k, 6), column.name, seen,
+                                    metric, value, column.n_windows, seed])
+            log.info("  [prefix_merges] k=%d done (%d scales)", k, len(scales))
+
+        path = step_dir / "prefix_merges.csv"
+        with path.open("w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["prefix_k", "merge_scale", "scale_times_k", "column", "coverage",
+                        "metric", "value", "n_windows", "eval_seed"])
+            w.writerows(out)
+        log.info("[prefix_merges] Wrote %s (%d rows)", path, len(out))
 
     def _write_merge_scale_curve(
         self, context, step_dir, source_config, rows, columns, seed, cells

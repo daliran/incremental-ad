@@ -18,44 +18,72 @@ configurations, 48 jobs.
 
 ---
 
-## 1. The research questions, and where each one stands
+## 1. The setting and the research questions
 
-The thesis asks whether task arithmetic can evolve a model over time as data accumulates, on
-**time series** — where shards are not disjoint the way image-classification classes are, but
-either near-identical (stationary) or progressively drifting. Five questions follow from that,
-and the plan below is organised around them rather than around methods.
+### The production setting this is for
+
+A model θ₀ is trained on history and deployed. Every period — day, week, month — a new batch of
+data arrives and the model should be brought up to date. **Some history can be retained, but not
+all of it** (retention limits, volume, cost). Three decisions recur:
+
+1. **How is the model updated?** Retrain on a window, fine-tune continually, or merge task
+   vectors into the base.
+2. **One model served, or several?**
+3. **When does accumulating stop** and a new specialist get materialised?
+
+The thesis question is whether **task arithmetic** — keep only what each period changed,
+τᵢ = θᵢ − θ₀, and add the deltas back — is a viable answer, on **time series**, where shards are
+not disjoint the way image-classification classes are but either near-identical (stationary) or
+progressively drifting.
+
+### The questions, and where each stands
 
 | # | question | status |
 |---|---|---|
-| **Q1** | Does task arithmetic work when shards are *not* orthogonal? | **answered** — §2.11; but see §2.13, it is not an *accuracy* win over not splitting |
-| **Q2** | Merging, or continual fine-tuning? | **answered as a trade** — §2.11; neither dominates, and the winner depends on shard count |
-| **Q3** | How large should a shard be? | **open** — §3.2. The sweep varied the *count*; it never asked which count is best |
-| **Q4** | Accumulate forever, or materialise a new model? When? | **open, no evidence at all** — §3.3. No arm here materialises a second model |
-| **Q5** | With several materialised models, which one do you use? | **answered** — §2.12: use the merge; routing has ≤7% headroom except under strong drift |
+| **Q0** | Is retraining on a retained window enough, making continual methods unnecessary? | **the gating question, half open** — full retraining beats merging on ETTh1 (§2.13); the *windowed* comparator is not yet run (§3.1a) |
+| **Q1** | Does task arithmetic work when shards are *not* orthogonal? | **answered** — §2.11, §2.15; it works, and non-orthogonality sets the scale rather than breaking it |
+| **Q2** | Merging, or continual fine-tuning? | **answered as a trade** — §2.11; neither dominates, the winner flips with shard count, and they fail differently |
+| **Q3** | How large should a shard be — i.e. what update cadence? | **open** — §3.1; evidence leans to fewer, bigger shards |
+| **Q4** | Accumulate, or materialise a new model? When? | **half answered** — §2.15: accumulating still helps on *unseen* shards at k = 4. The materialise comparator is untested (§3.2) |
+| **Q5** | With several models, which one do you serve? | **answered** — §2.12: serve the merge; routing has ≤7% headroom except under strong drift |
 
-**Q1 is the contribution.** In image classification, task vectors for different classes are
+**Q0 is the one that decides the thesis's scope**, and it was implicit until the production
+framing made it explicit. Merging's justification is *not* accuracy — a single fine-tune on the
+unsplit data beats it on ETTh1 (§2.13). Its justification is that the unsplit fine-tune is
+unavailable when data cannot be retained. But "cannot retain *all*" is not "cannot retain
+*any*", so the honest baseline is a **sliding window**, and the size of the gap between windowed
+retraining and merging is the size of the contribution. §3.1a.
+
+**Q1 is the contribution.** In image classification task vectors for different classes are
 near-orthogonal because the tasks are disjoint. Time-series shards are not: subspace overlap ρ
-runs from 0.607 (SWaT) to 0.076 (ETTh1), and cosine between task vectors **decays with temporal
-distance** (0.737 at distance 1 on SWaT against 0.095 on ETTh1). The finding is that
-non-orthogonality does not break merging — **it sets the scale**. α\*·n = constant is precisely
-the correction for summing n partially-aligned vectors: average rather than add. Alignment also
-falls as shards get finer (0.824 → 0.633 from n = 2 to n = 5), which is why one rule holds at
-every count.
+runs 0.607 (SWaT) to 0.076 (ETTh1), and cosine decays with temporal distance. Non-orthogonality
+does not break merging — **it sets the scale**: average rather than sum. And accumulated merges
+**generalise forward**, beating the base on shards no task vector has seen in 7 of 8 cases
+(§2.15), which is the case merging exists for.
 
-**Q2's answer is a mechanism, not a leaderboard.** Nine decisive configurations split 5 merge /
-4 sequential, with no signal separating them beyond chance. The two approaches degrade for
-*different* reasons — sequential forgets (exchange_rate test MSE 0.220 → 0.362 → 0.531 as steps
-accumulate), merging starves as each shard shrinks — and which one loses first depends on the
-chunking. That is a stronger claim than "method X wins".
+**Q2's answer is a mechanism, not a leaderboard.** Nine decisive configurations split 5 / 4,
+with no signal separating them beyond chance. They degrade for *different* reasons — sequential
+forgets (exchange_rate 0.220 → 0.362 → 0.531 as steps accumulate), merging starves as shards
+shrink — and which loses first depends on the chunking.
+
+**Recency does not determine relevance.** Excluding the trivial last regime, the newest
+specialist is the best model for a regime in **1 case out of 16** ([EXPERIMENTS.md §1.20](EXPERIMENTS.md)).
+Which regime data belongs to is what matters — which is why old and new regimes are distinct
+targets, and why routing has any headroom at all.
 
 ### What limits the work now
 
-1. **A confound.** Count and shard size were varied together, so α\*·n = constant has an
-   untested alternative explanation (§3.2).
+0. **The gating comparator is missing.** Without the sliding-window arm (§3.1a) the project can
+   say merging beats *no retained history*, but not that it beats *some* — which is the actual
+   production constraint. Run this before anything else.
+1. **A measurement limit, not a data limit.** The count-vs-size confound was tested (§2.14) and
+   the strong α\*·n claim did not survive. What remains under-powered is the scoped form: at a
+   0.1 α grid, quantisation alone gives ±0.50 at n = 5. The fix is resolution — and the clean
+   isolation of *count* is training-free, falling out of §3.2.
 2. **A blocker, and it may scope the thesis.** On AD the merge scale cannot be chosen without
    test access ([EXPERIMENTS.md §1.12](EXPERIMENTS.md)). Q3, Q4 and Q5 all need a signal that tracks quality
    on unlabelled data — the same signal that does not exist. **Either those questions are
-   scoped to forecasting, or §3.4 has to be solved first.**
+   scoped to forecasting, or §3.3 has to be solved first.**
 3. **Still few informative datasets.** SWaT and PSM are saturated (base within 1.1% and 3.4%
    of joint training); only ETTh1 and exchange_rate have real headroom.
 
@@ -237,10 +265,11 @@ Full numbers in [EXPERIMENTS.md §1.11–§1.15](EXPERIMENTS.md).
 
 What it settled:
 
-- **α\*·n is constant** within each dataset (≈1.0 on SWaT/PSM/ETTh1, ≈1.5 on exchange_rate).
-  The optimal merge is a fixed multiple of the **mean** task vector, at any segment count.
-  Confirmed by geometry: ‖τᵢ‖ shrinks with n while ‖Στᵢ‖ stays flat, so α tracks the *count*,
-  not the magnitude.
+- **α\*·n is constant for a fixed baseline** (≈1.0 on SWaT/PSM/ETTh1, ≈1.5 on exchange_rate).
+  **The stronger claim — a constant of the dataset — is falsified** by the fixed-shard control:
+  under a varying baseline exchange_rate grows 0.97 → 1.58 (§2.14). Two measurement caveats:
+  the apparent exact seed agreement was 0.1-grid quantisation, and quantisation contributes
+  ±0.50 at n = 5.
 - **Merge cost is flat in n** — ~1.0–1.1 on three datasets, 1.6–2.1 on exchange_rate.
 - **Validation cannot select α on AD.** Val reconstruction and test AUROC disagree about α
   (SWaT: val optimum 0.5, AUROC monotone increasing to 1.5). Selecting on val costs 22–99% of
@@ -288,6 +317,54 @@ Where merging *does* win is where regimes differ most — consistent with §2.12
 exchange_rate being the only dataset that also beats joint training.
 
 [EXPERIMENTS.md §1.17](EXPERIMENTS.md). 8 jobs, minutes each on the forecasting datasets.
+### 2.14 The fixed-shard-size control ✅ — the strong α\*·n claim is falsified
+
+Hold the shard at 15% of train at every n and let the baseline absorb the difference
+(`baseline_fraction = 1 − 0.15n` → 0.70 / 0.55 / 0.25). ETTh1 and exchange_rate, 3 seeds, α on
+a 0.05 grid. 18 jobs, minutes each. [EXPERIMENTS.md §1.18](EXPERIMENTS.md).
+
+**Settled — and it cost the headline theoretical claim some reach.** ETTh1 stays flat
+(1.00 / 1.10 / 1.08) even though its baseline degrades nearly twofold across the arms;
+exchange_rate grows (0.97 / 1.25 / 1.58) with the endpoints separated after accounting for both
+seed spread and grid quantisation. **α\*·n is therefore not a constant of the dataset.** The
+surviving claim is *for a fixed baseline* — still the operationally relevant one, since in
+deployment the base is fixed.
+
+Two measurement findings that matter more than the result:
+
+- **The apparent exact seed agreement on α\* was a 0.1-grid artefact.** At 0.05 the seeds
+  differ by one step. Every "±0.000 across seeds" statement about α\* is withdrawn.
+- **Quantisation contributes ±(grid × n)** — at n = 5 on a 0.1 grid that is **±0.50**, a 50%
+  uncertainty on the quantity whose constancy was being claimed. The validation minimum is
+  sharp enough to test the hypothesis (15–51% penalty between α·n = 1.0 and 1.5, against floors
+  of 8.2% and 5.3%), so **the limit is resolution, not the data or the number of datasets.**
+
+**Do not add datasets to shore this up** — at a 0.1 grid they would add imprecise points and
+make the claim look better supported without testing it better. The clean isolation of *count*
+(prefix merges, base and shard size both fixed) is training-free and falls out of §3.2.
+### 2.15 Prefix merges ✅ — forward transfer works; the α\*·n question is unidentifiable
+
+`--pipeline_prefix_merges` on the diagnostics pipeline (opt-in, off by default): merge τ₀…τ_k
+for every prefix across the α grid, on the validation columns. Training-free — the n = 5
+checkpoints already exist. 6 jobs, ~9 min each.
+[EXPERIMENTS.md §1.18–§1.19](EXPERIMENTS.md).
+
+**Settled — forward transfer (the accumulate half of Q4).** Each prefix scored on the first
+shard it has *not* seen, at the α chosen only on shards it has: the merge beats the base model
+in **7 of 8 cases**, with **no decay as vectors accumulate** (ETTh1's best is at k = 4). This is
+the first direct evidence for the case merging exists for — generalising forward, not just
+retaining. It also bounds the shard-starvation story over this range.
+
+**Settled — and it closes the α\*·n question, negatively.** α\*·k is *not* constant under this
+design either (ETTh1 0.48 → 0.83, exchange_rate 1.20 → 1.50). More importantly, chasing it
+exposed why: on a fixed series `baseline + n × shard = total`, so fixing any two forces the
+third to move and **the count can never be isolated**. Three designs, three different
+confounds, no fourth available. **Do not spend more jobs on this** — the regularity stands as an
+empirical statement in the deployment parameterisation and nothing further is establishable.
+
+**Still open:** the materialise comparator. We now know accumulating keeps helping on unseen
+shards up to k = 4, but not when a freshly built model would have been better. That needs
+training and a comparator design (§3.2).
 ---
 
 ## 3. Next
@@ -325,6 +402,31 @@ vector" becomes a clean claim; if α\* tracks size instead, the invariant is an 
 sweep design.
 
 Cost: ~18 forecasting jobs plus diagnostics, all minutes-scale.
+
+### 3.1a The sliding-window retrain baseline ⬜ — the honest production comparator
+
+**The setting is "we can keep *some* history, not all".** That makes the realistic production
+baseline neither full retraining nor pure merging, but **retrain θ₀ on the last W shards** — a
+sliding window. It is what most deployed systems actually do, and it is the arm that decides
+whether continual methods are needed at all:
+
+- if sliding-window retrain matches full retrain, **you never need merging or continual
+  fine-tuning** — keep a window and rebuild;
+- if it degrades as W shrinks, that gap is exactly what merging has to fill, and its size is the
+  value of the whole approach.
+
+**Runnable with existing knobs, no code change.** Keep θ₀ identical (first 50%) while
+fine-tuning only on the last W shards by setting `baseline_fraction = 1 − 0.1W` together with
+`baseline_use_fraction = 0.5 / (1 − 0.1W)` — the anchor moves to the start of the window while
+the baseline still trains on exactly the first 50%. Verified: base rows identical across W.
+
+W ∈ {1, 2, 3, 5} × ETTh1 and exchange_rate × 3 seeds. W = 5 is the already-run n = 1 baseline,
+which anchors the series. W = 1 gives thin validation (66 windows on ETTh1) — include it but
+read it with that caveat.
+
+**Registered prediction:** the merge should sit between W = 1 and W = 5. If it beats a
+*large* window, merging earns its place on accuracy as well as on the retention constraint. If
+it only beats W = 1, its case rests entirely on not being able to keep data.
 
 ### 3.2 Accumulate or materialise, and when? ⬜ (Q4)
 

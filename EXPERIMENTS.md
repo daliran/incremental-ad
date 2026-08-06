@@ -85,7 +85,7 @@ three later segments each get an independent fine-tune from that same base. Join
 sees 100% of the training data. All partitions hold out the same `val_fraction`.
 
 Diagnostics are **training-free**: they reload existing checkpoints and re-score them. All
-60 merged checkpoints on disk reproduce **bitwise** from their base + fine-tunes.
+87 merged checkpoints on disk reproduce **bitwise** from their base + fine-tunes, recomputed at the scale each was actually committed at.
 
 ### 1.2 Headline — n = 3
 
@@ -457,8 +457,15 @@ merge cost and the merged model are all read at that α. The raw `result.json` v
 means the optimal merge is a fixed multiple of the **arithmetic mean** of the task vectors —
 ≈1.0× on SWaT, PSM and ETTh1, ≈1.5× on exchange_rate — regardless of how many there are.
 Every seed agrees exactly on ETTh1 and exchange_rate, on datasets whose absolute metrics
-wander by 8.2% and 5.3%. The AD scatter (0.75–1.25) is grid quantisation: those runs step α
-by 0.25, so 0.25 is the smallest non-zero value available at n=5.
+wander by 8.2% and 5.3%.
+
+> **The AD evidence for this is weak, and the α grid is why.** The AD runs step α by **0.25**
+> against **0.10** on the forecasting runs, and the products reflect that: SWaT's α\*·n spreads
+> 0.75–1.25 (**1.67×**) against ETTh1's 0.90–1.00 (**1.11×**). Worse, the value the rule
+> predicts at n = 3 — 1/3 = 0.333 — **is not on SWaT's grid at all** (0.25 and 0.50 are the
+> neighbours), so SWaT cannot express the predicted optimum even if it holds exactly. Treat
+> α\*·n = constant as established on the forecasting datasets and merely *consistent with* the
+> AD ones. Refining the AD grid is cheap and is EXECUTION_PLAN.md §3.2.
 
 #### Merge cost — merged model ÷ each specialist on its own shard
 
@@ -850,6 +857,32 @@ Other: `eval_seed=None`, `seed=42`
 
 ## 3. Method notes and gotchas
 
+### 3.0 Known limitations of the setup
+
+Two properties of the experimental setup are deliberate but would not survive a genuinely
+streaming deployment. They do not affect the results reported above; they bound what those
+results can be claimed to show.
+
+**The normalisation scaler is fit on the full training series**, including segments the base
+model has not reached yet and their validation tails (`swat.py::_prepare_data` and the
+equivalent in every partitioned dataset). This is *necessary* for the comparison being made —
+task vectors from different segments are only commensurable if every segment shares one
+normalisation — and the test split is transformed with the training scaler, never fit on. But
+it means the base model's preprocessing already encodes statistics a real system could not
+have seen at that point in time.
+
+Harmless for the questions §1 answers, which are about the *geometry and composition* of task
+vectors under a fixed preprocessing. **It matters for the open questions**: "when should I
+materialise a new model" and "which model do I route to" are exactly the settings where a
+deployment cannot standardise against the future. Any Q4/Q5 experiment should either re-fit
+the scaler causally or state this explicitly as an upper bound.
+
+**Segment boundaries use floor division** (`finetune_ranges`), so up to `n_finetune_segments −
+1` trailing timesteps are unused. Negligible at these lengths (≤4 rows of 6,000–495,000) and
+it keeps each segment exactly the size the fine-tune trains on.
+
+### 3.1 Original method notes
+
 These cost real time; do not rediscover them.
 
 - **`merge_scale` must not be swept in training.** Verified: runs 59068 (α=0.5) and 59071
@@ -870,10 +903,64 @@ These cost real time; do not rediscover them.
 - **ETTh1's test set is the tail of the same series**, so it resembles the last training
   segment and the most recent specialist has a structural advantage there. SWaT and PSM use
   the benchmark's own separate test files; PSM shows no recency ordering at all.
-- **L2-SP does not reproduce as harmful.** At `val_fraction=0.15`: merged test MSE 0.5918 /
+### 3.0b L2-SP, tested cleanly — no measurable effect
+
+Re-run 2026-08-06 after the val-loss fix, ETTh1 at n = 3, three seeds per arm, with α
+selected on validation **per arm** (a fixed α would confound "does L2-SP help" with "is that α
+still right for a more constrained model"). `reg_lambda ∈ {0, 1e-3, 1e-2}`.
+
+| reg_lambda | merged ÷ own baseline | best specialist ÷ baseline | α\* |
+|---|---|---|---|
+| 0 | 0.6945 ±0.0350 | 0.6265 | 0.3 |
+| 1e-3 | 0.6675 ±0.0434 | 0.6141 | 0.3 |
+| 1e-2 | 0.6743 ±0.0474 | 0.6089 | 0.3 – 0.4 |
+
+**No resolvable effect, and the sign is not stable** — which is itself the finding. Judged
+three ways: arm means in absolute MSE put λ = 1e-2 **2.7% worse**; the same arms in
+ratio-to-own-baseline put it **2.9% better**; and the two hardware-matched pairs (below) put
+it **2.6–3.0% worse**. Every one of those is inside the ±5% within-arm spread. An effect whose
+direction flips with the choice of normalisation is smaller than the noise.
+
+**The defensible claim:** at these λ, L2-SP neither helps nor hurts merging on ETTh1
+measurably. The earlier "actively harmful, monotonically worse" claim is **withdrawn** — it
+was made at the broken `val_fraction=0.10`, against a floor 4× too tight, and with an
+early-stopping loss that handicapped every λ > 0 run (§3.0c).
+
+### 3.0c Run-to-run variation is driven by GPU model, not by the seed
+
+Found while analysing the L2-SP arms, where the baseline is identical by construction (λ
+touches only fine-tuning) and so should be reproducible across arms at a fixed seed. It is
+not — up to **18.8%** apart:
+
+| seed | λ=0 | λ=1e-3 | λ=1e-2 | spread |
+|---|---|---|---|---|
+| 7 | 0.7456 *(RTX 5000)* | 0.7233 *(2080 Ti)* | 0.7456 *(RTX 5000)* | 3.1% |
+| 42 | 0.7023 *(RTX 5000)* | 0.6774 *(RTX 6000)* | 0.7023 *(RTX 5000)* | 3.7% |
+| 123 | 0.6662 *(2080 Ti)* | 0.7830 *(A5000)* | 0.7914 *(RTX 5000)* | **18.8%** |
+
+**Same seed and same GPU model → bit-identical. Different GPU model → a different result**, with
+no consistent per-GPU direction — hardware placement acts as an additional random draw, not as
+a systematic offset.
+
+Two consequences. First, **the reproducibility floors in §1.9 are honest**: they were measured
+across runs that also landed on mixed hardware, so they already fold this in, and every
+comparison judged against them is judged fairly. Second, **hardware cannot be controlled on
+this cluster** — a single-model `--constraint` is rejected ("we advise you to allow also …"),
+`--nodelist` is refused outright, and the ≥24G models require a different partition. So
+paired-hardware comparisons are only available opportunistically, by checking after the fact
+which GPU each job landed on. Worth doing for any comparison near the floor.
+
+- **L2-SP does not reproduce as harmful.** *(Superseded by §3.0b — kept for the record.)* At `val_fraction=0.15`: merged test MSE 0.5918 /
   0.5904 / 0.6042 for `reg_lambda` 0 / 0.001 / 0.01 — a 2.3% spread against an 8.2% sd, and
   not monotone. The earlier "actively harmful, monotonically worse" claim was made at the
   broken `val_fraction=0.10` and against a floor 4× too tight.
+  **These runs also predate the val-loss fix** (§3.0), so their early stopping selected on
+  task loss *plus* the L2-SP penalty — a bias that grows with λ and favours earlier, less
+  trained checkpoints. That bias pushes λ > 0 runs to look **worse**, so the null result above
+  was obtained *despite* a handicap and is conservative: removing it can only move λ > 0
+  towards parity or better. The original "harmful" claim, made under the same bias, is
+  correspondingly **withdrawn**. A clean re-test is cheap (ETTh1, minutes per run) and is the
+  only way to say anything positive about L2-SP.
 - **Cluster:** `sbatch --export=VAR=value` gets the job `CANCELLED by 0` about two seconds in
   with **no log written at all**. Pass variables as an env prefix and let the default
   `--export=ALL` carry them. Measured: no `--export` ✅, `--export=ALL` ✅,

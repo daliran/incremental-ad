@@ -49,7 +49,10 @@ source .venv/bin/activate
 # ── IncrementalTaskArithmeticPipeline ─────────────────────────────────────────
 # Recipe found by grid search (2026-07-03, see EXPERIMENTS.md): patch_len=4/
 # embed_dim=128/instance_norm=false won the model-architecture sweep;
-# reg_lambda=0 (no L2-SP) beat every reg_lambda tried at every merge_scale;
+# reg_lambda=0 is used here, but the recorded finding that it 'beat every reg_lambda tried'
+# is WITHDRAWN: until 2026-08-06 the early-stopping val loss included the L2-SP penalty, so
+# every reg_lambda>0 run was handicapped in checkpoint selection as well as regularised.
+# Re-test before drawing any conclusion about L2-SP. See CLAUDE.md.
 # merge_scale=0.5 beat 0.3 and 1.0 (though a follow-up 3-seed sweep on 0.4/0.5/0.6
 # found that finer distinction is within noise — see EXPERIMENTS.md §1.4).
 # Full pipeline in one job: train baseline on the first --dataset_baseline_fraction

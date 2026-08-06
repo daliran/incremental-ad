@@ -193,12 +193,12 @@ class StandardTrainer(Trainer):
                 val_loss: float | None = None
 
                 if val_loader is not None:
-                    val_loss = self._compute_loader_loss(model, val_loader, reference_state_dev)
+                    val_loss = self._compute_loader_loss(model, val_loader)
                     final_val_loss = val_loss
 
                 if secondary_loaders:
                     final_secondary_losses = {
-                        name: self._compute_loader_loss(model, loader, reference_state_dev)
+                        name: self._compute_loader_loss(model, loader)
                         for name, loader in secondary_loaders.items()
                     }
 
@@ -336,9 +336,20 @@ class StandardTrainer(Trainer):
         n = count if count > 0 else 1
         return total_loss / n, total_gnorm / n
 
-    def _compute_loader_loss(
-        self, model: Model, loader, reference_state: dict[str, Tensor] | None = None
-    ) -> float:
+    def _compute_loader_loss(self, model: Model, loader) -> float:
+        """Task loss only — the L2-SP penalty is deliberately NOT included.
+
+        The penalty belongs to the training objective, not to model quality, and this value
+        drives early stopping, checkpoint selection and the reported ``best_val``. Including
+        it did two harmful things. Within a run it grows as the weights leave the reference,
+        so selection was biased towards earlier, less-trained epochs — a handicap on top of
+        the regularisation itself. Across runs it scales with ``reg_lambda``, so a larger
+        penalty raised the val loss by construction and any comparison between lambda values
+        was confounded.
+
+        Inert for every current configuration (``reg_lambda=0`` throughout), so this changes
+        no published number; it matters for any future comparison across lambda.
+        """
         model.eval()
 
         total, count = 0.0, 0
@@ -347,7 +358,6 @@ class StandardTrainer(Trainer):
             for batch in loader:
                 batch = move_to_device(batch, self.device)
                 total += model.compute_loss(batch).item()
-                total += self._reg_penalty(model, reference_state).item()
                 count += 1
 
         return total / count if count > 0 else float("inf")

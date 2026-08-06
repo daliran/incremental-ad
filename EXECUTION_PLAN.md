@@ -136,6 +136,24 @@ dataset: it flips with the segment count. Use ρ to explain a result, never as a
   next one and inflates the off-diagonal — `specialisation` therefore *understates* the truth.
   Not fixable by random splitting: adjacent windows share 119 of 120 timesteps.
 - L2-SP's "actively harmful on ETTh1" result **does not reproduce** at `val_fraction=0.15`.
+- **L2-SP re-tested cleanly: no measurable effect** (EXPERIMENTS.md §3.0b). Three seeds per
+  arm on ETTh1 with α selected per arm; the effect is inside the within-arm spread and its
+  *sign flips* depending on whether you read absolute MSE, ratio-to-own-baseline, or
+  hardware-matched pairs. Both the old "harmful" claim and its rejection are settled as
+  "no resolvable difference".
+- **Run-to-run variation is GPU-driven, not seed-driven** (EXPERIMENTS.md §3.0c). Same seed +
+  same GPU model → bit-identical; different GPU → up to **18.8%** apart on ETTh1, with no
+  consistent per-GPU direction. The [EXPERIMENTS.md §1.9](EXPERIMENTS.md) floors already fold this in (they were measured on
+  mixed hardware), so they remain the right yardstick. Hardware **cannot** be pinned here:
+  single-model `--constraint` is rejected, `--nodelist` is refused, ≥24G needs another
+  partition. Match hardware post hoc from the job logs for any comparison near the floor.
+- **The early-stopping val loss included the L2-SP penalty** (fixed 2026-08-06). Selection was
+  therefore biased toward earlier, less-trained checkpoints whenever `reg_lambda > 0`, on top
+  of the intended regularisation, and the val number scaled with λ so cross-λ comparison was
+  confounded. **26 runs used λ > 0** — all in the discarded grid searches and
+  `etth_vf15_regsweep`; **no §1 headline number derives from any of them**, verified by
+  checking `reg_lambda` across all 223 runs on disk. The bias ran *against* λ > 0, so the
+  "not harmful" null survives as conservative while the original "harmful" claim does not.
 - **State snapshots aliased the live model on CPU runs.** `{k: v.cpu() for k, v in
   model.state_dict().items()}` does not copy when the tensor is already on CPU —
   `Tensor.cpu()` returns *self* — so the snapshot tracked the model through every later
@@ -144,8 +162,8 @@ dataset: it flips with the segment count. Use ρ to explain a result, never as a
   continual pipeline it made the L2-SP anchor follow θ_t, so the penalty vanished. Found by
   the α-selection smoke test, which reorders the merge ahead of the eval loop and exposed it.
   Fixed with `.detach().cpu().clone()` at all four sites. **No published result is affected**
-  — every real run is GPU, where `.cpu()` copies; re-verified by recomputing all **71**
-  merged checkpoints from their baseline + fine-tunes, 71/71 bitwise identical.
+  — every real run is GPU, where `.cpu()` copies; re-verified by recomputing all **87**
+  merged checkpoints from their baseline + fine-tunes, 87/87 bitwise identical.
 - The historical grid-search record was removed from EXPERIMENTS.md — fixed α, a wrong noise
   floor, the broken `val_fraction`. Per-trial CSVs remain under `$SLURM_GRID_OUTPUT_ROOT`.
 
@@ -275,6 +293,13 @@ Within-shard versus between-shard drift is measurable model-free and before any 
 the n maximising GRR. If they coincide, this is the project's first *usable* rule — a
 shard-size criterion computable in advance.
 
+**Also folded in here: refine the AD α grid.** The AD curves step α by 0.25 against 0.10 on
+forecasting, so SWaT's α\*·n spreads 1.67× against ETTh1's 1.11× — and 1/3, the value the rule
+predicts at n = 3, is not on SWaT's grid at all. The α\*·n evidence is therefore established on
+forecasting and only *consistent with* AD. Re-running the AD curves at 0.05 steps needs **only
+the validation columns**, not the expensive test pass, so it is a fraction of the 84-minute
+full diagnostics.
+
 **Folded in here: the count-versus-size control.** α\*·n = constant was measured with the
 baseline fixed at 50%, so shard size fell as 1/n and the two are confounded. Holding size fixed
 while varying n needs only existing knobs: `baseline_fraction = 1 − n·S`, giving 0.8 / 0.7 / 0.5
@@ -391,6 +416,12 @@ handicapped by §3.4, so forecasting datasets buy more per unit of work until th
   image is available for execution on the device"*. Five of the first 32 segment-sweep jobs
   were lost to this before it was diagnosed. `scripts/sbatch_run_command.sh` now carries a
   `--constraint` naming every *other* GPU type; drop it only once torch is rebuilt for sm_120.
+- **You cannot pin the GPU model.** `--constraint=gpu_2080Ti_11G` alone is rejected ("we
+  advise you to allow also …"), `--nodelist` is refused ("you can't request specific nodes"),
+  and any model with ≥24G VRAM demands the `boost_usr_prod` partition — use that only when the
+  job genuinely needs the memory. Since results are bit-identical within a GPU model and
+  differ across models (§2.7), the only way to compare at hardware parity is to read the GPU
+  out of each job log afterwards and compare matched pairs.
 - **`--exclude` is rejected by cluster policy** (*"using --exclude is deprecated. Use
   --constraint instead"*), and SLURM constraints have no negation — so excluding a node means
   listing every acceptable GPU feature positively. `scontrol update` on a queued job is also

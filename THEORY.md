@@ -166,7 +166,7 @@ Training-free: reload checkpoints that already exist and re-score them.
 
 Checkpoints are `best.pt` — the early-stopping best-validation checkpoint. `merged` is
 **recomputed** from base + fine-tunes rather than loaded; it is bit-identical to what the run
-wrote, verified across all 60 runs on disk.
+wrote, verified across all 87 runs on disk.
 
 **Validation cells are loss-shaped, not detection-shaped** — reconstruction error for AD
 (training data carries no labels, so AUROC is undefined there), MSE for forecasting. Lower is
@@ -452,8 +452,16 @@ merged model is *better* than the base model on the base model's own regime.
 
 **Non-orthogonality still matters, but its consequence changes.** It is precisely *because*
 the vectors agree that summing overshoots. Non-orthogonality does not make merging fail — it
-dictates a smaller α. The ordering holds: the most collinear dataset needs the smallest scale
-(SWaT 0.25), the least collinear the largest (PSM 0.5).
+dictates a smaller α.
+
+> **Withdrawn:** an earlier version of this section claimed the ordering holds — *"the most
+> collinear dataset needs the smallest scale, the least collinear the largest"* — and named PSM
+> as the least collinear. It is not; ETTh1 is (ρ = 0.076 against PSM's 0.226), and ETTh1's α\*
+> is *smaller* than PSM's, not larger. Across four datasets the ranking by ρ
+> (SWaT, PSM, exchange_rate, ETTh1) does not match the ranking by α\*
+> (SWaT, ETTh1, exchange_rate, PSM). **ρ sets the direction — more agreement means a smaller
+> scale is needed — but it does not order the datasets.** What does hold is the within-dataset
+> law α\*·n = constant (§6.6).
 
 ### 6.4 Remedies
 
@@ -477,6 +485,16 @@ dictates a smaller α. The ordering holds: the most collinear dataset needs the 
 - **Equalise the training budget** so magnitudes are comparable.
 
 L2-SP is *not* this: it shrinks all arrows toward zero rather than making them different.
+
+**And it was measured.** Anchoring each fine-tune to the base with an L2-SP penalty is the
+obvious way to keep the task vectors in the linear regime, and it is the first thing anyone
+asks about — so it was tested cleanly on ETTh1, three seeds per λ, α selected per arm
+(EXPERIMENTS.md §3.0b). **No measurable effect at λ ∈ {1e-3, 1e-2}**: the difference is ~3%
+against a ~5% within-arm spread, and its *sign flips* depending on whether you read absolute
+error, ratio-to-own-baseline, or hardware-matched pairs. That instability is the point — the
+effect is smaller than the noise. Constraining magnitude is not what merging needs here,
+which is consistent with §6.3: the problem was never that the vectors were too long, it was
+that they were being *summed* rather than averaged.
 
 ---
 
@@ -767,7 +785,7 @@ nothing has measured it yet.
 - **Validation cannot select α on AD.** The val and test optima point to different values, and
   choosing on validation costs 22–99% of achievable GRR there against 1–8% on forecasting
   (§8.4).
-- **The merge is bitwise reproducible** — all 71 merged checkpoints recompute exactly.
+- **The merge is bitwise reproducible** — all 87 merged checkpoints recompute exactly.
 
 ### Not established — do not claim these
 

@@ -259,6 +259,32 @@ class MergeDiagnosticsPipeline(Pipeline):
         # Numeric, not lexical: finetune_10 must not sort before finetune_2.
         return sorted(directories, key=lambda d: int(d.name.split("_")[1]))
 
+    def _committed_merge_scale(self, source_config: dict) -> float:
+        """The scale the source run's merged checkpoint was ACTUALLY built at.
+
+        With ``--pipeline_select_merge_scale_on_val`` the run evaluates a grid and commits to
+        the winner, so ``config.json``'s ``pipeline_merge_scale`` is the value that was *asked
+        for*, not the one that was used. Reading the config alone therefore reconstructs a
+        different model than the run produced — silently, and only for selecting runs.
+        ``merged/val/result.json`` carries the value that won.
+        """
+        requested = source_config.get("args", {}).get("pipeline_merge_scale", 1.0)
+        result = self.source_run_dir / "merged" / "val" / "result.json"
+        if result.is_file():
+            try:
+                selected = json.loads(result.read_text()).get("metrics", {}).get("merge_scale/selected")
+            except (OSError, ValueError):
+                selected = None
+            if selected is not None:
+                if abs(float(selected) - float(requested)) > 1e-9:
+                    log.info(
+                        "[merge_diagnostics] source run selected merge_scale=%s on validation "
+                        "(config requested %s); using the selected value",
+                        selected, requested,
+                    )
+                return float(selected)
+        return float(requested)
+
     def _load_rows(self, source_config: dict) -> dict[str, StateDict]:
         """Every model to put in the matrix, keyed by row name, in report order."""
 
@@ -290,7 +316,7 @@ class MergeDiagnosticsPipeline(Pipeline):
         # Recomputed rather than read from merged/checkpoints: it is bit-identical to what
         # the run wrote (verified across every run on disk), and this way the row exists
         # even for runs whose merged checkpoint was not kept.
-        merge_scale = source_config.get("args", {}).get("pipeline_merge_scale", 1.0)
+        merge_scale = self._committed_merge_scale(source_config)
         rows[MERGED_ROW] = merge_task_arithmetic(base_state, ft_states, merge_scale)
 
         if self.standard_run_dir is not None:
@@ -580,7 +606,7 @@ class MergeDiagnosticsPipeline(Pipeline):
             log.warning("[merge_scale_curve] no columns to trace - skipping")
             return {}
 
-        source_scale = source_config.get("args", {}).get("pipeline_merge_scale", 1.0)
+        source_scale = self._committed_merge_scale(source_config)
         reused = {0.0: BASE_ROW, source_scale: MERGED_ROW}
 
         # (scale, column name) -> {metric: value}
@@ -665,7 +691,8 @@ class MergeDiagnosticsPipeline(Pipeline):
                     "source_git_commit": source_config.get("git_commit"),
                     "standard_run_dir": str(self.standard_run_dir) if self.standard_run_dir else None,
                     "checkpoint_name": self.checkpoint_name,
-                    "merge_scale": source_config.get("args", {}).get("pipeline_merge_scale"),
+                    "merge_scale": self._committed_merge_scale(source_config),
+                    "merge_scale_requested": source_config.get("args", {}).get("pipeline_merge_scale"),
                     "n_finetune_segments": source_config.get("args", {}).get("dataset_n_finetune_segments"),
                     "rows": list(rows),
                     "columns": [

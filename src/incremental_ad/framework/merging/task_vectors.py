@@ -28,7 +28,17 @@ def float_keys(state: StateDict) -> list[str]:
 
 
 def task_vector(base_state: StateDict, ft_state: StateDict) -> StateDict:
-    """``theta_ft - theta_base``, over floating-point tensors only."""
+    """``theta_ft - theta_base``, over floating-point tensors only.
+
+    Iterating the *base* keys means a key present only in ``ft_state`` would be dropped in
+    silence rather than raising, so the key sets are checked. A missing key already fails
+    loudly with KeyError; this covers the other direction.
+    """
+    extra = set(ft_state) - set(base_state)
+    assert not extra, (
+        f"fine-tuned state has {len(extra)} key(s) absent from the base state, which would "
+        f"be silently dropped from the task vector: {sorted(extra)[:5]}"
+    )
     return {
         key: ft_state[key].to(base_tensor.device) - base_tensor
         for key, base_tensor in base_state.items()

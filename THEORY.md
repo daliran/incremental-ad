@@ -28,7 +28,7 @@ overlap.
 8. [Metrics that cannot see what you are measuring](#8-metrics-that-cannot-see-what-you-are-measuring)
 9. [Versus sequential fine-tuning](#9-versus-sequential-fine-tuning)
 10. [What the datasets said](#10-what-the-datasets-said)
-11. [A decision rule](#11-a-decision-rule)
+11. [A decision rule — merge, route, or keep fine-tuning?](#11-a-decision-rule--merge-route-or-keep-fine-tuning)
 12. [What is established and what is not](#12-what-is-established-and-what-is-not)
 13. [Open questions](#13-open-questions)
 14. [Quick reference](#14-quick-reference)
@@ -530,6 +530,33 @@ fell as 1/n — count and size moved together. The geometry above argues the eff
 count-driven, but the clean control (hold segment size fixed, vary n by moving the baseline
 fraction) has not been run. See EXECUTION_PLAN.md §4.1.
 
+### Why this is not just "average the task vectors"
+
+Simple averaging is a known baseline — model soups, `mergekit`'s normalisation — so *"use the
+mean"* on its own would be a rediscovery. The contribution is the **contrast between regimes**.
+
+In image classification, where tasks are near-orthogonal, the published task-arithmetic scaling
+coefficient *falls* with the number of tasks but far more slowly than 1/n, so the product α·n
+**grows** as tasks accumulate. Here, with aligned segments, it is **constant**.
+
+| | orthogonal tasks (image classification) | aligned segments (this work) |
+|---|---|---|
+| α·n as n grows | grows | constant (≈1, or ≈1.5 on exchange_rate) |
+| averaging vs summing | averaging reported to lose ground | averaging is optimal |
+
+**The claim worth making:** in the aligned regime the optimal coefficient collapses to exactly
+1/n, which does not happen in the orthogonal regime — so α·n is itself a **measurable signature
+of which regime a task set is in**, reachable without computing any geometry. That is a
+statement about time series specifically (§2), and it is a contribution; "average the vectors"
+is not.
+
+> **Unverified.** The image-classification side of that table is recorded from prior knowledge,
+> not from fetched sources. Published coefficients around ~0.4 at 2 tasks falling to ~0.15 at
+> 20 would give α·n ≈ 0.8 → 3.0, and TIES-Merging reports simple averaging losing ground to
+> task arithmetic on image pairs. **Check these against the papers before the comparison goes
+> into the thesis** — the argument stands on the shape of the trend, but the numbers must be
+> cited from source.
+
 **What this buys.** If it holds under that control, the merge scale stops being a
 hyperparameter: use the mean, scaled by one dataset-level constant. On AD, where §8.4 shows α
 cannot be tuned honestly at all, that would be the difference between a method you can deploy
@@ -736,33 +763,103 @@ as ratios.
 
 ---
 
-## 11. A decision rule
+## 11. A decision rule — merge, route, or keep fine-tuning?
 
-Derived from the results above, at three seeds per dataset. **Treat it as a hypothesis**:
-three datasets, two of them saturated, so roughly one informative case per branch.
+Three strategies are on the table once data arrives over time.
 
-```
-1. Is there a real gap between the frozen base and joint training?
-   NO  (SWaT, ~1% of base)  -> neither method can help. The benchmark cannot show a
-                               difference; don't do continual learning here.
-   YES -> continue.
+- **Merge and keep one model.** Fine-tune a copy per period, keep only what changed, add the
+  deltas back onto the base. One model on disk.
+- **Keep n specialists and route.** Store every per-period model and pick the right one for
+  each incoming batch.
+- **Continual fine-tuning.** Never branch: keep training the same model as data arrives. One
+  model on disk.
 
-2. Do you actually need the old regimes?
-   NO  (only ever serve the newest data) -> keep the newest specialist. Merging only
-                                            dilutes it.
-   YES -> continue.
+### 11.1 Why routing is usually not worth it
 
-3. Are the updates repetitive (high rho), or is the base near its ceiling?
-   YES -> MERGE. Sequential training can only drift, and it forgets badly.
-   NO  (real headroom, novel updates) -> SEQUENTIAL FINE-TUNING. It adapts better to the
-                                          new periods and there is little to forget.
+The transfer matrix answers this directly, and the argument is short.
 
-4. Can you not tell which regime the incoming data belongs to?
-   -> MERGE. It is routing-free insurance. UNTESTED -- and the case merging is really for.
-```
+Score every model on every period. For each period, the **lowest error in that column is the
+best any router could ever do** — it is the router that magically picks correctly every single
+time. Call it the ceiling. A real router, choosing from limited recent data and sometimes
+wrong, can only fall below it.
 
-**Merging's advantage is retention, not adaptation.** Step 4 is the case it exists for, and
-nothing has measured it yet.
+So: how far is the merged model from that ceiling?
+
+| dataset | merged vs the ceiling | newest specialist vs the ceiling |
+|---|---|---|
+| SWaT | **+6.2%** | +11.9% |
+| PSM | **+7.8%** | +15.7% |
+| ETTh1 | **+7.0%** | +37.0% |
+| exchange_rate | **+102.3%** | +318.0% |
+
+On three of four datasets, **a router that never makes a mistake would beat the merged model by
+about 7%.** That is the entire prize. Against it you must store *n* models instead of one, and
+build selection logic that can itself pick wrong — spending the 7% you were trying to win. The
+answer there is: **keep the merge.**
+
+exchange_rate is the exception, and the reason is instructive. Its periods genuinely differ, so
+a specialist trained on period *k* is roughly twice as good on period *k* as any average of
+specialists. Where regimes are distinct, averaging them costs real performance and routing has
+something to recover. Where periods resemble each other, the average is nearly as good as the
+best individual and there is nothing left to win.
+
+One more result to carry: **merging beat "always use the newest model" on all four datasets.**
+If you are keeping a single model, the merge is the right single model — better than the most
+recent specialist, which is the obvious naive choice.
+
+### 11.2 And merging is not an accuracy win over not splitting at all
+
+Against one fine-tune on the same data *unsplit* ([EXPERIMENTS.md §1.17](EXPERIMENTS.md)): ETTh1 **loses by
+9.3%**, SWaT and PSM win by 0.24% and 1.01% — clearing their very tight floors but practically
+negligible — and only exchange_rate wins by a real margin (+8.4%).
+
+So merging does not buy accuracy. **It buys the ability to operate under the streaming
+constraint**, where the unsplit fine-tune is simply not available because the data cannot be
+retained. That is a sound justification; it is just a different one from "merging is better".
+
+### 11.3 The verdict
+
+| | merge, keep 1 | n specialists + router | continual fine-tuning |
+|---|---|---|---|
+| models stored | 1 | n | 1 |
+| cost vs a per-period specialist | ~1.05× | 1.00× by definition | — |
+| gap to the best possible router | +6–8%, or +102% under strong drift | 0 (unreachable) | worse than merge on 3 of 4 |
+| needs a hyperparameter? | **yes — α** | yes, a selection rule | **no** |
+| works on unlabelled AD? | only with a pre-declared α | **no** | **yes** |
+| degrades as periods accumulate by | shard starvation | storage | forgetting |
+
+**Default: merge and keep one model.** It is within ~7% of an unreachable ceiling, beats the
+newest specialist everywhere, costs ~1.05× a dedicated specialist, and stores one model. Its
+one requirement is α — and α is not a free parameter you must tune, because α\*·n ≈ a
+dataset constant of order 1 (§6.6). Start from the mean of the task vectors.
+
+**Route only under strong drift**, and only if you can measure which model is best. The signal
+that routing has something to offer is the same one that makes merging beat joint training:
+regimes that genuinely differ. On exchange_rate that is +102%, which is worth the storage.
+
+**Continual fine-tuning is the right default when you cannot choose α** — most importantly
+unsupervised anomaly detection, where §8.4 shows no unlabelled signal tracks detection quality.
+It needs no coefficient at all. Its failure mode is forgetting, and that failure grows with the
+number of steps: on exchange_rate its error goes 0.220 → 0.362 → 0.531 as periods accumulate,
+which is why merging overtakes it at five periods there and not at two.
+
+**Between merge and continual, there is no universal winner.** Nine decisive configurations
+split 5 / 4, and the outcome *flips with the number of periods on the same dataset* — so it is
+not a property of the data. Choose by which failure mode you can tolerate: merging starves as
+shards shrink, continual forgets as steps accumulate.
+
+### 11.4 What changes if AD has a labelled calibration set
+
+Labels dissolve the blocker: with them you can measure detection directly, so α becomes
+selectable and a router becomes buildable. But **the headroom does not change** — SWaT and PSM
+sit 6.2% and 7.8% from the ceiling, so routing would still be recovering very little on *these*
+datasets, and both are saturated to begin with (base within 1.1% and 3.4% of joint training).
+
+So a labelled calibration set is worth having for **α selection**, which is worth 22–99% of the
+achievable GRR on AD (§8.4) — a much larger prize than routing. Whether routing pays off on AD
+is untested on drifting AD data, and both current AD datasets are the wrong place to look. The
+prediction, from §11.1, is that AD routing pays off exactly when the regimes differ enough for
+specialists to separate — which is what a drifting AD benchmark would be for.
 
 ---
 

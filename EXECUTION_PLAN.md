@@ -27,11 +27,11 @@ and the plan below is organised around them rather than around methods.
 
 | # | question | status |
 |---|---|---|
-| **Q1** | Does task arithmetic work when shards are *not* orthogonal? | **answered** — §2.11, and the theory in [THEORY.md §2](THEORY.md) and [§6.6](THEORY.md) |
+| **Q1** | Does task arithmetic work when shards are *not* orthogonal? | **answered** — §2.11; but see §2.13, it is not an *accuracy* win over not splitting |
 | **Q2** | Merging, or continual fine-tuning? | **answered as a trade** — §2.11; neither dominates, and the winner depends on shard count |
 | **Q3** | How large should a shard be? | **open** — §3.2. The sweep varied the *count*; it never asked which count is best |
 | **Q4** | Accumulate forever, or materialise a new model? When? | **open, no evidence at all** — §3.3. No arm here materialises a second model |
-| **Q5** | With several materialised models, which one do you use? | **open, no evidence at all** — §3.1 |
+| **Q5** | With several materialised models, which one do you use? | **answered** — §2.12: use the merge; routing has ≤7% headroom except under strong drift |
 
 **Q1 is the contribution.** In image classification, task vectors for different classes are
 near-orthogonal because the tasks are disjoint. Time-series shards are not: subspace overlap ρ
@@ -58,6 +58,9 @@ chunking. That is a stronger claim than "method X wins".
    scoped to forecasting, or §3.4 has to be solved first.**
 3. **Still few informative datasets.** SWaT and PSM are saturated (base within 1.1% and 3.4%
    of joint training); only ETTh1 and exchange_rate have real headroom.
+
+**The practical decision rule** — merge, route, or keep fine-tuning — is consolidated in
+[THEORY.md §11](THEORY.md), including what a labelled AD calibration set would and would not buy.
 
 The regime-predictor question is **closed as a negative result**: at nine decisive
 configurations no cheap signal separates merge-wins from sequential-wins, and the outcome is
@@ -254,6 +257,37 @@ job was matched to a *compatible* joint run rather than merely a same-seed one �
 have leftover architecture-sweep runs at the same seed that would have failed the config guard.
 Both checks caught real errors at zero cluster cost.
 
+### 2.12 Routing versus merging ✅ — use the merge (Q5)
+
+The transfer matrix's column minimum is the best possible router, so the distance from the
+merged model to it bounds what routing could ever gain. At n = 5, with merged taken at α\*:
+**+6.2% (SWaT), +7.8% (PSM), +7.0% (ETTh1), +102.3% (exchange_rate)**.
+
+**Settled:** on three of four datasets a *perfect* router recovers ≤7% — not worth storing n
+models and building selection logic that can be wrong. Merging also beats
+always-use-the-newest-specialist on all four. Routing only has real headroom under strong drift
+(exchange_rate), which is the same place merging beats joint training. On AD it is doubly
+unattractive: little headroom *and* no way to select without labels (§3.4).
+
+Full numbers: [EXPERIMENTS.md §1.16](EXPERIMENTS.md). Cost: no cluster time — the measurement
+was already on disk.
+
+### 2.13 The n = 1 baseline ✅ — merging is not an accuracy win (Q1/Q2)
+
+One fine-tune on the whole post-baseline block, unsplit. The null hypothesis the project had
+never run. Best merge versus n = 1: **SWaT +0.24%, PSM +1.01%, ETTh1 −9.25%, exchange_rate
++8.38%** against floors of 0.13 / 0.07 / 8.20 / 5.29%.
+
+**Settled, and it reframes the headline claim.** Merging does **not** beat training on the same
+data unsplit — ETTh1 loses outright, the AD wins clear their floors but are practically
+negligible, and only exchange_rate wins by a margin that matters. **Merging's justification is
+the streaming constraint, not accuracy**: the unsplit fine-tune is unavailable when data arrives
+over time and cannot be retained. Now stated with a number rather than assumed.
+
+Where merging *does* win is where regimes differ most — consistent with §2.12 and with
+exchange_rate being the only dataset that also beats joint training.
+
+[EXPERIMENTS.md §1.17](EXPERIMENTS.md). 8 jobs, minutes each on the forecasting datasets.
 ---
 
 ## 3. Next
@@ -261,25 +295,7 @@ Both checks caught real errors at zero cluster cost.
 Ordered by value per unit of compute, and mapped to the questions in §1. Q1 and Q2 are
 answered; everything below serves Q3, Q4, Q5, or the blocker that gates all three.
 
-### 3.1 Router — which materialised model do you use? ⬜ — do this first (Q5)
-
-**No evidence exists on this question at all**, and the experiment needs no GPU: the transfer
-matrix *is* the measurement. Rows are models, columns are regimes, so the column minimum is
-the oracle router. The question is whether a cheap router recovers it.
-
-Candidate router: score each available model on a short *recent* window and take the best.
-Compare against (a) the column oracle, (b) always using the merged model, (c) always using the
-newest specialist. The n = 5 diagnostics give six models × six regimes per dataset, already on
-disk.
-
-**Registered prediction:** on forecasting the router recovers most of the oracle, because
-validation error and test error are the same quantity. On AD it fails, for the same reason α
-selection fails ([EXPERIMENTS.md §1.12](EXPERIMENTS.md)) — reconstruction does not track detection. If that holds, it is the
-second independent consequence of one root cause, which strengthens §3.4 considerably.
-
-Cost: an afternoon of analysis, no cluster time.
-
-### 3.2 Shard size — is there a rule? ⬜ (Q3)
+### 3.1 Shard size — is there a rule? ⬜ (Q3) — now the top open question
 
 The sweep varied the shard *count* and never asked which count is best. The existing GRR data
 already leans: on PSM (0.903 → 0.497) and exchange_rate (1.421 → 1.238), **fewer and bigger
@@ -310,7 +326,7 @@ sweep design.
 
 Cost: ~18 forecasting jobs plus diagnostics, all minutes-scale.
 
-### 3.3 Accumulate or materialise, and when? ⬜ (Q4)
+### 3.2 Accumulate or materialise, and when? ⬜ (Q4)
 
 **The genuine gap.** Nothing in this project ever starts a second model, so "when to
 materialise" has no evidence behind it — only the observation that merging degrades as shards
@@ -328,7 +344,7 @@ training.
 This also subsumes the old "AD forward transfer" item: on AD the test metrics cannot see model
 quality, so an unlabelled held-out slice is the only way to observe forward transfer there.
 
-### 3.4 Can α — or any quality signal — be chosen honestly on AD? ⬜ — the blocker
+### 3.3 Can α — or any quality signal — be chosen honestly on AD? ⬜ — the blocker
 
 [EXPERIMENTS.md §1.12](EXPERIMENTS.md) measured the problem: validation reconstruction and test AUROC point to different α, so
 val selection costs 22–99% of achievable GRR on AD against 1–8% on forecasting. **Q3, Q4 and Q5
@@ -340,11 +356,23 @@ its level, and mean reconstruction throws exactly that away. The curves already 
 `reconstruction/score_{std,p50,p95,p99}` — check whether any spread statistic has its optimum
 where AUROC does. **Analysis of finished runs, not new training.**
 
-If none works, the honest conclusion is that unsupervised AD cannot tune the merge scale or
-route between models, and the thesis scopes Q3–Q5 to forecasting while AD carries plain task
-arithmetic with a pre-declared α (→ §3.5).
+**A second and probably stronger route: synthetic anomaly injection.** Inject known corruptions
+into held-out *normal* validation data — point outliers, level shifts, sensor freezes, amplitude
+scaling — and compute AUROC against those synthetic labels. That yields a validation signal
+measuring **detection rather than reconstruction**, without any real labels, which is exactly
+the quantity [EXPERIMENTS.md §1.12](EXPERIMENTS.md) shows is missing.
 
-### 3.5 BECAME — adaptive coefficient only ⬜
+It is directly falsifiable: real labels exist on test, so measure whether the α chosen by
+synthetic-AUROC matches the oracle α there. If it does on PSM, the blocker is solved and Q3–Q5
+unblock on AD. **Caveat to state rather than assume:** it will only select well if the synthetic
+corruptions resemble real ones, which for SWaT's subtle process attacks is doubtful — and that
+is itself measurable.
+
+If neither route works, the honest conclusion is that unsupervised AD cannot tune the merge
+scale or route between models, and the thesis scopes Q3–Q5 to forecasting while AD carries
+plain task arithmetic with a pre-declared α (→ §3.5).
+
+### 3.4 BECAME — adaptive coefficient only ⬜
 
 Derives its merging coefficient rather than tuning it, which **sidesteps §3.4 entirely**: if α
 cannot be selected honestly on AD, a method that computes it from the vectors is not a
@@ -353,14 +381,14 @@ refinement but the only way to run AD honestly. Skip the gradient-projection fir
 against the measured α\* ≈ 1/n — a derivation that reproduces the empirical rule would be
 strong corroboration for both.
 
-### 3.6 `weather` as a fifth dataset ⬜
+### 3.5 `weather` as a fifth dataset ⬜
 
 Drift 0.369, comparable to ETTh1, 21 features and 3× the rows. Already implemented and
 registered. **Gate it** — one incremental + one standard, check headroom, commit the full arm
 only if the gap is real. Check the window arithmetic first: `val_fraction` must give ≳150
 validation windows, and at n = 5 that constraint bites (§2.11).
 
-### 3.7 Separate redundancy from headroom ⬜
+### 3.6 Separate redundancy from headroom ⬜
 
 They co-vary across all four datasets, so both explain everything equally well. The
 random-vs-chronological split control is the cheapest attack: IID shards give **high redundancy
@@ -372,7 +400,7 @@ with headroom preserved**, which no existing dataset does. Hold `baseline_fracti
 there. §2.11 already found α\*·n ≈ 1 on chronological splits, so the α\* half is partly
 answered — what remains is whether merging *wins* under high redundancy.
 
-### 3.8 OPCM ⬜ — scope as memory, not accuracy
+### 3.7 OPCM ⬜ — scope as memory, not accuracy
 
 Merge cost is already ~1.0–1.1× and flat in n, so a better merging algorithm competes for a few
 percent on something that is not the bottleneck. Its real selling point is **continual
@@ -385,7 +413,7 @@ OPCM should underperform plain task arithmetic there and be more competitive on 
 (ρ = 0.117). [EXPERIMENTS.md §1.15](EXPERIMENTS.md) adds a second prediction: alignment falls as
 n grows, so OPCM's advantage should widen with the shard count.
 
-### 3.9 More AD datasets ⬜ — low priority
+### 3.8 More AD datasets ⬜ — low priority
 
 SMD / MSL / SMAP would broaden a side where both current datasets are saturated, but need a
 custom loader like `swat.py` rather than the `HfSeriesForecastDataset` base. Every AD result is
@@ -460,13 +488,18 @@ results land — no figure is transcribed by hand.
 ## 5. Open questions
 
 1. **Why does merging beat joint training on exchange_rate?** GRR above 1.0 at every segment
-   count (1.421 / 1.164 / 1.238) is the most
-   surprising result here and has only a hypothesis behind it (ensembling across regimes).
-2. **Is there any cheap signal that predicts merge-vs-sequential?** ρ is 3-of-4 and no
-   candidate survives a chance-level check at n = 4. §3.1.
-3. **Can redundancy and headroom be separated?** They co-vary across all four datasets. §3.3.
-4. **Does α\* decrease as the number of segments grows?** Direct evidence on accumulating
-   interference; 5-segment runs already exist. Falls out of §3.1.
+   count (1.421 / 1.164 / 1.238) is the most surprising result here and has only a hypothesis
+   behind it (ensembling across regimes).
+2. ~~Is there any cheap signal that predicts merge-vs-sequential?~~ **Closed as a negative
+   result** — §2.6, [EXPERIMENTS.md §1.14](EXPERIMENTS.md). No signal separates nine decisive
+   configurations beyond chance, and the outcome is not a property of a dataset.
+3. ~~Does α\* decrease as the number of segments grows?~~ **Answered** — §2.11: α\*·n is
+   constant, so α\* falls exactly as 1/n.
+4. **Can redundancy and headroom be separated?** They co-vary across all four datasets. §3.7.
 5. **Is the residual interference real or inside the noise?** Needs per-metric floors applied
    to the validation block, not just the test block.
-6. **Does merging beat the newest specialist on an unseen regime, for AD?** §3.6.
+6. **Does merging beat the newest specialist on an unseen regime, for AD?** §3.3 — the
+   forward-transfer arm, which is the AD-side view of *accumulate or materialise*.
+7. ~~Does merging beat a single fine-tune on all the post-baseline data?~~ **Answered — no.**
+   §2.13: merging is not an accuracy win over the unsplit fine-tune; its justification is the
+   streaming constraint.

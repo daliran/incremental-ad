@@ -195,6 +195,22 @@ specialist from a model that merely got better at everything. `merged` is at α\
 
 ### 1.5 Complete metric report — test set
 
+> **On `pa_f1` — point-adjusted F1.** Under point adjustment, a whole anomalous segment counts
+> as detected if *any single point* inside it is flagged. This is known to overestimate
+> detection severely: **Kim et al., "Towards a Rigorous Evaluation of Time-series Anomaly
+> Detection" (AAAI 2022, arXiv:2109.05257)** show a *random* anomaly score can reach
+> state-of-the-art PA-F1, so rankings built on it are unreliable. Replacement metrics proposed
+> since include PA%K (same paper), range-based precision/recall (Tatbul et al., NeurIPS 2018),
+> affiliation precision/recall (Huet et al., KDD 2022) and VUS-ROC/PR.
+>
+> This project follows their recommendation: **threshold-free metrics (AUROC/AUPRC) are the
+> primary ones, and `pa_f1` is reported only for comparability with the literature that still
+> uses it.** That is also why §1.5 notes PA-F1 often moving opposite to AUROC — a model firing
+> more broadly scores better on PA and worse on everything else. *None of this critique is a
+> contribution of this work; the citations are.* **Verify the references against the sources
+> before they go into the thesis** — they are recorded here from prior knowledge, not fetched.
+
+
 Every metric the evaluators produce, on the full unpartitioned test set. `sd` is that
 metric's own spread across three training seeds. A row marked **inside noise** has a
 base-to-joint gap smaller than three times its sd, so neither the gap nor its GRR means
@@ -608,6 +624,76 @@ correction is arithmetic over how many there are.
 The falling alignment is also the redundancy measurement
 [EXECUTION_PLAN.md §3.4](EXECUTION_PLAN.md) was designed to obtain,
 arriving here for free: more segments means more mutually orthogonal task vectors.
+### 1.16 Routing versus merging — is a router worth building?
+
+You end up holding several models: the base, one specialist per period, and the merge. Which
+do you use on new data? The transfer matrix answers the prior question directly, because its
+column minimum *is* the best possible router — pick, for every regime, whichever model turns
+out best on it. No real router beats that ceiling, so the distance from the merged model to it
+bounds what routing could ever gain.
+
+Measured at n = 5, ratio-to-base on each regime's held-out slice, with the merged model taken
+at its **validation-selected α**:
+
+| dataset | merged vs oracle router | newest specialist vs oracle |
+|---|---|---|
+| SWaT | **+6.2%** | +11.9% |
+| PSM | **+7.8%** | +15.7% |
+| ETTh1 | **+7.0%** | +37.0% |
+| exchange_rate | **+102.3%** | +318.0% |
+
+**On three of four datasets a perfect router would recover at most ~7%.** That does not justify
+storing n models and building selection logic that can itself be wrong — the answer to *"which
+model do I use"* is simply **the merged one**. On exchange_rate, where the merge sits 102% above
+the ceiling, routing has real headroom: the right specialist for a regime is about twice as good
+as the average of all of them.
+
+The split is the drift. exchange_rate's periods differ enough that a specialist is much better
+on its own period than any average; elsewhere the periods resemble each other and the average is
+nearly as good as the best individual.
+
+**Merging beats always-using-the-newest-specialist on all four datasets** — so if you keep one
+model, the merge is the right one, not the most recent.
+
+**On AD, routing is doubly unattractive:** little headroom, *and* no way to build it. A router
+must pick without labels, and §1.12 shows reconstruction does not track detection.
+
+> **Method note.** The first run of this analysis reported merged at +573% on SWaT. The AD
+> segment-sweep runs inherit `merge_scale=1.0` from the `noisefloor_*` configs, so at n = 5 that
+> is α·n = 5 — a fivefold overshoot, and the stored `merged` row was a wrecked model. Rebuilding
+> that row from the curve at α\* is what produces the table above. Any comparison involving a
+> merged model must fix α first.
+
+### 1.17 The n = 1 baseline — does merging beat *not splitting the data at all*?
+
+One fine-tune on the entire post-baseline block. No partitioning, no merging, same total data.
+This is the null hypothesis for the whole enterprise in a static setting, and it had never been
+run. Merged values at α\*; `n=1` is that run's `finetune_0` on the global test set.
+
+| dataset | n = 1 (unsplit) | best merge | difference | floor |
+|---|---|---|---|---|
+| SWaT | 0.7994 | 0.8013 | +0.24% | 0.13% |
+| PSM | 0.7898 | 0.7977 | +1.01% | 0.07% |
+| **ETTh1** | **0.4134** | 0.4517 | **−9.25%** | 8.20% |
+| exchange_rate | 0.2788 | 0.2554 | +8.38% | 5.29% |
+
+**Merging is not an accuracy win over training on the same data unsplit.** On ETTh1 the single
+fine-tune beats every merge by more than the noise floor. On the AD pair merging wins by margins
+that clear their very tight floors but are practically negligible (0.24%, 1.01%). Only
+exchange_rate — the most strongly drifting dataset — shows merging ahead by a margin that
+matters.
+
+**What this means for the thesis.** Merging's justification is **the streaming constraint**, not
+accuracy: data arrives over time and cannot be retained, so the unsplit fine-tune is not
+available. That is a perfectly good justification, and it is now stated with a number instead of
+assumed. Where merging *does* beat the unsplit baseline is exactly where the regimes differ most
+— consistent with §1.16, and with exchange_rate being the only dataset that also beats joint
+training.
+
+It also sharpens [THEORY.md §6.6](THEORY.md): if the optimal merge is always k·mean(τ), then at large n
+you are averaging n noisy estimates of largely one drift direction — merging may be **denoising a
+single update** rather than composing distinct knowledge. ETTh1 losing to n = 1 is what that
+would look like.
 ---
 
 ## 2. Exact configurations

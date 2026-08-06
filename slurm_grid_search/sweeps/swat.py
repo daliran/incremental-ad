@@ -77,6 +77,13 @@ _INCREMENTAL_EXTRA_ARGS = [
     "--finetune_trainer_learning_rate", "1e-5",
     "--finetune_trainer_grad_clip", "0.5",
     "--finetune_trainer_scheduler", "cosine",
+
+    # Fixed, not swept: merge_scale is applied after training, so sweeping it trained
+    # bitwise-identical checkpoints three times over. It cannot be selected on val here
+    # either -- the AD test metrics are rank-based and blind to the scale (EXPERIMENTS.md
+    # sec 1.3), so --pipeline_select_merge_scale_on_val refuses. This is the established
+    # alpha* for SWaT, which does not move across seeds (+/-0.000).
+    "--pipeline_merge_scale", "0.25",
 ]
 
 # patch_len must divide dataset_window_len=100 -- valid divisors used below: 5, 10, 20.
@@ -136,7 +143,6 @@ TRAIN_INCREMENTAL_SWEEP = Sweep(
     slurm=SlurmConfig(job_name="swat_train_inc", time="03:00:00"),
     trials=expand_trials(
         cross={
-            "pipeline_merge_scale": ["0.3", "0.5", "1.0"],
             "finetune_trainer_reg_lambda": ["0.0", "1e-3", "1e-2"],
         },
         one_at_a_time={

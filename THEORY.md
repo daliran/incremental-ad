@@ -19,18 +19,19 @@ overlap.
 ## Contents
 
 1. [The setup](#1-the-setup)
-2. [Three ways it can fail, and why they look identical](#2-three-ways-it-can-fail-and-why-they-look-identical)
-3. [The transfer matrix](#3-the-transfer-matrix)
-4. [Geometry](#4-geometry)
-5. [Overshoot and interference](#5-overshoot-and-interference)
-6. [Entanglement](#6-entanglement)
-7. [Metrics that cannot see what you are measuring](#7-metrics-that-cannot-see-what-you-are-measuring)
-8. [Versus sequential fine-tuning](#8-versus-sequential-fine-tuning)
-9. [What the three datasets said](#9-what-the-three-datasets-said)
-10. [A decision rule](#10-a-decision-rule)
-11. [What is established and what is not](#11-what-is-established-and-what-is-not)
-12. [Open questions](#12-open-questions)
-13. [Quick reference](#13-quick-reference)
+2. [Why time series are not image classification](#2-why-time-series-are-not-image-classification)
+3. [Three ways it can fail, and why they look identical](#3-three-ways-it-can-fail-and-why-they-look-identical)
+4. [The transfer matrix](#4-the-transfer-matrix)
+5. [Geometry](#5-geometry)
+6. [Overshoot and interference](#6-overshoot-and-interference)
+7. [Entanglement](#7-entanglement)
+8. [Metrics that cannot see what you are measuring](#8-metrics-that-cannot-see-what-you-are-measuring)
+9. [Versus sequential fine-tuning](#9-versus-sequential-fine-tuning)
+10. [What the datasets said](#10-what-the-datasets-said)
+11. [A decision rule](#11-a-decision-rule)
+12. [What is established and what is not](#12-what-is-established-and-what-is-not)
+13. [Open questions](#13-open-questions)
+14. [Quick reference](#14-quick-reference)
 
 ---
 
@@ -72,7 +73,57 @@ add arrows. Storage is one vector per regime, and adding a regime never touches 
 
 ---
 
-## 2. Three ways it can fail, and why they look identical
+## 2. Why time series are not image classification
+
+Task arithmetic was developed on image classification, where a task vector means *"the model
+learned a new class"*. Two such vectors point at largely unrelated things, so in a
+high-dimensional space they end up **near-orthogonal**, and adding them barely interferes.
+That near-orthogonality is doing quiet work in every result the method is famous for.
+
+Time series break the assumption in **both** directions, and which direction you get is a
+property of the data, not of the method:
+
+- **Stationary data** — consecutive periods are near-identical distributions, so *n* fine-tunes
+  learn one thing *n* times. The vectors are highly aligned, and adding them at full strength
+  travels *n* times too far in a direction only one step was needed in.
+- **Drifting data** — each period genuinely differs, so the vectors carry distinct information.
+  But they are still not orthogonal, because consecutive periods share most of their structure;
+  only *distant* ones diverge.
+
+Both are measured here. Subspace overlap ρ — the fraction of a new task vector already lying in
+the span of its predecessors — ranges from **0.607 on SWaT** (highly redundant updates) to
+**0.076 on ETTh1** (nearly new every time). And cosine between task vectors **decays with
+temporal distance**: 0.737 between adjacent periods on SWaT against 0.095 on ETTh1. Time really
+is the axis that separates them, which is the check that could have invalidated the whole
+framing and did not.
+
+### What follows from it
+
+**Non-orthogonality does not break merging. It sets the scale.**
+
+The merge is θ₀ + α·Στᵢ. If the vectors were orthogonal, their sum would be short relative to
+Σ‖τᵢ‖ and α ≈ 1 would be sensible — which is why the image-classification literature can often
+get away with it. When the vectors are aligned, the sum is nearly Σ‖τᵢ‖ long, and α = 1
+overshoots by roughly the number of vectors.
+
+That is exactly what the measurements show: **α\*·n is constant** (§6.6). Averaging rather than
+adding is the whole correction. And it holds at every shard count *because* alignment itself
+falls as shards get finer — on ETTh1, 0.824 at n = 2 down to 0.633 at n = 5 — while the vectors
+shrink in step, so ‖Στᵢ‖ stays nearly constant.
+
+Everything previously written up as *interference* and *forgetting* on these datasets was this
+scale error. The residual interference at α\* is small.
+
+### The practical consequence
+
+For time series you cannot inherit α = 1 from the image-classification setting, and you cannot
+assume orthogonality buys you free composition. What you can do is simpler: **average the task
+vectors**, and expect a dataset-level constant of order 1 in front of the mean (1.0 on SWaT, PSM
+and ETTh1; ≈1.5 on exchange_rate, the most strongly drifting).
+
+---
+
+## 3. Three ways it can fail, and why they look identical
 
 A training run produces two numbers you care about: how θ₀ does, and how θ_merged does.
 Suppose merging doesn't help. **Three unrelated worlds produce that same signature:**
@@ -88,13 +139,13 @@ pointless; degeneracy says go fix training. Nothing a normal run records disting
 that gap is what the transfer matrix exists to close.
 
 *(A fourth possibility, discovered later and not on this list originally: the merge scale is
-simply wrong. On these datasets that turned out to be the dominant one — see §5.)*
+simply wrong. On these datasets that turned out to be the dominant one — see §6.)*
 
 ---
 
-## 3. The transfer matrix
+## 4. The transfer matrix
 
-### 3.1 The missing measurement
+### 4.1 The missing measurement
 
 > **θ₀ + τᵢ, evaluated on segment j, for j ≠ i.**
 
@@ -103,7 +154,7 @@ just made the model better at everything. You cannot separate them without testi
 segments it never saw — and a training run structurally cannot produce that number, because it
 only ever scores each specialist on its own segment. **That off-diagonal is the entire point.**
 
-### 3.2 Construction
+### 4.2 Construction
 
 Training-free: reload checkpoints that already exist and re-score them.
 
@@ -121,7 +172,7 @@ wrote, verified across all 60 runs on disk.
 (training data carries no labels, so AUROC is undefined there), MSE for forecasting. Lower is
 better; 1.00 means indistinguishable from base.
 
-### 3.3 How to read it
+### 4.3 How to read it
 
 Using PSM, at the validation-selected scale:
 
@@ -138,7 +189,7 @@ Read **down a column** = on this fixed data, which model wins? Read **across a r
 fixed model, where does it help?
 
 **(a) Is the diagonal the column minimum?** `ft_i` on `val_i` is a specialist at home. If it
-doesn't win its own column, it didn't specialise — *subject to the caveat in §3.5*.
+doesn't win its own column, it didn't specialise — *subject to the caveat in §4.5*.
 
 **(b) Is the diagonal better than the off-diagonal on average?** That difference is
 `specialisation`; positive means home beats away.
@@ -150,7 +201,7 @@ never at α = 1 (§5).
 **(d) What happened to `val_base`?** Nobody fine-tuned on the early regime, so this is the
 forgetting column.
 
-### 3.4 The ideal matrix
+### 4.4 The ideal matrix
 
 The ideal is **good at home, neutral away** — *not* good at home and bad elsewhere. Bad
 elsewhere is damage: it means adding several vectors makes each wreck the others' turf.
@@ -167,7 +218,7 @@ merged   0.60    0.60    0.60     <- the target: merged == diagonal
 Two separate properties: the specialist rows are **local** (safe to add), and the merged row
 **equals the diagonal** (combining cost nothing).
 
-### 3.5 Two biases in the matrix, pointing opposite ways
+### 4.5 Two biases in the matrix, pointing opposite ways
 
 **Selection bias inflates the diagonal.** Each fine-tune is early-stopped on its own
 segment's validation slice, so `ft_i` was *chosen* using `val_i`.
@@ -182,7 +233,7 @@ windows share 119 of 120 timesteps, so a random split would leak almost entirely
 split is the correct design**; the bias is a limitation to document. Net effect: the
 off-diagonal is inflated, so `specialisation` **understates** the truth.
 
-### 3.6 Merge cost
+### 4.6 Merge cost
 
 The price of one model instead of *n*: the merged model's error on a segment ÷ the error of
 that segment's own specialist. **1.00× means merging is free.**
@@ -197,11 +248,11 @@ On PSM and ETTh1 the interval contains 1.00 — **merging is free**.
 
 ---
 
-## 4. Geometry
+## 5. Geometry
 
 Measured from the weights alone: no GPU, no dataset, seconds.
 
-### 4.1 Three separate quantities
+### 5.1 Three separate quantities
 
 **Direction — cosine similarity.** The angle between τᵢ and τⱼ, magnitude divided out.
 
@@ -214,7 +265,7 @@ arrows really occupy?"
 Plus **cosine vs temporal distance**: if similarity decays as segments get further apart, time
 is what differentiates the vectors — the check that could have invalidated the whole framing.
 
-### 4.2 Pairwise cosine is the wrong statistic; subspace overlap is the right one
+### 5.2 Pairwise cosine is the wrong statistic; subspace overlap is the right one
 
 In very high dimensions two *random* vectors are almost always near-orthogonal, which invites
 "if orthogonality is free, why discuss it?" The objection is right about the statistic and
@@ -241,7 +292,7 @@ PSM 0.466 → 0.265, ETTh1 0.253 → 0.213. The framing survives.
 **Effective rank conflates direction and magnitude** — a low value can mean "two vectors are
 parallel" *or* "one vector is dead". Always read it with the norms.
 
-### 4.3 What geometry is for
+### 5.3 What geometry is for
 
 It does **not** predict outcome reliably, and that is not its job. Four reasons it earns its place:
 
@@ -254,11 +305,11 @@ It does **not** predict outcome reliably, and that is not its job. Four reasons 
    training loss; you cannot differentiate through "merge, then evaluate on n held-out slices".
 4. **Whether it predicts outcome is itself the research question** — and the current answer,
    "not reliably", is the concrete evidence for the caveat that parameter-space cosine is not
-   weight disentanglement (§6.3).
+   weight disentanglement (§7.3).
 
 ---
 
-## 4.4 The regime indicator — measuring novelty exactly
+### 5.4 The regime indicator — measuring novelty exactly
 
 ### What it is
 
@@ -298,7 +349,15 @@ information but contributes its full magnitude to that stacking. So:
 
 That is the reasoning behind an *accumulate versus materialise* rule.
 
-### What it actually does — 3 of 4
+### What it actually does — 3 of 4, and then not at all
+
+> **Read this subsection as history.** ρ was tested on four datasets at one segment count
+> each, where it scored 3 of 4. The segment sweep later raised the sample to **nine decisive
+> configurations** and found that **no cheap signal separates the outcomes beyond chance** —
+> and, more fundamentally, that the outcome is not a property of a dataset at all: it flips
+> with the segment count on exchange_rate. The measurements below are correct and still worth
+> understanding, because the *reasoning* about the two routes survives; the 3-of-4 hit rate
+> does not. EXPERIMENTS.md §1.14.
 
 | dataset | per-step ρ and new component | ρ predicts | actual winner on new segments |
 |---|---|---|---|
@@ -315,7 +374,8 @@ most decisive merge win (0.331 ±0.034 against sequential's
 
 exchange_rate is also the dataset with the **largest headroom** (43.8% base-to-joint) and
 the **strongest input drift**, and it is the only one where the merge beats *joint training*
-outright (GRR 1.218 ±0.081). That points at a second, independent route by
+outright (GRR 1.164 ±0.099 at n = 3 with α chosen on validation, and above 1.0 at every
+segment count). That points at a second, independent route by
 which merging can win:
 
 - **Route 1 — redundancy.** Updates repeat each other, sequential training drifts cumulatively
@@ -328,24 +388,28 @@ which merging can win:
 
 So ρ is a **sufficient** condition for one route and blind to the other. A usable controller
 would need at least a headroom term alongside it — and headroom is not cheaply observable
-online, since measuring it is what joint training does.
+online, since measuring it is what joint training does. The larger sweep tested exactly that:
+headroom, α\*·n, merge cost and n itself were each given a threshold and asked to separate the
+nine decisive configurations. **None does.**
 
 ### The practical alternative
 
 Because merging is training-free, you rarely need to *predict* this. After each segment,
 build both candidates and score them on the held-out slices you have already accumulated:
 that measures the decision criterion directly rather than inferring it from a proxy validated
-on four points. See §8.
+on four points. See §9.
 
 The exception is unsupervised anomaly detection, where those accumulated slices carry no
-labels, so you can only measure reconstruction — and §7.3 shows reconstruction and detection
-come apart. There, a cheap proxy is all you have, and ρ being only 3-of-4 is a real problem.
+labels, so you can only measure reconstruction — and §8.3 shows reconstruction and detection
+come apart. There, a cheap proxy is all you have, and no proxy has been found. That is the
+strongest argument for a merging method that needs no coefficient at all
+(EXECUTION_PLAN.md §4.5).
 
 ---
 
-## 5. Overshoot and interference
+## 6. Overshoot and interference
 
-### 5.1 Aligned, orthogonal, anti-aligned
+### 6.1 Aligned, orthogonal, anti-aligned
 
 **Orthogonal** is the dream: each arrow occupies its own direction, ‖Στ‖ = √(Σ‖τᵢ‖²), and
 adding costs nothing. **Aligned arrows stack**: as cosine → 1, ‖Στ‖ → Σ‖τᵢ‖. **Anti-aligned
@@ -354,7 +418,7 @@ arrows cancel** and you lose both.
 Where the real vectors sit on SWaT: ‖Στ‖ = 1.854 against 1.192 if orthogonal and 2.023 if
 perfectly aligned — **92% of the fully-aligned bound**. Almost nothing cancels.
 
-### 5.2 The distinction that matters
+### 6.2 The distinction that matters
 
 > total merge cost = **overshoot** (curable by scaling α) + **irreducible interference**
 > (what remains at α\*)
@@ -367,7 +431,7 @@ Two different failures of the same assumption, with very different implications:
 is a magnitude error and a scalar fixes it; conflict is a direction error and no scaling
 saves you.**
 
-### 5.3 Measured: it is almost all overshoot
+### 6.3 Measured: it is almost all overshoot
 
 Tracing the **validation block** (actual model quality) against α separates them. If the
 merged curve descends to the diagonal, the cost was overshoot; if it plateaus above, the
@@ -391,18 +455,18 @@ the vectors agree that summing overshoots. Non-orthogonality does not make mergi
 dictates a smaller α. The ordering holds: the most collinear dataset needs the smallest scale
 (SWaT 0.25), the least collinear the largest (PSM 0.5).
 
-### 5.4 Remedies
+### 6.4 Remedies
 
 | technique | fixes | relevant here? |
 |---|---|---|
 | **Global α** | pure magnitude | yes, and proven — this is the whole finding |
-| **α = 1/n** (average, not sum) | magnitude, natural default when aligned | a sane prior |
+| **α = 1/n** (average, not sum) | magnitude, natural default when aligned | **measured correct** — see §6.6 |
 | **Per-vector normalisation** | *imbalance* between vectors | when norms differ a lot |
 | **Norm-matching the sum** analytically | magnitude | gives roughly the right range but **does not** predict the measured optimum; sweep and measure |
 | **Strip the shared component** — apply it once, keep residuals at full strength | alignment specifically | aimed at SWaT's actual pathology |
 | **TIES / DARE** | conflict, redundancy | targets conflict more than overshoot |
 
-### 5.5 Making specialists more ideal
+### 6.5 Making specialists more ideal
 
 - **Split at change-points, not equal time slices.** Equal chunks of near-stationary data are
   near-identical distributions, so *n* fine-tunes learn one thing *n* times. This attacks the
@@ -416,15 +480,52 @@ L2-SP is *not* this: it shrinks all arrows toward zero rather than making them d
 
 ---
 
-## 6. Entanglement
+### 6.6 The optimal merge is the *mean* task vector
 
-### 6.1 The definition
+The remedy table lists α = 1/n as a sane prior. It is better than that: it is what the data
+says, and it is the cleanest quantitative result in the project.
+
+Sweeping the number of segments n ∈ {2, 3, 5} on four datasets and selecting α on validation
+at each, the product **α\*·n is constant within a dataset**:
+
+| dataset | α\* at n=2 | n=3 | n=5 | α\*·n |
+|---|---|---|---|---|
+| SWaT | 0.50 | 0.25 | 0.25 | 1.00 / 0.75 / 1.25 |
+| PSM | 0.50 | 0.38 | 0.25 | 1.00 / 1.12 / 1.25 |
+| ETTh1 | 0.50 | 0.30 | 0.20 | 1.00 / 0.90 / 1.00 |
+| exchange_rate | 0.70 | 0.53 | 0.30 | 1.40 / 1.60 / 1.50 |
+
+Why that is a statement about the *mean*: the merge is θ₀ + α·Στᵢ. Write α = k/n and it
+becomes θ₀ + k·(Στᵢ)/n = θ₀ + k·**mean**(τ). A constant α·n = k says the best merge always
+steps a fixed multiple k of the *average* task vector — k ≈ 1 on three datasets, ≈1.5 on
+exchange_rate — no matter how many vectors are being averaged.
+
+**Why it is not just "the vectors got smaller".** Individual task vectors *do* shrink as
+segments shrink (ETTh1 mean ‖τᵢ‖: 1.85 → 1.53 → 1.10). If α\* were compensating for
+magnitude it would have to **grow** as ‖τ‖ falls. It falls instead, as 1/n. Meanwhile ‖Στᵢ‖
+stays nearly constant (3.05 → 3.39 → 3.49), because the vectors get smaller *and* less
+mutually aligned (0.824 → 0.737 → 0.633) and the two effects cancel. So α\* tracks the
+**count**, not the size.
+
+**The caveat to hold.** The sweep varied n with the baseline fixed at 50%, so segment size
+fell as 1/n — count and size moved together. The geometry above argues the effect is
+count-driven, but the clean control (hold segment size fixed, vary n by moving the baseline
+fraction) has not been run. See EXECUTION_PLAN.md §4.1.
+
+**What this buys.** If it holds under that control, the merge scale stops being a
+hyperparameter: use the mean, scaled by one dataset-level constant. On AD, where §8.4 shows α
+cannot be tuned honestly at all, that would be the difference between a method you can deploy
+and one you cannot.
+
+## 7. Entanglement
+
+### 7.1 The definition
 
 A model is **weight-disentangled** with respect to a set of task vectors when, on inputs
 belonging to task *i*, the model with *all* vectors applied behaves the same as the model with
 *only* τᵢ applied. Adding the others doesn't disturb what τᵢ does on its own turf.
 
-### 6.2 It is a comparison, not a cell value
+### 7.2 It is a comparison, not a cell value
 
 **The trap:** a small cell means the model is *good in absolute terms* on that column.
 Entanglement is a *comparison*. The measure is
@@ -449,7 +550,7 @@ follows mechanically from α\* < 1: scaling down shrinks *every* vector, and the
 sits furthest from θ₀, so it is the one that most needed its own vector at full strength.
 **The newest regime pays for the merge.**
 
-### 6.3 Why cosine is not disentanglement
+### 7.3 Why cosine is not disentanglement
 
 Two arrows can be orthogonal in parameter space and still fight in function space, because
 what matters is whether they change the model's behaviour **on the same inputs**. Parameter
@@ -458,14 +559,14 @@ truth*; whether the proxy predicts the truth is an open question currently answe
 
 ---
 
-## 7. Metrics that cannot see what you are measuring
+## 8. Metrics that cannot see what you are measuring
 
-### 7.1 The observation
+### 8.1 The observation
 
 On SWaT at α = 1.0 the merged model's reconstruction error is nearly **5× worse** on the base
 regime — and its AUROC goes **up** by 0.09%.
 
-### 7.2 The resolution
+### 8.2 The resolution
 
 **Every test metric in these runs is invariant to a monotone rescaling of the scores.** AUROC
 and AUPRC are rank-based; the runs use `threshold_strategy=oracle`, which sweeps each metric's
@@ -480,7 +581,7 @@ the second alone.
 **The lesson generalises:** before concluding "X had no effect", check whether the metric is
 *capable* of registering X.
 
-### 7.3 Why improving reconstruction does not improve AUROC
+### 8.3 Why improving reconstruction does not improve AUROC
 
 Careful: AUROC is invariant to *rescaling*, not to model improvement in general. The deeper
 reason is different:
@@ -492,13 +593,13 @@ A better autoencoder reconstructs **everything** better, anomalies included, so 
 stay flat while every raw number improves. Like making a smoke alarm's sensor more sensitive:
 useless if it becomes equally more sensitive to burnt toast and to real fires.
 
-### 7.4 The consequence: α cannot be tuned honestly in unsupervised AD
+### 8.4 The consequence: α cannot be tuned honestly in unsupervised AD
 
 To pick a merge scale defensibly you need a signal that tracks the metric you will report and
 is not the test set. For **forecasting** that exists — validation and test are both MSE.
 
 For **anomaly detection it does not**: validation measures reconstruction, the test metric
-measures detection, §7.3 is exactly the statement that these come apart, and you cannot select
+measures detection, §8.3 is exactly the statement that these come apart, and you cannot select
 on test because that is selecting on the number you report. The reason there is no third
 option is structural:
 
@@ -506,15 +607,37 @@ option is structural:
 > setup. So there is no held-out set on which detection can be measured.
 
 **Practical rule: select α on validation for forecasting; use a fixed, pre-declared α for AD.**
-This is more defensible than it sounds, because **α\* does not move across seeds** on either AD
-dataset (0.250 ±0.000 and 0.500 ±0.000) — the optimum is a stable property, not a
-per-run accident.
+The stability helps — **α\* does not move across seeds** on either AD dataset — but it does not
+rescue the situation, and the segment sweep measured how badly.
+
+The two optima do not merely differ in principle; they point to different values:
+
+| dataset | α minimising validation reconstruction | α maximising test AUROC |
+|---|---|---|
+| SWaT | 0.50 | ≥1.50 — AUROC rises monotonically past the grid edge |
+| PSM | 0.50 | 0.75 |
+
+Choosing α on validation therefore costs **22–99% of the achievable GRR on AD**, against
+**1–8% on forecasting** (EXPERIMENTS.md §1.12). And AUROC is not insensitive to α — it moves
+6× the noise floor on SWaT and 85× on PSM. It moves in a direction validation cannot see.
+
+Note what the SWaT row means concretely: at α = 1.5 the merged model reconstructs 2.5× worse
+than at its validation optimum, and detects *better*. **A model that reconstructs badly can
+separate anomalies well.** Reconstruction level is simply not the quantity detection depends
+on — the score *distribution* is.
+
+That last observation is the one opening left. Mean reconstruction error throws away exactly
+the information detection uses. A spread statistic on the validation scores — p99/p50, std,
+kurtosis — might have its optimum where AUROC does, and those columns are already recorded in
+every curve, so it is analysis rather than new training (EXECUTION_PLAN.md §4.2). If none of
+them works, the honest conclusion is that **unsupervised AD cannot tune the merge scale**, and
+needs a coefficient-free merging method instead.
 
 ---
 
-## 8. Versus sequential fine-tuning
+## 9. Versus sequential fine-tuning
 
-### 8.1 The comparison that matters
+### 9.1 The comparison that matters
 
 Everything above compares merging against the *frozen base* and against *joint training*.
 Neither is what a practitioner would do. The obvious alternative is **sequential fine-tuning**:
@@ -530,11 +653,12 @@ are no comparable task vectors and task arithmetic does not apply to them at all
 | PSM | 0.226 | **0.702 ±0.013** | 0.759 | **sequential** | 1.159 ±0.024 | 1.139 | *tie* |
 | ETTh1 | 0.076 | **0.560 ±0.038** | 0.705 | **sequential** | 1.110 ±0.143 | 0.967 | *tie* |
 
-**It is a stability/plasticity trade, and merging wins outright only on SWaT.** Sequential
+**It is a stability/plasticity trade, and which side wins depends on the segment count, not
+only on the dataset** (EXPERIMENTS.md §1.13). Sequential
 fine-tuning is more *plastic* — it adapts harder to the new segments on PSM and ETTh1. Merging
 is more *stable*, but demonstrably so only on SWaT; elsewhere the old-regime intervals overlap.
 
-### 8.2 Forgetting tracks how much the updates repeat each other
+### 9.2 Forgetting tracks how much the updates repeat each other
 
 Base-regime ratio after each sequential step (>1 = worse than the model you started with):
 
@@ -550,7 +674,7 @@ Base-regime ratio after each sequential step (>1 = worse than the model you star
 > most repeat each other** — the opposite of the intuition that redundant updates make merging
 > pointless.
 
-### 8.3 Two explanations, not separable here
+### 9.3 Two explanations, not separable here
 
 **Redundancy.** SWaT's updates repeat each other (ρ = 0.607), so sequential training drifts
 cumulatively in one consistent direction. Merging applies that same drift scaled by α\*, which
@@ -566,7 +690,7 @@ and *redundant updates* simultaneously, which none of these provides.
 
 ---
 
-## 9. What the three datasets said
+## 10. What the datasets said
 
 | | SWaT | PSM | ETTh1 |
 |---|---|---|---|
@@ -594,7 +718,7 @@ as ratios.
 
 ---
 
-## 10. A decision rule
+## 11. A decision rule
 
 Derived from the results above, at three seeds per dataset. **Treat it as a hypothesis**:
 three datasets, two of them saturated, so roughly one informative case per branch.
@@ -624,7 +748,7 @@ nothing has measured it yet.
 
 ---
 
-## 11. What is established and what is not
+## 12. What is established and what is not
 
 ### Established
 
@@ -632,25 +756,32 @@ nothing has measured it yet.
   positive `specialisation` on all three rule out redundancy and degenerate fine-tuning as the
   global explanation.
 - **The vectors are substantially aligned**, and alignment decays with temporal distance.
-- **Merging is essentially free at the right scale** — merge cost intervals containing 1.00 on
-  PSM and ETTh1.
+- **Merging is essentially free at the right scale** — merge cost ~1.0–1.1× on SWaT, PSM and
+  ETTh1, and **flat as the segment count grows** (n = 2, 3, 5).
 - **What looked like interference at α = 1.0 was overshoot.** Residual interference is small
   and concentrated on the newest segment.
-- **α\* is stable across seeds** on both AD datasets, which is what makes a pre-declared α
-  defensible there.
-- **Merging beats sequential fine-tuning outright only on SWaT**, the dataset whose updates
-  most repeat each other.
-- **The merge is bitwise reproducible** — all 60 merged checkpoints recompute exactly.
+- **α\* is stable across seeds** on every dataset — exactly, at every segment count on the
+  forecasting pair.
+- **α\*·n is constant**, so the optimal merge is a fixed multiple of the *mean* task vector
+  (§6.6). Subject to the count-vs-size control in EXECUTION_PLAN.md §4.1.
+- **Validation cannot select α on AD.** The val and test optima point to different values, and
+  choosing on validation costs 22–99% of achievable GRR there against 1–8% on forecasting
+  (§8.4).
+- **The merge is bitwise reproducible** — all 71 merged checkpoints recompute exactly.
 
 ### Not established — do not claim these
 
-- **That merging protects the base regime on all three datasets.** With error bars it does so
+- **That merging protects the base regime on all datasets.** With error bars it does so
   only on SWaT; elsewhere the intervals overlap.
-- **That geometry predicts outcome.** Two or three usable points, correctly ordered, is not
-  evidence.
+- **That geometry — or anything else — predicts the outcome.** Tested at nine decisive
+  configurations: no signal separates them beyond chance (EXPERIMENTS.md §1.14).
+- **That merge-vs-sequential is a property of a dataset.** It flips with the segment count.
+- **That GRR degrades as segments accumulate.** An intermediate reading said so; under uniform
+  α it holds only on PSM. Withdrawn.
 - **That redundancy or headroom is *the* driver of forgetting.** Both explain all three
   datasets equally well.
-- **Anything from SWaT's test column.** Most of its metrics are inside their own noise floor.
+- **Anything from SWaT's test column.** Most of its metrics are inside their own noise floor,
+  and its base-to-joint gap of 0.0095 AUROC makes its GRR ill-conditioned.
 - **Anything about weight disentanglement from cosine numbers** — different quantity.
 
 ### The one-sentence version
@@ -663,7 +794,7 @@ nothing has measured it yet.
 
 ---
 
-## 12. Open questions
+## 13. Open questions
 
 1. **Does the merged model handle a regime nobody fine-tuned on**, better than the newest
    specialist? This is the case merging is actually for, and it is unmeasured.
@@ -678,7 +809,7 @@ nothing has measured it yet.
 
 ---
 
-## 13. Quick reference
+## 14. Quick reference
 
 ### Symbols
 

@@ -9,6 +9,14 @@
 #SBATCH --time=04:00:00
 #SBATCH --output=/work/tesi_ddellacasaventurelli01/incremental-ad/logs/job_%j.log
 #SBATCH --error=/work/tesi_ddellacasaventurelli01/incremental-ad/logs/job_%j.log
+# Every GPU on the partition EXCEPT gpu_RTXPro6000B_96G (nodes aldo, giacomo, giovanni).
+# Those are Blackwell, sm_120, and the pinned torch 2.5.1+cu121 ships no kernel for it --
+# a job that lands there dies at the first CUDA launch with "no kernel image is available
+# for execution on the device", after allocating and looking healthy for ~30s.
+# Listed positively because SLURM constraints have no negation, and because this cluster
+# rejects --exclude outright ("using --exclude is deprecated. Use --constraint instead").
+# Drop this line only after torch is rebuilt for sm_120.
+#SBATCH --constraint=gpu_L40S_45G|gpu_A40_45G|gpu_RTX_A5000_24G|gpu_RTX6000_24G|gpu_RTX5000_16G|gpu_2080Ti_11G|gpu_2080_11G|gpu_1080_8G
 
 set -euo pipefail
 

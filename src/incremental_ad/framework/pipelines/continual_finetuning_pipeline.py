@@ -200,7 +200,10 @@ class ContinualFineTuningPipeline(Pipeline):
         results[-1].write(step_dir)
 
         # theta_0 kept on CPU: it is the L2-SP anchor and the ratio reference for the matrix.
-        baseline_state = {k: v.cpu() for k, v in model.state_dict().items()}
+        # clone() is load-bearing: Tensor.cpu() returns *self* for a tensor already on CPU,
+        # so without it the anchor aliases the live parameters and follows the model as it
+        # is fine-tuned — making theta_0 track theta_t and the L2-SP penalty vanish.
+        baseline_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
         eval_started = datetime.now(timezone.utc)
         matrix[0] = self._eval_all_columns(context, columns)
@@ -232,7 +235,7 @@ class ContinualFineTuningPipeline(Pipeline):
             reference = (
                 baseline_state
                 if self.anchor_to_baseline
-                else {k: v.cpu() for k, v in model.state_dict().items()}
+                else {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
             )
 
             summary = self.finetune_trainer.fit(

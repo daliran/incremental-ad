@@ -11,47 +11,55 @@ used the `val_fraction` setting that leaves one task vector untrained. The per-t
 remain under `$SLURM_GRID_OUTPUT_ROOT` if any of it is ever needed.
 
 Companion documents: [THEORY.md](THEORY.md) explains the theory
-and reasoning; [EXECUTION_PLAN.md](EXECUTION_PLAN.md) tracks what is done and what is next.
-The commands for reproducing any of this are in THEORY.md §13.
+and reasoning; [EXECUTION_PLAN.md](EXECUTION_PLAN.md) tracks what is done and what is next,
+and states the five research questions this project exists to answer.
 
-Snapshot 2026-08-05: **four datasets**, three training seeds each for the diagnostics, the
-continual arm and the joint-training reference.
+**Which question each section serves.** *Does task arithmetic work when shards are not
+orthogonal?* — §1.11, §1.15, with the argument in [THEORY.md §2](THEORY.md). *Merging or
+continual fine-tuning?* — §1.13, §1.14. *How large should a shard be?*, *accumulate or
+materialise?*, and *how to choose among materialised models?* are **not answered here** — no
+experiment in this file materialises a second model or asks which shard count is best. See
+EXECUTION_PLAN.md §3.1–§3.3.
+The commands for reproducing any of this are in THEORY.md §14.
+
+Snapshot 2026-08-06: **four datasets × three segment counts** (n = 2, 3, 5), three training
+seeds each on the forecasting datasets and one on the AD datasets, for the merge arm, the
+sequential arm and the joint-training reference.
 
 ## TL;DR
 
 - **Merging is essentially free once the scale is right.** One merged model performs within
-  **1.008 ±0.020×** (PSM), **1.007 ±0.026×** (ETTh1) and **1.014 ±0.103×** (exchange_rate) of
-  keeping a separate specialist per regime — every interval contains 1.00. SWaT pays
-  1.079 ±0.002×.
+  ~1.0–1.1× of keeping a separate specialist per regime, on SWaT, PSM and ETTh1 — and this
+  holds at **every segment count tested** (§1.11). exchange_rate is the outlier at 1.6–2.1×.
+- **The optimal merge is the *mean* of the task vectors.** α\*·n is constant within each
+  dataset: ≈1.0 on SWaT, PSM and ETTh1, ≈1.5 on exchange_rate, across n = 2, 3, 5. Since the
+  merge is θ₀ + α·Στᵢ, constant α·n means a fixed multiple of the arithmetic mean regardless
+  of how many vectors there are. Every seed agrees exactly. §1.11
 - **On the most strongly drifting dataset, merging beats training on all the data at once.**
-  exchange_rate: GRR **1.218 ±0.081**, with the interval excluding 1.0. Joint training weights
-  every regime equally; base + task vectors does not.
+  exchange_rate GRR **1.421 / 1.164 / 1.238** at n = 2 / 3 / 5, all above 1.0, all with α
+  chosen on validation rather than test.
 - **What used to look like interference was a scale error.** Every result before 2026-08-05
   merged at α = 1.0. The task vectors mostly agree, so summing them at full strength
-  overshoots. At the validation-selected α\* the damage disappears, and so does the
-  "forgetting" that was previously reported.
-- **Against joint training:** exchange_rate exceeds it (1.218); PSM matches it (0.857);
-  ETTh1 recovers 77%; SWaT cannot answer the question — a frozen base on half its data is
-  already within 1.1% of training on everything.
-- **Against sequential fine-tuning it is a stability/plasticity trade, and merging wins
-  outright only on SWaT.** Elsewhere sequential adapts better to new periods and the
-  old-regime difference sits inside seed noise. Merging's advantage appears exactly where the
-  updates repeat each other most.
-- **The AD detection metrics cannot see model quality** — rank-based and oracle-thresholded,
-  so a 5× change in reconstruction moved SWaT's AUROC by 0.008. A consequence with teeth:
-  **in unsupervised AD the merge scale cannot be tuned honestly**, because the only signal
-  that tracks detection is the test set. Fortunately α\* is stable across seeds (±0.000 on
-  both AD datasets), so a pre-declared value is defensible.
-- **A cheap regime indicator exists but is not sufficient.** ρ — how much of a new task
-  vector already lies in the span of the previous ones — predicts the merge-vs-sequential
-  outcome on 3 of 4 datasets and **fails on exchange_rate**, which has the lowest ρ and the
-  most decisive merge win. §1.7.
+  overshoots. At α\* the damage disappears, and so does the "forgetting" once reported.
+- **In unsupervised AD the merge scale cannot be chosen honestly.** Validation reconstruction
+  and test AUROC disagree about α — SWaT's val optimum is 0.5 while AUROC improves
+  monotonically to 1.5 — so selecting on validation costs **22–99%** of the achievable GRR on
+  AD, against **1–8%** on forecasting. Every AD merge number in this file is oracle-selected.
+  §1.12
+- **Merge versus sequential is not a property of a dataset.** It flips with segment count:
+  exchange_rate favours sequential at n=2 and merging by +38% at n=5. §1.13
+- **No regime predictor exists at n = 9.** Nine decisive configurations, split 5 merge / 4
+  sequential; no cheap signal separates them beyond chance. The original question was
+  mis-posed — any predictor needs the segment count among its inputs. §1.14
+- **Task vectors shrink and de-align as segments multiply** (ETTh1: mean ‖τ‖ 1.85 → 1.10,
+  alignment 0.824 → 0.633, while ‖Στ‖ stays flat), which is what proves α\* tracks the
+  *count* rather than the vector magnitude. §1.15
 - **The reproducibility floor is dataset-specific:** PSM 0.07%, SWaT 0.13%, exchange_rate
   5.29%, ETTh1 8.20%. The universal 2% assumption previously used was wrong in both directions.
 
 ---
 
-## 1. Current results — complete snapshot (2026-08-05)
+## 1. Current results — complete snapshot (2026-08-06)
 
 Everything in this section is the **current** state at three training seeds per dataset.
 It is self-contained: every number needed to reason about the results is here, so no run
@@ -79,10 +87,18 @@ sees 100% of the training data. All partitions hold out the same `val_fraction`.
 Diagnostics are **training-free**: they reload existing checkpoints and re-score them. All
 60 merged checkpoints on disk reproduce **bitwise** from their base + fine-tunes.
 
-### 1.2 Headline
+### 1.2 Headline — n = 3
 
 **Merge cost** = merged error ÷ the error of that shard's own specialist, averaged over the
 three shards. **1.00× means merging costs nothing** relative to keeping one model per regime.
+
+> **Scope and convention.** This section is the n = 3 slice, and it selects α on the
+> validation *block* — the mean of the per-shard ratios. §1.11 covers n = 2, 3, 5 and pools
+> the validation union by `n_windows` instead, which is what the pipeline itself now does.
+> The two conventions give slightly different α (exchange_rate 0.43 here, 0.53 there) and so
+> slightly different merge costs (ETTh1 1.007 here, 1.080 there). Neither is wrong; they
+> answer "best on average across shards" versus "best on the pooled data". **Quote §1.11 for
+> anything compared across segment counts, and this section only for the n = 3 detail.**
 
 | | merge cost @ α=1.0 | merge cost @ α\* | α\* | old regime @ α=1.0 | old regime @ α\* |
 |---|---|---|---|---|---|
@@ -266,7 +282,7 @@ anything.
 
 *0 of 3 metrics are inside their own noise floor.*
 
-### 1.6 Versus sequential fine-tuning
+### 1.6 Versus sequential fine-tuning — validation block, n = 3
 
 `ContinualFineTuningPipeline`: θ₀ → seg 0 → seg 1 → seg 2, each step from the *previous*
 model. A genuinely different method — sequential models share no common base, so task
@@ -279,8 +295,9 @@ arithmetic does not apply to them at all.
 | **ETTh1** | 0.076 | 0.560 ±0.038 | 0.705 ±0.019 | **sequential** | 1.110 ±0.143 | 0.967 ±0.029 | *tie* |
 | **Exchange** | 0.117 | 0.474 ±0.061 | 0.331 ±0.034 | **merge** | 0.847 ±0.076 | 0.835 ±0.068 | *tie* |
 
-**Merging wins outright only on SWaT.** On PSM and ETTh1 sequential fine-tuning adapts
-better to the new periods and the old-regime difference is inside seed noise.
+**Merging wins outright only on SWaT** — *at n = 3, on the validation block*. §1.13 repeats
+this comparison on the test set across n = 2, 3, 5 and finds the winner changes with the
+segment count, so read this row as one slice rather than a dataset property.
 
 Forgetting under sequential fine-tuning, base-regime ratio after each step:
 
@@ -297,6 +314,12 @@ other most (highest ρ), *and* SWaT's base is already at its ceiling so extra tr
 only move it. ETTh1 is the opposite on both counts.
 
 ### 1.7 Regime indicator — accumulate, or materialise a new model?
+
+> **Superseded by §1.14.** This section reports the indicator as it stood at four
+> single-`n` datapoints. The segment sweep raised that to nine decisive configurations and
+> found no predictor, and showed the outcome is not a property of a dataset at all — so ρ's
+> 3-of-4 hit rate below should be read as the observation that motivated the larger test,
+> not as a result. The measurements themselves are unchanged and still correct.
 
 Computed from the weights alone, after each segment is fine-tuned and *before* deciding
 whether to fold it in. **ρ_k** is the fraction of τ_k's energy already inside
@@ -365,6 +388,219 @@ about 4% across the same seeds, because dividing by a run's own base model cance
 shared variance. Two rules follow: **report ETTh1 as ratios**, and **treat ETTh1's GRR as
 fragile** since GRR mixes a base model from one run with a `standard` model from another.
 
+### 1.10 What honest α selection costs — forecasting, n = 3
+
+Every α\* elsewhere in this file is read off the merge-scale curve's **test** column, so it
+is an *oracle* value: obtaining it required seeing the test set. The deployable alternative
+is to select α on the merged-val union, which the pipeline now supports
+(`--pipeline_select_merge_scale_on_val`, EXECUTION_PLAN.md §2.9). This section measures the
+gap between the two, so the honest number is on record next to the oracle one.
+
+Computed from the existing diagnostics curves — `val_base`, `val_0`, `val_1`, `val_2` pooled
+by `n_windows` to reconstruct the union the selector actually sees. Forecasting only; the AD
+metrics are blind to α (§1.3), which is why the flag refuses there.
+
+| run | val-picked α | test-optimal α | test MSE @ val-α | @ test-α | penalty |
+|---|---|---|---|---|---|
+| ETTh1 seed 7 | 0.30 | 0.50 | 0.4794 | 0.4500 | 6.54% |
+| ETTh1 seed 123 | 0.30 | 0.30 | 0.5049 | 0.5049 | 0.00% |
+| exchange seed 42 | 0.50 | 0.40 | 0.3420 | 0.3310 | 3.31% |
+| exchange seed 7 | 0.60 | 0.50 | 0.3240 | 0.3035 | 6.77% |
+| exchange seed 123 | 0.50 | 0.40 | 0.3562 | 0.3337 | 6.75% |
+
+Validation lands **within one grid step** of the test optimum in every case, with no
+systematic direction (it picks lower on ETTh1, higher on exchange seed 7). The penalty
+averages 3.3% on ETTh1 — well inside its 8.20% reproducibility floor, so undetectable — and
+5.6% on exchange_rate, roughly one noise unit against its 5.29% floor.
+
+**The headline exchange_rate result survives.** Recomputing GRR with the val-picked α:
+
+| seed | GRR (oracle α) | GRR (honest α) |
+|---|---|---|
+| 42 | 1.308 | 1.276 |
+| 7 | 1.145 | 1.089 |
+| 123 | 1.200 | 1.127 |
+| **mean ± sd** | **1.218 ± 0.081** | **1.164 ± 0.080** |
+
+Merging still beats joint training on every seed when α is chosen without touching test.
+
+**Caveat.** The candidate list is itself a choice, and a coarse grid cannot land on a fine
+optimum — these penalties come from the grid already used for the curve. A finer grid would
+shrink them; a coarser one would not.
+
+### 1.11 The segment-count sweep
+
+`n_finetune_segments ∈ {2, 3, 5}` across all four datasets — 12 configurations. The
+baseline partition is fixed at 50% of training data throughout, so **segment size varies
+only as a consequence of the count** (25% / 16.7% / 10% of train). Count and segment size
+are therefore confounded by construction — see EXECUTION_PLAN.md §3.2 for the control that
+would separate them.
+
+n = 8 is unreachable: ETTh1 would give each segment a 130-row validation slice against a
+144-row window requirement — zero windows, deterministically, on every seed.
+
+Every quantity below is recomputed **identically at every (dataset, n)** from the
+diagnostics curves: α is the argmin of the `n_windows`-pooled validation union, and GRR,
+merge cost and the merged model are all read at that α. The raw `result.json` values are
+*not* comparable across rows, because each run committed to its own α.
+
+#### α\* and the α\*·n invariant
+
+| dataset | α\* (n=2) | α\* (n=3) | α\* (n=5) | α\*·n (n=2) | α\*·n (n=3) | α\*·n (n=5) |
+|---|---|---|---|---|---|---|
+| **SWaT** | 0.50 | 0.25 | 0.25 | 1.00 | 0.75 | 1.25 |
+| **PSM** | 0.50 | 0.38 | 0.25 | 1.00 | 1.12 | 1.25 |
+| **ETTh1** | 0.50 | 0.30 | 0.20 | 1.00 | 0.90 | 1.00 |
+| **exchange** | 0.70 | 0.53 | 0.30 | 1.40 | 1.60 | 1.50 |
+
+**α\*·n is constant within each dataset.** Since the merge is θ₀ + α·Στᵢ, a constant α·n
+means the optimal merge is a fixed multiple of the **arithmetic mean** of the task vectors —
+≈1.0× on SWaT, PSM and ETTh1, ≈1.5× on exchange_rate — regardless of how many there are.
+Every seed agrees exactly on ETTh1 and exchange_rate, on datasets whose absolute metrics
+wander by 8.2% and 5.3%. The AD scatter (0.75–1.25) is grid quantisation: those runs step α
+by 0.25, so 0.25 is the smallest non-zero value available at n=5.
+
+#### Merge cost — merged model ÷ each specialist on its own shard
+
+| dataset | n=2 | n=3 | n=5 |
+|---|---|---|---|
+| **SWaT** | 1.039 | 1.096 ±0.003 | 0.996 |
+| **PSM** | 1.051 | 1.038 ±0.071 | 1.060 |
+| **ETTh1** | 1.075 ±0.014 | 1.080 ±0.038 | 1.020 ±0.024 |
+| **exchange** | 1.629 ±0.009 | 2.082 ±0.288 | 2.062 ±0.110 |
+
+**Flat in n.** Merging stays as faithful to its specialists at five segments as at two.
+SWaT, PSM and ETTh1 all sit at ~1.0–1.1; exchange_rate is the outlier at 1.6–2.1.
+
+#### GRR — share of the base-to-joint gap the merge closes
+
+| dataset | n=2 | n=3 | n=5 | | n=2 | n=3 | n=5 |
+|---|---|---|---|---|---|---|---|
+| **SWaT** | 0.116 | 0.005 ±0.037 | 0.064 | | 0.707 | 0.477 ±0.115 | 0.947 |
+| **PSM** | 0.903 | 0.668 ±0.226 | 0.497 | | 1.156 | 1.059 ±0.059 | 0.861 |
+| **ETTh1** | 0.865 ±0.035 | 0.733 ±0.149 | 0.885 ±0.057 | | 0.874 ±0.034 | 0.778 ±0.213 | 0.963 ±0.018 |
+| **exchange** | 1.421 ±0.240 | 1.164 ±0.099 | 1.238 ±0.208 | | 1.424 ±0.237 | 1.218 ±0.083 | 1.238 ±0.208 |
+
+Left block: α selected on validation (deployable). Right block: α read off the test
+curve (oracle, unobtainable in practice).
+
+**No consistent trend with n.** Only PSM declines (0.903 → 0.668 → 0.497). ETTh1 and
+exchange_rate are flat; SWaT is non-monotone. An earlier reading of these runs claimed GRR
+falls with n on every dataset — that was an artefact of comparing rows computed at different
+α, and it does not survive the uniform recomputation. **Withdrawn.**
+
+SWaT's GRR is the least trustworthy number here regardless: its base-to-joint gap is only
+0.0095 AUROC, so a seed-level wobble of 0.001 moves GRR by ~0.11, and n=2 and n=5 are
+single-seed.
+
+### 1.12 Validation cannot select α for anomaly detection
+
+The GRR table's two blocks are the measurement. Cost of choosing α on validation instead
+of on test, as a fraction of the oracle GRR:
+
+| dataset | n=2 | n=3 | n=5 | verdict |
+|---|---|---|---|---|
+| **SWaT** | 84% | 99% | 93% | **val selection fails** |
+| **PSM** | 22% | 37% | 42% | **val selection fails** |
+| **ETTh1** | 1% | 6% | 8% | **val selection is free** |
+| **exchange** | 0% | 4% | 0% | **val selection is free** |
+
+On the forecasting datasets validation costs **1–8%** of the oracle GRR — the val optimum
+and the test optimum are within one grid step, and on exchange_rate at n=5 they coincide
+exactly. On the AD datasets it costs **22–99%**.
+
+The mechanism is direct, and sharper than the earlier "AD metrics are blind to α" framing:
+the AD **validation** metric is reconstruction error, the AD **test** metric is AUROC, and
+the two disagree about α.
+
+| dataset | α minimising val reconstruction | α maximising test AUROC |
+|---|---|---|
+| SWaT | 0.50 | ≥1.50 *(monotone increasing — the optimum is past the grid edge)* |
+| PSM | 0.50 | 0.75 |
+
+AUROC is *not* insensitive to α — it moves 0.0060 on SWaT (6× the noise floor) and 0.0426
+on PSM (85×). It simply moves in a direction validation cannot see. On SWaT, α=0.5
+minimises reconstruction error while AUROC keeps improving all the way to 1.5, where
+reconstruction is 2.5× worse than at its optimum. **A model that reconstructs badly can
+separate anomalies well**, so validation reconstruction is not a proxy for detection.
+
+This is why `--pipeline_select_merge_scale_on_val` refuses on AD (EXECUTION_PLAN.md §2.9),
+and it is now a measured justification rather than an argued one. The consequence for the
+research is uncomfortable and worth stating plainly: **on AD there is no deployable way to
+choose α.** Every AD merge number in this file is oracle-selected.
+
+### 1.13 Merge versus sequential fine-tuning, by segment count
+
+| dataset | n=2 | n=3 | n=5 |
+|---|---|---|---|
+| **SWaT** | sequential (-0.20%) | sequential (-0.48%) | sequential (-0.45%) |
+| **PSM** | sequential (-0.78%) | sequential (-0.36%) | sequential (-1.75%) |
+| **ETTh1** | sequential (-12.73%) | sequential (-17.17%) | tie (-2.42%) |
+| **exchange** | sequential (-16.17%) | tie (+4.98%) | merge (+38.42%) |
+
+Positive = merge better. Judged against each dataset's own reproducibility floor (§1.9).
+Merge is evaluated at the val-selected α, which is the honest choice on forecasting and,
+per §1.12, an unfair handicap on AD — at oracle α the AD verdicts flip to merge. **The AD
+rows therefore do not support a conclusion in either direction**: the comparison depends on
+a hyperparameter that cannot be set honestly.
+
+On the forecasting datasets, where the comparison is sound: ETTh1 favours sequential at
+n=2 and n=3 and ties at n=5; exchange_rate favours sequential at n=2, ties at n=3, and
+favours merging decisively at n=5 (+38%). **The winner is not a property of the dataset** —
+it changes with the chunking on exchange_rate, which is the finding that invalidates the
+premise of the old regime-indicator question (§1.7).
+
+exchange_rate's n=5 result is driven by the sequential arm collapsing, not by merging
+improving: sequential test MSE goes 0.220 → 0.362 → 0.531 as steps accumulate, while the
+merge holds. That is forgetting, measured.
+
+### 1.14 The regime predictor — a negative result at n = 9
+
+§1.7 asked whether a cheap signal can decide *accumulate or materialise* before you commit.
+The segment sweep was run to answer it with enough datapoints. It does, and the answer is no.
+
+Excluding ties, the sweep yields **9 decisive configurations, 5 merge / 4 sequential**.
+Testing every signal available *before* a strategy is chosen — a single threshold, asked to
+separate the two groups perfectly:
+
+| candidate signal | separates? |
+|---|---|
+| headroom (base-to-joint gap) | no |
+| α\*·n | no |
+| merge cost | no |
+| n itself | no |
+| specialisation (offdiag − diag) | yes — on the 5 forecasting configurations only |
+
+That one hit is **exactly what chance predicts**. Five points split 3/2 separate perfectly
+20% of the time, five signals were tested, so 1.0 false positive was expected and 1 was
+found. **No predictor is identified**, now at n = 9 rather than the n = 4 of §1.7.
+
+The more useful result is that the question was mis-posed. The outcome is **not a property
+of a dataset**: it flips with segment count on exchange_rate (sequential at n=2 → merge at
+n=5). Any predictor needs `n` among its inputs, and the four single-`n` datapoints that
+motivated the original search were under-specified rather than merely too few.
+
+### 1.15 Task-vector geometry against segment count
+
+Measured on the ETTh1 checkpoints, which have three seeds at every n:
+
+| n | mean ‖τᵢ‖ | ‖Στᵢ‖ | alignment ‖Στ‖ / Σ‖τ‖ |
+|---|---|---|---|
+| 2 | 1.851 | 3.052 | 0.824 |
+| 3 | 1.532 | 3.385 | 0.737 |
+| 5 | 1.102 | 3.487 | 0.633 |
+
+Three things move together. Individual task vectors **shrink** as their segment shrinks;
+their sum stays **nearly constant**; and they become steadily **less mutually aligned**.
+
+This is what rules out the alternative reading of α\*·n = constant. If α\* were compensating
+for vector *magnitude*, it would have to grow as ‖τ‖ falls — instead it falls as 1/n. α\*
+tracks the **count**, not the segment size. Partition size changes the vectors; the scale
+correction is arithmetic over how many there are.
+
+The falling alignment is also the redundancy measurement
+[EXECUTION_PLAN.md §3.4](EXECUTION_PLAN.md) was designed to obtain,
+arriving here for free: more segments means more mutually orthogonal task vectors.
 ---
 
 ## 2. Exact configurations

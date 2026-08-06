@@ -75,6 +75,13 @@ _INCREMENTAL_EXTRA_ARGS = [
     "--finetune_trainer_learning_rate", "1e-4",
     "--finetune_trainer_grad_clip", "1.0",
     "--finetune_trainer_scheduler", "cosine",
+
+    # The grid the merge scale is chosen from, and the instruction to choose from it on the
+    # merged val union rather than commit to a guess. Forecasting only -- AD refuses, since
+    # its test metrics are rank-based and cannot see the scale.
+    "--pipeline_extra_merge_scales",
+    "0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0",
+    "--pipeline_select_merge_scale_on_val",
 ]
 
 # patch_len must divide both dataset_window_len=120 and dataset_forecast_len=24 --
@@ -154,9 +161,12 @@ TRAIN_INCREMENTAL_SWEEP = Sweep(
     # here with n_finetune_segments=2 instead, which clears the guard (see EXPERIMENTS.md
     # §1.9); the plain val_fraction=0.05/segments=3 combo is intentionally not listed since
     # it deterministically fails, not a trial worth resubmitting.
+    # merge_scale is NOT a trial axis: it is applied after training, so sweeping it trained
+    # bitwise-identical checkpoints three times over. It is selected per trial instead, on
+    # the merged val union (--pipeline_select_merge_scale_on_val), which costs nothing and
+    # makes each trial's merged/ the model its metrics describe. See EXPERIMENTS.md §1.10.
     trials=expand_trials(
         cross={
-            "pipeline_merge_scale": ["0.3", "0.5", "1.0"],
             "finetune_trainer_reg_lambda": ["0.0", "1e-3", "1e-2"],
         },
         one_at_a_time={

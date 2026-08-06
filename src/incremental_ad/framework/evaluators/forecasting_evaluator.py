@@ -1,3 +1,5 @@
+from typing import Literal
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -32,3 +34,7 @@ class ForecastingEvaluator(Evaluator[tuple[Tensor, Tensor]]):
     def reset(self) -> None:
         self._preds = []
         self._targets = []
+
+    def selection_metric(self) -> tuple[str, Literal["min", "max"]]:
+        """MSE, the loss the model is trained against, so val selection and training agree."""
+        return "forecast/mse", "min"

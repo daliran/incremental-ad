@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Generic, Protocol, TypeVar, runtime_checkable
+from typing import Generic, Literal, Protocol, TypeVar, runtime_checkable
 
 import numpy as np
 
@@ -22,6 +22,22 @@ class Evaluator(ABC, Generic[T]):
     def reset(self) -> None:
         """Clear accumulated state. Called before each new evaluation pass."""
         ...
+
+    def selection_metric(self) -> tuple[str, Literal["min", "max"]] | None:
+        """Which of this evaluator's metrics ranks two models, and in which direction.
+
+        ``None`` — the default — means *there is no usable signal here*, not merely that
+        no default was picked. Callers that must choose between models are expected to
+        refuse rather than fall back on an arbitrary key.
+
+        The distinction is load-bearing for AD: ``AdValEvaluator`` reports reconstruction
+        score statistics, but the AD test metrics are rank-based and (under
+        ``threshold_strategy=oracle``, which sweeps its own threshold) invariant to any
+        monotone rescaling of that score. Minimising val reconstruction error would
+        therefore optimise a quantity with no established relationship to the metric
+        actually reported, which looks rigorous while being arbitrary.
+        """
+        return None
 
 
 @runtime_checkable

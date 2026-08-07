@@ -1,6 +1,8 @@
 from .swat import Swat
 from .psm import Psm
 from .etth import EtthForecastDataset, EtthImputationDataset
+from .etth2 import Etth2ForecastDataset
+from .ettm2 import Ettm2ForecastDataset
 from .weather import WeatherForecastDataset
 from .traffic import TrafficForecastDataset
 from .exchange_rate import ExchangeRateForecastDataset

@@ -107,8 +107,10 @@ The merge is θ₀ + α·Στᵢ. If the vectors were orthogonal, their sum woul
 get away with it. When the vectors are aligned, the sum is nearly Σ‖τᵢ‖ long, and α = 1
 overshoots by roughly the number of vectors.
 
-That is exactly what the measurements show: **α\*·n is constant** (§6.6). Averaging rather than
-adding is the whole correction. And it holds at every shard count *because* alignment itself
+That is broadly what the measurements show: **α\*·n lands at order 1 on four of the six datasets measured** (exchange_rate ≈1.5, PSM 1.5–2.5)
+(§6.6 — an empirical regularity, not a constant, and the count cannot be isolated from shard
+size). Averaging rather than adding is the whole correction. It holds across shard counts partly
+*because* alignment itself
 falls as shards get finer — on ETTh1, 0.824 at n = 2 down to 0.633 at n = 5 — while the vectors
 shrink in step, so ‖Στᵢ‖ stays nearly constant.
 
@@ -259,6 +261,13 @@ Measured from the weights alone: no GPU, no dataset, seconds.
 
 **Magnitude — norms.** ‖τᵢ‖/‖θ₀‖: how far fine-tuning moved the model relative to its own size.
 
+**Direction, subspace form — principal angles.** For two subspaces U and V (say, the span of the
+first k task vectors and the span of the rest), take orthonormal bases and the singular values
+of Uᵀ V. Those singular values are cos θᵢ for the **principal angles** θ₁ ≤ … ≤ θₖ: θ₁ = 0 means
+the subspaces share a direction exactly, all θᵢ = 90° means they are completely independent.
+This generalises "the angle between two vectors" to "the angles between two *sets* of
+directions", and is what ρ summarises in a single number.
+
 **Both — effective rank.** Stack the τ's as rows, take singular values σᵢ, normalise
 pᵢ = σᵢ²/Σσ², and take exp of the entropy of p. "How many independent directions do these
 arrows really occupy?"
@@ -404,7 +413,7 @@ The exception is unsupervised anomaly detection, where those accumulated slices 
 labels, so you can only measure reconstruction — and §8.3 shows reconstruction and detection
 come apart. There, a cheap proxy is all you have, and no proxy has been found. That is the
 strongest argument for a merging method that needs no coefficient at all
-(EXECUTION_PLAN.md §4.5).
+([EXECUTION_PLAN.md §3.7](EXECUTION_PLAN.md), the AD-dataset scope question).
 
 ---
 
@@ -489,9 +498,9 @@ L2-SP is *not* this: it shrinks all arrows toward zero rather than making them d
 
 **And it was measured.** Anchoring each fine-tune to the base with an L2-SP penalty is the
 obvious way to keep the task vectors in the linear regime, and it is the first thing anyone
-asks about — so it was tested cleanly on ETTh1, three seeds per λ, α selected per arm
-(EXPERIMENTS.md §3.0b). **No measurable effect at λ ∈ {1e-3, 1e-2}**: the difference is ~3%
-against a ~5% within-arm spread, and its *sign flips* depending on whether you read absolute
+asks about — so it was tested cleanly on ETTh1, three seeds per λ, α selected per variant
+(EXPERIMENTS.md §3.1). **No measurable effect at λ ∈ {1e-3, 1e-2}**: the difference is ~3%
+against a ~5% within-variant spread, and its *sign flips* depending on whether you read absolute
 error, ratio-to-own-baseline, or hardware-matched pairs. That instability is the point — the
 effect is smaller than the noise. Constraining magnitude is not what merging needs here,
 which is consistent with §6.3: the problem was never that the vectors were too long, it was
@@ -505,26 +514,46 @@ The remedy table lists α = 1/n as a sane prior. It is better than that: it is w
 says, and it is the cleanest quantitative result in the project.
 
 Sweeping the number of segments n ∈ {2, 3, 5} on four datasets and selecting α on validation
-at each, the product **α\*·n is constant within a dataset**:
+at each, the product **α\*·n stays at order 1 within a dataset on four of six** — near-flat there,
+though not literally constant (ETTh2, added later, drifts 0.97 → 0.80 → 0.75; see
+[EXPERIMENTS.md §1.18](EXPERIMENTS.md)), and *not* attributable to the count alone for the
+identifiability reason at the end of this subsection:
 
 | dataset | α\* at n=2 | n=3 | n=5 | α\*·n |
 |---|---|---|---|---|
 | SWaT | 0.50 | 0.25 | 0.25 | 1.00 / 0.75 / 1.25 |
-| PSM | 0.50 | 0.38 | 0.25 | 1.00 / 1.12 / 1.25 |
+| PSM | **0.75** | **0.50** | **0.50** | **1.50 / 1.50 / 2.50** |
 | ETTh1 | 0.50 | 0.30 | 0.20 | 1.00 / 0.90 / 1.00 |
 | exchange_rate | 0.70 | 0.53 | 0.30 | 1.40 / 1.60 / 1.50 |
+| ETTh2 | 0.48 | 0.27 | 0.15 | 0.97 / 0.80 / 0.75 |
+| ETTm2 | 0.38 | 0.27 | 0.15 | 0.77 / 0.80 / 0.75 |
+
+> ⚠️ **The PSM row is corrected; it previously read 0.50 / 0.38 / 0.25 → 1.00 / 1.12 / 1.25.**
+> That row is not reproducible: searching all five `reconstruction/score_*` validation
+> statistics against both aggregation rules (argmin of the seed-averaged curve, and the mean of
+> per-seed argmins) reproduces **none** of its three values — n=3's published 0.38 does not even
+> lie on the α grid. SWaT's row, by contrast, reproduces exactly under `reconstruction/score_mean`
+> under both rules, so the definition is settled and PSM was computed differently. The values
+> above are PSM under SWaT's definition.
+>
+> **This weakens the claim rather than strengthening it.** Corrected, PSM is a *second*
+> exception alongside exchange_rate, and a worse one: its product is not merely above 1 but
+> **rises with n** (1.50 → 2.50), which is the pattern "α\*·n is a constant" most needs to be
+> absent. Four of six datasets sit near 1 (SWaT 0.75–1.25, ETTh1 0.90–1.00, ETTh2 0.75–0.97,
+> ETTm2 0.75–0.80); two do not.
 
 Why that is a statement about the *mean*: the merge is θ₀ + α·Στᵢ. Write α = k/n and it
 becomes θ₀ + k·(Στᵢ)/n = θ₀ + k·**mean**(τ). A constant α·n = k says the best merge always
-steps a fixed multiple k of the *average* task vector — k ≈ 1 on three datasets, ≈1.5 on
+steps a fixed multiple k of the *average* task vector — k ≈ 1 on four datasets, ≈1.5 on
 exchange_rate — no matter how many vectors are being averaged.
 
 **Why it is not just "the vectors got smaller".** Individual task vectors *do* shrink as
 segments shrink (ETTh1 mean ‖τᵢ‖: 1.85 → 1.53 → 1.10). If α\* were compensating for
 magnitude it would have to **grow** as ‖τ‖ falls. It falls instead, as 1/n. Meanwhile ‖Στᵢ‖
 stays nearly constant (3.05 → 3.39 → 3.49), because the vectors get smaller *and* less
-mutually aligned (0.824 → 0.737 → 0.633) and the two effects cancel. So α\* tracks the
-**count**, not the size.
+mutually aligned (0.824 → 0.737 → 0.633) and the two effects cancel. So α\* is not merely
+compensating for vector **size** — which rules out one explanation but does not establish the
+count as the cause, for the reason immediately below.
 
 **The caveat, and why it cannot be removed.** The sweep varied n with the baseline fixed, so
 shard size fell as 1/n. Two further designs tried to separate them:
@@ -551,6 +580,54 @@ alone contributes ±(grid × n) — ±0.50 at n = 5. The minimum itself is sharp
 (15–51% penalty between α·n = 1.0 and 1.5, against floors of 8.2% and 5.3%), so resolution and
 identifiability were the binding limits, never the data.
 [EXPERIMENTS.md §1.18](EXPERIMENTS.md).
+
+### 6.6a Where α = 1/n comes from — a derivation
+
+The measurement says α\*·n ≈ 1. Here is a model under which that is *exactly* right, which is
+worth having because it also says what the model cannot explain.
+
+**Setup.** Suppose each period's task vector decomposes into a shared drift direction plus
+period-specific noise:
+
+> **τᵢ = d + εᵢ**,  with E[εᵢ] = 0, Cov(εᵢ) = σ²I, and the εᵢ independent.
+
+That is the "the periods are teaching the same thing, measured noisily" hypothesis. Then
+
+> **Στᵢ = n·d + Σεᵢ**
+
+and the merged model is θ₀ + α·(n·d + Σεᵢ).
+
+**Signal term.** If the correct update is to move *once* along d, you need α·n·d ≈ d, hence
+
+> **α\* = 1/n**,  i.e.  **α\*·n = 1** ∎
+
+**Noise term.** The independent noise adds in quadrature: E‖Σεᵢ‖² = n·σ²·D for dimension D, so
+‖Σεᵢ‖ ≈ σ√(nD). Scaled by α = 1/n the residual noise is
+
+> **α·‖Σεᵢ‖ ≈ σ√(D/n)** — it *shrinks* as 1/√n.
+
+So under this model **merging is denoising**: averaging n noisy estimates of one direction beats
+any single one, and more periods help. That is the formal version of the reading in [EXPERIMENTS.md §1.19](EXPERIMENTS.md) —
+merging may be denoising a single update rather than composing distinct knowledge.
+
+**The spectrum.** Two extremes bracket the behaviour:
+
+| if the periods… | then Στ ≈ | optimal α | α·n |
+|---|---|---|---|
+| teach the **same** thing (τᵢ = d + noise) | n·d | 1/n | **1** |
+| teach **disjoint** things (τᵢ all needed) | Σdᵢ | 1 | **n** |
+
+**α·n is therefore a measurement of how much the periods repeat each other** — 1 means "one
+thing, measured n times", n means "n genuinely different things". Measured values of 1.0–1.5
+say the periods mostly repeat, slightly less so on exchange_rate.
+
+**Where the model fails, and this matters.** It predicts α·n should rise as the updates become
+*less* redundant — i.e. α·n should order inversely with ρ. **It does not.** SWaT has the highest
+ρ (0.607, most repetitive) yet not the lowest α·n; ETTh1 has the lowest ρ (0.076) and α·n ≈ 1.
+Across four datasets the ρ ordering and the α·n ordering disagree (§6.3). So the
+shared-drift-plus-isotropic-noise picture gets the *magnitude* right and the *cross-dataset
+ordering* wrong — the εᵢ are evidently neither isotropic nor independent of d. Treat the
+derivation as an explanation of why α·n is order 1, not as a predictive model.
 
 ### Why this is not just "average the task vectors"
 
@@ -684,7 +761,8 @@ The two optima do not merely differ in principle; they point to different values
 | SWaT | 0.50 | ≥1.50 — AUROC rises monotonically past the grid edge |
 | PSM | 0.50 | 0.75 |
 
-Choosing α on validation therefore costs **22–99% of the achievable GRR on AD**, against
+Choosing α on validation therefore costs **84–99% of the achievable GRR on SWaT — but only
+5–19% on PSM** (corrected 2026-08-07), against
 **1–8% on forecasting** (EXPERIMENTS.md §1.12). And AUROC is not insensitive to α — it moves
 6× the noise floor on SWaT and 85× on PSM. It moves in a direction validation cannot see.
 
@@ -696,7 +774,7 @@ on — the score *distribution* is.
 That last observation is the one opening left. Mean reconstruction error throws away exactly
 the information detection uses. A spread statistic on the validation scores — p99/p50, std,
 kurtosis — might have its optimum where AUROC does, and those columns are already recorded in
-every curve, so it is analysis rather than new training (EXECUTION_PLAN.md §4.2). If none of
+every curve, so it is analysis rather than new training ([EXECUTION_PLAN.md §3.2](EXECUTION_PLAN.md)). If none of
 them works, the honest conclusion is that **unsupervised AD cannot tune the merge scale**, and
 needs a coefficient-free merging method instead.
 
@@ -798,11 +876,62 @@ what most deployed systems do. **Merging is not more accurate; it is available u
 where retraining is not.**
 
 Those constraints are real — retention limits, data volume, per-update compute, updates arriving
-from separate teams that cannot pool raw data. But note the middle ground: *"cannot keep all
-history"* is not *"cannot keep any"*. The honest baseline is a **sliding window** — retrain on
-the last W periods — and how merging compares against a realistic W is, as of this writing,
-**not yet measured** (EXECUTION_PLAN.md §3.1a). Treat the strategies below as the answer for
-the no-retention case, and as provisional for the partial-retention case.
+from separate teams that cannot pool raw data. And *"cannot keep all history"* is not *"cannot
+keep any"*, so the honest baseline is a **sliding window**: retrain θ₀ on the last W periods.
+That has now been measured, and it gives the sharpest statement in the project:
+
+> **Merging is worth two to four periods of retained history, and the number tracks how much
+> data each period carries.** It beats small retention budgets on every dataset tested and loses
+> to larger ones. The crossover is **W = 3** on the small-shard datasets (ETTh1, exchange_rate)
+> and **W = 5** on the data-rich ones (ETTh2, ETTm2).
+> ([EXPERIMENTS.md §1.21](EXPERIMENTS.md), [§1.23](EXPERIMENTS.md), [§1.24](EXPERIMENTS.md))
+
+The rule is therefore a **retention-budget** question, not a methods question:
+
+> **Keep ≤ 2 periods → merge. Keep ≥ 5 → retrain on the window. In between, measure.**
+
+What merging buys is *a few periods' worth of accuracy while storing no data at all* — only
+weight deltas. That is a genuine and roughly-sized benefit under retention limits, and no
+benefit without them.
+
+**Whether to keep *everything* depends on how much data you have per period.** A 3-period
+window beats using all history on exchange_rate (+26%) — but exchange_rate has 607-row shards.
+On **ETTh2 and ETTm2**, which share its drift with 2× and 9× the data, the opposite holds:
+more data is monotonically better and joint training is essentially the ceiling (ETTm2: using
+everything is **34% better** than a 3-period window). So *"retrain on everything is the wrong
+default"* is **withdrawn as a general claim** — it holds in the small-shard regime and reverses
+outside it ([EXPERIMENTS.md §1.24](EXPERIMENTS.md)). **Drift does not explain it, and neither does drift *shape*.** exchange_rate and ETTh2 have
+nearly the same segment-shift statistic and behave oppositely; a trend-aware refinement was
+tested and fails too — each period's distance to the test period gives near-identical profiles
+on all four datasets, with the test period nearest a *middle* period every time
+([EXPERIMENTS.md §1.23](EXPERIMENTS.md)).
+
+**What does explain it is shard size.** ETTm2 holds drift fixed at exchange_rate's level and
+multiplies the data ninefold, and three of exchange_rate's four distinctive behaviours vanish.
+With 607-row shards each task vector is estimated from very little data — the regime where
+averaging helps most and where an old period is most likely to be out-of-regime. So the rule of
+thumb is about **data per period**, not about how fast the series moves.
+
+Practically: **measure it on your own stream.** Retrain at two window lengths and compare — two
+jobs, and it answers the question directly for your data, which is more than any statistic here
+can do.
+
+### 11.0a When to materialise, and how to know
+
+Accumulation does not decay on its own — an accumulated merge still beats the base on shards no
+task vector has seen, out to k = 4 ([EXPERIMENTS.md §1.19](EXPERIMENTS.md)). What changes with
+drift is whether it beats the *alternative*:
+
+| on the next unseen period | ETTh1 (mild drift) | exchange_rate (strong drift) |
+|---|---|---|
+| accumulate wins | k = 4, ties elsewhere | k = 3 |
+| materialise wins | never | k = 1, 2, 4 |
+
+**Materialise when drift is strong enough that recency beats accumulation on the next period.**
+The measurement is free: you fine-tune a fresh specialist every period anyway, so compare it
+against the accumulated merge on the newest held-out slice, and branch when the fresh model
+starts winning. That is the same performance-triggered rule the dynamic-weighted-ensemble
+literature converges on (§15).
 
 ### 11.0b Recency is not relevance
 
@@ -815,16 +944,25 @@ Which regime the data belongs to determines which model is best — not how rece
 That is why old and new regimes are separate targets, why routing has headroom at all, and why
 "just keep fine-tuning on the newest data" is not automatically the right default.
 
-### 11.0c The three strategies
+### 11.0c The four strategies — and why two of them are easy to confuse
 
-Three strategies are on the table once data arrives over time.
+| strategy | each period it… | stores | starts from |
+|---|---|---|---|
+| **Model merging** | fine-tunes a copy of θ₀ on the new period, keeps τ = θ − θ₀, serves θ₀ + α·Στ | **deltas, no data** | θ₀ |
+| **Window retrain** | fine-tunes a **fresh copy of θ₀** on the last W periods pooled | **W periods of data** | **θ₀ every time** |
+| **Continual fine-tuning** | keeps training the *current* model on the new period | one model, no data | **the previous model** |
+| **Materialise + route** | keeps several models and picks one per input | several models | varies |
 
-- **Merge and keep one model.** Fine-tune a copy per period, keep only what changed, add the
-  deltas back onto the base. One model on disk.
-- **Keep n specialists and route.** Store every per-period model and pick the right one for
-  each incoming batch.
-- **Continual fine-tuning.** Never branch: keep training the same model as data arrives. One
-  model on disk.
+**Window retrain is a third method, not a variation of the other two**, and the distinction is
+the one most easily lost:
+
+- *Not continual fine-tuning*, because it restarts from θ₀ every time. Nothing compounds across
+  updates, so there is no forgetting chain — which is exactly what makes continual fine-tuning
+  degrade as steps accumulate.
+- *Not merging*, because it trains on **retained raw data**. Merging never stores data, only
+  weight deltas. That single difference is the whole practical trade in §11.0.
+
+A **specialist** is a window retrain with W = 1 — the same object under a different name.
 
 ### 11.1 Why routing is usually not worth it
 
@@ -837,23 +975,30 @@ wrong, can only fall below it.
 
 So: how far is the merged model from that ceiling?
 
-| dataset | merged vs the ceiling | newest specialist vs the ceiling |
-|---|---|---|
-| SWaT | **+6.2%** | +11.9% |
-| PSM | **+7.8%** | +15.7% |
-| ETTh1 | **+7.0%** | +37.0% |
-| exchange_rate | **+102.3%** | +318.0% |
+| dataset | drift (5-way) | merged vs the ceiling | newest specialist vs the ceiling |
+|---|---|---|---|
+| exchange_rate | 0.833 | **+106.9%** | +474.7% |
+| ETTh2 | 0.753 | **+81.0%** | +54.8% |
+| ETTm2 | 0.752 | **+66.0%** | +67.4% |
+| ETTh1 | 0.412 | **+6.1%** | +36.5% |
+| SWaT / PSM | — | **not measurable** | not measurable |
 
-On three of four datasets, **a router that never makes a mistake would beat the merged model by
-about 7%.** That is the entire prize. Against it you must store *n* models instead of one, and
-build selection logic that can itself pick wrong — spending the 7% you were trying to win. The
-answer there is: **keep the merge.**
+> ⚠️ Recomputed 2026-08-07 and **these figures replace** SWaT +6.2%, PSM +7.8%, ETTh1 +7.0%,
+> exchange_rate +102.3%/+318.0%. The AD rows are withdrawn, not restated: on AD the per-regime
+> columns carry only reconstruction statistics, so a per-regime oracle cannot be formed at all
+> (see [EXPERIMENTS.md §1.16](EXPERIMENTS.md)).
 
-exchange_rate is the exception, and the reason is instructive. Its periods genuinely differ, so
-a specialist trained on period *k* is roughly twice as good on period *k* as any average of
-specialists. Where regimes are distinct, averaging them costs real performance and routing has
-something to recover. Where periods resemble each other, the average is nearly as good as the
-best individual and there is nothing left to win.
+**The prize is small only when drift is small.** On ETTh1 a router that never makes a mistake
+would beat the merged model by 6%, which does not repay storing *n* models and building
+selection logic that can itself pick wrong. But at drift ≈0.75 and above the same perfect router
+recovers **66–107%**, and that does repay it.
+
+The mechanism is the one you would guess: where regimes genuinely differ, a specialist trained
+on period *k* is far better on period *k* than any average of specialists, so averaging costs
+real performance; where periods resemble each other, the average is nearly as good as the best
+individual and there is nothing left to win. **This is the one behaviour in the project that
+tracks drift rather than shard size** — ETTm2 has nine times exchange_rate's data and still
+shows 66%, and ETTh1 and ETTh2 differ thirteenfold at identical shard size.
 
 One more result to carry: **merging beat "always use the newest model" on all four datasets.**
 If you are keeping a single model, the merge is the right single model — better than the most
@@ -869,25 +1014,88 @@ So merging does not buy accuracy. **It buys the ability to operate under the str
 constraint**, where the unsplit fine-tune is simply not available because the data cannot be
 retained. That is a sound justification; it is just a different one from "merging is better".
 
+### 11.2b The decision, as a tree
+
+```
+Can you retain >= 3 periods of raw data?
+|
++-- YES -> WINDOW RETRAIN on ~3 periods.
+|          Fine-tune a fresh copy of theta_0 on them each update.
+|          Beats every merge (13-20%) and beats continual fine-tuning.
+|          Do NOT use all history: a 3-period window beats using
+|          everything by 26% on strongly drifting data.
+|
++-- NO (0-2 periods) -> you need a method that stores no data:
+    |
+    +-- can you select alpha on validation?
+        |
+        +-- YES (forecasting) -> MODEL MERGING
+        |     ~a two-period window's accuracy for zero stored data;
+        |     resists forgetting; generalises forward; one model served.
+        |
+        +-- NO (unsupervised AD) -> CONTINUAL FINE-TUNING
+              needs no coefficient at all, which is the blocker
+              merging cannot get past there.
+
+Routing between specialists: only when drift is strong AND you can
+measure which model is best. Otherwise serve the merge (6% headroom at
+low drift; 66-107% at high drift; not measurable at all on AD).
+
+Materialise a new specialist when drift is strong enough that a fresh
+model beats the accumulated merge on the newest period -- measurable
+free each period, since you fine-tune one anyway.
+```
+
+**The thing to carry away: merging's competitor is not continual fine-tuning, it is your
+retention policy.** Merging buys roughly a two-period window's accuracy for zero stored data.
+If policy already permits three periods, none of this machinery earns its place.
+
 ### 11.3 The verdict
 
-| | merge, keep 1 | n specialists + router | continual fine-tuning |
-|---|---|---|---|
-| models stored | 1 | n | 1 |
-| cost vs a per-period specialist | ~1.05× | 1.00× by definition | — |
-| gap to the best possible router | +6–8%, or +102% under strong drift | 0 (unreachable) | worse than merge on 3 of 4 |
-| needs a hyperparameter? | **yes — α** | yes, a selection rule | **no** |
-| works on unlabelled AD? | only with a pre-declared α | **no** | **yes** |
-| degrades as periods accumulate by | shard starvation | storage | forgetting |
+| | window retrain | merge, keep 1 | n specialists + router | continual fine-tuning |
+|---|---|---|---|---|
+| **raw data retained** | **W periods** | **none** | none | none |
+| models stored | 1 | 1 | n | 1 |
+| starts each update from | θ₀ | θ₀ | θ₀ | previous model |
+| needs a hyperparameter? | W | **yes — α** | yes, a selection rule | **no** |
+| works on unlabelled AD? | yes | only with a pre-declared α | **no** | **yes** |
+| accuracy | **best, at W ≥ 3** | ≈ a 2-period window | +6% (low drift) to +107% (high drift) over merge | trades with merge, 5/4 |
+| degrades as periods accumulate by | — (restarts each time) | shard starvation | storage | forgetting |
 
-**Default: merge and keep one model.** It is within ~7% of an unreachable ceiling, beats the
+**If you can retain ≥ 3 periods: window retrain.** It beat every merge by 13–20% on both
+datasets with headroom, needs no coefficient, and cannot accumulate forgetting because it
+restarts from θ₀. Its only cost is the retained data. Everything below assumes you cannot pay
+that cost.
+
+**Otherwise, default: merge and keep one model.** It is within ~7% of an unreachable ceiling, beats the
 newest specialist everywhere, costs ~1.05× a dedicated specialist, and stores one model. Its
-one requirement is α — and α is not a free parameter you must tune, because α\*·n ≈ a
-dataset constant of order 1 (§6.6). Start from the mean of the task vectors.
+one requirement is α — and α is not a free parameter you must search blindly, because α\*·n
+lands at order 1 on four of six datasets (§6.6). Start from the mean of the task vectors.
+Note this is an empirical regularity across six datasets, **not** a constant of the dataset:
+§6.6 shows the product drifts within a dataset as n varies, and no design can isolate the
+count, so treat α\*·n ≈ 1 as a starting point rather than a formula to trust.
 
-**Route only under strong drift**, and only if you can measure which model is best. The signal
-that routing has something to offer is the same one that makes merging beat joint training:
-regimes that genuinely differ. On exchange_rate that is +102%, which is worth the storage.
+**Route only under strong drift**, and only if you can measure which model is best. Routing is
+the one behaviour in this project that **does** track drift rather than shard size, measured on
+all four forecasting datasets ([EXPERIMENTS.md §1.16](EXPERIMENTS.md)):
+
+| dataset | drift (5-way) | shard @ n=5 | a perfect router would recover |
+|---|---|---|---|
+| exchange_rate | 0.833 | 607 | **+106.9%** |
+| ETTh2 | 0.753 | 1,393 | **+81.0%** |
+| ETTm2 | 0.752 | 5,574 | **+66.0%** |
+| ETTh1 | 0.412 | 1,393 | **+6.1%** |
+
+The ordering is drift's, not size's — ETTm2 has nine times exchange_rate's data and still shows
+66%, while ETTh1, at the *same* shard size as ETTh2, shows thirteen times less headroom. The
+mechanism is the obvious one: when periods genuinely differ, the right specialist for a period
+is far better than any average of all of them; when they resemble each other, the average is
+nearly as good as the best individual. The signal that routing has something to offer is the
+same one that makes merging beat joint training — regimes that genuinely differ.
+
+⚠️ An earlier version of this section attributed the headroom to thin shards, generalising the
+scarcity result of §11.0. ETTm2 shows that was wrong: **scarcity explains retention behaviour,
+drift explains routing.** Two behaviours, two drivers.
 
 **Continual fine-tuning is the right default when you cannot choose α** — most importantly
 unsupervised anomaly detection, where §8.4 shows no unlabelled signal tracks detection quality.
@@ -907,7 +1115,8 @@ selectable and a router becomes buildable. But **the headroom does not change** 
 sit 6.2% and 7.8% from the ceiling, so routing would still be recovering very little on *these*
 datasets, and both are saturated to begin with (base within 1.1% and 3.4% of joint training).
 
-So a labelled calibration set is worth having for **α selection**, which is worth 22–99% of the
+So a labelled calibration set is worth having for **α selection**, which is worth 84–99% on
+SWaT and 5–19% on PSM of the
 achievable GRR on AD (§8.4) — a much larger prize than routing. Whether routing pays off on AD
 is untested on drifting AD data, and both current AD datasets are the wrong place to look. The
 prediction, from §11.1, is that AD routing pays off exactly when the regimes differ enough for
@@ -930,9 +1139,10 @@ specialists to separate — which is what a drifting AD benchmark would be for.
 - ~~α\* is stable across seeds, exactly~~ — **withdrawn**, that was 0.1-grid quantisation; at
   0.05 resolution the seeds differ by one step.
 - **α\*·n is constant**, so the optimal merge is a fixed multiple of the *mean* task vector
-  (§6.6). Subject to the count-vs-size control in EXECUTION_PLAN.md §4.1.
+  (§6.6) — but see §6.6 itself: the count can never be isolated on a fixed series, so this is
+  an empirical regularity in one parameterisation, not a law.
 - **Validation cannot select α on AD.** The val and test optima point to different values, and
-  choosing on validation costs 22–99% of achievable GRR there against 1–8% on forecasting
+  choosing on validation costs 84–99% on SWaT / 5–19% on PSM against 1–8% on forecasting
   (§8.4).
 - **The merge is bitwise reproducible** — all 87 merged checkpoints recompute exactly.
 
@@ -977,6 +1187,24 @@ specialists to separate — which is what a drifting AD benchmark would be for.
 ---
 
 ## 14. Quick reference
+
+### Formulas in one place
+
+| quantity | formula |
+|---|---|
+| task vector | τᵢ = θᵢ − θ₀ |
+| merge | θ_merged = θ₀ + α·Στᵢ = θ₀ + (α·n)·mean(τ) |
+| subspace overlap | ρ_k = ‖**P**τ_k‖² / ‖τ_k‖², **P** = projection onto span(τ₀…τ_{k−1}) |
+| new component | new_k = ‖τ_k‖·√(1 − ρ_k) / ‖θ₀‖ |
+| alignment | ‖Στᵢ‖ / Σ‖τᵢ‖ — equals 1 when parallel, √(Σ‖τᵢ‖²)/Σ‖τᵢ‖ when orthogonal |
+| effective rank | exp(H(p)), pᵢ = σᵢ²/Σσⱼ² over singular values of the stacked τ's |
+| principal angles | cos θᵢ = singular values of Uᵀ V for orthonormal bases U, V |
+| ratio to base | error(model, slice) / error(θ₀, slice) |
+| merge cost | error(merged, val_i) / error(θ₀+τᵢ, val_i), averaged over i |
+| GRR | (merged − base) / (joint − base) on the test metric |
+| specialisation | mean off-diagonal − mean diagonal of the transfer matrix |
+| optimal scale (model) | α\* = 1/n under τᵢ = d + εᵢ; see §6.6a |
+
 
 ### Symbols
 

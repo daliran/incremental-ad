@@ -4,7 +4,7 @@ NOT for production use. Generates deterministic multi-variate sine waves so the
 pipeline can be exercised end-to-end without downloading real data.
 
 Training split  → SlidingWindowDataset (single tensors, self-supervised MAE training)
-Val / test split → _ForecastWindowDataset (inputs, future) 2-tuples for eval
+Val / test split → ForecastWindowDataset (inputs, future) 2-tuples for eval
 """
 import math
 from argparse import ArgumentParser, Namespace
@@ -12,7 +12,6 @@ from typing import Self
 
 import torch
 from torch import Tensor
-from torch.utils.data import Dataset as TorchDataset
 
 from incremental_ad.framework.contracts.dataset import (
     Dataset,
@@ -20,33 +19,8 @@ from incremental_ad.framework.contracts.dataset import (
     Segment,
     TimeSeriesDataset,
 )
+from incremental_ad.framework.datasets.forecast_window import ForecastWindowDataset
 from incremental_ad.framework.datasets.sliding_window import SlidingWindowDataset
-
-
-class _ForecastWindowDataset(TorchDataset):
-    """Yields (full_window [W, F], future [forecast_len, F]) 2-tuples.
-
-    full_window spans context_len + forecast_len timesteps.
-    future is a view into the last forecast_len steps of full_window — zero extra copy.
-    """
-
-    def __init__(self, data: Tensor, window_len: int, forecast_len: int, stride: int) -> None:
-        self.data = data
-        self.window_len = window_len
-        self.context_len = window_len - forecast_len
-        self.forecast_len = forecast_len
-        self.stride = stride
-
-    def __len__(self) -> int:
-        if len(self.data) < self.window_len:
-            return 0
-        return (len(self.data) - self.window_len) // self.stride + 1
-
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        start = idx * self.stride
-        full_window = self.data[start : start + self.window_len]  # [W, F]
-        future = full_window[self.context_len :]                  # [forecast_len, F] — view
-        return full_window, future
 
 
 class TestForecastDataset(TimeSeriesDataset):
@@ -121,8 +95,14 @@ class TestForecastDataset(TimeSeriesDataset):
                 train=SlidingWindowDataset(
                     self._train_data[:val_start], self._window_len, self.stride
                 ),
-                val=_ForecastWindowDataset(
-                    self._train_data[val_start:], self._window_len, self._forecast_len, self.stride
+                # Loss-shaped, matching train — NOT the (window, future) pairs the metric
+                # path wants. The trainer feeds this to model.compute_loss for early
+                # stopping, so it must have train's batch format. This previously used the
+                # metric-shaped ForecastWindowDataset and survived only because compute_loss
+                # unwraps `batch[0]`; a model that read batch[1] as a target would have
+                # silently changed the val loss. The metric view is get_val_eval_dataset().
+                val=SlidingWindowDataset(
+                    self._train_data[val_start:], self._window_len, self.stride
                 ),
             )
         return Segment(
@@ -130,15 +110,15 @@ class TestForecastDataset(TimeSeriesDataset):
             val=None,
         )
 
-    def get_val_eval_dataset(self) -> _ForecastWindowDataset:
+    def get_val_eval_dataset(self) -> ForecastWindowDataset:
         n = len(self._train_data)
         val_start = n - int(n * self.val_fraction)
-        return _ForecastWindowDataset(
+        return ForecastWindowDataset(
             self._train_data[val_start:], self._window_len, self._forecast_len, self._eval_stride
         )
 
-    def get_test_dataset(self) -> _ForecastWindowDataset:
-        return _ForecastWindowDataset(
+    def get_test_dataset(self) -> ForecastWindowDataset:
+        return ForecastWindowDataset(
             self._test_data, self._window_len, self._forecast_len, self._eval_stride
         )
 

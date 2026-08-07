@@ -25,6 +25,19 @@ from incremental_ad.framework.merging import geometry_report
 
 log = logging.getLogger("geometry_report")
 
+
+def _committed_merge_scale(run_dir: Path, args: dict) -> float | None:
+    """The merge scale the run committed to, preferring the validation-selected value."""
+    result = Path(run_dir) / "merged" / "val" / "result.json"
+    if result.is_file():
+        try:
+            selected = json.loads(result.read_text()).get("metrics", {}).get("merge_scale/selected")
+        except (OSError, ValueError):
+            selected = None
+        if selected is not None:
+            return selected
+    return args.get("pipeline_merge_scale")
+
 INCREMENTAL_PIPELINE = "IncrementalTaskArithmeticPipeline"
 
 SUMMARY_FIELDS = [
@@ -183,7 +196,11 @@ def summary_row(config: dict, report: dict, run_dir: Path) -> dict:
         "dataset": config.get("dataset"),
         "task": config.get("task"),
         "n_segments": report["n_segments"],
-        "merge_scale": args.get("pipeline_merge_scale"),
+        # The scale actually committed, not the one requested: with
+        # --pipeline_select_merge_scale_on_val the run picks a winner on validation and
+        # config.json keeps the requested value, so reading the config alone mislabels
+        # every selecting run. merged/val/result.json carries what won.
+        "merge_scale": _committed_merge_scale(run_dir, args),
         "baseline_fraction": args.get("dataset_baseline_fraction"),
         "n_parameters": report["n_parameters"],
         "mean_offdiag_cosine": _mean(offdiag),

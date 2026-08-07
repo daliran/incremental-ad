@@ -103,11 +103,11 @@ framing and did not.
 **Non-orthogonality does not break merging. It sets the scale.**
 
 The merge is θ₀ + α·Στᵢ. If the vectors were orthogonal, their sum would be short relative to
-Σ‖τᵢ‖ and α ≈ 1 would be sensible — which is why the image-classification literature can often
-get away with it. When the vectors are aligned, the sum is nearly Σ‖τᵢ‖ long, and α = 1
-overshoots by roughly the number of vectors.
+Σ‖τᵢ‖, so a coefficient that decays only slowly with the number of tasks still works. When the
+vectors are aligned, the sum is nearly Σ‖τᵢ‖ long, and the coefficient must fall like 1/n — at
+α = 1 the merge overshoots by roughly the number of vectors.
 
-That is broadly what the measurements show: **α\*·n lands at order 1 on four of the six datasets measured** (exchange_rate ≈1.5, PSM 1.5–2.5)
+That is broadly what the measurements show: **α\*·n lands at order 1 on five of the six datasets measured** (exchange_rate ≈1.5 is the exception)
 (§6.6 — an empirical regularity, not a constant, and the count cannot be isolated from shard
 size). Averaging rather than adding is the whole correction. It holds across shard counts partly
 *because* alignment itself
@@ -119,10 +119,20 @@ scale error. The residual interference at α\* is small.
 
 ### The practical consequence
 
-For time series you cannot inherit α = 1 from the image-classification setting, and you cannot
-assume orthogonality buys you free composition. What you can do is simpler: **average the task
-vectors**, and expect a dataset-level constant of order 1 in front of the mean (1.0 on SWaT, PSM
-and ETTh1; ≈1.5 on exchange_rate, the most strongly drifting).
+For time series you cannot inherit the *scaling behaviour* of the image-classification setting,
+and you cannot assume orthogonality buys you free composition. What you can do is simpler:
+**average the task vectors**, and expect a dataset-level coefficient of order 1 in front of the
+mean (≈1.0 on SWaT, PSM, ETTh1, ETTh2 and ETTm2; ≈1.5 on exchange_rate).
+
+> ⚠️ **Not "they use α = 1".** An earlier version of this section said time series "cannot
+> inherit α = 1 from image classification", which misstates the literature: task-arithmetic
+> papers **tune** the coefficient on held-out data rather than fixing it at 1 (α ≈ 1 is a
+> default only for adding a *single* task vector, and model soups' uniform averaging is
+> literally α = 1/n). The real contrast is the **rate**: there the tuned coefficient decays with
+> the number of tasks but more slowly than 1/n, so α·n *grows*; here it tracks 1/n, so α·n stays
+> order 1. That is the framing §6.6a uses, and this section now matches it. **The
+> image-classification side remains unverified against sources** (§15) — check it before the
+> comparison goes in the thesis.
 
 ---
 
@@ -236,6 +246,116 @@ windows share 119 of 120 timesteps, so a random split would leak almost entirely
 split is the correct design**; the bias is a limitation to document. Net effect: the
 off-diagonal is inflated, so `specialisation` **understates** the truth.
 
+### 4.5b The arithmetic, written out
+
+Everything in this chapter — and most numbers in EXPERIMENTS.md — is built from one table and
+five formulas. Notation:
+
+| symbol | meaning |
+|---|---|
+| θ₀ | the base model, trained on the first half of the series |
+| τᵢ = θᵢ − θ₀ | the task vector of segment *i*'s fine-tune, i = 0 … n−1 |
+| θ_M(α) = θ₀ + α·Στᵢ | the merged model at scale α |
+| θ_J | the jointly-trained reference (`StandardPipeline`, all data, from scratch) |
+| D₀ … D_{n−1} | each segment's held-out validation slice; **D_b** the baseline's own slice; **D_T** the test set |
+| ℓ(θ, D) | the metric of model θ on data D (below) |
+| \|D\| | the number of sliding windows in D — the weight used when pooling |
+
+**The metric ℓ.** Forecasting: `forecast/mse` = mean squared error over the horizon,
+`F.mse_loss(preds, targets)` across every window. Anomaly detection uses two different
+quantities depending on whether labels exist:
+
+- *On validation* (no labels): `reconstruction/score_mean`, the mean anomaly score. For a
+  random-mask model that score is, per window, the mean per-patch reconstruction error over
+  **all** patches — `error_sum / error_counts.clamp(min=1)` accumulated over `n_eval_passes`
+  masks, then `.mean(-1)`. Patches never masked in any pass contribute 0/1 = 0, which dilutes
+  the mean; that is intentional and the answer is to use enough passes (30 in these runs).
+- *On test* (labels exist): `window_auroc`. Each sliding window gets one score; its label is
+  `labels.max()` over the window — anomalous if **any** timestep in it is. AUROC is then
+  threshold-free over those (score, label) pairs. The `point_*` family instead labels a window
+  by its **last** timestep; `pa_*` applies point adjustment; `event_*` scores contiguous
+  anomaly events. §1.5 of EXPERIMENTS.md explains why AUROC is primary and `pa_f1` is not.
+
+**1 — the transfer matrix.** One cell per (model, column), always as a *ratio to base* so that
+runs, seeds and datasets are commensurable:
+
+```
+    M[m, c]  =  ℓ(θ_m, D_c)  /  ℓ(θ₀, D_c)
+```
+
+so `M[base, c] = 1` by construction. Rows are `base`, `ft_i` (= θ₀+τᵢ), `merged` (= θ_M at the
+committed α) and optionally `standard` (= θ_J, test column only). For an error metric lower is
+better; for AUROC the ratio inverts and the direction is read from the metric name, never
+assumed.
+
+**2 — specialisation** = how much better a specialist is at home than away:
+
+```
+    diag     =  (1/n) · Σᵢ M[ftᵢ, i]
+    offdiag  =  mean over i ≠ j of M[ftᵢ, j]
+    spec     =  offdiag − diag                     (> 0 ⇒ genuinely period-specific)
+```
+
+**3 — merge cost** = the price of one model instead of *n*, per period, on that period's own
+slice — which is why it needs the matrix and cannot be got from test-set numbers:
+
+```
+    cost  =  (1/n) · Σᵢ  ℓ(θ_M, Dᵢ) / ℓ(ftᵢ, Dᵢ)
+          =  (1/n) · Σᵢ  M[merged, i] / M[ftᵢ, i]
+```
+
+The base term cancels in the ratio of ratios, so this is exactly the raw-error ratio. **1.00
+means merging costs nothing** against keeping one model per period. Note which ℓ this uses: the
+columns are *validation* slices, so on AD it is `reconstruction/score_mean`, **not**
+`window_auroc` — AUROC does not exist on the validation columns at all, because those slices
+carry no labels. Verified: evaluated on the α = 1.0 diagnostics this formula returns 3.545
+(SWaT), 1.187 (PSM) and 1.828 (ETTh1), each inside §4.6's published α = 1.0 interval.
+
+**4 — GRR**, the share of the base-to-joint gap the merge closes, on the test column:
+
+```
+    GRR  =  ( ℓ(θ₀, D_T) − ℓ(θ_M, D_T) )  /  ( ℓ(θ₀, D_T) − ℓ(θ_J, D_T) )
+```
+
+Sign handling is automatic: for an error metric both differences are negative and the ratio
+stays positive. Headroom is the denominator expressed relatively,
+`(ℓ(θ₀,D_T) − ℓ(θ_J,D_T)) / ℓ(θ₀,D_T)`, and GRR is meaningless when that gap is inside the
+noise floor — which is why the gap travels next to every ratio.
+
+**5 — routing headroom**, the ceiling on what any router could recover. The column optimum over
+specialists *is* the best possible router, because no real router beats choosing with hindsight:
+
+```
+    oracle_c  =  minᵢ M[ftᵢ, c]                    (max for a higher-is-better metric)
+    headroom  =  ( mean_c M[merged, c] − mean_c oracle_c ) / mean_c oracle_c
+```
+
+Seeds are averaged **before** the optimum is taken. Taking the optimum per seed and averaging
+afterwards lets a different seed win each column and biases the oracle low — an advantage no
+deployed router has.
+
+**6 — the merge scale α\***, the one quantity that is *chosen* rather than measured:
+
+```
+    α*  =  mean over seeds of   argmin over the α grid   Σ_c |D_c|·ℓ(θ_M(α), D_c) / Σ_c |D_c|
+                                                          c ∈ {D_b, D₀ … D_{n−1}}
+```
+
+Three details carry weight. The pool is **window-weighted**, not a mean of per-column means.
+It **includes the baseline's own slice D_b**, which at a 50% baseline is 50–68% of the weight —
+so α\* is a *retention-weighted* optimum by construction, not a neutral one (§6.5, §6.6).
+And the argmin is taken per seed and then averaged, which is why published values like 0.53 and
+0.375 sit off the α grid.
+
+**Aggregation, fixed once.** Every quantity above is computed from the per-seed *mean* of ℓ,
+and ratios are ratios of means — never means of per-seed ratios, except α\* where the argmin
+must be per seed. Mixing the two is what made an earlier version of the routing table
+irreproducible. The reproducibility floor is `sd(ℓ) / mean(ℓ)` over the seeds of **one**
+experiment, and is only comparable within that experiment.
+
+The operational side of all this — which script computes what, which CSV it lands in, and what
+was verified against what — is [EXPERIMENTS.md §0.6](EXPERIMENTS.md).
+
 ### 4.6 Merge cost
 
 The price of one model instead of *n*: the merged model's error on a segment ÷ the error of
@@ -342,6 +462,19 @@ This is an **exact decomposition**, not a composite score: no weighting, no free
 ρ ∈ [0,1], where 0 means the update is entirely orthogonal to everything learned so far and 1
 means it adds no direction that wasn't already there.
 
+> **Yes — this is the same ρ as everywhere else in this document.** §2 introduces it as
+> "subspace overlap", §5.2 tabulates it per dataset, and this is its definition; in the code it
+> is `sequential_overlap`. The only thing that changes is the *level of aggregation*:
+>
+> - **ρ_k** (here) is per step — one number per fold-in, k = 1 … n−1. Step 0 has no predecessors,
+>   so ρ₀ is undefined and `new₀ = ‖τ₀‖/‖θ₀‖`.
+> - **ρ** (§2, §5.2, §6.3) is the **mean of the ρ_k**, which is what `geometry_report` reports as
+>   `mean_sequential_overlap`. SWaT's dataset-level 0.607 is just (0.483 + 0.733)/2; ETTh1's
+>   0.076 is (0.075 + 0.065)/2.
+>
+> So a single per-dataset ρ hides the *trajectory*, and on these datasets the trajectory is
+> where the interesting behaviour is — see the walkthrough below.
+
 In practice the span is truncated to the leading singular directions covering ~90% of the
 accumulated update's energy, which keeps ρ from being inflated by numerical noise in the tail.
 That truncation rank is recorded alongside ρ.
@@ -357,7 +490,48 @@ information but contributes its full magnitude to that stacking. So:
 - **ρ → 0 with large new_k**: each segment contributes a genuinely new direction, which a
   scaled sum averages away. **A separate model might preserve more.**
 
+**Why those directions, spelled out.** The two methods fail differently, and ρ changes which
+failure bites:
+
+|  | merging (θ₀ + α·Στᵢ, α ≈ 1/n) | sequential (θ_k = θ_{k−1} + update) |
+|---|---|---|
+| what it does to a direction | keeps **every** τᵢ, each at ≈1/n strength | keeps the **last** at full strength, overwrites earlier ones |
+| its failure mode | dilution | forgetting |
+
+At **high ρ** every τᵢ points nearly the same way, so the average of *n* of them is close to any
+one of them: merging's 1/n dilution costs almost nothing, and it buys stability for free. At
+**low ρ** the vectors point different ways, so the average is a compromise serving each regime
+at reduced strength — while sequential arrives fully adapted to the most recent segment. Hence
+low ρ ⇒ sequential, high ρ ⇒ merge.
+
+> ⚠️ **But that argument silently assumes what you evaluate on.** It compares the two on **new**
+> segments, which is what the table below scores. Evaluate instead across *all* regimes and the
+> reasoning reverses at low ρ: merging's 1/n-of-everything is exactly what a balanced objective
+> wants, while sequential has overwritten the early regimes. §1.16 and §1.20 show that in
+> practice — merging beats always-using-the-newest-specialist on **every** dataset. So ρ does
+> not predict "which method is better" at all; at best it predicts "which is better *on the
+> newest data*", and the sign of the rule flips with the evaluation target. A rule whose
+> direction depends on an unstated choice is already in trouble before any data arrives.
+
 That is the reasoning behind an *accumulate versus materialise* rule.
+
+**The rule, stated explicitly — and where the threshold comes from.** The prose above gives a
+mechanism but not a decision procedure, and the "ρ predicts" column below needs one:
+
+> **predict *merge* if ρ > θ, *sequential* otherwise.**
+
+⚠️ **There is no principled value for θ. It is fitted, and the conclusion depends on it.** The
+original 4-dataset table only had *one* dataset on the merge side (SWaT, ρ = 0.607) against
+0.226 / 0.117 / 0.076, so **any** cut in (0.226, 0.607) — a window 0.33 wide — reproduces the
+same 3-of-4. The data pinned θ down to nothing sharper than "SWaT differs from the rest".
+
+Fitting θ on the full 18-configuration sweep (below) puts it near **0.10**, far *lower*
+than that window. This matters more than it sounds: an arbitrary θ = 0.35 scores 13/18, while
+the fitted θ = 0.128 scores 16/18. **The same statistic looks useless or strong depending on a
+number nobody derived.** Any use of ρ as an indicator has to report θ and how it was chosen.
+All of these figures come from `analysis/novelty_report.py indicator`, which emits the fixed
+and fitted thresholds, the permutation P and the leave-one-dataset-out score together, so the
+three cannot be quoted apart.
 
 ### What it actually does — 3 of 4, and then not at all
 
@@ -379,6 +553,188 @@ That is the reasoning behind an *accumulate versus materialise* rule.
 **It fails on exchange_rate**, which has the lowest ρ of the four (0.026) and yet the
 most decisive merge win (0.331 ±0.034 against sequential's
 0.474 ±0.061).
+
+### Step by step, on each dataset
+
+> **Provenance.** Per-step ρ and new_k from `analysis/novelty_report.py steps` over
+> `geometry_report` output; the indicator test from `novelty_report.py indicator` on a table
+> built by `novelty_report.py outcomes` from `analysis_specs/rho_indicator_spec.csv`.
+> Definitions in [EXPERIMENTS.md §0.6](EXPERIMENTS.md).
+
+
+The table above collapses each dataset to one verdict. The per-step trajectory is more
+informative, and it is what the rule is actually reading. `ρ_k` is the share of step *k*'s
+update already inside the span of its predecessors; `new_k = ‖τ_k‖·√(1−ρ_k)/‖θ₀‖` is the part
+that is genuinely new, as a fraction of the base model's norm. Mean over the seeds available;
+n = 3 throughout, so there are two fold-in steps.
+
+| dataset | ‖τ_k‖/‖θ₀‖ (k=0,1,2) | ρ₁ , ρ₂ | new_k (k=0,1,2) | trajectory |
+|---|---|---|---|---|
+| **SWaT** | 0.0058 / 0.0052 / 0.0076 | 0.483 , **0.733** | 0.0058 / 0.0037 / 0.0039 | overlap **climbing** |
+| **PSM** | 0.0047 / 0.0067 / 0.0060 | 0.268 , 0.152 | 0.0047 / 0.0057 / 0.0055 | overlap falling, novelty flat |
+| **ETTh1** | 0.0174 / 0.0235 / 0.0076 | 0.075 , 0.065 | 0.0174 / **0.0226** / 0.0074 | novelty spikes then collapses |
+| **exchange_rate** | 0.0124 / 0.0114 / **0.0305** | 0.227 , **0.030** | 0.0124 / 0.0100 / **0.0300** | novelty **growing** |
+| **ETTh2** | 0.0390 / 0.0316 / 0.0250 | 0.051 , 0.092 | 0.0390 / 0.0308 / 0.0239 | large, decaying |
+| **ETTm2** | **0.0741** / 0.0504 / 0.0428 | **0.026** , 0.073 | 0.0741 / 0.0498 / 0.0412 | largest updates of all |
+
+**SWaT — the only dataset that behaves the way the theory wants.** ρ climbs 0.483 → 0.733:
+each period increasingly re-learns what is already there, and the genuinely new content shrinks
+to a third of the first segment's. That is the accumulate-safely regime, and merging does win.
+
+**PSM — the mirror image.** ρ *falls* (0.268 → 0.152) while the new component stays flat at
+≈0.0055. Every period keeps contributing a fresh direction that a scaled sum would average
+away, so the rule says keep them separate — and sequential wins.
+
+**ETTh1 — novelty concentrated in one step.** The second segment is the big one (new = 0.0226,
+the largest of the three), then the third contributes a third as much. ρ is near zero
+throughout (0.075, 0.065): almost nothing repeats. Sequential wins, as the rule says.
+
+**exchange_rate — where the rule breaks, and it breaks hard.** ρ collapses to 0.030 while the
+new component *triples* by the last step (0.0100 → 0.0300) — the most novel final update of any
+dataset here. The rule reads that as "each period is distinct, keep separate models" and
+predicts sequential. Merging wins decisively instead. So the failure is not a near-miss on a
+threshold; the signal points the wrong way at its most extreme value.
+
+**ETTh2 and ETTm2 — added later, and they extend the negative result.** Both have low ρ
+(0.05–0.09), so the rule predicts sequential for both. On **ETTh2 it is right** — sequential
+beats merging at all three segment counts. On **ETTm2 it is right at n = 2 and 3 and wrong at
+n = 5**, where the merge overtakes. One dataset, one rule, two answers depending on how the
+same data is chunked: that is the sharpest form of the §1.14 finding that the outcome **is not
+a property of the dataset**.
+
+**One thing the trajectories do explain — but it is not the merge/sequential question.** The
+relative update size ‖τ‖/‖θ₀‖ orders the datasets almost exactly as headroom does: ETTm2
+(0.074, 86.6% headroom) > ETTh2 (0.039, 83.8%) > ETTh1 (0.017, 38–43%) > exchange_rate (0.012,
+43.8%) > the saturated AD pair (0.005, ~1–3%). When the base model is far from what the data
+supports, fine-tuning moves it a long way; when it is already near the ceiling, the task vectors
+are tiny. That is a sanity check on the whole setup rather than a finding — but it does mean a
+small ‖τ‖ is a reliable sign that **no** update strategy has much to win, which is exactly the
+situation on SWaT and PSM.
+
+### Is ρ a good indicator? The answer depends on choices nobody derived — and it ends at "no"
+
+ρ is computed on the actual segmentation, so it varies with n and can be tested on **every**
+configuration measured: six datasets × n ∈ {2, 3, 5} = 18. Winner = whichever of merged /
+continual is better on the test metric.
+
+| threshold θ | accuracy | note |
+|---|---|---|
+| 0.35 (arbitrary, "SWaT vs rest") | 13/18 = 72% | vs 56% majority baseline; binomial P = 0.124, **not significant** |
+| **0.096 (fitted on these 18)** | **16/18 = 89%** | permutation test, θ re-fitted per shuffle: **P = 0.0037, significant** |
+
+So the first verdict — "ρ has no skill" — was an artefact of a threshold chosen by hand and set
+three times too high. With θ fitted, ρ genuinely separates the outcomes, and the separation
+survives a permutation test that re-fits θ on every shuffle. Held out properly
+(leave-one-*dataset*-out, θ fitted on five datasets and tested on the sixth, θ landing in
+0.084–0.127 across folds) it scores **14/18 = 78%** against a 56% baseline.
+
+**Then it collapses.** Restrict to the configurations where the merge/continual difference
+actually clears that dataset's reproducibility floor — 16 of 18 are decisive — and it still
+holds: 14/16 fitted (P = 0.0103), **12/16 = 75% out-of-sample** against 56%. But **remove the two saturated
+AD datasets** and:
+
+> **decisive, forecasting only (11 configurations): leave-one-dataset-out = 8/11 = 73%, and the
+> majority baseline is also 8/11 = 73%. Zero out-of-sample skill.**
+
+All of ρ's apparent predictive power comes from SWaT and PSM. And those "decisive" AD outcomes
+are decisive only in the narrowest technical sense: margins of **0.11%–0.45%**, clearing floors
+of 0.07%–0.09%, on datasets where the base model is already within 1.1% and 3.4% of joint
+training. They clear the noise bar while being practically meaningless — which is exactly the
+situation §0.1b warns should be read as *"nothing separates"* rather than as evidence.
+
+**Verdict.** On the datasets where merge-versus-sequential is a real question with real margins,
+ρ predicts nothing a coin biased to "sequential" would not. EXPERIMENTS.md §1.14's conclusion
+stands, and this is the sharper statement of *why*: not that ρ is uninformative about geometry —
+it is exactly informative about geometry — but that **the geometry of the updates does not
+determine which training strategy wins**, and the appearance that it does was carried by two
+saturated datasets and a hand-picked threshold.
+
+**Worth recording as a methodological point.** This subsection reached three different verdicts
+in a row — "no skill" (arbitrary θ), "significant" (fitted θ), "no skill on the data that
+matters" (fitted θ, saturated datasets excluded). All three are correctly computed from the same
+numbers. The lesson is that a threshold rule reported without its threshold, its fitting
+procedure, and its held-out score is not a result at all.
+
+### What each route actually requires, operationally
+
+Two questions the mechanism above glosses over: merging needs the task vectors — must you keep
+all *n* fine-tuned models? And what exactly is "sequential" fine-tuning fine-tuning *from*?
+
+**Merging does not require storing n models.** The merge is θ₀ + α·Στᵢ, and Στᵢ is a running
+sum: after period *k* you update **S ← S + (θ_k − θ₀)** and discard θ_k. Serving needs θ₀, S and
+a counter *k*; the served weights are θ₀ + (k⁻¹)·S. **Storage is two model-sized objects
+regardless of how many periods have passed** — which is the whole operational case for merging,
+and why it belongs in the "stores no raw data, stores one model" column of §11.3. The *n*
+specialists exist only inside the experiments, because measuring the transfer matrix and merge
+cost requires scoring each one; a deployment never materialises them together.
+
+**Why a uniform average, and not a weighted sum?** α·Στᵢ with α = 1/n *is* the unweighted mean,
+and nothing here tested alternatives. Three obvious weightings are untested:
+
+- **By shard size.** In this project every segment is the same size by construction, so uniform
+  weighting and size weighting **coincide** — the experiments cannot distinguish them. Under
+  unequal periods (the realistic case) they diverge, and nothing here says which is right.
+- **By recency.** Weakly contraindicated: §1.20 finds the newest specialist is the best model
+  for a regime in 1 case out of 16, so up-weighting recent vectors optimises for the wrong
+  thing. Untested directly.
+- **By ‖τᵢ‖ or by novelty √(1−ρᵢ).** The natural geometric candidates, given that α\* tracks
+  1/alignment (§1.18). Also untested, and the most interesting of the three.
+
+**So "average the task vectors" is a finding about the *scale*, not about the *weights*.** What
+was measured is that the coefficient in front of the sum must be ≈1/n rather than 1; whether the
+*n* terms should carry equal weight is a separate question this project never asked.
+
+**Sequential fine-tuning: from what, on what.** The chain is
+
+> θ₀ → (train on segment 0) → θ₁ → (train on segment 1) → θ₂ → … → θ_n
+
+Each step starts from the **immediately preceding model**, not from θ₀, and trains on **only the
+new segment's training slice** — no replay, no retained history. Early stopping and checkpoint
+selection use **that segment's own validation slice**. This is the one-line difference from the
+merging pipeline, where every segment instead starts from the **frozen** θ₀ — which is precisely
+what makes the τᵢ = θᵢ − θ₀ comparable to one another and therefore summable. The two are not
+variants of one method: sequential models share no common base, so **task arithmetic does not
+apply to them at all**.
+
+One option exists and is off by default: `reg_lambda > 0` adds an L2-SP penalty pulling each
+step back toward an anchor — θ₀ by default, bounding cumulative drift, or the previous model.
+At `reg_lambda = 0` it is inert, and every number in this document is at that setting.
+
+**The update loop, period by period.** Two common misreadings are worth heading off — one about
+what merging stores, one about what sequential fine-tunes *from*:
+
+| | **merging** | **sequential** |
+|---|---|---|
+| stored between periods | **θ₀ (frozen, forever) + running sum S** | the current model only |
+| each period fine-tunes from | **frozen θ₀** — reloaded every time | **the previous model** θ_{k−1} |
+| trained on | that period's data only | that period's data only |
+| update | τ_k = θ_k − θ₀ ; **S ← S + τ_k** ; discard θ_k | θ_k *becomes* the model |
+| served | θ₀ + (1/k)·S | θ_k |
+| storage | 2 models, **independent of k** | 1 model |
+
+**You cannot keep only the merged model.** Storing θ₀ + S is equivalent to storing θ₀ and the
+current merge (since S = k·(merged − θ₀)), but **θ₀ itself can never be discarded**: the next
+task vector is defined against it, and re-scaling the average from 1/k to 1/(k+1) needs it too.
+Drop θ₀ and the scheme cannot continue. That is the real storage cost of merging — two models,
+not one, and not *n*.
+
+**And sequential does *not* fine-tune the merged model.** It fine-tunes the previous *sequential*
+model. Fine-tuning the merge would be a **third method**, and one this project never ran:
+
+> **merge-then-continue** — serve the merge, then fine-tune *it* on the next period.
+
+It is a tempting hybrid and it breaks task arithmetic. Once you fine-tune the merged model the
+base has moved, so the next τ is measured against a drifting reference and is no longer
+comparable to its predecessors — the property that makes the sum meaningful (§4.2) is exactly
+what is lost. You would have to either re-anchor to the new model each period, which *is*
+sequential fine-tuning with extra steps, or keep θ₀ as the anchor while serving something else,
+in which case the merge and the fine-tune pull against each other. **Untested here, and flagged
+as future work rather than recommended.**
+
+**Which is why the two fail differently.** Merging keeps a fixed-size summary of *all* periods
+and dilutes each by 1/n. Sequential keeps full strength on the newest period and lets earlier
+ones decay through overwriting — with nothing anchoring them unless L2-SP is switched on. That
+asymmetry, not ρ, is what §11.3's decision rule is built on.
 
 ### Why the failure is informative
 
@@ -460,6 +816,18 @@ The model was never destroyed; it was pushed about four times too far.
 **Forgetting goes with it.** At α\* it is 1.013 on SWaT and **0.967** on ETTh1 — the
 merged model is *better* than the base model on the base model's own regime.
 
+> ⚠️ **This claim is partly circular, and the size of the circularity is measurable.** α\* is
+> chosen on the pooled validation union, which *includes the baseline's own validation slice*
+> (`val_base`) weighted by window count — and at `baseline_fraction=0.5` that slice is **50–68%
+> of the selection signal** (SWaT 50%, exchange_rate 52%, ETTh2 57%, ETTh1 at n=5 **68%**). So α
+> is selected with roughly half its weight on staying close to θ₀, and we then report that at
+> that α the base regime is undamaged. The finding is not empty — nothing forced the base-regime
+> ratio below 1.0, and the *magnitude* of the overshoot at α = 1 is unaffected — but it should
+> be read as **"at an α chosen with ~50% weight on base retention, base-regime damage
+> vanishes"**, not as an unconditional property of merging. Excluding `val_base` moves α\*
+> materially (ETTh1 n=3: 0.30 → 0.40; PSM n=2: 0.50 → 0.75); the full sensitivity is in
+> [EXPERIMENTS.md §1.18](EXPERIMENTS.md).
+
 **Non-orthogonality still matters, but its consequence changes.** It is precisely *because*
 the vectors agree that summing overshoots. Non-orthogonality does not make merging fail — it
 dictates a smaller α.
@@ -470,8 +838,9 @@ dictates a smaller α.
 > is *smaller* than PSM's, not larger. Across four datasets the ranking by ρ
 > (SWaT, PSM, exchange_rate, ETTh1) does not match the ranking by α\*
 > (SWaT, ETTh1, exchange_rate, PSM). **ρ sets the direction — more agreement means a smaller
-> scale is needed — but it does not order the datasets.** What does hold is the within-dataset
-> law α\*·n = constant (§6.6).
+> scale is needed — but it does not order the datasets.** What does hold is the weaker
+> within-dataset regularity α\*·n ≈ order 1 (§6.6) — near-flat rather than constant, and
+> conditional on how α\* is selected.
 
 ### 6.4 Remedies
 
@@ -514,37 +883,32 @@ The remedy table lists α = 1/n as a sane prior. It is better than that: it is w
 says, and it is the cleanest quantitative result in the project.
 
 Sweeping the number of segments n ∈ {2, 3, 5} on four datasets and selecting α on validation
-at each, the product **α\*·n stays at order 1 within a dataset on four of six** — near-flat there,
+at each, the product **α\*·n stays at order 1 within a dataset on five of six** — near-flat there,
 though not literally constant (ETTh2, added later, drifts 0.97 → 0.80 → 0.75; see
 [EXPERIMENTS.md §1.18](EXPERIMENTS.md)), and *not* attributable to the count alone for the
 identifiability reason at the end of this subsection:
 
 | dataset | α\* at n=2 | n=3 | n=5 | α\*·n |
 |---|---|---|---|---|
-| SWaT | 0.50 | 0.25 | 0.25 | 1.00 / 0.75 / 1.25 |
-| PSM | **0.75** | **0.50** | **0.50** | **1.50 / 1.50 / 2.50** |
+| SWaT | 0.43 | 0.23 | 0.25\* | 0.87 / 0.70 / 1.25\* |
+| PSM | 0.53 | 0.38 | 0.28 | 1.07 / 1.15 / 1.42 |
 | ETTh1 | 0.50 | 0.30 | 0.20 | 1.00 / 0.90 / 1.00 |
 | exchange_rate | 0.70 | 0.53 | 0.30 | 1.40 / 1.60 / 1.50 |
 | ETTh2 | 0.48 | 0.27 | 0.15 | 0.97 / 0.80 / 0.75 |
 | ETTm2 | 0.38 | 0.27 | 0.15 | 0.77 / 0.80 / 0.75 |
 
-> ⚠️ **The PSM row is corrected; it previously read 0.50 / 0.38 / 0.25 → 1.00 / 1.12 / 1.25.**
-> That row is not reproducible: searching all five `reconstruction/score_*` validation
-> statistics against both aggregation rules (argmin of the seed-averaged curve, and the mean of
-> per-seed argmins) reproduces **none** of its three values — n=3's published 0.38 does not even
-> lie on the α grid. SWaT's row, by contrast, reproduces exactly under `reconstruction/score_mean`
-> under both rules, so the definition is settled and PSM was computed differently. The values
-> above are PSM under SWaT's definition.
->
-> **This weakens the claim rather than strengthening it.** Corrected, PSM is a *second*
-> exception alongside exchange_rate, and a worse one: its product is not merely above 1 but
-> **rises with n** (1.50 → 2.50), which is the pattern "α\*·n is a constant" most needs to be
-> absent. Four of six datasets sit near 1 (SWaT 0.75–1.25, ETTh1 0.90–1.00, ETTh2 0.75–0.97,
-> ETTm2 0.75–0.80); two do not.
+> ⚠️ **Correction withdrawn (2026-08-07).** This row was briefly changed to 0.75 / 0.50 / 0.50
+> → 1.50 / 1.50 / 2.50 on the grounds that it reproduced under no rule. That was wrong: it
+> reproduces **exactly** (0.500 / 0.375 / 0.250) once the baseline's validation slice
+> (`val_base`) is included in the pooled selection signal, which is what the forecasting rule
+> does and what §0.6 now specifies for both. The failed reconstruction used a rule that excluded
+> it — an under-specification in §0.6, not an error in the data. The original values stand.
+> SWaT is insensitive to this choice, which is why it reproduced either way and masked the
+> ambiguity.
 
 Why that is a statement about the *mean*: the merge is θ₀ + α·Στᵢ. Write α = k/n and it
 becomes θ₀ + k·(Στᵢ)/n = θ₀ + k·**mean**(τ). A constant α·n = k says the best merge always
-steps a fixed multiple k of the *average* task vector — k ≈ 1 on four datasets, ≈1.5 on
+steps a fixed multiple k of the *average* task vector — k ≈ 1 on five datasets, ≈1.5 on
 exchange_rate — no matter how many vectors are being averaged.
 
 **Why it is not just "the vectors got smaller".** Individual task vectors *do* shrink as
@@ -645,7 +1009,22 @@ coefficient *falls* with the number of tasks but far more slowly than 1/n, so th
 
 **The claim worth making:** in the aligned regime the optimal coefficient collapses to exactly
 1/n, which does not happen in the orthogonal regime — so α·n is itself a **measurable signature
-of which regime a task set is in**, reachable without computing any geometry. That is a
+of which regime a task set is in**, reachable without computing any geometry.
+
+> ⚠️ **The signature is convention-dependent, and the claim must say which α it uses.** α\* is
+> selected on the validation union *including the baseline's own slice*, which carries 50–68% of
+> the signal ([EXPERIMENTS.md §0.6](EXPERIMENTS.md)). Drop that slice — asking instead "what α
+> best incorporates the *new* information?" — and the products **grow** on ETTh1 (1.13 → 1.33)
+> and PSM (1.50 → 2.50): the orthogonal signature, from vectors whose measured pairwise cosine
+> is 0.20–0.74. The contrast with image classification is still real, because the underlying
+> geometry differs, but *"α·n is constant here"* holds for the **deployment** objective and not
+> for the new-information one. Stated without that qualifier the signature is not falsifiable.
+>
+> The geometry in fact predicts the *rising* version: alignment ‖Στ‖ ÷ Σ‖τ‖ falls with n
+> (ETTh1 0.808 → 0.598), which should push α\* above 1/n. So the flat product is the composite
+> of a rising geometric term and a retention term that grows with n — not a bare property of
+> the task vectors. Directionally confirmed on 2 of 4 datasets (Pearson r = +0.44 over twelve
+> points); see [EXPERIMENTS.md §1.18](EXPERIMENTS.md). That is a
 statement about time series specifically (§2), and it is a contribution; "average the vectors"
 is not.
 
@@ -761,8 +1140,8 @@ The two optima do not merely differ in principle; they point to different values
 | SWaT | 0.50 | ≥1.50 — AUROC rises monotonically past the grid edge |
 | PSM | 0.50 | 0.75 |
 
-Choosing α on validation therefore costs **84–99% of the achievable GRR on SWaT — but only
-5–19% on PSM** (corrected 2026-08-07), against
+Choosing α on validation therefore **produces a merge worse than the base model on SWaT**
+(cost 101–103%, GRR at α_val negative) **and costs 26–48% on PSM**, against
 **1–8% on forecasting** (EXPERIMENTS.md §1.12). And AUROC is not insensitive to α — it moves
 6× the noise floor on SWaT and 85× on PSM. It moves in a direction validation cannot see.
 
@@ -846,7 +1225,7 @@ and *redundant updates* simultaneously, which none of these provides.
 | old regime @ α\* | 1.013 ±0.012 | 1.139 ±0.053 | 0.967 ±0.029 |
 | base → joint gap | 1.0% | 3.4% | 39.2% |
 | GRR @ α\* | *inside noise* | **0.857 ±0.031** | 0.767 ±0.141 |
-| seed noise floor | 0.13% | 0.07% | 8.20% |
+| seed noise floor | 0.09% | 0.07% | 8.76% |
 | vs sequential | **merge wins both** | sequential on new, tie on old | sequential on new, tie on old |
 
 **SWaT is a control, not evidence.** A frozen base on half the data is already within
@@ -858,7 +1237,7 @@ also the one where nothing can be demonstrated on the test set.
 merge cost is indistinguishable from free.
 
 **ETTh1 is the only dataset that genuinely drifts** — a 39% gap between base and joint
-training — but it is also the noisiest (8.20% on absolute values), so it must be reported
+training — but it is also the noisiest (8.76% on absolute values), so it must be reported
 as ratios.
 
 ---
@@ -932,6 +1311,51 @@ The measurement is free: you fine-tune a fresh specialist every period anyway, s
 against the accumulated merge on the newest held-out slice, and branch when the fresh model
 starts winning. That is the same performance-triggered rule the dynamic-weighted-ensemble
 literature converges on (§15).
+
+### 11.0a-bis Branching the chain — what is tested, and what is not
+
+The two routes are usually presented as a choice, but nothing forces a single flat chain. The
+natural family in between is **re-anchoring**: accumulate for a while, then declare the current
+model a new base and start a fresh accumulation from it.
+
+**What this project tested: the trigger, not the structure.** §11.0a answers *when* to branch —
+materialise when a freshly fine-tuned specialist starts beating the accumulated merge on the
+newest held-out slice, which is free to measure. What happens *after* the branch was never run:
+every experiment here is one flat chain of one type.
+
+**Re-anchoring is well-defined, and worth writing down.** Anchor at period *m*, with
+θ_A = θ₀ + (1/m)·S_m the merge of the first block. Later periods define their vectors against
+the new base, τ′ᵢ = θᵢ − θ_A, and the served model is
+
+> θ_A + α′·Σᵢ τ′ᵢ  =  θ₀ + (1/m)·S_m + α′·Σᵢ τ′ᵢ
+
+so the scheme telescopes into a **two-level tree**: a within-block average at scale 1/m, and a
+between-block term at its own scale. Nothing breaks, because every vector is still measured
+against a base its siblings share — the property §4.2 needs. Storage is one extra model per
+live anchor.
+
+**Why it is more than bookkeeping.** It attacks the failure mode merging actually has. Flat
+merging dilutes every contribution by 1/n, so after twenty periods each is at 1/20 — the
+"shard starvation" mode of §11.3. **Re-anchoring bounds that dilution**: with blocks of five,
+each vector sits at 1/5 within its block regardless of how long the stream runs. The two
+routes' failure modes are dilution (merging) and forgetting (sequential); a re-anchored chain
+trades between them by choosing the block length, with flat merging (m = n) and sequential
+(m = 1, roughly) as the two endpoints.
+
+**What it would take to test.** Nothing new in the framework: the pipeline already fine-tunes
+from a frozen base and already accumulates, so re-anchoring is a base swap on a schedule. The
+open questions are empirical — where the block length should sit, whether the trigger in
+§11.0a picks it well, and whether α within a block still tracks 1/m as §6.6 predicts, which is
+the sharpest test since it would extend the scale rule to a regime it was not fitted on.
+
+**Related work makes this the live direction.** **OPCM** is continual merging — folding in one
+model at a time while keeping only the orthogonal component — which is this territory
+approached from the geometry side rather than the schedule side. Its prediction here is
+pessimistic: the orthogonal component is what re-anchoring preserves, and §5.4 measures ρ at
+0.02–0.13 on the forecasting datasets, meaning the vectors are *already* nearly orthogonal
+there and projection has little to remove. **Where it should bite is SWaT** (ρ ≈ 0.61), the one
+dataset where updates genuinely repeat. That is a falsifiable prediction, and the datasets to
+test it on are already built.
 
 ### 11.0b Recency is not relevance
 
@@ -1054,13 +1478,43 @@ If policy already permits three periods, none of this machinery earns its place.
 
 | | window retrain | merge, keep 1 | n specialists + router | continual fine-tuning |
 |---|---|---|---|---|
-| **raw data retained** | **W periods** | **none** | none | none |
+| **raw data retained** | **W periods** (+0.15W val) | **none** with α = 1/n fixed; **0.9–2.5 periods** of validation if α is selected — see below | same as merging | none |
 | models stored | 1 | 1 | n | 1 |
 | starts each update from | θ₀ | θ₀ | θ₀ | previous model |
 | needs a hyperparameter? | W | **yes — α** | yes, a selection rule | **no** |
 | works on unlabelled AD? | yes | only with a pre-declared α | **no** | **yes** |
 | accuracy | **best, at W ≥ 3** | ≈ a 2-period window | +6% (low drift) to +107% (high drift) over merge | trades with merge, 5/4 |
 | degrades as periods accumulate by | — (restarts each time) | shard starvation | storage | forgetting |
+
+> ⚠️ **"Stores no data" is only true if you do not tune α.** Selecting α needs the pooled
+> validation union, and that is *raw data*, retained — `val_base` forever, plus every segment's
+> slice, because each selection scores the whole union. Counted in periods (one period = one
+> incremental segment), total retention including training data:
+>
+> | | merging + α selection | W = 2 window | W = 3 window | merging, α = 1/n fixed |
+> |---|---|---|---|---|
+> | ETTh1, n = 3 | **0.90** | 2.30 | 3.45 | **0.00** |
+> | ETTh1, n = 5 | **1.50** | 2.30 | 3.45 | **0.00** |
+> | exchange_rate, n = 5 | **2.50** | 2.50 | 3.75 | **0.00** |
+>
+> Merging still retains **less in total** than the window it is compared against — the
+> comparison it wins is unaffected. But *"none"* was wrong: it is 0.9–2.5 periods of validation
+> data, and it **grows with n**, since `val_base` is permanent and every new period adds a
+> slice. On exchange_rate at n = 5 it has already drawn level with a two-period window.
+>
+> **Which is what makes α\*·n ≈ 1 operationally load-bearing** rather than merely interesting.
+> Fixing α = 1/n in advance needs no validation data at all, and the measured cost against the
+> *test-optimal* α — the harshest possible comparator — is:
+>
+> | | n = 2 | n = 3 | n = 5 | dataset floor |
+> |---|---|---|---|---|
+> | ETTh1 | 0.6% | 2.7% | 4.9% | 8.76% — **all inside the floor** |
+> | exchange_rate | 11.2% | 9.0% | 12.0% | 5.29% — real, but ~10% |
+>
+> On ETTh1 pre-declaring 1/n is free; on exchange_rate it costs about 10%. **That, not the
+> selected-α version, is the variant whose storage claim is genuinely zero** — and every merging
+> number elsewhere in this document is at a *selected* α. Running the fixed-α variant properly
+> is EXECUTION_PLAN.md §3.9.
 
 **If you can retain ≥ 3 periods: window retrain.** It beat every merge by 13–20% on both
 datasets with headroom, needs no coefficient, and cannot accumulate forgetting because it
@@ -1070,7 +1524,7 @@ that cost.
 **Otherwise, default: merge and keep one model.** It is within ~7% of an unreachable ceiling, beats the
 newest specialist everywhere, costs ~1.05× a dedicated specialist, and stores one model. Its
 one requirement is α — and α is not a free parameter you must search blindly, because α\*·n
-lands at order 1 on four of six datasets (§6.6). Start from the mean of the task vectors.
+lands at order 1 on five of six datasets (§6.6). Start from the mean of the task vectors.
 Note this is an empirical regularity across six datasets, **not** a constant of the dataset:
 §6.6 shows the product drifts within a dataset as n varies, and no design can isolate the
 count, so treat α\*·n ≈ 1 as a starting point rather than a formula to trust.
@@ -1115,8 +1569,8 @@ selectable and a router becomes buildable. But **the headroom does not change** 
 sit 6.2% and 7.8% from the ceiling, so routing would still be recovering very little on *these*
 datasets, and both are saturated to begin with (base within 1.1% and 3.4% of joint training).
 
-So a labelled calibration set is worth having for **α selection**, which is worth 84–99% on
-SWaT and 5–19% on PSM of the
+So a labelled calibration set is worth having for **α selection**, which on SWaT is the
+difference between a harmful merge and a useful one, and on PSM is worth 26–48% of the
 achievable GRR on AD (§8.4) — a much larger prize than routing. Whether routing pays off on AD
 is untested on drifting AD data, and both current AD datasets are the wrong place to look. The
 prediction, from §11.1, is that AD routing pays off exactly when the regimes differ enough for
@@ -1138,11 +1592,12 @@ specialists to separate — which is what a drifting AD benchmark would be for.
   and concentrated on the newest segment.
 - ~~α\* is stable across seeds, exactly~~ — **withdrawn**, that was 0.1-grid quantisation; at
   0.05 resolution the seeds differ by one step.
-- **α\*·n is constant**, so the optimal merge is a fixed multiple of the *mean* task vector
+- **α\*·n is near-constant**, so the optimal merge is roughly a fixed multiple of the *mean*
+  task vector
   (§6.6) — but see §6.6 itself: the count can never be isolated on a fixed series, so this is
   an empirical regularity in one parameterisation, not a law.
 - **Validation cannot select α on AD.** The val and test optima point to different values, and
-  choosing on validation costs 84–99% on SWaT / 5–19% on PSM against 1–8% on forecasting
+  choosing on validation costs 101–103% on SWaT (worse than base) / 26–48% on PSM against 1–8% on forecasting
   (§8.4).
 - **The merge is bitwise reproducible** — all 87 merged checkpoints recompute exactly.
 

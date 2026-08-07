@@ -80,6 +80,32 @@ PARTITION_ARGS = frozenset({
 })
 
 
+def retention_periods(args: dict) -> dict[str, float] | None:
+    """How much raw data each update strategy must retain, in units of one period.
+
+    Merging stores no *training* data, but selecting alpha scores the pooled validation union
+    (see EXPERIMENTS.md 0.6), which means keeping `val_base` permanently and every segment's
+    validation slice as it arrives. A window retrain instead keeps W periods of training data
+    plus a validation slice cut from them. Expressing both in periods makes them comparable to
+    the retention crossover, which is measured in the same unit.
+
+    Pure arithmetic on the run's own configuration — no measurement involved.
+    """
+    bf = args.get("dataset_baseline_fraction")
+    n = args.get("dataset_n_finetune_segments")
+    vf = args.get("dataset_val_fraction")
+    if bf is None or vf is None or not n:
+        return None
+    period = (1.0 - bf) / n            # one segment, as a fraction of the series
+    if period <= 0:
+        return None
+    merge_val = (bf * vf + period * vf * n) / period
+    out = {"merge_alpha_selected": round(merge_val, 3), "merge_alpha_fixed": 0.0}
+    for w in (1, 2, 3):
+        out[f"window_W{w}"] = round((w * period + w * period * vf) / period, 3)
+    return out
+
+
 def comparable(a: dict, b: dict) -> bool:
     """True when two runs differ only in how the series was partitioned."""
     keys = {k for k in set(a) | set(b)
@@ -90,7 +116,9 @@ RUN_FIELDS = ["experiment", "dataset", "pipeline", "n_segments", "block", "metri
               "n_seeds", "seeds", "mean", "sd", "sd_pct"]
 DERIVED_FIELDS = ["experiment", "dataset", "metric", "n_segments", "n_seeds", "base", "joint",
                   "joint_from", "merged", "floor_pct", "headroom_pct", "merge_scale_selected",
-                  "grr", "grr_paired", "n_paired", "best_specialist"]
+                  "grr", "grr_paired", "n_paired", "best_specialist",
+                  "retention_merge_alpha_selected_periods", "retention_window_W2_periods",
+                  "retention_window_W3_periods"]
 
 
 def higher_is_better(metric: str) -> bool:
@@ -245,6 +273,10 @@ def audit(runs_root: Path, metric_filter: set[str] | None) -> tuple[list, list]:
                 "grr_paired": round(grr_paired, 4) if grr_paired is not None else "",
                 "n_paired": len(shared) if joint_seeds else 0,
                 "best_specialist": round(best_spec, 6) if best_spec is not None else "",
+                **({"retention_merge_alpha_selected_periods": ret["merge_alpha_selected"],
+                    "retention_window_W2_periods": ret["window_W2"],
+                    "retention_window_W3_periods": ret["window_W3"]}
+                   if (ret := retention_periods(info["args"])) else {}),
             })
     return run_rows, derived_rows
 

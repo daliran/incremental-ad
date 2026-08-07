@@ -129,8 +129,8 @@ datasets was **withdrawn** after replication.
 
 ### 2.4 Reproducibility floor ✅ — 3 seeds × 4 datasets
 
-**Settled:** the floor is dataset-specific — PSM 0.07%, SWaT 0.13%, exchange_rate 5.29%,
-ETTh1 8.20%. The universal 2% assumption was wrong in both directions (15–30× too conservative
+**Settled:** the floor is dataset-specific — PSM 0.07%, SWaT 0.09%, exchange_rate 5.29%,
+ETTh1 8.76%. The universal 2% assumption was wrong in both directions (15–30× too conservative
 for AD, 4× too loose for ETTh1). It rescued SWaT's headline GRR while correctly disqualifying
 most of its individual metrics. **ETTh1's instability is in absolute values only** — report it
 as ratios.
@@ -272,7 +272,7 @@ What it settled:
   ±0.50 at n = 5.
 - **Merge cost is flat in n** — ~1.0–1.1 on three datasets, 1.6–2.1 on exchange_rate.
 - **Validation cannot select α on AD.** Val reconstruction and test AUROC disagree about α
-  (SWaT: val optimum 0.5, AUROC monotone increasing to 1.5). Selecting on val costs 84–99% (SWaT) / 5–19% (PSM) of
+  (SWaT: val optimum 0.5, AUROC monotone increasing to 1.5). Selecting on val costs 101–103% — a merge worse than base — (SWaT) / 22–42% (PSM) of
   the achievable GRR on AD versus 1–8% on forecasting. **Every AD merge number in the project
   is oracle-selected**, and that is now measured rather than argued.
 - **Merge-vs-sequential is not a dataset property** — it flips with n on exchange_rate.
@@ -432,8 +432,15 @@ method that picked exchange_rate over traffic. One CPU job.
 | traffic | 14,036 | 862 | 0.106 | 0.078 |
 
 > **Not comparable to the older drift figures.** This screen segments 5 ways; §2.5's numbers
-> segment 3 ways, so ETTh1 reads 0.412 here against 0.309 there. The *ranking* is unchanged.
-> **Re-measure both consistently before either table goes in the thesis.**
+> segment 3 ways, so ETTh1 reads 0.412 here against 0.309 there.
+>
+> ✅ **Resolved 2026-08-07 for the forecasting datasets.** The screen is now committed as
+> `analysis/drift_screen.py` — it had been living outside the repository on `$WORK`, so these
+> figures had no script of record — and re-running it at both segmentations reproduces every
+> published value and fills in ETTh2/ETTm2's missing 3-way column (0.659 each). **The ordering
+> is identical under both** (exchange_rate → ETTh2 → ETTm2 → ETTh1), so no drift-ordered claim
+> depends on which screen was used. SWaT/PSM are not in the HuggingFace screen and still have
+> one segmentation only.
 
 **Two candidates beat `weather`, which is only a replication of the ETTh1 drift regime:**
 
@@ -597,7 +604,7 @@ hand computation and the pipeline's independently-computed specialisation.
 
 **Still not derivable from anything on disk**, flagged in place rather than restated: AD routing
 headroom (no per-regime detection metric exists — the columns carry only reconstruction
-statistics) and ETTh1's published 8.20% floor (its third seed's run is not identifiable among
+statistics) and ETTh1's published 8.76% floor (its third seed's run is not identifiable among
 the surviving experiments).
 
 ---
@@ -646,8 +653,7 @@ Cost: ~18 forecasting jobs plus diagnostics, all minutes-scale.
 ### 3.2 Can α — or any quality signal — be chosen honestly on AD? ⬜ — the blocker
 
 [EXPERIMENTS.md §1.12](EXPERIMENTS.md) measured the problem: validation reconstruction and test AUROC point to different α, so
-val selection costs 84–99% of achievable GRR on SWaT but only 5–19% on PSM, against 1–8% on
-forecasting — unreliable rather than impossible (§2.22). **Q3, Q4 and Q5
+val selection costs 26–103% of achievable GRR on AD — on SWaT it produces a merge worse than the base model — against 1–8% on forecasting (§2.22). **Q3, Q4 and Q5
 all need the same missing thing**: a signal that tracks detection quality on unlabelled data.
 If §3.1 also fails on AD, that is two independent symptoms of one cause.
 
@@ -849,3 +855,56 @@ results land — no figure is transcribed by hand.
 7. ~~Does merging beat a single fine-tune on all the post-baseline data?~~ **Answered — no.**
    §2.13: merging is not an accuracy win over the unsplit fine-tune; its justification is the
    streaming constraint.
+
+
+### 3.8 Re-anchored (branched) merging ⬜ — the one-parameter family between the two routes
+
+Accumulate for *m* periods, declare the merge a new base θ_A = θ₀ + (1/m)·S_m, restart. The
+served model telescopes to θ₀ + (1/m)·S_m + α′·Στ′, a two-level tree where every vector is
+still measured against a base its siblings share, so [THEORY.md §4.2](THEORY.md)'s requirement holds. **Why it is
+worth running:** it directly attacks merging's actual failure mode. Flat merging dilutes each
+contribution by 1/n, so at twenty periods each sits at 1/20; re-anchoring every *m* bounds the
+dilution at 1/m regardless of stream length. Block length becomes a dial with flat merging
+(m = n) and sequential (m ≈ 1) as endpoints, trading dilution against forgetting.
+
+Needs **no new framework code** — the pipeline already fine-tunes from a frozen base and
+already accumulates, so this is a base swap on a schedule. Open questions: where *m* should
+sit, whether §2.17's materialise trigger picks it, and — the sharpest test — **whether α within
+a block still tracks 1/m**, which would extend the scale rule to a regime it was never fitted
+on. [THEORY.md §11.0a-bis](THEORY.md).
+
+### 3.9 Zero-retention merging: pre-declared α = 1/n ⬜ — closes the storage claim
+
+Every merging number in this project is at a *selected* α, which requires retaining the
+validation union — 0.9–2.5 periods of raw data, growing with n (`val_base` is permanent and
+every period adds a slice). That is still *less total retention* than the W = 2/W = 3 window it
+beats, so the comparison stands — but it is not the "no stored data" the headline implies, and
+on exchange_rate at n = 5 it has already drawn level with a two-period window. The version of merging that genuinely stores nothing is the one
+with α fixed at 1/n in advance.
+
+First pass is already done from the existing curves and is encouraging: against the
+*test-optimal* α the penalty is **0.6 / 2.7 / 4.9% on ETTh1 (all inside its 8.76% floor) and
+9–12% on exchange_rate**. What remains is to run it as a first-class variant rather than read
+it off a curve — commit α = 1/n before training, on all six datasets and every n, and report it
+beside the selected-α numbers. If it holds, the headline becomes *"merging is worth ~2 periods
+of retained history and genuinely stores no data"*, which is the claim the thesis wants and
+does not currently have. [THEORY.md §11.3](THEORY.md).
+
+### 3.10 The evaluation protocol for a live stream ⬜ — how would a practitioner even choose?
+
+Every comparison here is retrospective: both routes were run to completion and scored on a
+held-out test set. A practitioner deciding *online* cannot do that, and the gap is not small:
+
+- **Running both costs two fine-tunes per period.** Merging requires fine-tuning from frozen θ₀
+  every period; sequential requires fine-tuning from θ_{k−1}. Keeping the option open means
+  doing both.
+- **The choice is not symmetric in time.** Sequential can be started at any moment from
+  whatever model you hold. Merging cannot be started retroactively — sequential models share no
+  common base, so there is nothing to sum. To switch *to* merging you must re-anchor and begin
+  accumulating from the current model (§3.8), discarding the history.
+- **Choosing needs labelled held-out data every period**, which is a third retention cost on top
+  of §3.9's, and on unsupervised AD it does not exist at all — the same blocker as §3.2.
+
+Worth writing up as a protocol section even before it is measured, because it changes what the
+retention crossover means operationally: the crossover assumes you already know which route you
+are on.

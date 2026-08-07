@@ -272,7 +272,7 @@ What it settled:
   ±0.50 at n = 5.
 - **Merge cost is flat in n** — ~1.0–1.1 on three datasets, 1.6–2.1 on exchange_rate.
 - **Validation cannot select α on AD.** Val reconstruction and test AUROC disagree about α
-  (SWaT: val optimum 0.5, AUROC monotone increasing to 1.5). Selecting on val costs 101–103% — a merge worse than base — (SWaT) / 22–42% (PSM) of
+  (SWaT: val optimum 0.5, AUROC monotone increasing to 1.5). Selecting on val costs 93–99% (SWaT) / 22–42% (PSM) of
   the achievable GRR on AD versus 1–8% on forecasting. **Every AD merge number in the project
   is oracle-selected**, and that is now measured rather than argued.
 - **Merge-vs-sequential is not a dataset property** — it flips with n on exchange_rate.
@@ -607,7 +607,33 @@ headroom (no per-regime detection metric exists — the columns carry only recon
 statistics) and ETTh1's published 8.76% floor (its third seed's run is not identifiable among
 the surviving experiments).
 
+### 2.23 Merge-scale grids were not consistent across seeds ✅ — one retraction
+
+The seed top-ups regenerated the AD diagnostics on the script's **16-point** merge-scale grid
+(0.1 steps) while the originals used **7 points** (0.25 steps). Pooling those averages a
+*different subset of seeds at every scale* — 0.25 exists in one grid only, 0.1 in the other —
+so the pooled curve is jagged and α\* mixes argmins found at different resolutions.
+
+**What it cost.** A three-seed refresh published earlier the same day reported SWaT's honest-α
+cost at 103% / 101% and concluded that validation selection yields *a merge worse than the base
+model*. On a consistent grid every AD cost is below 100% and every GRR at α_val is positive.
+**The finding was an artefact and is withdrawn** ([EXPERIMENTS.md §1.12](EXPERIMENTS.md)); the
+underlying conclusion — validation cannot select α on AD — is unaffected, since 93–99% on SWaT
+was never in question.
+
+**Fixed in the tooling:** `scale_report` now groups runs by their merge-scale grid, keeps the
+largest consistent set, and reports `n_dropped_grid_mismatch` and `n_grid_points`. The cost is
+seed coverage — the AD cells now rest on 1–2 seeds — so **8 reruns are queued** to put every AD
+seed on the 16-point grid. Until they land, AD α\*, α\*·n and honest-α cost are 1–2 seed values
+and marked as such.
+
+**Also settled: PSM's α\*·n does not rise.** It reads 1.10 / 1.12 / 1.50, which resembles the
+orthogonal-regime signature, but the n=2 → n=5 change of +0.40 is only 1.5× the quantisation
+bound (±0.27), and PSM's alignment falls *less* than ETTh1's (0.149 against 0.210) while ETTh1
+has the flattest product. Neither check supports a regime difference.
+
 ---
+
 
 ## 3. Next
 
@@ -653,7 +679,7 @@ Cost: ~18 forecasting jobs plus diagnostics, all minutes-scale.
 ### 3.2 Can α — or any quality signal — be chosen honestly on AD? ⬜ — the blocker
 
 [EXPERIMENTS.md §1.12](EXPERIMENTS.md) measured the problem: validation reconstruction and test AUROC point to different α, so
-val selection costs 26–103% of achievable GRR on AD — on SWaT it produces a merge worse than the base model — against 1–8% on forecasting (§2.22). **Q3, Q4 and Q5
+val selection costs 19–99% of achievable GRR on AD against 1–8% on forecasting (§2.22). **Q3, Q4 and Q5
 all need the same missing thing**: a signal that tracks detection quality on unlabelled data.
 If §3.1 also fails on AD, that is two independent symptoms of one cause.
 

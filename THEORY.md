@@ -890,8 +890,8 @@ identifiability reason at the end of this subsection:
 
 | dataset | α\* at n=2 | n=3 | n=5 | α\*·n |
 |---|---|---|---|---|
-| SWaT | 0.43 | 0.23 | 0.25\* | 0.87 / 0.70 / 1.25\* |
-| PSM | 0.53 | 0.38 | 0.28 | 1.07 / 1.15 / 1.42 |
+| SWaT | 0.40 | 0.25 | 0.25 \* | 0.80 / 0.75 / 1.25 \* |
+| PSM | 0.55 | 0.38 | 0.30 | 1.10 / 1.12 / 1.50 |
 | ETTh1 | 0.50 | 0.30 | 0.20 | 1.00 / 0.90 / 1.00 |
 | exchange_rate | 0.70 | 0.53 | 0.30 | 1.40 / 1.60 / 1.50 |
 | ETTh2 | 0.48 | 0.27 | 0.15 | 0.97 / 0.80 / 0.75 |
@@ -1140,8 +1140,8 @@ The two optima do not merely differ in principle; they point to different values
 | SWaT | 0.50 | ≥1.50 — AUROC rises monotonically past the grid edge |
 | PSM | 0.50 | 0.75 |
 
-Choosing α on validation therefore **produces a merge worse than the base model on SWaT**
-(cost 101–103%, GRR at α_val negative) **and costs 26–48% on PSM**, against
+Choosing α on validation therefore costs **almost everything achievable on SWaT**
+(93–99% of the achievable GRR) **and costs 19–50% on PSM**, against
 **1–8% on forecasting** (EXPERIMENTS.md §1.12). And AUROC is not insensitive to α — it moves
 6× the noise floor on SWaT and 85× on PSM. It moves in a direction validation cannot see.
 
@@ -1569,8 +1569,8 @@ selectable and a router becomes buildable. But **the headroom does not change** 
 sit 6.2% and 7.8% from the ceiling, so routing would still be recovering very little on *these*
 datasets, and both are saturated to begin with (base within 1.1% and 3.4% of joint training).
 
-So a labelled calibration set is worth having for **α selection**, which on SWaT is the
-difference between a harmful merge and a useful one, and on PSM is worth 26–48% of the
+So a labelled calibration set is worth having for **α selection**, which is worth 93–99% on
+SWaT and 19–50% on PSM of the
 achievable GRR on AD (§8.4) — a much larger prize than routing. Whether routing pays off on AD
 is untested on drifting AD data, and both current AD datasets are the wrong place to look. The
 prediction, from §11.1, is that AD routing pays off exactly when the regimes differ enough for
@@ -1597,7 +1597,7 @@ specialists to separate — which is what a drifting AD benchmark would be for.
   (§6.6) — but see §6.6 itself: the count can never be isolated on a fixed series, so this is
   an empirical regularity in one parameterisation, not a law.
 - **Validation cannot select α on AD.** The val and test optima point to different values, and
-  choosing on validation costs 101–103% on SWaT (worse than base) / 26–48% on PSM against 1–8% on forecasting
+  choosing on validation costs 93–99% on SWaT / 19–50% on PSM against 1–8% on forecasting
   (§8.4).
 - **The merge is bitwise reproducible** — all 87 merged checkpoints recompute exactly.
 

@@ -60,7 +60,8 @@ log = logging.getLogger("scale_report")
 HIGHER_IS_BETTER = ("auroc", "auprc", "f1", "precision", "recall", "accuracy")
 
 FIELDS = [
-    "group", "n_segments", "n_seeds", "n_dropped_no_val", "val_base_weight_pct",
+    "group", "n_segments", "n_seeds", "n_dropped_no_val", "n_dropped_grid_mismatch",
+    "n_grid_points", "val_base_weight_pct",
     "alpha_star", "alpha_star_pooled", "alpha_star_n",
     "alpha_excl_val_base", "alpha_excl_n",
     "alpha_oracle", "grr_val", "grr_oracle", "honest_alpha_cost_pct",
@@ -152,7 +153,18 @@ def analyse(runs: list[Path], val_metric: str, test_metric: str) -> dict | None:
     if not usable:
         return {"error": f"none of {len(runs)} run(s) carry validation columns for "
                          f"{val_metric!r} — rerun diagnostics with --pipeline_curve_include_val"}
-    runs = usable
+
+    # Seeds must share a merge-scale grid. They do not always: the AD diagnostics were
+    # originally run on a 7-point grid (0.25 steps) and later regenerated on the 16-point
+    # default (0.1 steps). Pooling those averages a *different subset of seeds at every
+    # scale* — 0.25 exists in one grid only, 0.1 in the other — which produces a jagged
+    # curve and an alpha* that mixes argmins found at different resolutions. Keep the
+    # largest set of runs that agree, and report what was set aside.
+    grids: dict[tuple, list[Path]] = defaultdict(list)
+    for run in usable:
+        grids[tuple(sorted(_curve(run, val_metric, "val", True)))].append(run)
+    grid, runs = max(grids.items(), key=lambda kv: (len(kv[1]), len(kv[0])))
+    dropped_grid = len(usable) - len(runs)
 
     per_seed_alpha, per_seed_alpha_excl = [], []
     pooled_val: dict[float, list[tuple[float, float]]] = defaultdict(list)
@@ -198,6 +210,7 @@ def analyse(runs: list[Path], val_metric: str, test_metric: str) -> dict | None:
 
     out = {
         "n_segments": n, "n_seeds": len(runs), "n_dropped_no_val": dropped,
+        "n_dropped_grid_mismatch": dropped_grid, "n_grid_points": len(grid),
         "val_base_weight_pct": round(st.mean(weights), 1) if weights else None,
         "alpha_star": round(alpha, 4), "alpha_star_pooled": round(alpha_pooled, 4),
         "alpha_star_n": round(alpha * n, 3) if n else None,

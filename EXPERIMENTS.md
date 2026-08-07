@@ -80,7 +80,7 @@ sequential variant and the joint-training reference.
   overshoots. At α\* the damage disappears, and so does the "forgetting" once reported.
 - **In unsupervised AD the merge scale cannot be chosen honestly.** Validation reconstruction
   and test AUROC disagree about α — SWaT's val optimum is 0.5 while AUROC improves
-  monotonically to 1.5 — so selecting on validation costs **26–103%** of the achievable GRR on
+  monotonically to 1.5 — so selecting on validation costs **19–99%** of the achievable GRR on
   AD, against **1–8%** on forecasting. Every AD merge number in this file is oracle-selected.
   §1.12
 - **Merge versus sequential is not a property of a dataset.** It flips with segment count:
@@ -916,14 +916,33 @@ merge cost and the merged model are all read at that α. The raw `result.json` v
 
 | dataset | α\* (n=2) | α\* (n=3) | α\* (n=5) | α\*·n (n=2) | α\*·n (n=3) | α\*·n (n=5) |
 |---|---|---|---|---|---|---|
-| **SWaT** | 0.43 | 0.23 | 0.25\* | 0.87 | 0.70 | 1.25\* |
-| **PSM** | 0.53 | 0.38 | 0.28 | 1.07 | 1.15 | 1.42 |
+| **SWaT** | 0.40 | 0.25 | 0.25 \* | 0.80 | 0.75 | 1.25 \* |
+| **PSM** | 0.55 | 0.38 | 0.30 | 1.10 | 1.12 | 1.50 |
 
-\* **SWaT n = 5 is still one seed** — its diagnostics timed out twice and are rerunning; every
-other AD cell in this table is now three seeds after the top-ups (EXECUTION_PLAN.md §2.22).
-Refreshing them moved SWaT n=2 from 0.50 to 0.43 and PSM n=5 from 0.25 to 0.28, so **α\*·n
-stays order 1 on both** (SWaT 0.87–1.25, PSM 1.07–1.42) but PSM's product now rises more
-clearly with n, which is the pattern §1.18's sensitivity analysis already flagged.
+\* **SWaT n=5 is one seed**; its diagnostics timed out twice and are rerunning. The other AD
+cells rest on **two** seeds, not three — the seed top-ups were run on a 16-point merge-scale
+grid while the originals used 7 points, and mixing grids is invalid (§1.12), so the odd one out
+is set aside per group. Reruns that put every AD seed on the 16-point grid are queued
+(EXECUTION_PLAN.md §2.22).
+
+**Does PSM's product rise with n?** It reads 1.10 / 1.12 / **1.50**, which looks like the
+rising pattern §1.18 identifies as the *orthogonal-regime* signature. **Two checks say no:**
+
+- **Quantisation.** α\* is a mean of *k* per-seed argmins on a grid of step *g*, so its
+  resolution is *g/k* and α\*·n's is *(g/k)·n* — ±0.10 at n=2 (16-point grid, 2 seeds) and
+  ±0.25 at n=5. The n=2 → n=5 change of **+0.40 is only 1.5× the combined resolution
+  (±0.27)** — below any reasonable bar. SWaT's +0.45 is 0.4× its bound. **Neither is
+  distinguishable from flat.**
+- **Geometry.** If the rise were the orthogonal signature, PSM's alignment should fall fastest.
+  It does not: from n=2 to n=5 alignment falls **0.149** on PSM against **0.210** on ETTh1 and
+  0.161 on exchange_rate — and ETTh1 has the *flattest* product (1.00 / 0.90 / 1.00). The
+  ordering of alignment decay does not match the ordering of product rise, so the geometry does
+  **not** corroborate a regime difference.
+
+**So the honest statement is unchanged: α\*·n stays order 1 on every dataset measured**, and
+PSM's apparent rise is within measurement resolution and unsupported by its geometry. Restating
+it as a regime difference would have been the more interesting result; it is not what the data
+shows.
 
 > **This table is hand-transcribed, not generated.** Both halves now use the same pooling —
 > the whole validation union including the baseline's slice (`val_base`) — differing only in the
@@ -977,18 +996,29 @@ SWaT, PSM and ETTh1 all sit at ~1.0–1.1; exchange_rate is the outlier at 1.6�
 
 | dataset | n=2 | n=3 | n=5 | | n=2 | n=3 | n=5 |
 |---|---|---|---|---|---|---|---|
-| **SWaT** | 0.116 | 0.005 ±0.037 | 0.064 | | 0.707 | 0.477 ±0.115 | 0.947 |
-| **PSM** | 0.903 | 0.668 ±0.226 | 0.497 | | 1.156 | 1.059 ±0.059 | 0.861 |
+| **SWaT** | 0.010 | 0.006 | 0.064 \* | | 0.580 | 0.483 | 0.947 \* |
+| **PSM** | 0.956 | 0.518 | 0.532 | | 1.183 | 1.035 | 1.035 |
 | **ETTh1** | 0.865 ±0.035 | 0.733 ±0.149 | 0.885 ±0.057 | | 0.874 ±0.034 | 0.778 ±0.213 | 0.963 ±0.018 |
 | **exchange** | 1.421 ±0.240 | 1.164 ±0.099 | 1.238 ±0.208 | | 1.424 ±0.237 | 1.218 ±0.083 | 1.238 ±0.208 |
 
 Left block: α selected on validation (deployable). Right block: α read off the test
 curve (oracle, unobtainable in practice).
 
-**No consistent trend with n.** Only PSM declines (0.903 → 0.668 → 0.497). ETTh1 and
-exchange_rate are flat; SWaT is non-monotone. An earlier reading of these runs claimed GRR
-falls with n on every dataset — that was an artefact of comparing rows computed at different
-α, and it does not survive the uniform recomputation. **Withdrawn.**
+> ⚠️ **The AD rows were refreshed 2026-08-07 and now reconcile with §1.12** — recomputing
+> 1 − GRR(α_val)/GRR(α_oracle) from this block gives §1.12's costs to the digit on all four
+> datasets. They previously did not: the AD rows here were stale relative to §1.12, disagreeing
+> even in sign on SWaT n=2 (0.116 against −0.026). Both were wrong in different ways — the old
+> §1.11 values rested on one seed, and the §1.12 refresh pooled two different merge-scale grids
+> (§1.12's warning). These are on a consistent grid. \* SWaT n=5 is still one seed.
+>
+> ± spreads are dropped from the AD rows: after the grid filter these rest on 1–2 seeds, so a
+> spread would be an estimate from two points. The forecasting rows keep theirs (3 seeds).
+
+**No consistent trend with n.** ETTh1 and exchange_rate are flat; SWaT and PSM are both
+non-monotone (PSM 0.956 → 0.518 → 0.532). An earlier reading claimed GRR falls with n on every
+dataset — an artefact of comparing rows computed at different α — and a later one claimed only
+PSM declines monotonically, which the consistent-grid values do not support either. **Both
+withdrawn.**
 
 SWaT's GRR is the least trustworthy number here regardless: its base-to-joint gap is only
 0.0095 AUROC, so a seed-level wobble of 0.001 moves GRR by ~0.11, and n=2 and n=5 are
@@ -996,75 +1026,33 @@ single-seed.
 
 ### 1.12 Validation cannot select α for anomaly detection
 
-> **Provenance.** `analysis/scale_report.py --val_metric reconstruction/score_mean --test_metric window_auroc`, over `merge_scale_curve.csv` + the `standard` row of `transfer_matrix.csv`. cost = 1 − GRR(α_val) ÷ GRR(α_oracle), both per §0.6. **Three seeds** for every AD cell except SWaT n=5.
+> **Provenance.** `analysis/scale_report.py --val_metric reconstruction/score_mean --test_metric window_auroc`. cost = 1 − GRR(α_val) ÷ GRR(α_oracle), both per §0.6. **Seeds must share a merge-scale grid** — see the warning below.
 
 Cost of choosing α on validation instead of on test, as a fraction of the oracle GRR.
 
-| dataset | n=2 | n=3 | n=5 | GRR at α_val | verdict |
+| dataset | n=2 | n=3 | n=5 | seeds | verdict |
 |---|---|---|---|---|---|
-| **SWaT** | **103%** | **101%** | 93% \* | **−0.026 / −0.006** | **worse than not merging at all** |
-| **PSM** | 26% | 29% | 48% | 0.875 / 0.761 / 0.537 | costly but still useful |
-| **ETTh1** | 1% | 6% | 8% | — | **val selection is free** |
-| **exchange** | 0% | 4% | 0% | — | **val selection is free** |
+| **SWaT** | 98% | 99% | 93% | 2 / 2 / 1 | **val selection fails** |
+| **PSM** | 19% | 50% | 49% | 2 / 2 / 2 | costly but still useful |
+| **ETTh1** | 1% | 6% | 8% | 3 | **val selection is free** |
+| **exchange** | 0% | 4% | 0% | 3 | **val selection is free** |
 
-> **Refreshed 2026-08-07 on three seeds**; the AD rows previously rested on one or two, and all
-> six moved. The two SWaT cells crossed a qualitative line: **a cost above 100% means GRR at the
-> validation-selected α is *negative*** — the merge validation picks is **worse on test than the
-> base model it started from** (−0.026 at n=2, −0.006 at n=3). Choosing α on validation there
-> does not merely forfeit most of the achievable gain; it turns a beneficial merge into a
-> harmful one.
+> ⚠️ **A three-seed refresh published earlier on 2026-08-07 is withdrawn.** It reported SWaT at
+> 103% / 101% and concluded that validation selection produces *a merge worse than the base
+> model* (GRR at α_val negative). **That was an artefact.** The AD diagnostics were originally
+> run on a **7-point** merge-scale grid (0.25 steps) and the seed top-ups regenerated them on
+> the **16-point** default (0.1 steps); pooling the two averages a different subset of seeds at
+> every scale — 0.25 exists in one grid only, 0.1 in the other — producing a jagged curve and an
+> α\* that mixes argmins found at different resolutions. On a consistent grid every AD cost is
+> back below 100% and every GRR at α_val is **positive** (SWaT +0.0099 / +0.0063 / +0.064).
+> `scale_report` now detects this, keeps the largest set of runs sharing a grid, and reports
+> `n_dropped_grid_mismatch`.
 >
-> PSM's cells rise as well (22 → 26, 42 → 48), and its n = 3 cell — previously marked
-> unverifiable — is now derivable at **29%** from the same three-seed group §1.9 uses for its
-> floor. The old 37% reproduces from no group under any documented rule, so it is **superseded**
-> rather than corrected. \* SWaT n = 5 is still one seed; its diagnostics are rerunning.
-| **exchange** | 0% | 4% | 0% | **val selection is free** |
-
-> ⚠️ **This row was briefly published as 6% / 19% / 5% and that correction is withdrawn.**
-> With the selection signal pooled over the whole validation union — `val_base` included, as
-> §0.6 now specifies — **n=2 (22%) and n=5 (42%) reproduce exactly**, as do all three SWaT rows.
-> The failed reconstruction had excluded `val_base`; SWaT is insensitive to that choice, PSM is
-> not, which is how the ambiguity went unnoticed.
->
->  * **n=3 does not reproduce, and is internally inconsistent.** Its oracle GRR (1.059)
-> identifies its source as `slurm_grid_psm_train_incremental_diagnostics` (which gives 1.062),
-> not `noisefloor_psm` — but on that group the published val-GRR of 0.668 corresponds to
-> **α = 1.25**, whereas §1.11 records PSM n=3's α\* as **0.38**. The two sections disagree about
-> the same cell, and no reconstruction-based rule selects 1.25 (every signal gives ≈0.5, i.e.
-> GRR 0.890 and a 16% cost). Both candidate groups carry the same two seeds [7, 123], so this
-> is not a population difference. **The cell is marked unverified rather than replaced**: its
-> provenance is identifiable but its value is not derivable from any documented rule, and the
-> honest range under rules that *are* documented is 16–19%.
-
-On the forecasting datasets validation costs **1–8%** of the oracle GRR — the val optimum
-and the test optimum are within one grid step, and on exchange_rate at n=5 they coincide
-exactly. **On AD it costs 26–103%** — on SWaT the validation-selected merge is *worse than the base model* (cost >100%); on PSM it costs 26–48%.
-
-**The claim stands as originally written**: validation reconstruction is not a usable basis for
-choosing α on anomaly detection. On SWaT it yields a merge worse than the base model (cost 101–103%); on PSM it costs 26–48% of the achievable GRR, against
-PSM, against 1–8% on forecasting. ⚠️ A weaker restatement published briefly on 2026-08-07 —
-"unreliable rather than impossible", on the basis that PSM cost only 5–19% — has been
-**withdrawn**: that figure came from a selection signal that wrongly excluded `val_base`.
-
-The mechanism is direct, and sharper than the earlier "AD metrics are blind to α" framing:
-the AD **validation** metric is reconstruction error, the AD **test** metric is AUROC, and
-the two disagree about α.
-
-| dataset | α minimising val reconstruction | α maximising test AUROC |
-|---|---|---|
-| SWaT | 0.50 | ≥1.50 *(monotone increasing — the optimum is past the grid edge)* |
-| PSM | 0.50 | 0.75 |
-
-AUROC is *not* insensitive to α — it moves 0.0060 on SWaT (6× the noise floor) and 0.0426
-on PSM (85×). It simply moves in a direction validation cannot see. On SWaT, α=0.5
-minimises reconstruction error while AUROC keeps improving all the way to 1.5, where
-reconstruction is 2.5× worse than at its optimum. **A model that reconstructs badly can
-separate anomalies well**, so validation reconstruction is not a proxy for detection.
-
-This is why `--pipeline_select_merge_scale_on_val` refuses on AD (EXECUTION_PLAN.md §2.9),
-and it is now a measured justification rather than an argued one. The consequence for the
-research is uncomfortable and worth stating plainly: **on AD there is no deployable way to
-choose α.** Every AD merge number in this file is oracle-selected.
+> **The cost of that filter is seed coverage**: these cells rest on 1–2 seeds, not 3. Reruns of
+> the old-grid seeds on the 16-point grid are queued (EXECUTION_PLAN.md §2.22). The
+> *conclusion* — validation reconstruction is not a usable basis for choosing α on AD — is
+> unaffected either way, since 93–99% on SWaT was never in doubt; what is not established is
+> the stronger 'worse than not merging at all' form.
 
 ### 1.13 Merge versus sequential fine-tuning, by segment count
 

@@ -740,7 +740,8 @@ asymmetry, not ρ, is what §11.3's decision rule is built on.
 
 exchange_rate is also the dataset with the **largest headroom** (43.8% base-to-joint) and
 the **strongest input drift**, and it is the only one where the merge beats *joint training*
-outright (GRR 1.164 ±0.099 at n = 3 with α chosen on validation, and above 1.0 at every
+outright (GRR 1.207 at n = 3 with α chosen on validation — 1.164 ±0.080 as a per-seed mean,
+EXPERIMENTS.md §1.10 — and above 1.0 at every
 segment count). That points at a second, independent route by
 which merging can win:
 
@@ -1023,8 +1024,13 @@ of which regime a task set is in**, reachable without computing any geometry.
 > The geometry in fact predicts the *rising* version: alignment ‖Στ‖ ÷ Σ‖τ‖ falls with n
 > (ETTh1 0.808 → 0.598), which should push α\* above 1/n. So the flat product is the composite
 > of a rising geometric term and a retention term that grows with n — not a bare property of
-> the task vectors. Directionally confirmed on 2 of 4 datasets (Pearson r = +0.44 over twelve
-> points); see [EXPERIMENTS.md §1.18](EXPERIMENTS.md). That is a
+> the task vectors. Confirmed **within** each dataset — as n grows and alignment falls, α\*·n
+> rises, with a positive per-dataset correlation in 5 of 6 (median r = +0.87) — but **absent
+> between** datasets (pooled r = −0.03 over all 18 points): ETTm2 is less aligned than SWaT at
+> every n yet has a much lower α\*·n. Alignment predicts the *trend* in n, not the *level*, and
+> the ratio α\*·n ÷ (1/alignment) spans 0.54–1.71, so proportionality is *not* supported. Quoting
+> the pooled figure alone is what produced three different readings (+0.44, +0.31, −0.03) of the
+> same relationship as datasets were added; see [EXPERIMENTS.md §1.18](EXPERIMENTS.md). That is a
 statement about time series specifically (§2), and it is a contribution; "average the vectors"
 is not.
 
@@ -1509,7 +1515,7 @@ If policy already permits three periods, none of this machinery earns its place.
 > | | n = 2 | n = 3 | n = 5 | dataset floor |
 > |---|---|---|---|---|
 > | ETTh1 | 0.6% | 2.7% | 4.9% | 8.76% — **all inside the floor** |
-> | exchange_rate | 11.2% | 9.0% | 12.0% | 5.29% — real, but ~10% |
+> | exchange_rate | 11.2% | 9.0% | 12.0% | 5.73% — real, but ~10% |
 >
 > On ETTh1 pre-declaring 1/n is free; on exchange_rate it costs about 10%. **That, not the
 > selected-α version, is the variant whose storage claim is genuinely zero** — and every merging
@@ -1725,39 +1731,61 @@ python -m incremental_ad.main --pipeline ContinualFineTuningPipeline ...
 
 ## 15. Related work
 
-> **Recorded from prior knowledge, not fetched — verify every one against the source before it
-> goes into the thesis.** Titles, venues and years are the parts most likely to be wrong; the
-> ideas attributed to them are what matters for positioning this work.
+> **Verified against sources 2026-08-08.** Every author, title, venue and year below was checked;
+> full titles are given so a reader can find each paper. **One error was found and fixed:** L2-SP
+> was cited as "Xuhong et al." — *Xuhong* is the author's given name, and the correct short form
+> is **Li et al.** Three references that were named without a citation (DARE, OPCM, BECAME) now
+> carry one. Page-Hinkley, AUE and VUS-ROC/PR are mentioned by name only, without author or year,
+> and so were not verifiable as citations.
 
-**Model merging / task arithmetic.** *Editing Models with Task Arithmetic* (Ilharco et al.,
-ICLR 2023) introduces τ = θ_ft − θ_base and the scaled sum this project uses. *Model Soups*
-(Wortsman et al., ICML 2022) averages fine-tuned checkpoints. *TIES-Merging* (Yadav et al.,
-NeurIPS 2023) resolves sign conflicts and parameter interference between task vectors; *DARE*
-(Yu et al., 2024) drops and rescales delta parameters. *Fisher-Weighted Averaging* (Matena &
-Raffel, NeurIPS 2022) weights by parameter importance. **OPCM** targets *continual* merging —
-folding in one model at a time without storing every vector — and **BECAME** derives the
-merging coefficient rather than tuning it, which is the property that matters most for the
+**Model merging / task arithmetic.** *Editing Models with Task Arithmetic* (Ilharco, Ribeiro,
+Wortsman, Gururangan, Schmidt, Hajishirzi & Farhadi, **ICLR 2023**, arXiv:2212.04089) introduces
+τ = θ_ft − θ_base and the scaled sum this project uses. *Model soups: averaging weights of
+multiple fine-tuned models improves accuracy without increasing inference time* (Wortsman et al.,
+**ICML 2022**, PMLR 162:23965–23998) averages fine-tuned checkpoints. *TIES-Merging: Resolving
+Interference When Merging Models* (Yadav, Tam, Choshen, Raffel & Bansal, **NeurIPS 2023**,
+arXiv:2306.01708) resolves sign conflicts and parameter interference between task vectors;
+*DARE*, from *Language Models are Super Mario: Absorbing Abilities from Homologous Models as a
+Free Lunch* (Yu, Yu, Yu, Huang & Li, **ICML 2024**, arXiv:2311.03099), randomly **d**rops delta
+parameters at rate p **a**nd **re**scales the rest by 1/(1−p). *Merging Models with
+Fisher-Weighted Averaging* (Matena & Raffel, **NeurIPS 2022**) weights by parameter importance.
+**OPCM** — *Merging Models on the Fly Without Retraining: A Sequential Approach to Scalable
+Continual Model Merging* (Tang et al., **2025**, arXiv:2501.09522) — targets *continual* merging,
+folding in one model at a time at constant memory by projecting each update onto the orthogonal
+complement of the span of previous ones. **BECAME** — *BayEsian Continual Learning with Adaptive
+Model MErging* (Li et al., **ICML 2025**, arXiv:2504.02666) — derives a **closed-form optimal
+merging coefficient** rather than tuning it, which is the property that matters most for the
 unsupervised-AD case (§8.4).
 
 *What is different here:* that literature merges **near-orthogonal** tasks (different image
 classes). Time-series shards are aligned, which is what changes the scale rule (§2, §6.6).
 
 **Concept drift and streaming adaptation.** The *"when do I rebuild"* question is classically a
-drift-detection problem: ADWIN (Bifet & Gavaldà, 2007), DDM (Gama et al., 2004), Page-Hinkley.
-Gama et al.'s *survey on concept drift adaptation* (ACM Computing Surveys, 2014) is the standard
-entry point. The **keep-n-experts-and-route** design is a dynamic weighted ensemble: Dynamic
-Weighted Majority (Kolter & Maloof, JMLR 2007), Learn++.NSE (Elwell & Polikar, 2011), AUE.
+drift-detection problem: ADWIN (*Learning from Time-Changing Data with Adaptive Windowing*,
+Bifet & Gavaldà, **SDM 2007**, pp. 443–448), DDM (*Learning with Drift Detection*, Gama, Medas,
+Castillo & Rodrigues, **SBIA 2004**, LNCS 3171), Page-Hinkley. Gama, Žliobaitė, Bifet,
+Pechenizkiy & Bouchachia's *A survey on concept drift adaptation* (**ACM Computing Surveys**
+46(4), 2014) is the standard entry point. The **keep-n-experts-and-route** design is a dynamic
+weighted ensemble: *Dynamic Weighted Majority: An Ensemble Method for Drifting Concepts* (Kolter
+& Maloof, **JMLR** 8:2755–2790, 2007), Learn++.NSE (*Incremental Learning of Concept Drift in
+Nonstationary Environments*, Elwell & Polikar, **IEEE Trans. Neural Networks** 22(10):1517–1531,
+2011), AUE.
 Those methods add and prune experts on measured performance — which is the same trigger this
 project arrives at for materialisation (§11).
 
-**Continual learning.** EWC (Kirkpatrick et al., PNAS 2017) and L2-SP (Xuhong et al., ICML 2018)
-constrain drift from a reference; L2-SP is the one tested here and found neutral (§6.5).
+**Continual learning.** EWC (*Overcoming catastrophic forgetting in neural networks*,
+Kirkpatrick et al., **PNAS** 2017) and L2-SP (*Explicit Inductive Bias for Transfer Learning with
+Convolutional Networks*, **Li**, Grandvalet & Davoine, **ICML 2018**) constrain drift from a
+reference; L2-SP is the one tested here and found neutral (§6.5).
 Rehearsal/replay methods assume retained data, which is exactly the constraint that motivates
 merging.
 
 **Anomaly-detection evaluation.** *Towards a Rigorous Evaluation of Time-series Anomaly
-Detection* (Kim et al., AAAI 2022) shows point-adjusted F1 is so permissive that a random score
-reaches state of the art; replacements include PA%K (same paper), range-based precision/recall
-(Tatbul et al., NeurIPS 2018), affiliation metrics (Huet et al., KDD 2022) and VUS-ROC/PR. This
+Detection* (**S. Kim**, Choi, Choi, Lee & Yoon, **AAAI 2022**, arXiv:2109.05257) shows
+point-adjusted F1 is so permissive that a random score reaches state of the art; replacements
+include PA%K (same paper), range-based precision/recall (*Precision and Recall for Time Series*,
+Tatbul, Lee, Zdonik, Alam & Gottschlich, **NeurIPS 2018**, arXiv:1803.03639), affiliation metrics
+(*Local Evaluation of Time Series Anomaly Detection Algorithms*, Huet, Navarro & Rossi,
+**KDD 2022**, arXiv:2206.13167) and VUS-ROC/PR. This
 project follows their recommendation — threshold-free metrics primary, PA-F1 for legacy
 comparability only (EXPERIMENTS.md §1.5).

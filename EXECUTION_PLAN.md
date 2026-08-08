@@ -129,8 +129,8 @@ datasets was **withdrawn** after replication.
 
 ### 2.4 Reproducibility floor ✅ — 3 seeds × 4 datasets
 
-**Settled:** the floor is dataset-specific — PSM 0.07%, SWaT 0.09%, exchange_rate 5.29%,
-ETTh1 8.76%. The universal 2% assumption was wrong in both directions (15–30× too conservative
+**Settled:** the floor is dataset-specific — PSM 0.07%, SWaT 0.09%, exchange_rate 5.73%,
+ETTh1 8.76%. Which experiment supplies each is pinned in `analysis_specs/floor_spec.csv`. The universal 2% assumption was wrong in both directions (15–30× too conservative
 for AD, 4× too loose for ETTh1). It rescued SWaT's headline GRR while correctly disqualifying
 most of its individual metrics. **ETTh1's instability is in absolute values only** — report it
 as ratios.
@@ -142,7 +142,7 @@ segment-shift vs ETTh1 0.309, SWaT 0.112, traffic 0.090), then gated on a two-jo
 check before spending more.
 
 **Settled:** 43.8% headroom and **merging beats training on all the data at once** — GRR
-1.421 / 1.164 / 1.238 at n = 2 / 3 / 5, all above 1.0 with α chosen on validation, which no
+1.399 / 1.207 / 1.224 at n = 2 / 3 / 5, all above 1.0 with α chosen on validation, which no
 other dataset shows. Config note: the shipped script's `val_fraction=0.1`
 would have given 33 validation windows and broken fine-tuning exactly as on ETTh1; 0.25 used
 instead.
@@ -232,7 +232,9 @@ is evaluated on the merged-val union *before* the merge, and its winner builds `
 - **Priced from existing data before building it** (EXPERIMENTS.md §1.10): val lands within
   one grid step of the test optimum every time, costing 3.3% mean on ETTh1 and 5.6% on
   exchange_rate. exchange_rate's GRR stays above 1.0 on all three seeds — 1.164 ± 0.080
-  honest, against 1.218 ± 0.081 oracle. **Merging still beats joint training.**
+  honest, against 1.218 ± 0.081 oracle, as **per-seed** means (EXPERIMENTS.md §1.10). The
+  seed-pooled curve gives 1.207 / 1.243 for the same cell (§1.11); averaging ratios is not the
+  ratio of averages, and both forms clear 1.0. **Merging still beats joint training.**
 
 Verified end-to-end on ETTh1: the checkpoint is bitwise the merge at the selected scale, the
 curve at that scale reproduces the `merged/` results, and the selection CSV matches the
@@ -310,7 +312,7 @@ was already on disk.
 
 One fine-tune on the whole post-baseline block, unsplit. The null hypothesis the project had
 never run. Best merge versus n = 1: **SWaT +0.24%, PSM +1.01%, ETTh1 −9.25%, exchange_rate
-+8.38%** against floors of 0.13 / 0.07 / 8.20 / 5.29%.
++8.38%** against floors of 0.09 / 0.07 / 8.76 / 5.73%.
 
 **Settled, and it reframes the headline claim.** Merging does **not** beat training on the same
 data unsplit — ETTh1 loses outright, the AD wins clear their floors but are practically
@@ -574,7 +576,8 @@ without a script of record. Every quantity in EXPERIMENTS.md was therefore recom
 - SWaT subspace overlap **ρ = 0.608** against published 0.607.
 - α\*·n: ETTh1 1.00 / 1.00, exchange_rate 1.40 / 1.50, ETTh2 0.97 / 0.80 / 0.75,
   ETTm2 0.77 / 0.80 / 0.75.
-- exchange_rate's **5.29%** reproducibility floor, exactly.
+- exchange_rate's reproducibility floor — **withdrawn at 5.29%**, which derives from no
+  experiment; now **5.73%** from `n1_exchange` per `analysis_specs/floor_spec.csv`.
 - Merge cost: ETTh1 **1.02–1.07** against published "~1.05×", exchange_rate **1.63–2.04**
   against published "1.6–2.1×".
 - Specialisation, independently matching the pipeline's own values (ETTh2 0.447, ETTm2 0.694).
@@ -673,7 +676,7 @@ answered; everything below serves Q3, Q4, Q5, or the blocker that gates all thre
 > better merging method (§3.6) pushes the retention crossover up.
 
 The sweep varied the shard *count* and never asked which count is best. The existing GRR data
-already leans: on PSM (0.903 → 0.497) and exchange_rate (1.421 → 1.238), **fewer and bigger
+already leans: on PSM (0.903 → 0.497) and exchange_rate (1.399 → 1.224), **fewer and bigger
 shards win**, consistent with the starvation mechanism — bigger shards make better specialists,
 and merging faithfully reproduces whatever it is given. The competing pressure is that a shard
 spanning two regimes learns their average.
@@ -891,7 +894,7 @@ results land — no figure is transcribed by hand.
 ## 5. Open questions
 
 1. **Why does merging beat joint training on exchange_rate?** GRR above 1.0 at every segment
-   count (1.421 / 1.164 / 1.238) is the most surprising result here and has only a hypothesis
+   count (1.399 / 1.207 / 1.224) is the most surprising result here and has only a hypothesis
    behind it (ensembling across regimes).
 2. ~~Is there any cheap signal that predicts merge-vs-sequential?~~ **Closed as a negative
    result** — §2.6, [EXPERIMENTS.md §1.14](EXPERIMENTS.md). No signal separates nine decisive
@@ -1054,3 +1057,44 @@ highest drift, smallest shards, the most likely to split.
 
 **Prerequisite:** a finest-granularity run at larger *T* than anything done so far — n = 5 is the
 current maximum. Check what *T* is affordable on exchange_rate before designing around it.
+
+### 3.13 Emit per-seed GRR from `scale_report` ⬜ — close the last unscripted number
+
+**Why.** §1.10's per-seed GRR table (oracle 1.218 ±0.081, honest 1.164 ±0.080 on exchange n=3)
+is the only published table in EXPERIMENTS.md not reproduced by a script of record. It is not
+wrong — it is a *different aggregation* from §1.11's, which computes GRR from the seed-pooled
+curve and reads 1.243 / 1.207 on the same cell. Averaging ratios is not the ratio of averages,
+so the ~0.04 gap is expected, but only the pooled form is currently emitted.
+
+**Why it matters.** The per-seed form is the one that carries a spread, and the spread is what
+the "merging beats joint training on *every* seed" claim rests on. That claim is currently
+supported by numbers no committed script regenerates — exactly the gap that let a non-derivable
+5.29% floor survive for months (§1.9).
+
+**Work.** Add `grr_val_per_seed` / `grr_oracle_per_seed` (mean and sd over the per-seed argmin
+GRRs) to `scale_summary.csv`, alongside the existing pooled columns rather than replacing them —
+both aggregations are legitimate and the document uses both. Then bind §1.10's table to the new
+columns in `scripts/check_tables_against_csv.py`.
+
+**Cost.** No new training; `scale_report` already loads every per-seed curve.
+
+**Also in scope — two gaps found by the same coverage pass (2026-08-08):**
+
+1. **`results_audit` does not emit `finetune_i/test`.** `BLOCKS` covers `baseline/test`,
+   `train/test`, `merged/test`, `merged/val` only, so `run_metrics.csv` has **zero**
+   `finetune_0/test` rows. That is the block §1.21's W=1/W=2 retention columns are read from
+   (verified on disk: `window_exchange_W1` = 0.5908, `window_exchange_W3` = 0.2053), and
+   `method_comparison` reaches it by reading `result.json` directly. So two published columns
+   cannot be bound to a generated CSV. ⚠️ Binding them to `merged/test` instead *looks* right on
+   ETTh1 — at W=1 the merged model **is** `finetune_0` — and is wrong by 35% on exchange_rate;
+   that trap is why the checks were left off rather than approximated.
+
+2. **§1.21's `base` column and PSM's W=3 do not reconcile.** The base column matches
+   `window_*_W1/baseline/test` on ETTh1 (0.6920) and exchange_rate (0.6985) but on neither AD
+   dataset — SWaT's 0.8013 matches `slurm_grid_swat_train_incremental`, PSM's 0.7746 matches
+   `noisefloor_psm`, against 0.8001 / 0.7756 for the window runs. And **§1.21 prints PSM W=3 as
+   0.7952 where §1.26 prints 0.7987 for the same quantity** — the best window model on PSM — a
+   0.0035 gap against a 0.0005 reproducibility floor, so it is outside noise. One of the two
+   sections is reading different runs; neither states which. Resolve before either number is
+   cited, and add the checks that are currently withheld.
+

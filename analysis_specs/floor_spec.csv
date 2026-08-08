@@ -1,0 +1,7 @@
+dataset,experiment,metric,note
+SWaT,noisefloor_swat,window_auroc,dedicated noise-floor experiment
+PSM,noisefloor_psm,window_auroc,dedicated noise-floor experiment
+ETTh1,noisefloor_etth,forecast/mse,dedicated noise-floor experiment
+ETTh2,etth2_gate_base,forecast/mse,no noisefloor_* experiment; dedicated base experiment
+ETTm2,ettm2_gate_base,forecast/mse,no noisefloor_* experiment; dedicated base experiment
+exchange_rate,n1_exchange,forecast/mse,no noisefloor_* or *_gate_base experiment; n=1 base is the closest analogue

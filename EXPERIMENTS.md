@@ -80,7 +80,7 @@ sequential variant and the joint-training reference.
   overshoots. At α\* the damage disappears, and so does the "forgetting" once reported.
 - **In unsupervised AD the merge scale cannot be chosen honestly.** Validation reconstruction
   and test AUROC disagree about α — SWaT's val optimum is 0.5 while AUROC improves
-  monotonically to 1.5 — so selecting on validation costs **19–99%** of the achievable GRR on
+  monotonically to 1.5 — so selecting on validation costs **25–98%** of the achievable GRR on
   AD, against **1–8%** on forecasting. Every AD merge number in this file is oracle-selected.
   §1.12
 - **Merge versus sequential is not a property of a dataset.** It flips with segment count:
@@ -1072,7 +1072,7 @@ Cost of choosing α on validation instead of on test, as a fraction of the oracl
 > **The cost of that filter is seed coverage**: these cells rest on 1–2 seeds, not 3. Reruns of
 > the old-grid seeds on the 16-point grid are queued (EXECUTION_PLAN.md §2.22). The
 > *conclusion* — validation reconstruction is not a usable basis for choosing α on AD — is
-> unaffected either way, since 93–99% on SWaT was never in doubt; what is not established is
+> unaffected either way, since 96–98% on SWaT was never in doubt; what is not established is
 > the stronger 'worse than not merging at all' form.
 
 #### Does the *training* signal diverge too? Yes — but by under 1%
@@ -1412,7 +1412,7 @@ moves within a dataset:
 | dataset | n=2 | n=3 | n=5 |
 |---|---|---|---|
 | SWaT | 1.00 | 0.75 | 1.25 |
-| PSM | 1.00 | 1.12 | 1.25 |
+| PSM | 1.07 | 1.30 | 1.50 |
 | ETTh1 | 1.00 | 0.90 | 1.00 |
 | exchange_rate | 1.40 | 1.60 | 1.50 |
 
@@ -1448,7 +1448,7 @@ the other:
 | dataset | α\*·n, val_base **in** | spread | α\*·n, val_base **out** | spread | shape when out |
 |---|---|---|---|---|---|
 | ETTh1 | 1.00 / 0.90 / 1.00 | 1.11× | 1.13 / 1.20 / 1.33 | 1.18× | **monotone rising** |
-| PSM | 1.00 / 1.12 / 1.25 | 1.25× | 1.50 / 1.88 / 2.50 | 1.67× | **monotone rising** |
+| PSM | 1.07 / 1.30 / 1.50 | 1.40× | 1.53 / 1.80 / 2.50 | 1.63× | **rising either way** |
 | exchange_rate | 1.40 / 1.60 / 1.50 | 1.14× | 1.60 / 1.90 / 1.50 | 1.27× | non-monotone |
 | SWaT | 1.00 / 0.75 / 1.25 | 1.67× | *identical* | 1.67× | **non-monotone, within quantisation** — on SWaT's 0.25 grid one step *is* 0.5–1.25 in the product, so no trend is resolvable |
 | ETTh2, ETTm2 | 0.97 / 0.80 / 0.75, 0.77 / 0.80 / 0.75 | 1.29×, 1.07× | *pending n=2 diagnostics* | — | — |

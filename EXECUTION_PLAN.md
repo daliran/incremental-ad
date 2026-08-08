@@ -265,7 +265,8 @@ Full numbers in [EXPERIMENTS.md §1.11–§1.15](EXPERIMENTS.md).
 
 What it settled:
 
-- **α\*·n is constant for a fixed baseline** (≈1.0 on SWaT/PSM/ETTh1, ≈1.5 on exchange_rate).
+- **α\*·n is order 1 for a fixed baseline** (≈1.0 on SWaT/ETTh1, ≈1.5 on exchange_rate). ⚠️ Not
+  *constant*: on three seeds PSM rises 1.07 → 1.50 resolvably (§2.24).
   **The stronger claim — a constant of the dataset — is falsified** by the fixed-shard control:
   under a varying baseline exchange_rate grows 0.97 → 1.58 (§2.14). Two measurement caveats:
   the apparent exact seed agreement was 0.1-grid quantisation, and quantisation contributes
@@ -627,10 +628,34 @@ seed coverage — the AD cells now rest on 1–2 seeds — so **8 reruns are que
 seed on the 16-point grid. Until they land, AD α\*, α\*·n and honest-α cost are 1–2 seed values
 and marked as such.
 
-**Also settled: PSM's α\*·n does not rise.** It reads 1.10 / 1.12 / 1.50, which resembles the
-orthogonal-regime signature, but the n=2 → n=5 change of +0.40 is only 1.5× the quantisation
-bound (±0.27), and PSM's alignment falls *less* than ETTh1's (0.149 against 0.210) while ETTh1
-has the flattest product. Neither check supports a regime difference.
+**PSM's α\*·n — resolved in §2.24 below, and the answer reversed.** At the 1–2 seed, mixed-grid
+stage recorded here it read 1.10 / 1.12 / 1.50 and the rise looked like quantisation noise. On
+three seeds at one grid it reads **1.07 / 1.30 / 1.50** and the rise *is* resolvable. See §2.24.
+### 2.24 AD refreshed on three seeds at one grid ✅ — and PSM's α\*·n does rise
+
+The seed top-ups plus eight grid-unification reruns put every AD diagnostic on three seeds and
+the same 16-point merge-scale grid, which is the precondition §2.23 established. Recomputed:
+
+| | α\*·n | honest-α cost |
+|---|---|---|
+| SWaT | 0.80 / 0.70 / 1.00 | 96% / 97% / 98% |
+| PSM | **1.07 / 1.30 / 1.50** | 25% / 30% / 44% |
+
+**PSM's rise is real, and the earlier "not distinguishable" verdict is withdrawn.** α\* is a
+mean of *k* per-seed argmins on a grid of step *g*, so α\*·n resolves to *(g/k)·n* — ±0.067 at
+n=2 and ±0.167 at n=5 with three seeds on the fine grid. The +0.43 change is **2.4× the combined
+bound**, against 1.5× at the earlier 1–2 seeds and looser grid. SWaT's +0.20 is 1.1× and remains
+indistinguishable.
+
+**But the geometry does not corroborate it.** Ranked by how far alignment falls from n=2 to n=5:
+ETTh1 +0.210 (flattest product), exchange_rate +0.161 (flat), PSM +0.149 (**rising**), SWaT
++0.064. The dataset that de-aligns fastest has the flattest product — the ordering points the
+wrong way. So the rise is **statistically real but mechanistically unexplained**, neither of the
+two outcomes anticipated, and it is reported as the disagreement it is
+([EXPERIMENTS.md §1.18](EXPERIMENTS.md)).
+
+**Consequence for the claim:** α\*·n holds as *order 1 on every dataset* (all products
+0.70–1.60) but **not** as *near-constant within a dataset* — PSM moves 40% across segment counts.
 
 ---
 

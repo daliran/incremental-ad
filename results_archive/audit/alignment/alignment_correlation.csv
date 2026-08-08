@@ -1,0 +1,15 @@
+statistic,value
+n_points,18
+pooled_r,-0.0266
+within_r,0.4617
+median_per_dataset_r,0.8659
+n_positive,5
+n_datasets,6
+ratio_min,0.5375
+ratio_max,1.7065
+r_ETTh1,0.8179
+r_ETTh2,0.9139
+r_ETTm2,0.9953
+r_PSM,0.9957
+r_SWaT,0.7228
+r_exchange_rate,-0.3795

@@ -288,8 +288,21 @@ python -m incremental_ad.analysis.novelty_report  alignment --geometry $OUT/geom
 python scripts/check_tables_against_csv.py --audit_dir $OUT --runs_root $RUNS_ROOT --strict
 ```
 
-`--runs_root` enables the §1.4 transfer-matrix pass, which reads each matrix's source run
-directly; without it those 80 cells are skipped rather than checked.
+`--runs_root` enables the §1.4 transfer-matrix and §1.3 merge-scale-curve passes, which read
+each table's source run directly; without it those 172 cells are skipped rather than checked.
+
+**The evidence is archived in the repo.** `$WORK` is scratch, so `scripts/archive_results.py`
+copies the ~3.4 MB of CSVs behind every number in this file into `results_archive/`. Verification
+then works with no `$WORK` at all:
+
+```bash
+python scripts/check_tables_against_csv.py --audit_dir results_archive/audit \
+    --runs_root results_archive/run_diagnostics --strict
+```
+
+That reproduces all 276 checks, both cell-by-cell passes and the reconciliation. See
+[results_archive/README.md](results_archive/README.md) for what is and is not kept — checkpoints
+are not, so the bitwise merge-reproduction check still needs the run directories.
 
 ⚠️ **`scale_report` needs the validation columns**, which only exist when the diagnostics run
 passed `--pipeline_curve_include_val`. It drops runs that lack them and reports the count as

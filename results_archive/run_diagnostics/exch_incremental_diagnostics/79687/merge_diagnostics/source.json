@@ -1,0 +1,45 @@
+{
+  "source_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/exch_incremental/79678",
+  "source_run_id": "79678",
+  "source_experiment_name": "exch_incremental",
+  "source_git_commit": "5ab0e497626f5c489e7ddac3fd8d807650c156eb",
+  "standard_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/exch_standard/79680",
+  "checkpoint_name": "best",
+  "merge_scale": 0.5,
+  "n_finetune_segments": 3,
+  "rows": [
+    "base",
+    "ft_0",
+    "ft_1",
+    "ft_2",
+    "merged",
+    "standard"
+  ],
+  "columns": [
+    {
+      "name": "val_base",
+      "block": "val",
+      "n_windows": 711
+    },
+    {
+      "name": "val_0",
+      "block": "val",
+      "n_windows": 206
+    },
+    {
+      "name": "val_1",
+      "block": "val",
+      "n_windows": 206
+    },
+    {
+      "name": "val_2",
+      "block": "val",
+      "n_windows": 206
+    },
+    {
+      "name": "test",
+      "block": "test",
+      "n_windows": 1470
+    }
+  ]
+}

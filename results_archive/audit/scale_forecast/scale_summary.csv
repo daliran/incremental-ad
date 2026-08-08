@@ -1,0 +1,13 @@
+group,n_segments,n_seeds,n_dropped_no_val,n_dropped_grid_mismatch,n_grid_points,val_base_weight_pct,alpha_star,alpha_star_pooled,alpha_star_n,alpha_excl_val_base,alpha_excl_n,alpha_oracle,grr_val,grr_oracle,honest_alpha_cost_pct,alpha_one_over_n,penalty_one_over_n_pct
+etth2_merge_n2_diagnostics,2,2,3,1,16,53.5,0.4,0.4,0.8,0.45,0.9,0.4,0.844,0.844,0.0,0.5,0.6
+etth2_merge_n3_diagnostics,3,2,3,1,17,57.4,0.25,0.25,0.75,0.3,0.9,0.3,0.8892,0.9319,4.6,0.3333,0.0
+etth2_merge_n5_diagnostics,5,3,3,0,17,67.5,0.15,0.15,0.75,0.2,1.0,0.2,0.8202,0.88,6.8,0.2,0.0
+ettm2_merge_n2_diagnostics,2,2,3,1,16,50.7,0.4,0.4,0.8,0.35,0.7,0.5,0.9144,0.9305,1.7,0.5,0.0
+ettm2_merge_n3_diagnostics,3,2,3,1,17,51.5,0.25,0.25,0.75,0.275,0.825,0.3,0.9219,0.953,3.3,0.3333,0.0
+ettm2_merge_n5_diagnostics,5,3,3,0,17,53.1,0.15,0.15,0.75,0.1833,0.917,0.2,0.8716,0.911,4.3,0.2,0.0
+exch_incremental_diagnostics,3,3,1,0,16,53.5,0.5333,0.5,1.6,0.6333,1.9,0.4,1.2069,1.2425,2.9,0.3333,9.6
+noisefloor_etth_diagnostics,3,3,1,0,16,57.4,0.3,0.3,0.9,0.3667,1.1,0.4,0.7524,0.7973,5.6,0.3333,2.6
+segsweep_etth1_merge_n2_diagnostics,2,3,0,0,16,53.5,0.5,0.5,1.0,0.5667,1.133,0.6,0.8675,0.8764,1.0,0.5,0.6
+segsweep_etth1_merge_n5_diagnostics,5,3,0,0,16,67.5,0.2,0.2,1.0,0.2667,1.333,0.3,0.8847,0.9574,7.6,0.2,4.9
+segsweep_exchange_merge_n2_diagnostics,2,3,0,0,16,51.7,0.7,0.7,1.4,0.8,1.6,0.7,1.3987,1.3987,0.0,0.5,11.2
+segsweep_exchange_merge_n5_diagnostics,5,3,0,0,16,57.8,0.3,0.3,1.5,0.3,1.5,0.3,1.2244,1.2244,0.0,0.2,12.0

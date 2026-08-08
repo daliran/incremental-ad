@@ -1,0 +1,5 @@
+dataset,n_seeds,mean_sequential_overlap,mean_offdiag_cosine,effective_rank,mean_tau_over_base,cosine_distance_1,cosine_distance_2
+SWaT,3,0.600686,0.735735,1.731724,0.006004,0.765147,0.676911
+PSM,3,0.21555,0.39121,2.46466,0.005807,0.454932,0.263766
+ETTh1,3,0.0697,0.22521,2.221612,0.017597,0.243802,0.188027
+Exchange,3,0.128025,0.240807,1.910334,0.018306,0.321305,0.07981

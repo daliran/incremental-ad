@@ -1,0 +1,5 @@
+label,k,column,n_seeds,alpha_used,accumulate,accumulate_sd,materialise,materialise_sd,winner,margin_pct
+ETTh1,1,val_1,3,1.0,0.9148,0.0524,0.9148,0.0524,accumulate,0.0
+ETTh1,2,val_2,3,0.5,0.8059,0.0299,0.8881,0.1109,accumulate,9.25
+ETTh1,3,val_3,3,0.35,0.9089,0.003,0.9114,0.0511,accumulate,0.27
+ETTh1,4,val_4,3,0.25,0.8477,0.0383,0.9618,0.0662,accumulate,11.86

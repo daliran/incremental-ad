@@ -1115,9 +1115,20 @@ not-machine-checked banner.
    cited, and add the checks that are currently withheld.
 
 
-### 3.14 Pin the prefix-merge α convention ⬜ — §1.19 and §1.22 are unreproducible
+### 3.14 Pin the prefix-merge α convention ✅ — done 2026-08-08
 
-**Why.** §1.19 (forward transfer) and §1.22 (accumulate vs materialise) report ratios that no
+**Resolved.** `analysis/prefix_report.py` now emits both rows at **α = the grid point nearest
+1/k**, the pre-declared rule from §1.25, chosen so a table arguing that merging beats the base
+gives merging no oracle advantage. §1.22's **materialise** row reproduced exactly and is
+unchanged; the **accumulate** row was restated. Decisive evidence the old row was wrong: at
+k = 1 a one-vector prefix at α = 1 **is** `ft_0`, so accumulate must equal materialise, and the
+old table read 0.931 against 0.915. **The headline claim survives** — merge still beats the
+base in 7 of 8 cases (only exchange k = 2, at 1.050) with no decay as vectors accumulate — and
+§1.22's drift-dependent rule survives, with two verdicts moving (ETTh1 k = 2 tie → accumulate,
+exchange k = 1 materialise → tie, the latter now a construction identity). All 24 cells are
+machine-checked.
+
+**Original problem.** §1.19 (forward transfer) and §1.22 (accumulate vs materialise) reported ratios that no
 convention reproduces. `prefix_merges.csv` stores raw `value` per (prefix_k, merge_scale, column)
 with no ratio column and no record of which α was used. Tested and rejected: α = 1/k
 (= `scale_times_k` 1) gives ETTh1 0.937 / 0.868 / 0.942 / 0.892 against the published
@@ -1130,10 +1141,11 @@ on exchange_rate) are the empirical basis for the materialisation trigger in §1
 They rest on numbers that cannot currently be regenerated.
 
 **Work.** Decide the convention — most likely α = 1/k for a k-vector prefix, matching the
-`scale_times_k` column already emitted — write it into §0.6, add `ratio_to_base` to
-`prefix_merges.csv`, recompute both sections, and bind them. Expect the verdicts to move: at
-α = 1/k, exchange k=4 reads 0.757 rather than 0.542, which is a different margin against the
-materialise column.
+`scale_times_k` column already emitted — write it into §0.6, recompute both sections, and bind
+them. *(What actually happened: the convention was fixed at α = 1/k in `prefix_report.py`, and
+the verdicts did move — exchange k=4 reads **0.654** where the withdrawn table said 0.542, a
+different margin against the materialise column, and ETTh1 k=2 turned from a tie into an
+accumulate win. The headline 7-of-8 claim survived unchanged.)*
 
 **Cost.** No new training — `prefix_merges.csv` already holds every (k, α) pair.
 

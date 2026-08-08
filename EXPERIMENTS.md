@@ -29,8 +29,10 @@ EXECUTION_PLAN.md §3.1–§3.3.
 The commands for reproducing any of this are in THEORY.md §14.
 
 Snapshot 2026-08-08: **six datasets × three segment counts** (n = 2, 3, 5), **three training
-seeds on every dataset** — the AD datasets were one seed until the 16-point merge-scale reruns
-landed (§1.11) — for the merge variant, the sequential variant and the joint-training reference.
+seeds throughout except ETTh2 and ETTm2 at n = 2 and n = 3, which rest on two** (their third
+seed sits on a different merge-scale grid and is set aside rather than pooled, §1.18), for the
+merge variant, the sequential variant and the joint-training reference. The AD datasets were one
+seed until the 16-point merge-scale reruns landed (§1.11).
 ## TL;DR
 
 - **Merging is essentially free once the scale is right.** One merged model performs within
@@ -255,6 +257,7 @@ command; a provenance line closes both, and gives
 | `analysis/geometry_report.py` | checkpoints | cosine, ρ per step, effective rank, principal angles, ‖τ‖ |
 | `analysis/scale_report.py` | `merge_scale_curve.csv` | **α\*** (both poolings), α\*·n, honest-α cost, the α = 1/n penalty |
 | `analysis/drift_screen.py` | the raw HuggingFace series | **drift** and **KS**, at any segmentation |
+| `analysis/prefix_report.py` | `prefix_merges.csv` + `transfer_matrix.csv` | **forward transfer** (§1.19) and **accumulate vs materialise** (§1.22), at the pre-declared α = 1/k |
 | `analysis/novelty_report.py` | geometry output + an outcomes table | per-step ρ and new_k, **alignment vs α\*·n** (within-, between- and per-dataset correlation), **the ρ-indicator test** (fitted threshold, permutation, leave-one-dataset-out) |
 
 The outcomes table `novelty_report indicator` consumes is itself generated —
@@ -1007,7 +1010,8 @@ one grid (the precondition — see §1.12), following the two checks in order:
 
 - **Quantisation — it survives.** α\* is a mean of *k* per-seed argmins on a grid of step *g*,
   so α\*·n's resolution is *(g/k)·n*: ±0.067 at n=2 and ±0.167 at n=5 on the 16-point grid with
-  three seeds. The n=2 → n=5 change of **+0.43 is 2.4× the combined bound (±0.180)** —
+  three seeds (PSM and SWaT are on that uniform grid; the forecasting datasets are not — see
+  §1.18). The n=2 → n=5 change of **+0.43 is 2.4× the combined bound (±0.180)** —
   distinguishable from flat. ⚠️ **This reverses the provisional verdict.** At 1–2 seeds on a
   mixed grid the same change scored only 1.5× a looser ±0.27 bound and was called
   indistinguishable; three seeds on one grid tightened the bound enough to resolve it. SWaT, by
@@ -1543,6 +1547,18 @@ pooling across grids. Their n=5 rows use three seeds. The counts are in `scale_s
 (`n_seeds`, `n_dropped_grid_mismatch`) — read them before treating these two datasets as equal
 in weight to the other four.
 
+⚠️ **The forecasting grid is not uniform, and four α\* values depend on that.** The "17-point"
+grid is the 16-point 0.1 grid **plus one extra point at the α the pipeline selected**, which the
+diagnostics always evaluates. At n=3 and n=5 on both ETTh2 and ETTm2 that extra point is
+*exactly where α\* lands* — 0.25 and 0.15 respectively — so those four α\* are resolved to 0.05,
+not 0.1, and on a pure 0.1 grid they would read 0.2 or 0.3. Two consequences, in opposite
+directions: the diagnostics argmin **agreeing** with the pipeline's independent validation
+selection is a consistency check that passes, but the cells are measured on a locally finer grid
+than the rest of the table, so their apparent flatness (1.07× spread) is not directly comparable
+to a dataset measured at 0.1 throughout. **§1.11's quantisation bound is unaffected**: it is
+computed for PSM and SWaT, both on the uniform 0.1 grid with no extra point at α\*, and a finer
+*g* would only tighten it.
+
 **With all six datasets in, three of six rise under the excluded convention** — ETTm2 and PSM
 monotonically, ETTh2 weakly (0.90 → 0.90 → 1.00) — against three that do not: exchange_rate and
 ETTh1 both dip at n=3 before recovering, and SWaT moves within quantisation. So "α\*·n grows once
@@ -1682,7 +1698,7 @@ it isolates the count, and do not claim seed-exactness.
 
 ### 1.19 Forward transfer — does an accumulated merge help on a regime it has never seen?
 
-> **Provenance.** prefix merges from `--pipeline_prefix_merges`, scored on the first unseen segment's val slice; ratio to base on that same slice. ⚠️ **Not reproducible as written, and not machine-checked.** `prefix_merges.csv` stores raw `value` per (prefix_k, merge_scale, column) with no ratio column, and no α convention tested reproduces these numbers: α = 1/k (equivalently `scale_times_k` = 1) gives ETTh1 0.937 / 0.868 / 0.942 / 0.892 against the 0.931 / 0.863 / 0.908 / 0.843 printed here — close at k = 1–2, wrong at k = 3–4 — and exchange_rate 0.594 / 1.024 / 0.861 / 0.757 against 0.468 / 1.037 / 0.779 / 0.542. A per-k argmin does not match either. **The α these were computed at is unrecorded**, so §1.19 and §1.22's accumulate rows — and §1.22's materialise verdicts, which have no located source at all — must be treated as provisional. Fixing this means choosing and documenting the convention, then recomputing both sections; that is a research decision, not a transcription fix. EXECUTION_PLAN.md §3.14.
+> **Provenance.** `analysis/prefix_report.py` over the `prefix_*` runs, three seeds. **accumulate** = merge(τ₀…τ_{k−1}) on `val_k`, from `prefix_merges.csv`; **materialise** = `ft_{k−1}` on the same `val_k`, from `transfer_matrix.csv:ratio_to_base`. α is **the grid point nearest 1/k** — the project's pre-declared rule (§1.25), chosen so a table arguing that merging beats the base gives merging no oracle advantage; the α used is emitted per row. ⚠️ **The accumulate row was restated 2026-08-08.** Its previous values were unreproducible: scanning every grid point recovered 3 of 8 cells, at inconsistent α. They were also internally impossible — at k=1 a one-vector prefix at α=1 **is** `ft_0`, so accumulate must equal materialise, and the old table read 0.931 against 0.915. The materialise row reproduced exactly and is unchanged.
 
 Each prefix scored on `val_k`, the first shard it has **not** seen, at the α selected only on
 the shards it *has* seen. Ratio to the base model on that same shard; below 1.0 means the merge
@@ -1690,8 +1706,8 @@ beats the base on genuinely unseen data.
 
 | dataset | k=1 → val_1 | k=2 → val_2 | k=3 → val_3 | k=4 → val_4 |
 |---|---|---|---|---|
-| ETTh1 | 0.931 | 0.863 | 0.908 | 0.843 |
-| exchange_rate | 0.468 | **1.037** | 0.779 | 0.542 |
+| ETTh1 | 0.915 | 0.806 | 0.909 | 0.848 |
+| exchange_rate | 0.431 | **1.050** | 0.784 | 0.654 |
 
 **Seven of eight cases beat the base model on data no task vector has touched, and there is no
 decay as vectors accumulate** — ETTh1's best is at k = 4, exchange_rate's second best at k = 4.
@@ -1700,7 +1716,7 @@ This is the first direct evidence for the case merging is actually *for*: not me
 old regimes, but generalising forward to the next one. It also bounds the "shard starvation"
 story — accumulating more, smaller vectors did not degrade forward transfer over this range.
 
-The exchange_rate k = 2 exception (1.037, no better than base) is worth keeping rather than
+The exchange_rate k = 2 exception (1.050, no better than base) is worth keeping rather than
 smoothing: `val_2` is also the shard where §1.16 found the merged model furthest from the
 per-regime oracle. Something about that regime resists both merging and routing.
 
@@ -1894,16 +1910,19 @@ scored on `val_k`, which neither has trained on. Ratio to the base model on that
 
 | | k=1 | k=2 | k=3 | k=4 |
 |---|---|---|---|---|
-| ETTh1 accumulate | 0.931 | 0.863 | 0.908 | **0.843** |
+| ETTh1 accumulate | 0.915 | **0.806** | 0.909 | **0.848** |
 | ETTh1 materialise | 0.915 | 0.888 | 0.911 | 0.962 |
-| | tie | tie | tie | **accumulate** |
-| exchange accumulate | 0.468 | 1.037 | **0.779** | 0.542 |
-| exchange materialise | **0.431** | **0.843** | 0.851 | **0.317** |
-| | materialise | materialise | accumulate | materialise |
+| | tie | **accumulate** | tie | **accumulate** |
+| exchange accumulate | 0.431 | 1.050 | **0.784** | 0.654 |
+| exchange materialise | 0.431 | **0.843** | 0.851 | **0.317** |
+| | tie | materialise | accumulate | materialise |
 
-**The rule is drift-dependent.** On mildly drifting ETTh1 accumulation is at least as good
-throughout and pulls ahead by k = 4. On strongly drifting exchange_rate the freshest specialist
-usually predicts the *next* regime better than any accumulation of past ones.
+**The rule is drift-dependent.** On mildly drifting ETTh1 accumulation is at least as good at
+every k and pulls clear at k = 2 (9.2%) and k = 4 (11.9%), both outside its 8.76% floor. On
+strongly drifting exchange_rate the freshest specialist usually predicts the *next* regime
+better than any accumulation of past ones — materialise wins k = 2 (24.6%) and k = 4 (106.3%),
+accumulate wins k = 3 (7.8%). At k = 1 the two are the same model by construction, so the tie is
+a consistency check rather than a result.
 
 So: **materialise when drift is strong enough that recency beats accumulation on the next
 period** — and that is measurable every period at no cost, because a fresh specialist is trained

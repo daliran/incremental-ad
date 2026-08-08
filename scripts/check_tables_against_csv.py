@@ -375,6 +375,24 @@ for _ds in ("SWaT", "PSM", "ETTh1", "Exchange"):
 
 
 
+# §1.19 forward transfer and §1.22 accumulate-vs-materialise, now that `prefix_report` emits
+# both. §1.22's materialise row always reproduced; the accumulate row did not, and was restated
+# under the pre-declared alpha = 1/k rule.
+for _sec, _lbl_acc in (("§1.19", {"ETTh1": r"\| ETTh1", "exchange": r"\| exchange_rate"}),):
+    for _ds, _label in _lbl_acc.items():
+        for _k in (1, 2, 3, 4):
+            CHECKS += row_checks(_sec, _label, {_k - 1: (f"{_ds} k={_k}", {"k": str(_k)})},
+                                 f"prefix_{_ds}/prefix_forward_transfer.csv", "accumulate", 0.001)
+for _ds, _acc, _mat in (("ETTh1", r"\| ETTh1 accumulate", r"\| ETTh1 materialise"),
+                        ("exchange", r"\| exchange accumulate", r"\| exchange materialise")):
+    for _k in (1, 2, 3, 4):
+        CHECKS += row_checks("§1.22", _acc, {_k - 1: (f"{_ds} accumulate k={_k}", {"k": str(_k)})},
+                             f"prefix_{_ds}/prefix_forward_transfer.csv", "accumulate", 0.001)
+        CHECKS += row_checks("§1.22", _mat, {_k - 1: (f"{_ds} materialise k={_k}", {"k": str(_k)})},
+                             f"prefix_{_ds}/prefix_forward_transfer.csv", "materialise", 0.001)
+
+
+
 def section_slice(text: str, section: str) -> str:
     """The document text belonging to `section` (e.g. "§1.11"), else the whole document.
 
@@ -706,7 +724,6 @@ def main() -> None:
                     "2", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "3", "3.1", "3.2"}
     # Known-blocked: the number exists but no script emits it. Each has a plan entry.
     BLOCKED = {"1.2": "§3.13 block-mean α", "1.10": "§3.13 per-seed GRR",
-               "1.19": "§3.14 prefix-merge α", "1.22": "§3.14 prefix-merge α",
                "1.6": "§3.13 block-mean α (ρ column is checked)"}
     unchecked = [s for s in with_tables if f"§{s}" not in checked_sections]
     todo = [s for s in unchecked if s not in OUT_OF_SCOPE and s not in BLOCKED]

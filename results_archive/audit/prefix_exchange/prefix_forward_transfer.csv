@@ -1,0 +1,5 @@
+label,k,column,n_seeds,alpha_used,accumulate,accumulate_sd,materialise,materialise_sd,winner,margin_pct
+exchange,1,val_1,3,1.0,0.4314,0.0291,0.4314,0.0291,accumulate,0.0
+exchange,2,val_2,3,0.5,1.0498,0.0523,0.8426,0.0643,materialise,24.59
+exchange,3,val_3,3,0.35,0.7844,0.0361,0.8509,0.0644,accumulate,7.82
+exchange,4,val_4,3,0.25,0.6541,0.0144,0.3171,0.0035,materialise,106.27

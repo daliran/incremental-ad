@@ -890,8 +890,8 @@ identifiability reason at the end of this subsection:
 
 | dataset | α\* at n=2 | n=3 | n=5 | α\*·n |
 |---|---|---|---|---|
-| SWaT | 0.40 | 0.25 | 0.25 \* | 0.80 / 0.75 / 1.25 \* |
-| PSM | 0.55 | 0.38 | 0.30 | 1.10 / 1.12 / 1.50 |
+| SWaT | 0.40 | 0.23 | 0.20 | 0.80 / 0.70 / 1.00 |
+| PSM | 0.53 | 0.43 | 0.30 | 1.07 / 1.30 / 1.50 |
 | ETTh1 | 0.50 | 0.30 | 0.20 | 1.00 / 0.90 / 1.00 |
 | exchange_rate | 0.70 | 0.53 | 0.30 | 1.40 / 1.60 / 1.50 |
 | ETTh2 | 0.48 | 0.27 | 0.15 | 0.97 / 0.80 / 0.75 |
@@ -1276,7 +1276,7 @@ benefit without them.
 **Whether to keep *everything* depends on how much data you have per period.** A 3-period
 window beats using all history on exchange_rate (+26%) — but exchange_rate has 607-row shards.
 On **ETTh2 and ETTm2**, which share its drift with 2× and 9× the data, the opposite holds:
-more data is monotonically better and joint training is essentially the ceiling (ETTm2: using
+more data is monotonically better and joint training is essentially unbeatable *on this dataset* (ETTm2: using
 everything is **34% better** than a 3-period window). So *"retrain on everything is the wrong
 default"* is **withdrawn as a general claim** — it holds in the small-shard regime and reverses
 outside it ([EXPERIMENTS.md §1.24](EXPERIMENTS.md)). **Drift does not explain it, and neither does drift *shape*.** exchange_rate and ETTh2 have
@@ -1565,9 +1565,14 @@ shards shrink, continual forgets as steps accumulate.
 ### 11.4 What changes if AD has a labelled calibration set
 
 Labels dissolve the blocker: with them you can measure detection directly, so α becomes
-selectable and a router becomes buildable. But **the headroom does not change** — SWaT and PSM
-sit 6.2% and 7.8% from the ceiling, so routing would still be recovering very little on *these*
-datasets, and both are saturated to begin with (base within 1.1% and 3.4% of joint training).
+selectable and a router becomes buildable. ⚠️ **An earlier version of this section claimed the
+routing headroom "does not change", citing SWaT and PSM at 6.2% and 7.8% from the oracle
+router. Those two figures are withdrawn** — §1.16 shows a per-regime oracle cannot be formed on
+AD at all, because the per-regime columns carry only reconstruction statistics and no detection
+metric. **With labels the headroom becomes measurable for the first time**, and its size is
+genuinely unknown: on forecasting it ranges from 6% at low drift to 107% at high drift, and
+both AD datasets are saturated (base within 1.1% and 3.4% of joint training), which argues for
+little but does not measure it.
 
 So a labelled calibration set is worth having for **α selection**, which is worth 93–99% on
 SWaT and 19–50% on PSM of the

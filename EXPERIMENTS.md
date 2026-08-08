@@ -38,7 +38,7 @@ sequential variant and the joint-training reference.
   ~1.0–1.1× of keeping a separate specialist per regime, on SWaT, PSM and ETTh1 — and this
   holds at **every segment count tested** (§1.11). exchange_rate is the outlier at 1.6–2.1×.
 - **Start from the mean of the task vectors.** In the deployment parameterisation — fixed base
-  model, n shards tiling the data that arrived after it — α\*·n ≈ 1.0 on SWaT, PSM, ETTh1, ETTh2 and ETTm2, and
+  model, n shards tiling the data that arrived after it — α\*·n stays order 1 on SWaT, PSM, ETTh1, ETTh2 and ETTm2, and
   ≈ 1.5 on exchange_rate. **This is an empirical regularity, not a law.** It does not survive a
   fixed-shard control on exchange_rate, nor a prefix-merge design on either dataset, and no
   experiment can settle it: `baseline + n × shard = total` means the count is never identifiable
@@ -414,6 +414,10 @@ percentages in §1.23–§1.24.
   never be varied alone and *"is α\* a function of the count?"* is not an identifiable question.
 - **`val_base` weighting** — α\* is selected with 50–68% of the signal on the base regime, which
   makes the "no forgetting at α\*" result partly conditional on that choice (§1.18).
+- **Every AD checkpoint is early-stopped on reconstruction**, a signal that does not peak where
+  the test metric peaks. Measured on PSM (§1.12): **under 1% of AUROC/AUPRC**, so small, but
+  non-zero and present in every AD number here. Measured on one dataset, one seed, the baseline
+  step only.
 - **GRR spans two runs** — base and joint come from different experiments, so it carries both
   runs' variance even in the limit.
 - **Drift was measured on two segmentations.** Now closed for the forecasting datasets — both
@@ -916,8 +920,8 @@ merge cost and the merged model are all read at that α. The raw `result.json` v
 
 | dataset | α\* (n=2) | α\* (n=3) | α\* (n=5) | α\*·n (n=2) | α\*·n (n=3) | α\*·n (n=5) |
 |---|---|---|---|---|---|---|
-| **SWaT** | 0.40 | 0.25 | 0.25 \* | 0.80 | 0.75 | 1.25 \* |
-| **PSM** | 0.55 | 0.38 | 0.30 | 1.10 | 1.12 | 1.50 |
+| **SWaT** | 0.40 | 0.23 | 0.20 | 0.80 | 0.70 | 1.00 |
+| **PSM** | 0.53 | 0.43 | 0.30 | 1.07 | 1.30 | 1.50 |
 
 \* **SWaT n=5 is one seed**; its diagnostics timed out twice and are rerunning. The other AD
 cells rest on **two** seeds, not three — the seed top-ups were run on a 16-point merge-scale
@@ -925,24 +929,41 @@ grid while the originals used 7 points, and mixing grids is invalid (§1.12), so
 is set aside per group. Reruns that put every AD seed on the 16-point grid are queued
 (EXECUTION_PLAN.md §2.22).
 
-**Does PSM's product rise with n?** It reads 1.10 / 1.12 / **1.50**, which looks like the
-rising pattern §1.18 identifies as the *orthogonal-regime* signature. **Two checks say no:**
+**Does PSM's product rise with n?** It reads **1.07 / 1.30 / 1.50**. Resolved on three seeds at
+one grid (the precondition — see §1.12), following the two checks in order:
 
-- **Quantisation.** α\* is a mean of *k* per-seed argmins on a grid of step *g*, so its
-  resolution is *g/k* and α\*·n's is *(g/k)·n* — ±0.10 at n=2 (16-point grid, 2 seeds) and
-  ±0.25 at n=5. The n=2 → n=5 change of **+0.40 is only 1.5× the combined resolution
-  (±0.27)** — below any reasonable bar. SWaT's +0.45 is 0.4× its bound. **Neither is
-  distinguishable from flat.**
-- **Geometry.** If the rise were the orthogonal signature, PSM's alignment should fall fastest.
-  It does not: from n=2 to n=5 alignment falls **0.149** on PSM against **0.210** on ETTh1 and
-  0.161 on exchange_rate — and ETTh1 has the *flattest* product (1.00 / 0.90 / 1.00). The
-  ordering of alignment decay does not match the ordering of product rise, so the geometry does
-  **not** corroborate a regime difference.
+- **Quantisation — it survives.** α\* is a mean of *k* per-seed argmins on a grid of step *g*,
+  so α\*·n's resolution is *(g/k)·n*: ±0.067 at n=2 and ±0.167 at n=5 on the 16-point grid with
+  three seeds. The n=2 → n=5 change of **+0.43 is 2.4× the combined bound (±0.180)** —
+  distinguishable from flat. ⚠️ **This reverses the provisional verdict.** At 1–2 seeds on a
+  mixed grid the same change scored only 1.5× a looser ±0.27 bound and was called
+  indistinguishable; three seeds on one grid tightened the bound enough to resolve it. SWaT, by
+  contrast, moves +0.20 against ±0.180 — **1.1×, still not distinguishable**.
+- **Geometry — it does *not* corroborate.** If a rising product were the orthogonal-regime
+  signature of §1.18, driven by vectors de-aligning as they multiply, PSM should de-align
+  fastest. It does not. Ranked by how much alignment falls from n=2 to n=5:
 
-**So the honest statement is unchanged: α\*·n stays order 1 on every dataset measured**, and
-PSM's apparent rise is within measurement resolution and unsupported by its geometry. Restating
-it as a regime difference would have been the more interesting result; it is not what the data
-shows.
+  | dataset | alignment n=2 → n=5 | fall | α\*·n shape |
+  |---|---|---|---|
+  | ETTh1 | 0.808 → 0.598 | **+0.210** | **flat** (1.00 / 0.90 / 1.00) |
+  | exchange_rate | 0.770 → 0.609 | +0.161 | flat (1.40 / 1.60 / 1.50) |
+  | PSM | 0.831 → 0.683 | +0.149 | **rising** (1.07 / 1.30 / 1.50) |
+  | SWaT | 0.941 → 0.877 | +0.064 | non-monotone |
+
+  **The dataset that de-aligns fastest has the flattest product, and the one that rises
+  de-aligns less than two datasets that stay flat.** The ordering is not merely weak — it points
+  the wrong way.
+
+**So the verdict is neither of the two anticipated.** PSM's rise is **statistically real but
+mechanistically unexplained**: the quantisation check says it is not noise, and the geometry
+check says it is not the orthogonal-regime signature. Two independent measurements disagree, and
+the honest report is that disagreement rather than whichever one supports a tidier story.
+
+**What this costs the α\*·n claim.** It holds as *"order 1 on every dataset measured"* — every
+product sits in 0.70–1.60. It does **not** hold as *"near-constant within a dataset"*: PSM's
+product moves 40% across segment counts, resolvably. The framing in [THEORY.md §6.6](THEORY.md)
+survives. The mechanistic account in §1.18 above does not extend to PSM, and no alternative
+mechanism is available from what is measured here.
 
 > **This table is hand-transcribed, not generated.** Both halves now use the same pooling —
 > the whole validation union including the baseline's slice (`val_base`) — differing only in the
@@ -996,8 +1017,8 @@ SWaT, PSM and ETTh1 all sit at ~1.0–1.1; exchange_rate is the outlier at 1.6�
 
 | dataset | n=2 | n=3 | n=5 | | n=2 | n=3 | n=5 |
 |---|---|---|---|---|---|---|---|
-| **SWaT** | 0.010 | 0.006 | 0.064 \* | | 0.580 | 0.483 | 0.947 \* |
-| **PSM** | 0.956 | 0.518 | 0.532 | | 1.183 | 1.035 | 1.035 |
+| **SWaT** | 0.025 | 0.019 | 0.017 | | 0.614 | 0.608 | 0.827 |
+| **PSM** | 0.885 | 0.748 | 0.552 | | 1.186 | 1.067 | 0.984 |
 | **ETTh1** | 0.865 ±0.035 | 0.733 ±0.149 | 0.885 ±0.057 | | 0.874 ±0.034 | 0.778 ±0.213 | 0.963 ±0.018 |
 | **exchange** | 1.421 ±0.240 | 1.164 ±0.099 | 1.238 ±0.208 | | 1.424 ±0.237 | 1.218 ±0.083 | 1.238 ±0.208 |
 
@@ -1032,8 +1053,8 @@ Cost of choosing α on validation instead of on test, as a fraction of the oracl
 
 | dataset | n=2 | n=3 | n=5 | seeds | verdict |
 |---|---|---|---|---|---|
-| **SWaT** | 98% | 99% | 93% | 2 / 2 / 1 | **val selection fails** |
-| **PSM** | 19% | 50% | 49% | 2 / 2 / 2 | costly but still useful |
+| **SWaT** | 96% | 97% | 98% | 3 / 3 / 3 | **val selection fails** |
+| **PSM** | 25% | 30% | 44% | 3 / 3 / 3 | costly but still useful |
 | **ETTh1** | 1% | 6% | 8% | 3 | **val selection is free** |
 | **exchange** | 0% | 4% | 0% | 3 | **val selection is free** |
 
@@ -1054,22 +1075,145 @@ Cost of choosing α on validation instead of on test, as a fraction of the oracl
 > unaffected either way, since 93–99% on SWaT was never in doubt; what is not established is
 > the stronger 'worse than not merging at all' form.
 
+#### Does the *training* signal diverge too? Yes — but by under 1%
+
+> **Provenance.** `analysis/selection_probe.py` over a PSM run trained with
+> `--trainer_checkpoint_interval 1`: 170 epoch checkpoints, each scored on the full test set,
+> with each checkpoint's own recorded `val_loss` — the number `StandardTrainer` actually
+> compared — beside it. PSM rather than SWaT, whose base sits within 1.1% of joint training.
+
+α is not the only thing chosen on the reconstruction signal. **Every** AD checkpoint here is
+early-stopped by `StandardTrainer` on `model.compute_loss` over the validation slice — the same
+masked-reconstruction objective. If that signal were as blind along the *epoch* axis as it is
+along the α axis, every AD number in this file would carry an unmeasured selection cost.
+
+Early stopping picked **epoch 140 of 170**. Every one of the 19 test metrics peaks somewhere
+else — but the magnitudes split into two groups, and the split is the result:
+
+| metric | peaks at | best | at epoch 140 | left on the table |
+|---|---|---|---|---|
+| `window_auroc` | 128 | 0.7774 | 0.7740 | **0.43%** |
+| `window_auprc` | 117 | 0.6413 | 0.6379 | **0.54%** |
+| `point_auroc` | 87 | 0.7750 | 0.7712 | **0.50%** |
+| `point_auprc` | 117 | 0.5681 | 0.5630 | **0.90%** |
+| `pa_f1` | 51 | 0.8144 | 0.8067 | 0.94% |
+| `event_f1` | **2** | 0.6053 | 0.2294 | 62% |
+| `event_recall` | **2** | 0.9718 | 0.7465 | 23% |
+| `window_recall` | **4** | 0.9571 | 0.8285 | 13% |
+
+**On the threshold-free metrics the cost is under 1%.** AUROC and AUPRC — the primary AD metrics
+precisely because they need no threshold — lose 0.43–0.90% against the best epoch. That clears
+PSM's 0.07% floor, so the divergence is real, but it is two orders of magnitude smaller than the
+**96–98%** that choosing α on the same signal costs (above).
+
+**The large gaps are an artefact, not a loss.** Every metric showing a big number peaks at epoch
+2–12, where the model is barely trained. Those epochs pair near-perfect recall (0.95–0.97) with
+poor precision (0.38) — the signature of a detector that flags almost everything. At epoch 2 the
+`window_auroc` is 0.6683 against 0.7740 at the chosen epoch: it is a **worse** detector that
+happens to score well on recall-weighted, threshold-dependent metrics. Reading those peaks as
+"early stopping cost 62% of event_f1" would invert the truth.
+
+**So the epoch axis really is more forgiving than the α axis, and the assumption held.** This
+*narrows* the selection problem rather than widening it: the failure is specific to α, where
+validation and detection are actively opposed, not general to every hyperparameter chosen on
+reconstruction. **The <1% is a genuine cost and belongs in the structural limits** — but it does
+not put an asterisk on every AD number in this file, which is what the alternative outcome would
+have required.
+
+⚠️ Measured on **one dataset, one seed, the baseline step only**. Whether it holds for the
+specialists, the sequential chain, or on SWaT is untested — and SWaT is where α diverges worst,
+so it is the natural next probe.
+
+#### The selection problem is not merging's — it is unsupervised AD's
+
+Presenting α as *the* thing that cannot be chosen honestly makes this look like a fact about
+task arithmetic. It is not. **Every** method here has something to select, and on unlabelled AD
+none of them can be selected on the target metric:
+
+| method | what must be chosen | on AD |
+|---|---|---|
+| merging | **α** | val reconstruction disagrees with AUROC (this section) |
+| sequential | when to stop each step | same signal, untested — [EXECUTION_PLAN.md §3.11](EXECUTION_PLAN.md) |
+| windowed retrain | **W** | same signal |
+| routing | which model to serve | **does not exist at all** — §1.16 withdrew both AD rows for exactly this reason |
+| joint training | when to stop | same signal |
+
+What is special about α is **sharpness**, not uniqueness: validation says 0.25 while AUROC
+improves monotonically to 1.5 — the two are *actively opposed*, not merely uncorrelated. That
+makes α the cleanest place to measure a problem every method shares, which is why it surfaced
+here first.
+
+**So the honest generalisation is about unsupervised anomaly detection, not about merging** — and
+it belongs in the abstract rather than in a caveat. The practical corollary follows: **a labelled
+calibration period is not a merging accessory, it is what makes any AD deployment tunable.** In
+practice you often *do* have labels for a commissioning window and nothing afterwards, which
+supports three escalating uses:
+
+1. **Transfer *k*.** Find the AUROC-optimal α on the labelled period and use α = k/n thereafter.
+   One scalar crosses the label boundary — and [THEORY.md §6.6](THEORY.md)'s α\*·n ≈ 1 is what
+   makes that plausible rather than arbitrary.
+2. **Calibrate a proxy.** On the labelled period sweep α and record AUROC alongside unsupervised
+   score-distribution statistics (p99/p50, std, kurtosis); find which statistic's optimum tracks
+   AUROC's, then use it on later unlabelled shards. This adapts per shard instead of freezing a
+   constant, and it is motivated: detection depends on the *shape* of the score distribution and
+   on where its normal tail sits, not on its level — the same fact behind this section's
+   observation that `score_p99` and `score_std` behave differently from `score_mean`.
+3. **Validate synthetic injection.** The labelled period lets you *check* whether an α selected
+   on injected anomalies matches the real-AUROC-selected one, instead of assuming it (§3.2).
+
+⚠️ **All three assume the proxy→AUROC relation is stable under drift** — exactly the kind of
+assumption this project has repeatedly found to fail. It is testable inside the labelled period
+itself, by fitting on early sub-periods and checking on later ones, and that check should be part
+of any such proposal rather than an afterthought.
+
 ### 1.13 Merge versus sequential fine-tuning, by segment count
+
+> ⚠️ **Both are also-rans.** §1.26 puts all five strategies on one footing: neither merging nor
+> sequential wins a single decisive forecasting configuration — joint training or a window does,
+> on every one. This section compares them *to each other*, which matters only under the
+> retention constraint that rules the other two out. Read it with that attached.
 
 > **Provenance.** `<exp>/merged/test` against `<exp_seq>/continual_{n-1}/test`, both mean over seeds (`run_metrics.csv`). Percentages are (continual − merged) ÷ continual — a fraction of the *alternative*, per §0.6.
 
 | dataset | n=2 | n=3 | n=5 |
 |---|---|---|---|
-| **SWaT** | sequential (-0.20%) | sequential (-0.48%) | sequential (-0.45%) |
-| **PSM** | sequential (-0.78%) | sequential (-0.36%) | sequential (-1.75%) |
-| **ETTh1** | sequential (-12.73%) | sequential (-17.17%) | tie (-2.42%) |
-| **exchange** | sequential (-16.17%) | tie (+4.98%) | merge (+38.42%) |
+| **SWaT** | merge (+0.21%) | tie (+0.01%) | merge (+0.18%) |
+| **PSM** | merge (+0.13%) | merge (+0.45%) | sequential (−0.10%) |
+| **ETTh1** | sequential (−12.73%) | sequential (−51.12%) † | tie (−2.42%) |
+| **ETTh2** | sequential (−12.01%) | sequential (−9.29%) | sequential (−7.00%) |
+| **ETTm2** | sequential (−30.17%) | sequential (−21.94%) | merge (+24.66%) |
+| **exchange** | sequential (−16.17%) | merge (+7.69%) | merge (+38.42%) |
 
-Positive = merge better. Judged against each dataset's own reproducibility floor (§1.9).
-Merge is evaluated at the val-selected α, which is the honest choice on forecasting and,
-per §1.12, an unfair handicap on AD — at oracle α the AD verdicts flip to merge. **The AD
-rows therefore do not support a conclusion in either direction**: the comparison depends on
-a hyperparameter that cannot be set honestly.
+> ⚠️ **The AD rows had their sign inverted and are corrected.** The caption says *positive =
+> merge better*, but those cells were computed with the error-metric formula
+> (continual − merged) ÷ continual, which **inverts for a score metric**: on `window_auroc`
+> higher is better, so a merge that scores *above* sequential produced a negative number and was
+> read as a loss. Every AD cell said "sequential"; five of six actually favour merge. The
+> margins are 0.01–0.45% against floors of 0.09% and 0.07%, so this changes the direction but
+> not the substance — the AD comparison remains dominated by α (below).
+>
+> † **ETTh1 n=3 is α-dependent, not a correction.** Its only n=3 run (`noisefloor_etth`) merged
+> at **α = 1.0**, which overshoots; at that scale the merge loses by 51%, not 17%. The published
+> 17% presumably came from a val-selected α that no surviving run carries. Treat this cell as
+> *"merging at α=1 loses badly"*, which is §2.2's finding, rather than as a merge-vs-sequential
+> verdict.
+>
+> **ETTh2 and ETTm2 were missing entirely** — their results lived only in §1.23/§1.24. Added,
+> and they matter: ETTh2 favours sequential at every n, on the dataset with the most headroom.
+
+Positive = merge better, with the direction taken from the metric (higher-is-better for
+`window_auroc`, lower for `forecast/mse`). Judged against each dataset's own reproducibility
+floor (§1.9). Merge is at each run's committed α, which is val-selected on forecasting and,
+per §1.12, an unfair handicap on AD. **The AD rows still do not support a conclusion in either
+direction** — every margin is 0.01–0.45%, on datasets whose base is already within 1.1% and
+3.4% of joint training, and the comparison depends on a hyperparameter that cannot be set
+honestly.
+
+**On the forecasting datasets, sequential wins 8 of the 11 decisive configurations** — ETTh1 at
+n=2,3; ETTh2 at every n; ETTm2 at n=2,3; exchange_rate at n=2. Merging takes ETTm2 n=5 and
+exchange_rate n=3,5. Said plainly: **on current forecasting evidence, sequential fine-tuning
+beats merging more often than not**, and §1.26 shows both lose to joint training or a window
+wherever retention is allowed.
 
 On the forecasting datasets, where the comparison is sound: ETTh1 favours sequential at
 n=2 and n=3 and ties at n=5; exchange_rate favours sequential at n=2, ties at n=3, and
@@ -1770,7 +1914,7 @@ widest of any dataset here; differences below that are not resolvable. Three see
 **Three of exchange_rate's four distinctive behaviours fail to reproduce** at the same drift
 with 2× and 9× the data: old data hurting, the early crossover, and the elevated α\*·n. On
 ETTm2 old data does not merely fail to hurt — using all of it is **34% better** than a 3-period
-window, and joint training is essentially the ceiling.
+window, and joint training is essentially unbeatable *here* — the opposite of exchange_rate, where merging beats it (GRR 1.16–1.42) and a 3-period window beats it by 26%. Joint training is a reference, not a bound.
 
 **So exchange_rate's distinctiveness is mostly a small-data effect, not a strong-drift effect.**
 Claims of the form *"under strong drift, X"* about **retention and merge behaviour** — old data
@@ -1865,6 +2009,69 @@ rather than a curiosity: it is the reason a genuinely zero-retention merge is po
 The fixed-α variant has not been run as a first-class configuration — these penalties are read
 off curves produced by selecting runs. [EXECUTION_PLAN.md §3.9](EXECUTION_PLAN.md) proposes
 running it properly, which is what would let the thesis claim zero retention outright.
+
+### 1.26 All five strategies on one footing
+
+> **Provenance.** `analysis/method_comparison.py` over
+> `analysis_specs/method_comparison_spec.csv`. Same test set, same seeds, per (dataset, n);
+> `window` is the best of W ∈ {1,2,3}; `router` is the oracle-router gap from §1.16 and exists
+> on forecasting only. A configuration counts as decisive when the winner's margin over the
+> runner-up clears that dataset's floor.
+
+The comparisons elsewhere are pairwise against different baselines — §1.13 merge vs sequential,
+§1.21 merge vs windowed, §1.11 merge vs joint — so no table shows all five together. Here it is.
+`forecast/mse` (lower better) for the forecasting rows, `window_auroc` (higher better) for AD.
+
+| dataset | n | joint | merge | sequential | window | best | margin |
+|---|---|---|---|---|---|---|---|
+| ETTh1 | 2 | 0.4186 | 0.4597 | 0.4078 | **0.3913** | tie | 4.0% ~ |
+| ETTh1 | 3 | 0.4186 | 0.6256 | 0.4140 | **0.3913** | tie | 5.5% ~ |
+| ETTh1 | 5 | 0.4186 | 0.4517 | 0.4410 | **0.3913** | tie | 6.5% ~ |
+| ETTh2 | 2 | **0.1362** | 0.2612 | 0.2332 | 0.2952 | **joint** | 41.6% |
+| ETTh2 | 3 | **0.1362** | 0.2153 | 0.1970 | 0.2952 | **joint** | 30.8% |
+| ETTh2 | 5 | **0.1362** | 0.2669 | 0.2495 | 0.2952 | **joint** | 45.4% |
+| ETTm2 | 2 | **0.0750** | 0.1240 | 0.0952 | 0.1092 | **joint** | 21.2% |
+| ETTm2 | 3 | **0.0750** | 0.1121 | 0.0920 | 0.1092 | **joint** | 18.4% |
+| ETTm2 | 5 | **0.0750** | 0.1385 | 0.1839 | 0.1092 | **joint** | 31.3% |
+| exchange | 2 | 0.3957 | 0.2554 | 0.2199 | **0.2053** | **window** | 6.6% |
+| exchange | 3 | 0.3957 | 0.3310 | 0.3586 | **0.2053** | **window** | 38.0% |
+| exchange | 5 | 0.3957 | 0.3271 | 0.5311 | **0.2053** | **window** | 37.2% |
+| SWaT | 2 | **0.8078** | 0.8044 | 0.8027 | 0.8023 | joint | 0.4% |
+| SWaT | 3 | **0.8078** | 0.8037 | 0.8037 | 0.8023 | joint | 0.5% |
+| SWaT | 5 | **0.8078** | 0.8049 | 0.8034 | 0.8023 | joint | 0.4% |
+| PSM | 2 | 0.7998 | **0.8041** | 0.8030 | 0.7987 | merge | 0.1% |
+| PSM | 3 | 0.7998 | **0.8005** | 0.7969 | 0.7987 | merge | 0.1% |
+| PSM | 5 | **0.7998** | 0.7944 | 0.7953 | 0.7987 | joint | 0.1% |
+
+`~` = inside the dataset's reproducibility floor. **Decisive: 15 of 18 — joint 10, window 3,
+merge 2, sequential 0.**
+
+#### ⚠️ Read this with the retention budget attached, or it misleads
+
+The columns are **not** competing under the same constraint. `joint` sees **all** the data and
+`window` sees the last W periods; `merge` and `sequential` see each period once and retain no
+training data at all. So *"joint wins 10 of 15"* is close to a tautology — it is the method
+allowed the most data. The table's value is in the exceptions and the magnitudes, not the tally.
+
+**What it actually shows:**
+
+- **Where you can retain everything, retain everything.** On ETTh2, ETTm2 and the AD pair,
+  nothing beats joint training, and on ETTh2 the gap is 31–45%. Merging's case has never been
+  accuracy (§1.17 said this at n=1; this says it across every n).
+- **exchange_rate inverts it completely** — joint is the *worst* of the five (0.3957 against the
+  window's 0.2053) because its oldest data actively hurts. This is the one dataset where the
+  constrained methods beat the unconstrained one, and it is the small-shard, high-drift case.
+- **Merging never wins a decisive forecasting configuration** — 0 of 12. Its two wins are PSM at
+  0.1% margins, on a dataset whose base is already within 3.4% of joint.
+- **Sequential never wins one either** — 0 of 18. Yet §1.13 has sequential beating merging **8–3**
+  on decisive forecasting configurations. Both statements are true: the two are competing for
+  third place behind joint and window, and §1.13 is a comparison *among the also-rans*. That
+  context is missing wherever merge-vs-sequential is quoted alone.
+
+**Which is the honest framing of the whole project.** Merging is not an accuracy method. It is a
+method for the case where retention is *forbidden*, and the question worth asking is the one
+§1.21 asks — how many periods of retained data is it worth — not which method scores best when
+one of them is handed the full history.
 
 ## 2. Exact configurations
 

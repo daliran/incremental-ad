@@ -63,8 +63,10 @@ Research codebase for **incremental anomaly detection on multivariate time serie
 - **Numbers in the markdown are hand-transcribed; the CSVs are generated.** That gap is where
   every documentation error in the August 2026 audit lived. `scripts/check_tables_against_csv.py`
   spot-checks documented values against the generated CSVs (`--self-test` proves each check can
-  actually fail; `--strict` for CI). It covers 7 cells of ~72 tables — it prints its own coverage,
-  so read that before trusting an unchecked number.
+  actually fail; `--strict` for CI). It covers 7 cells of ~76 tables — it prints its own coverage,
+  so read that before trusting an unchecked number. It also **reconciles §1.11 against §1.12**
+  (cost = 1 − GRR(α_val)/GRR(α_oracle)); those two drifted apart twice, once in *sign*, and the
+  check is negative-tested so it cannot pass vacuously.
 
 ## Verify after changes
 

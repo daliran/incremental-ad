@@ -47,6 +47,73 @@ CHECKS = [
 ]
 
 
+
+# Cross-section consistency ---------------------------------------------------------------
+
+# §1.11 publishes GRR at the validation-selected alpha and at the oracle alpha; §1.12 publishes
+# the cost of choosing on validation. They are the same measurement twice:
+#
+#     cost = 1 - GRR(alpha_val) / GRR(alpha_oracle)
+#
+# Nothing enforced that, and twice they drifted apart — once silently (the AD rows in 1.11 were
+# a seed behind 1.12) and once in *sign* (1.11 said +0.116 where 1.12 said -0.026, which is the
+# difference between "merging still helps" and "merging hurts"). Four lines of arithmetic catch
+# both, so they belong here rather than in a reviewer's head.
+
+GRR_ROW = re.compile(
+    r"^\| \*\*(?P<ds>\w+)\*\* \| (?P<v>[^|]+)\|(?P<v2>[^|]+)\|(?P<v3>[^|]+)\| \|"
+    r"(?P<o>[^|]+)\|(?P<o2>[^|]+)\|(?P<o3>[^|]+)\|", re.M)
+COST_ROW = re.compile(
+    r"^\| \*\*(?P<ds>\w+)\*\* \| (?P<c1>[^|]+)\|(?P<c2>[^|]+)\|(?P<c3>[^|]+)\|", re.M)
+
+
+def _num(cell: str) -> float | None:
+    """First number in a table cell, ignoring bold markers, footnote stars and ± spreads."""
+    m = re.search(r"-?\d+\.?\d*", cell.replace("−", "-"))
+    return float(m.group()) if m else None
+
+
+def check_reconciliation(text: str, tolerance: float = 0.03) -> int:
+    """Assert §1.12's honest-alpha cost follows from §1.11's GRR block. Returns failure count."""
+    gstart = text.find("#### GRR — share of the base-to-joint gap")
+    gend = text.find("### 1.12 ", gstart + 1) if gstart >= 0 else -1
+    gblock = text[gstart:gend] if gstart >= 0 and gend > gstart else ""
+    grr = {m.group("ds"): [_num(m.group(k)) for k in ("v", "v2", "v3")]
+                          + [_num(m.group(k)) for k in ("o", "o2", "o3")]
+           for m in GRR_ROW.finditer(gblock)}
+    # Scope the search to §1.12 — several sections have three percentage columns, and matching
+    # on shape alone silently picks up §1.13's merge-vs-continual table instead.
+    start = text.find("### 1.12 ")
+    end = text.find("### 1.13 ", start + 1) if start >= 0 else -1
+    section = text[start:end] if start >= 0 and end > start else ""
+    costs = {}
+    for m in COST_ROW.finditer(section):
+        cells = [m.group("c1"), m.group("c2"), m.group("c3")]
+        if all("%" in c for c in cells):
+            costs[m.group("ds")] = [_num(c) for c in cells]
+
+    failures = 0
+    print("\nRECONCILIATION — §1.12 cost must equal 1 - GRR(a_val)/GRR(a_oracle) from §1.11:")
+    for ds, cost in sorted(costs.items()):
+        block = grr.get(ds)
+        if not block or any(v is None for v in block):
+            print(f"  SKIP  {ds}: no usable GRR row in §1.11")
+            failures += 1
+            continue
+        vals, oracles = block[:3], block[3:]
+        for i, (v, o, c) in enumerate(zip(vals, oracles, cost)):
+            if v is None or o is None or c is None or not o:
+                continue
+            derived = 100.0 * (1.0 - v / o)
+            ok = abs(derived - c) <= max(1.0, tolerance * max(abs(c), 1.0))
+            n = (2, 3, 5)[i]
+            print(f"  {'ok  ' if ok else 'FAIL'}  {ds} n={n}: 1-{v}/{o} = {derived:5.1f}%  "
+                  f"documented {c:5.1f}%")
+            if not ok:
+                failures += 1
+    return failures
+
+
 def load(csv_path: Path) -> list[dict]:
     if not csv_path.is_file():
         raise SystemExit(f"missing generated file: {csv_path}\nrun analysis/results_audit.py first")
@@ -105,6 +172,11 @@ def main() -> None:
           "transfer matrices, §1.5 metric reports, §1.8/§1.15 geometry, §1.11 α*·n and merge "
           "cost, §1.12 honest-α, §1.13 merge-vs-continual, §1.17 n=1, §1.19 forward transfer, "
           "§1.20 recency, §1.21/§1.22 retention. Add checks before trusting those cells.")
+
+    recon = check_reconciliation(text)
+    if recon:
+        print(f"  -> {recon} reconciliation failure(s): §1.11 and §1.12 disagree")
+        drift += recon
 
     if args.self_test:
         print("\nSELF-TEST — corrupting each backing cell; every check must then fail:")

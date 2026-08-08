@@ -934,3 +934,98 @@ held-out test set. A practitioner deciding *online* cannot do that, and the gap 
 Worth writing up as a protocol section even before it is measured, because it changes what the
 retention crossover means operationally: the crossover assumes you already know which route you
 are on.
+
+
+### 3.10b A labelled commissioning period — three escalating uses ⬜
+
+Written up in [EXPERIMENTS.md §1.12](EXPERIMENTS.md): transfer *k* (one scalar crosses the label
+boundary), calibrate an unsupervised proxy statistic whose optimum tracks AUROC's, or validate
+synthetic injection against real labels rather than assuming agreement. Complements §3.2's
+synthetic-anomaly route rather than replacing it — the labelled period is what makes the
+synthetic route *checkable*. All three rest on the proxy→AUROC relation being stable under
+drift, which is testable inside the labelled period by fitting on early sub-periods and checking
+on later ones.
+
+### 3.11 Is the *training* selection signal also blind on AD? ✅ — yes, but by under 1%
+
+**Answered.** 170 PSM epoch checkpoints scored on test against each one's own recorded
+early-stopping loss (`analysis/selection_probe.py`, new). Early stopping picked epoch 140; every
+metric peaks elsewhere, but the threshold-free ones — AUROC and AUPRC, the primary AD metrics —
+lose only **0.43–0.90%**, against the **96–98%** that choosing α on the same signal costs. The
+large-looking gaps (event_f1 62%) all peak at epochs 2–12, where the model pairs 0.97 recall
+with 0.38 precision and a *lower* AUROC (0.668 vs 0.774) — a detector that flags almost
+everything, not a better one.
+
+**So the assumption held and the problem narrows to α.** The <1% is recorded in the structural
+limits ([EXPERIMENTS.md §0.6](EXPERIMENTS.md)) rather than as an asterisk on every AD number.
+Untested for the specialists, the sequential chain, and on SWaT — where α diverges worst, so it
+is the natural next probe.
+
+*Two bugs found in the probe itself, both fixed:* it read `load_model_state(path)["model_state_dict"]`
+when that function returns the state dict directly (a `load_checkpoint_metadata` was added to
+`framework/core/checkpoints.py` rather than reaching for `torch.load` outside it), and its
+verdict loop filtered metrics on `"/" in name`, which matches `forecast/mse` but not
+`window_auroc` — so on the very task it exists to probe it printed nothing.
+
+### 3.11b Extend the probe ⬜ — SWaT, specialists, sequential steps
+
+§1.12 shows validation reconstruction and test AUROC disagree about **α**. But α is not the only
+thing chosen on that signal: every AD checkpoint in this project — base, each specialist, the
+sequential chain, the joint reference — is early-stopped by `StandardTrainer` on
+`model.compute_loss` over the validation slice, i.e. **the same masked-reconstruction objective**.
+So every AD model was selected by a signal §1.12 shows can be actively opposed to detection.
+
+The implicit assumption is that the *epoch* axis is more forgiving than the *α* axis — training
+improves reconstruction and detection together, whereas §1.12 measured them in opposition. It
+has never been tested.
+
+**The test** (`analysis/selection_probe.py`, new): train PSM with
+`--trainer_checkpoint_interval 1`, then score every epoch checkpoint on the test set and put the
+early-stopping signal beside test AUROC. PSM rather than SWaT — SWaT's base sits within 1.1% of
+joint training, so every checkpoint is at the ceiling and nothing is distinguishable.
+
+- **Optima coincide** → the selection problem is confined to α. Narrows §1.12 and strengthens it.
+- **Optima diverge** → **every AD number carries an unmeasured selection cost**, which belongs in
+  the structural limits (§0.6) rather than a footnote.
+
+Submitted as `psm_selection_probe`.
+
+### 3.12 Oracle split search by dynamic programming ⬜ — ground truth for the materialise trigger
+
+The plan has long said "search for the best split points" without a tractable method. There is
+one, and it makes §2.17's trigger falsifiable rather than merely plausible.
+
+**Setup.** Fine-tune **once** at the finest granularity — *T* task vectors, all from frozen θ₀.
+A *split* is a partition of those *T* into contiguous blocks, block *j* serving
+M_j = θ₀ + α_j·Σ_{i∈j} τ_i. Merging a block is summing a subset, so **every candidate partition
+costs evaluation only, no retraining**, and α_j = k/|block| comes free from [THEORY.md §6.6](THEORY.md).
+
+**Search.** If the objective decomposes over blocks — total = Σ over periods of the deployed
+model's loss on that period — it solves exactly by dynamic programming:
+
+> `C[j] = min over i<j of ( C[i] + cost(block i+1…j) )`
+
+**O(T²)** block evaluations instead of 2^(T−1) partitions: at T = 10 that is 55, not 512.
+
+**Extension.** Let each block be served by merge, sequential *or* windowed, evaluate all three
+and take the min. The DP then returns the optimal split **and** the optimal method per segment
+jointly — which is the actual research question, not a proxy for it.
+
+**Two caveats to encode.** Merge blocks need no training; sequential and windowed blocks need
+training *per candidate block*, so run the merge-only DP first. And the DP assumes no routing
+back: letting a period be served by a non-adjacent block breaks additivity and becomes a harder
+assignment problem — out of scope, say so.
+
+**Why it matters beyond an upper bound.** *"When should you materialise?"* currently has no
+correct answer to validate a trigger against. The DP produces the right answer per period, which
+lets ρ, Δval on retained slices, or BECAME's λ\* be tested against ground truth. That gap —
+oracle DP versus online policy — is the contribution.
+
+⚠️ **Anticipate a negative result, and say so up front.** Given forward transfer holding (7 of 8,
+no decay, §1.19) and merge cost flat at 1.0–1.1× across every n, the DP may well return a
+**single block — never split**. That is a clean, publishable answer to Q4, but it must be framed
+as an expected outcome rather than a failed experiment. Run it first on **exchange_rate**:
+highest drift, smallest shards, the most likely to split.
+
+**Prerequisite:** a finest-granularity run at larger *T* than anything done so far — n = 5 is the
+current maximum. Check what *T* is affordable on exchange_rate before designing around it.

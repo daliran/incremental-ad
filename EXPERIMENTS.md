@@ -28,10 +28,9 @@ experiment in this file materialises a second model or asks which shard count is
 EXECUTION_PLAN.md §3.1–§3.3.
 The commands for reproducing any of this are in THEORY.md §14.
 
-Snapshot 2026-08-07: **six datasets × three segment counts** (n = 2, 3, 5), three training
-seeds each on the forecasting datasets and one on the AD datasets, for the merge variant, the
-sequential variant and the joint-training reference.
-
+Snapshot 2026-08-08: **six datasets × three segment counts** (n = 2, 3, 5), **three training
+seeds on every dataset** — the AD datasets were one seed until the 16-point merge-scale reruns
+landed (§1.11) — for the merge variant, the sequential variant and the joint-training reference.
 ## TL;DR
 
 - **Merging is essentially free once the scale is right.** One merged model performs within
@@ -261,7 +260,10 @@ command; a provenance line closes both, and gives
 The outcomes table `novelty_report indicator` consumes is itself generated —
 `novelty_report outcomes` builds it from the runs and a committed spec at
 `analysis_specs/rho_indicator_spec.csv`, which names the experiment pair and floor per
-configuration. The same holds for `novelty_report alignment` (§1.18), whose
+configuration. Four committed specs now pin the mappings a number cannot be derived without:
+`rho_indicator_spec.csv`, `method_comparison_spec.csv`, `alignment_spec.csv` (§1.18),
+`floor_spec.csv` (§1.9 — which experiment supplies each dataset's floor) and
+`transfer_matrix_spec.csv` (§1.4 — which single run each matrix was measured on). The same holds for `novelty_report alignment` (§1.18), whose
 `analysis_specs/alignment_spec.csv` maps each (dataset, n) to the geometry experiment **and**
 the scale group it must be read from — the two are not inferable from each other, and pooling
 all of a dataset's geometry runs silently shifts the n=3 rows. Nothing in this file is
@@ -283,7 +285,11 @@ python -m incremental_ad.analysis.novelty_report  indicator --outcomes $OUT/outc
 python -m incremental_ad.analysis.novelty_report  alignment --geometry $OUT/geometry/geometry_summary.csv \
     --scale $OUT/scale/scale_summary.csv $OUT/scale_ad/scale_summary.csv \
     --spec analysis_specs/alignment_spec.csv --out $OUT/alignment
+python scripts/check_tables_against_csv.py --audit_dir $OUT --runs_root $RUNS_ROOT --strict
 ```
+
+`--runs_root` enables the §1.4 transfer-matrix pass, which reads each matrix's source run
+directly; without it those 80 cells are skipped rather than checked.
 
 ⚠️ **`scale_report` needs the validation columns**, which only exist when the diagnostics run
 passed `--pipeline_curve_include_val`. It drops runs that lack them and reports the count as
@@ -460,10 +466,10 @@ reconstruction error for AD (whose training data carries no labels), MSE for for
 
 | dataset | source run | joint-training reference | primary test metric | ρ (update overlap) |
 |---|---|---|---|---|
-| SWaT | `58941` | `58930` | `window_auroc` | 0.607 |
-| PSM | `59101` | `59090` | `window_auroc` | 0.226 |
-| ETTh1 | `59077` | `59062` | `forecast/mse` | 0.076 |
-| Exchange | `79671` | `79672` | `forecast/mse` | 0.117 |
+| SWaT | `58941` | `58930` | `window_auroc` | 0.601 |
+| PSM | `59101` | `59090` | `window_auroc` | 0.216 |
+| ETTh1 | `59077` | `59062` | `forecast/mse` | 0.070 |
+| Exchange | `79671` | `79672` | `forecast/mse` | 0.128 |
 
 The base model trains on `baseline_fraction=0.5` of the training data and is then frozen;
 three later segments each get an independent fine-tune from that same base. Joint training
@@ -484,6 +490,12 @@ three shards. **1.00× means merging costs nothing** relative to keeping one mod
 > slightly different merge costs (ETTh1 1.007 here, 1.080 there). Neither is wrong; they
 > answer "best on average across shards" versus "best on the pooled data". **Quote §1.11 for
 > anything compared across segment counts, and this section only for the n = 3 detail.**
+>
+> ⚠️ **Not machine-checked.** The block-mean convention this section uses is not emitted by any
+> script: `scale_report` produces the window-weighted pooled α\* (§1.11) and `routing_report`'s
+> `merge_cost` is computed at the committed α, which reproduces this table's **α = 1.0** column
+> (SWaT 3.58 against 3.79) but not its **α\*** column. Adding `alpha_star_blockmean` and the
+> matching merge cost to `scale_report` would close it — EXECUTION_PLAN.md §3.13.
 
 | | merge cost @ α=1.0 | merge cost @ α\* | α\* | old regime @ α=1.0 | old regime @ α\* |
 |---|---|---|---|---|---|
@@ -501,7 +513,7 @@ three shards. **1.00× means merging costs nothing** relative to keeping one mod
 
 ### 1.3 Model quality against the merge scale
 
-> **Provenance.** `merge_diagnostics/merge_scale_curve.csv` (`MergeDiagnosticsPipeline` via `analysis/diagnose.py`) — every point re-applies one fixed set of checkpoints, so only α varies. Mean over seeds per α. No selection rule: this is the full trace, not a choice.
+> **Provenance.** `merge_diagnostics/merge_scale_curve.csv` (`MergeDiagnosticsPipeline` via `analysis/diagnose.py`) — every point re-applies one fixed set of checkpoints, so only α varies. Mean over seeds per α. No selection rule: this is the full trace, not a choice. ⚠️ **The source run was never recorded here either.** Now pinned in `analysis_specs/transfer_matrix_spec.csv` (`curve_run_dir`) and checked cell-by-cell: `old` is the `val_base` ratio to α = 0, `new` is the **mean of the per-shard ratios** (not the ratio of the means — those differ, and only the first reproduces these numbers). PSM's curve comes from a *different* run than its §1.4 matrix — the matrix run sits on the 0.1 grid while this table is on 0.25 steps — which is why the spec names both. All 92 cells reproduce.
 
 Merged model on the validation block, ratio to base. `new` is the mean over the three
 shards; `old` is the base model's own regime, which nobody fine-tuned on.
@@ -536,7 +548,7 @@ shards; `old` is the base model's own regime, which nobody fine-tuned on.
 
 ### 1.4 Transfer matrices
 
-> **Provenance.** `merge_diagnostics/transfer_matrix.csv`, `ratio_to_base`. **Single seed per cell** — averaging cells would hide the per-cell structure the matrix exists to show. Merged row is at the committed α (§0.6).
+> **Provenance.** `merge_diagnostics/transfer_matrix.csv`, `ratio_to_base`. **Single seed per cell** — averaging cells would hide the per-cell structure the matrix exists to show. The `base`/`θ₀+τᵢ` rows come from that file; the **`merged @ α*` row is the merge-scale curve at α\* divided by the same curve at α = 0**, not the file's `merged` row, which sits at the run's committed α. ⚠️ **The source run was never recorded**, so ~80 cells were unverifiable. They are now pinned in `analysis_specs/transfer_matrix_spec.csv` and checked cell-by-cell by `scripts/check_tables_against_csv.py --runs_root $RUNS_ROOT`: SWaT `slurm_grid_swat_train_incremental_diagnostics/79148`, PSM `noisefloor_psm_diagnostics/80929`, ETTh1 `slurm_grid_etth_forecast_train_incremental_diagnostics/79153`, Exchange `exch_gate_incremental_diagnostics/79686`. All 80 cells reproduce exactly.
 
 Each specialist θ₀+τᵢ scored on **every** shard's held-out slice. This is the measurement no
 ordinary training run produces — the off-diagonal — and it is what separates a genuine
@@ -738,16 +750,21 @@ is measuring the scale error, not the method.
 
 ### 1.6 Versus sequential fine-tuning — validation block, n = 3
 
+
+> ⚠️ **Partly machine-checked.** The ρ column is bound to `geometry_by_dataset.csv`; the
+> sequential/merged columns use §1.2's **block-mean α** convention, which no script emits, so
+> they are unverified (EXECUTION_PLAN.md §3.13). `merged — old` here is the same quantity as
+> §1.2's `old regime @ α*` — SWaT 1.013 in both — so the two sections stand or fall together.
 `ContinualFineTuningPipeline`: θ₀ → seg 0 → seg 1 → seg 2, each step from the *previous*
 model. A genuinely different method — sequential models share no common base, so task
 arithmetic does not apply to them at all.
 
 | dataset | ρ | sequential — new | merged — new | verdict | sequential — old | merged — old | verdict |
 |---|---|---|---|---|---|---|---|
-| **SWaT** | 0.607 | 0.697 ±0.011 | 0.656 ±0.001 | **merge** | 1.635 ±0.049 | 1.013 ±0.012 | **merge** |
-| **PSM** | 0.226 | 0.702 ±0.013 | 0.759 ±0.015 | **sequential** | 1.159 ±0.024 | 1.139 ±0.053 | *tie* |
-| **ETTh1** | 0.076 | 0.560 ±0.038 | 0.705 ±0.019 | **sequential** | 1.110 ±0.143 | 0.967 ±0.029 | *tie* |
-| **Exchange** | 0.117 | 0.474 ±0.061 | 0.331 ±0.034 | **merge** | 0.847 ±0.076 | 0.835 ±0.068 | *tie* |
+| **SWaT** | 0.601 | 0.697 ±0.011 | 0.656 ±0.001 | **merge** | 1.635 ±0.049 | 1.013 ±0.012 | **merge** |
+| **PSM** | 0.216 | 0.702 ±0.013 | 0.759 ±0.015 | **sequential** | 1.159 ±0.024 | 1.139 ±0.053 | *tie* |
+| **ETTh1** | 0.070 | 0.560 ±0.038 | 0.705 ±0.019 | **sequential** | 1.110 ±0.143 | 0.967 ±0.029 | *tie* |
+| **Exchange** | 0.128 | 0.474 ±0.061 | 0.331 ±0.034 | **merge** | 0.847 ±0.076 | 0.835 ±0.068 | *tie* |
 
 **Merging wins outright only on SWaT** — *at n = 3, on the validation block*. §1.13 repeats
 this comparison on the test set across n = 2, 3, 5 and finds the winner changes with the
@@ -757,10 +774,10 @@ Forgetting under sequential fine-tuning, base-regime ratio after each step:
 
 | dataset | start | +1 | +2 | +3 | ρ | headroom |
 |---|---|---|---|---|---|---|
-| **SWaT** | 1.000 | 1.115 | 1.209 | 1.586 | 0.607 | 1% |
-| **PSM** | 1.000 | 1.046 | 1.217 | 1.158 | 0.226 | 3% |
-| **ETTh1** | 1.000 | 1.037 | 0.936 | 0.972 | 0.076 | 39% |
-| **Exchange** | 1.000 | 0.792 | 0.759 | 0.782 | 0.117 | 44% |
+| **SWaT** | 1.000 | 1.115 | 1.209 | 1.586 | 0.601 | 1% |
+| **PSM** | 1.000 | 1.046 | 1.217 | 1.158 | 0.216 | 3% |
+| **ETTh1** | 1.000 | 1.037 | 0.936 | 0.972 | 0.070 | 39% |
+| **Exchange** | 1.000 | 0.792 | 0.759 | 0.782 | 0.128 | 44% |
 
 **SWaT gives the textbook forgetting curve; ETTh1 shows none.** Two explanations point the
 same way and cannot be separated with these three datasets: SWaT's updates repeat each
@@ -783,10 +800,17 @@ a composite score.
 
 | dataset | step 0 | step 1 | step 2 | reading |
 |---|---|---|---|---|
-| **SWaT** | ρ=—<br>new=0.00441 | ρ=0.478<br>new=0.00471 | ρ=0.737<br>new=0.00379 | updates largely repeating |
-| **PSM** | ρ=—<br>new=0.00523 | ρ=0.303<br>new=0.00537 | ρ=0.149<br>new=0.00546 | each segment still adds new directions |
-| **ETTh1** | ρ=—<br>new=0.01517 | ρ=0.067<br>new=0.02594 | ρ=0.085<br>new=0.01281 | each segment still adds new directions |
-| **Exchange** | ρ=—<br>new=0.01163 | ρ=0.208<br>new=0.01012 | ρ=0.026<br>new=0.03098 | each segment still adds new directions |
+| **SWaT** | ρ=—<br>new=0.00568 | ρ=0.473<br>new=0.00392 | ρ=0.728<br>new=0.00362 | updates largely repeating |
+| **PSM** | ρ=—<br>new=0.00485 | ρ=0.280<br>new=0.00562 | ρ=0.151<br>new=0.00548 | each segment still adds new directions |
+| **ETTh1** | ρ=—<br>new=0.01665 | ρ=0.069<br>new=0.02568 | ρ=0.071<br>new=0.00919 | each segment still adds new directions |
+| **Exchange** | ρ=—<br>new=0.01265 | ρ=0.228<br>new=0.00963 | ρ=0.028<br>new=0.03087 | each segment still adds new directions |
+
+> **Provenance.** `novelty_report steps` over the n=3 geometry of record — `noisefloor_{swat,psm,etth}`
+> and `exch_incremental`, the same groups §1.9 and §1.11 read — averaged over three seeds.
+> ⚠️ **Restated 2026-08-08.** The previous values (SWaT ρ=0.478/0.737, ETTh1 new=0.01517/0.02594/0.01281,
+> …) reproduced from **no** geometry directory; they came from a seed population that no longer
+> exists. Every cell moved slightly and ETTh1's step-2 `new` moved 28% (0.01281 → 0.00919).
+> **No reading changes**: SWaT's ρ still climbs past 0.7 while the other three stay below 0.3.
 
 **Track record: 3 of 4.** The rule *"high ρ → merge, low ρ → sequential"* holds on SWaT
 (ρ→0.74, merge wins), PSM and ETTh1 (ρ<0.31, sequential wins on the new segments) — and
@@ -806,18 +830,18 @@ one, so the indicator points at a decision whose other side has never been measu
 
 ### 1.8 Geometry
 
-> **Provenance.** `analysis/geometry_report.py` over checkpoints (`geometry_summary.csv`). ρ is `mean_sequential_overlap`; “alignment” is ‖Στ‖ ÷ Σ‖τ‖, computed from `mean_tau_norm` — *not* a cosine. No α involved.
+> **Provenance.** `analysis/geometry_report.py` over checkpoints (`geometry_summary.csv`). ρ is `mean_sequential_overlap`; “alignment” is ‖Στ‖ ÷ Σ‖τ‖, computed from `mean_tau_norm` — *not* a cosine. No α involved. ⚠️ **Restated 2026-08-08.** These values reproduced from no geometry directory — the closest, `noisefloor_*`, gave ρ 0.601 / 0.216 / 0.070 against the 0.607 / 0.226 / 0.076 printed. They came from a seed population that no longer exists, the same cause as §1.7's. The table now reads the n=3 geometry of record — `noisefloor_{swat,psm,etth}` and `exch_incremental`, three seeds — and is machine-checked against `geometry_summary.csv` and `cosine_vs_distance.csv`. **No ordering changed**: SWaT ≫ PSM > exchange_rate > ETTh1 on ρ, and cosine still decays with temporal distance on all four. The `Best merge scale α*` row is the block-mean convention and remains unbindable (EXECUTION_PLAN.md §3.13).
 
 Computed from the weights alone — no GPU, no data, seconds.
 
 | measure | SWaT | PSM | ETTh1 | Exchange |
 |---|---|---|---|---|
-| Update overlap ρ (0 = all new) | **0.607** | **0.226** | **0.076** | **0.117** |
-| Mean off-diagonal cosine | 0.737 | 0.399 | 0.240 | 0.217 |
-| Effective rank (of 3) | 1.63 | 2.51 | 2.35 | 1.88 |
-| Mean ‖τ‖ / ‖θ₀‖ | 0.0061 | 0.0059 | 0.0185 | 0.0181 |
-| Per-segment ‖τ‖ / ‖θ₀‖ | 0.0044 / 0.0065 / 0.0074 | 0.0052 / 0.0064 / 0.0059 | 0.0152 / 0.0269 / 0.0134 | 0.0116 / 0.0114 / 0.0314 |
-| Cosine at distance 1 → 2 | 0.771 → 0.667 | 0.466 → 0.265 | 0.253 → 0.213 | 0.306 → 0.038 |
+| Update overlap ρ (0 = all new) | **0.601** | **0.216** | **0.070** | **0.128** |
+| Mean off-diagonal cosine | 0.736 | 0.391 | 0.225 | 0.241 |
+| Effective rank (of 3) | 1.73 | 2.46 | 2.22 | 1.91 |
+| Mean ‖τ‖ / ‖θ₀‖ | 0.0060 | 0.0058 | 0.0176 | 0.0183 |
+| Per-segment ‖τ‖ / ‖θ₀‖ | 0.0057 / 0.0054 / 0.0069 | 0.0049 / 0.0066 / 0.0059 | 0.0166 / 0.0266 / 0.0095 | 0.0126 / 0.0110 / 0.0313 |
+| Cosine at distance 1 → 2 | 0.765 → 0.677 | 0.455 → 0.264 | 0.244 → 0.188 | 0.321 → 0.080 |
 | Best merge scale α\* | **0.250 ±0.000** | **0.500 ±0.000** | **0.367 ±0.050** | **0.433 ±0.050** |
 
 **Cosine decays with temporal distance on all three** — so temporal shift really is what
@@ -837,7 +861,7 @@ Baseline-stage test metric, three training seeds, identical configuration.
 |---|---|---|---|---|
 | **SWaT** (window_auroc) | 3 | 0.7991 | 0.0007 | **0.09%** |
 | **PSM** (window_auroc) | 3 | 0.7742 | 0.0005 | **0.07%** |
-| **ETTh1** (forecast/mse) | 3 | 0.6930 | 0.0607 | **8.76%** |
+| **ETTh1** (forecast/mse) | 3 | 0.7073 | 0.0620 | **8.76%** |
 | **Exchange** (forecast/mse) | 3 | 0.6999 | 0.0401 | **5.73%** |
 | **ETTh2** (forecast/mse) | 3 | 0.8415 | 0.0567 | **6.74%** |
 | **ETTm2** (forecast/mse) | 3 | 0.5608 | 0.0791 | **14.11%** |
@@ -944,6 +968,8 @@ merge cost and the merged model are all read at that α. The raw `result.json` v
 |---|---|---|---|---|---|---|
 | **SWaT** | 0.40 | 0.23 | 0.20 | 0.80 | 0.70 | 1.00 |
 | **PSM** | 0.53 | 0.43 | 0.30 | 1.07 | 1.30 | 1.50 |
+| **ETTh1** | 0.50 | 0.30 | 0.20 | 1.00 | 0.90 | 1.00 |
+| **exchange** | 0.70 | 0.53 | 0.30 | 1.40 | 1.60 | 1.50 |
 
 \* **All six AD cells now rest on three seeds at the uniform 16-point grid** (0.1 steps); the
 reruns queued as EXECUTION_PLAN.md §2.22 have landed. The n=3 row comes from
@@ -951,6 +977,17 @@ reruns queued as EXECUTION_PLAN.md §2.22 have landed. The n=3 row comes from
 Runs on the original 7-point grid are set aside by `scale_report`'s grid filter rather than
 pooled — mixing grids is invalid (§1.12) — which discards 1–2 runs per group; the counts are in
 `scale_summary.csv` (`n_dropped_grid_mismatch`).
+
+> **All 24 cells of this table are machine-checked** against `scale_summary.csv:alpha_star` and
+> `alpha_star_n` by `scripts/check_tables_against_csv.py`. Both halves use the same pooling — the
+> whole validation union including the baseline's slice (`val_base`) — differing only in the
+> metric (`forecast/mse` vs `reconstruction/score_mean`); see §0.6. ⚠️ A correction to the PSM row
+> published on 2026-08-07 (0.75 / 0.50 / 0.50) has been **withdrawn**: it came from a
+> reconstruction that wrongly excluded `val_base`. The original values are correct.
+>
+> ⚠️ **This table was split in two by the paragraph that used to sit here**: the blockquote
+> terminated the markdown table, so the ETTh1 and exchange rows rendered as loose text and only
+> SWaT and PSM appeared. Fixed 2026-08-08 — keep prose *below* a table, never between its rows.
 
 **Does PSM's product rise with n?** It reads **1.07 / 1.30 / 1.50**. Resolved on three seeds at
 one grid (the precondition — see §1.12), following the two checks in order:
@@ -988,14 +1025,6 @@ product moves 40% across segment counts, resolvably. The framing in [THEORY.md �
 survives. The mechanistic account in §1.18 above does not extend to PSM, and no alternative
 mechanism is available from what is measured here.
 
-> **This table is hand-transcribed, not generated.** Both halves now use the same pooling —
-> the whole validation union including the baseline's slice (`val_base`) — differing only in the
-> metric they must use (`forecast/mse` vs `reconstruction/score_mean`); see §0.6. Every value has
-> been verified to reproduce under its own rule. ⚠️ A correction to the PSM row published earlier
-> on 2026-08-07 (0.75 / 0.50 / 0.50) has been **withdrawn**: it came from a reconstruction that
-> wrongly excluded `val_base`. The original values are correct.
-| **ETTh1** | 0.50 | 0.30 | 0.20 | 1.00 | 0.90 | 1.00 |
-| **exchange** | 0.70 | 0.53 | 0.30 | 1.40 | 1.60 | 1.50 |
 
 **α\*·n looks constant within each dataset.** Since the merge is θ₀ + α·Στᵢ, a constant α·n
 would mean the optimal merge is a fixed multiple of the **arithmetic mean** of the task vectors
@@ -1393,21 +1422,23 @@ run. Merged values at α\*; `n=1` is that run's `finetune_0` on the global test 
 ⚠️ **"best merge" is the best over n ∈ {2, 3, 5}, chosen on the test set** — ETTh1's 0.4517 is
 its n=5 value, exchange_rate's 0.2554 its n=2. The `n=1` column has no such choice, so the merge
 side is oracle-selected over segment count and the unsplit side is not. That asymmetry flatters
-merging, and it matters most where the margin is smallest: on the AD pair (+0.24% and +1.01%)
+merging, and it matters most where the margin is smallest: on the AD pair (+0.25% and +1.70%)
 it is comparable to the advantage a free choice among three configurations would give by itself.
-The ETTh1 result (−9.25%) is unaffected in direction — merging loses there *despite* the
-advantage.
+⚠️ The AD rows were restated 2026-08-08 (previously 0.7994/0.8013/+0.24% and 0.7898/0.7977/+1.01%),
+for the same reason as §1.21's: `results_audit` did not emit `finetune_0/test`, so the `n=1`
+column could not be checked against anything. The ETTh1 result (−9.25%) is unaffected in
+direction — merging loses there *despite* the advantage.
 
 | dataset | n = 1 (unsplit) | best merge (best of n=2/3/5) | difference | floor |
 |---|---|---|---|---|
-| SWaT | 0.7994 | 0.8013 | +0.24% | 0.09% |
-| PSM | 0.7898 | 0.7977 | +1.01% | 0.07% |
+| SWaT | 0.8028 | 0.8049 | +0.25% | 0.09% |
+| PSM | 0.7906 | 0.8041 | +1.70% | 0.07% |
 | **ETTh1** | **0.4134** | 0.4517 | **−9.25%** | 8.76% |
 | exchange_rate | 0.2788 | 0.2554 | +8.38% | 5.73% |
 
 **Merging is not an accuracy win over training on the same data unsplit.** On ETTh1 the single
 fine-tune beats every merge by more than the noise floor. On the AD pair merging wins by margins
-that clear their very tight floors but are practically negligible (0.24%, 1.01%). Only
+that clear their very tight floors but are practically negligible (0.25%, 1.70%). Only
 exchange_rate — the most strongly drifting dataset — shows merging ahead by a margin that
 matters.
 
@@ -1638,7 +1669,7 @@ it isolates the count, and do not claim seed-exactness.
 
 ### 1.19 Forward transfer — does an accumulated merge help on a regime it has never seen?
 
-> **Provenance.** prefix merges from `--pipeline_prefix_merges`, scored on the first unseen segment's val slice; ratio to base on that same slice.
+> **Provenance.** prefix merges from `--pipeline_prefix_merges`, scored on the first unseen segment's val slice; ratio to base on that same slice. ⚠️ **Not reproducible as written, and not machine-checked.** `prefix_merges.csv` stores raw `value` per (prefix_k, merge_scale, column) with no ratio column, and no α convention tested reproduces these numbers: α = 1/k (equivalently `scale_times_k` = 1) gives ETTh1 0.937 / 0.868 / 0.942 / 0.892 against the 0.931 / 0.863 / 0.908 / 0.843 printed here — close at k = 1–2, wrong at k = 3–4 — and exchange_rate 0.594 / 1.024 / 0.861 / 0.757 against 0.468 / 1.037 / 0.779 / 0.542. A per-k argmin does not match either. **The α these were computed at is unrecorded**, so §1.19 and §1.22's accumulate rows — and §1.22's materialise verdicts, which have no located source at all — must be treated as provisional. Fixing this means choosing and documenting the convention, then recomputing both sections; that is a research decision, not a transcription fix. EXECUTION_PLAN.md §3.14.
 
 Each prefix scored on `val_k`, the first shard it has **not** seen, at the α selected only on
 the shards it *has* seen. Ratio to the base model on that same shard; below 1.0 means the merge
@@ -1697,12 +1728,6 @@ is *understated* here, and recency is if anything flattered.
 ### 1.21 Merging versus retraining on a window — how much history is merging worth?
 
 
-> ⚠️ **Two cells here are not yet bound to a generated CSV** (EXECUTION_PLAN.md §3.13). The
-> W=1/W=2 columns come from the `finetune_0/test` block, which `results_audit` does not emit, so
-> `scripts/check_tables_against_csv.py` verifies only the `base` (forecasting) and W=3 columns.
-> And **PSM's W=3 reads 0.7952 here against §1.26's 0.7987 for the same quantity**, a gap of
-> 0.0035 against a 0.0005 floor — one of the two sections is reading different runs. Treat PSM's
-> retention row as provisional until that is resolved.
 > **Provenance.** `window_<dataset>_W<k>` runs → `finetune_0/test`, against merged runs at the committed α. W=k means θ₀ (trained on the first 50%) fine-tuned on the last k periods; **W=5 is the n=1 run, not joint training** — joint trains from scratch on 100% and is a separate column.
 
 The production constraint is *some* history retainable, not none. So the honest comparator is
@@ -1728,12 +1753,22 @@ Only the fine-tuning range moves. On ETTh1 (17,420 rows total → 13,936 for tra
 Implemented with existing knobs — `baseline_fraction = 1 − 0.1W` moves the fine-tune anchor and
 `baseline_use_fraction = 0.5/(1 − 0.1W)` keeps the baseline training on exactly the first 50%.
 **Verified: θ₀ trains on identical rows in every condition**, so the comparison isolates one
-variable. Test set, 3 seeds on forecasting, 1 on AD.
+variable. Test set, **3 seeds on every dataset**.
+
+> **Provenance.** All six columns are `run_metrics.csv` rows: `base` = `window_<ds>_W1`
+> `baseline/test`; `W=k` = `window_<ds>_W{k}` **`finetune_0/test`** (the window model itself, not
+> the merge); `W=5 (all)` = `n1_<ds>` `finetune_0/test`; `best merge` = the best `merged/test`
+> over that dataset's merge experiments. ⚠️ **The two AD rows were stale and are restated here**
+> (2026-08-08). They were never reproducible: `results_audit` did not emit `finetune_0/test` at
+> all, so nothing could check them, and `method_comparison` — which reads `result.json` directly
+> — disagreed with this section about PSM's W=3 (0.7952 here against 0.7987 there). The block is
+> now emitted, the two agree, and every cell is machine-checked. The forecasting rows reproduced
+> exactly and are unchanged.
 
 | dataset | base | W=1 | W=2 | W=3 | W=5 (all) | best merge |
 |---|---|---|---|---|---|---|
-| SWaT | 0.8013 | 0.8027 | 0.8028 | 0.8027 | 0.7994 | 0.8013 |
-| PSM | 0.7746 | 0.7870 | 0.7924 | 0.7952 | 0.7898 | 0.7977 |
+| SWaT | 0.8001 | 0.8016 | 0.8023 | 0.8023 | 0.8028 | 0.8049 |
+| PSM | 0.7756 | 0.7884 | 0.7929 | 0.7987 | 0.7906 | 0.8041 |
 | ETTh1 | 0.6920 | 0.4899 | 0.4300 | **0.3913** | 0.4134 | 0.4517 |
 | exchange_rate | 0.6985 | 0.5908 | 0.3949 | **0.2053** | 0.2788 | 0.2554 |
 
@@ -1741,9 +1776,9 @@ Gap to the best merge (positive = the window wins; `*` = outside that dataset's 
 
 | dataset | W=1 | W=2 | W=3 | W=5 |
 |---|---|---|---|---|
-| SWaT | +0.2%\* | +0.2%\* | +0.2%\* | −0.2%\* |
-| PSM | −1.3%\* | −0.7%\* | −0.3%\* | −1.0%\* |
-| ETTh1 | −8.5%\* | +4.8% | **+13.4%\*** | +8.5%\* |
+| SWaT | −0.4%\* | −0.3%\* | −0.3%\* | −0.3%\* |
+| PSM | −2.0%\* | −1.4%\* | −0.7%\* | −1.7%\* |
+| ETTh1 | −8.5% | +4.8% | **+13.4%\*** | +8.5% |
 | exchange_rate | −131.3%\* | −54.6%\* | **+19.6%\*** | −9.2%\* |
 
 #### The answer: merging is worth about two periods of retained history
@@ -1759,8 +1794,12 @@ trade is now a question about your retention budget rather than about the method
 
 > **Keep ≤ 2 periods of history → merge. Keep ≥ 3 → retrain on the window.**
 
-On the saturated AD datasets nothing separates: SWaT moves 0.2% in total, and PSM favours
-merging at every W by 0.3–1.3%, margins that clear its very tight 0.07% floor but mean little.
+On the saturated AD datasets **merging wins at every W on both** — SWaT by 0.3–0.4%, PSM by
+0.7–2.0% — margins that clear their very tight 0.07–0.09% floors but mean little on datasets
+whose base model is already within 1.1% and 3.4% of joint training. ⚠️ Restated 2026-08-08: the
+previous reading ("SWaT moves 0.2% in total", window marginally ahead on SWaT) came from the
+stale AD rows above and had the **sign backwards** on SWaT. The crossover conclusion is
+unaffected — it rests entirely on the two datasets with real headroom.
 
 #### Joint training is not the ceiling — which reframes GRR
 
@@ -1768,8 +1807,8 @@ A 3-period window beats **full joint training** on both informative datasets:
 
 | dataset | base | joint (100% of training data) | W = 3 window | W=3 vs joint |
 |---|---|---|---|---|
-| ETTh1 | 0.6930 | 0.4271 | **0.3913** | **8.4% better** |
-| exchange_rate | 0.7321 | 0.3957 | **0.2053** | **48.1% better** |
+| ETTh1 | 0.6920 | 0.4271 | **0.3913** | **8.4% better** |
+| exchange_rate | 0.6985 | 0.3957 | **0.2053** | **48.1% better** |
 
 **GRR is defined as (merged − base) ÷ (joint − base)** — progress toward joint. So GRR = 1.00
 does *not* mean "as good as you can do"; it means "as good as a target that is itself beatable

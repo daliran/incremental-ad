@@ -116,6 +116,53 @@ def aggregate_steps(run_dirs: list[Path]) -> list[dict]:
 
 
 
+# Per-dataset geometry table --------------------------------------------------------------
+
+GEOM_FIELDS = ["dataset", "n_seeds", "mean_sequential_overlap", "mean_offdiag_cosine",
+               "effective_rank", "mean_tau_over_base", "cosine_distance_1", "cosine_distance_2"]
+
+
+def geometry_table(geometry_root: Path, spec_csv: Path, n_segments: int = 3) -> list[dict]:
+    """One row per dataset: the summary geometry EXPERIMENTS.md 1.8 reports.
+
+    The per-dataset view is a *choice of experiment*, not an aggregate over all runs -- pooling
+    every run of a dataset mixes in grid-search and window runs and shifts every column. The
+    mapping is therefore a committed spec, the same discipline as alignment_spec.csv. Emitting
+    this was the difference between 1.8 being checkable and being another table whose numbers
+    reproduced from nothing (they did not, until 2026-08-08).
+    """
+    summary = geometry_root / "geometry_summary.csv"
+    per_run: dict[str, list[dict]] = defaultdict(list)
+    with summary.open() as fh:
+        for row in csv.DictReader(fh):
+            if row.get("n_segments") == str(n_segments):
+                per_run[row["experiment_name"]].append(row)
+
+    rows = []
+    with spec_csv.open() as fh:
+        for entry in csv.DictReader(fh):
+            runs = per_run.get(entry["experiment"], [])
+            if not runs:
+                log.warning("%s: no n=%d geometry for %s", entry["dataset"], n_segments,
+                            entry["experiment"])
+                continue
+            out = {"dataset": entry["dataset"], "n_seeds": len(runs)}
+            for column in ("mean_sequential_overlap", "mean_offdiag_cosine", "effective_rank",
+                           "mean_tau_over_base"):
+                vals = [float(r[column]) for r in runs if r.get(column)]
+                out[column] = round(st.mean(vals), 6) if vals else ""
+            by_distance: dict[int, list[float]] = defaultdict(list)
+            for run in (geometry_root / entry["experiment"]).glob("*/cosine_vs_distance.csv"):
+                with run.open() as ch:
+                    for r in csv.DictReader(ch):
+                        by_distance[int(r["temporal_distance"])].append(float(r["mean"]))
+            for distance in (1, 2):
+                vals = by_distance.get(distance, [])
+                out[f"cosine_distance_{distance}"] = round(st.mean(vals), 6) if vals else ""
+            rows.append(out)
+    return rows
+
+
 # Outcome table construction -------------------------------------------------------------
 
 MERGE_BLOCK = "merged/test"
@@ -345,6 +392,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
 
+    p_geom = sub.add_parser("geometry_table",
+                            help="per-dataset geometry summary (EXPERIMENTS.md 1.8)")
+    p_geom.add_argument("--geometry_root", type=Path, required=True)
+    p_geom.add_argument("--spec", type=Path, required=True,
+                        help="CSV: dataset,experiment")
+    p_geom.add_argument("--n_segments", type=int, default=3)
+    p_geom.add_argument("--out", type=Path)
+
     p_align = sub.add_parser("alignment",
                              help="alignment vs alpha*.n — within- and between-dataset")
     p_align.add_argument("--geometry", type=Path, required=True,
@@ -378,6 +433,26 @@ def main() -> None:
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    if args.command == "geometry_table":
+        rows = geometry_table(args.geometry_root, args.spec, args.n_segments)
+        if not rows:
+            raise SystemExit("no dataset resolved — check --spec against the geometry output")
+        for row in rows:
+            log.info("  %-10s seeds=%d rho=%.4f cos=%.4f rank=%.3f tau=%.5f d1=%.3f d2=%.3f",
+                     row["dataset"], row["n_seeds"], row["mean_sequential_overlap"],
+                     row["mean_offdiag_cosine"], row["effective_rank"],
+                     row["mean_tau_over_base"], row["cosine_distance_1"],
+                     row["cosine_distance_2"])
+        if args.out:
+            args.out.mkdir(parents=True, exist_ok=True)
+            path = args.out / "geometry_by_dataset.csv"
+            with path.open("w", newline="") as fh:
+                writer = csv.DictWriter(fh, fieldnames=GEOM_FIELDS)
+                writer.writeheader()
+                writer.writerows(rows)
+            log.info("wrote %s", path)
+        return
 
     if args.command == "alignment":
         rows = alignment_rows(args.geometry, args.scale, args.spec)

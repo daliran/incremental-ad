@@ -92,11 +92,12 @@ property of the data, not of the method:
   only *distant* ones diverge.
 
 Both are measured here. Subspace overlap ρ — the fraction of a new task vector already lying in
-the span of its predecessors — ranges from **0.607 on SWaT** (highly redundant updates) to
-**0.076 on ETTh1** (nearly new every time). And cosine between task vectors **decays with
-temporal distance**: 0.737 between adjacent periods on SWaT against 0.095 on ETTh1. Time really
-is the axis that separates them, which is the check that could have invalidated the whole
-framing and did not.
+the span of its predecessors — ranges from **0.601 on SWaT** (highly redundant updates) to
+**0.070 on ETTh1** (nearly new every time). And cosine between task vectors **decays with
+temporal distance** on every dataset: SWaT 0.765 → 0.677 from distance 1 to 2, ETTh1 0.244 →
+0.188, exchange_rate 0.321 → 0.080. Time really is the axis that separates them, which is the
+check that could have invalidated the whole framing and did not. *(The figure previously given
+for ETTh1 here, 0.095, matched no measurement; corrected 2026-08-08 with EXPERIMENTS.md §1.8.)*
 
 ### What follows from it
 
@@ -408,9 +409,9 @@ didn't** — which is `sequential_overlap` (ρ): the fraction of τ_k lying insi
 
 | | ρ (subspace overlap) | mean cosine | effective rank (of 3) | mean ‖τ‖/‖θ₀‖ |
 |---|---|---|---|---|
-| SWaT | **0.607** | 0.737 | 1.63 | 0.0061 |
-| PSM | 0.226 | 0.399 | 2.51 | 0.0059 |
-| ETTh1 | 0.076 | 0.240 | 2.35 | 0.0185 |
+| SWaT | **0.601** | 0.736 | 1.73 | 0.0060 |
+| PSM | 0.216 | 0.391 | 2.46 | 0.0058 |
+| ETTh1 | 0.070 | 0.225 | 2.22 | 0.0176 |
 
 On SWaT each new task vector sits **61% inside the span of its predecessors** — genuine
 redundancy, not an artefact of dimensionality. Fine-tuning on segment 2 largely re-learned
@@ -543,14 +544,19 @@ three cannot be quoted apart.
 > understanding, because the *reasoning* about the two routes survives; the 3-of-4 hit rate
 > does not. EXPERIMENTS.md §1.14.
 
+> **Restated 2026-08-08** from EXPERIMENTS.md §1.7, whose per-step values reproduced from no
+> geometry directory. Every cell moved slightly; **no verdict in this table changed** — SWaT's ρ
+> still climbs past 0.7, the other three stay below 0.3, and exchange_rate still falsifies the
+> rule.
+
 | dataset | per-step ρ and new component | ρ predicts | actual winner on new segments |
 |---|---|---|---|
-| SWaT | step 0: ρ=—, new=0.00441 · step 1: ρ=0.478, new=0.00471 · step 2: ρ=0.737, new=0.00379 | merge | **merge** ✓ |
-| PSM | step 0: ρ=—, new=0.00523 · step 1: ρ=0.303, new=0.00537 · step 2: ρ=0.149, new=0.00546 | sequential | **sequential** ✓ |
-| ETTh1 | step 0: ρ=—, new=0.01517 · step 1: ρ=0.067, new=0.02594 · step 2: ρ=0.085, new=0.01281 | sequential | **sequential** ✓ |
-| exchange_rate | step 0: ρ=—, new=0.01163 · step 1: ρ=0.208, new=0.01012 · step 2: ρ=0.026, new=0.03098 | sequential | **merge** ✗ |
+| SWaT | step 0: ρ=—, new=0.00568 · step 1: ρ=0.473, new=0.00392 · step 2: ρ=0.728, new=0.00362 | merge | **merge** ✓ |
+| PSM | step 0: ρ=—, new=0.00485 · step 1: ρ=0.280, new=0.00562 · step 2: ρ=0.151, new=0.00548 | sequential | **sequential** ✓ |
+| ETTh1 | step 0: ρ=—, new=0.01665 · step 1: ρ=0.069, new=0.02568 · step 2: ρ=0.071, new=0.00919 | sequential | **sequential** ✓ |
+| exchange_rate | step 0: ρ=—, new=0.01265 · step 1: ρ=0.228, new=0.00963 · step 2: ρ=0.028, new=0.03087 | sequential | **merge** ✗ |
 
-**It fails on exchange_rate**, which has the lowest ρ of the four (0.026) and yet the
+**It fails on exchange_rate**, which has the lowest ρ of the four (0.028) and yet the
 most decisive merge win (0.331 ±0.034 against sequential's
 0.474 ±0.061).
 
@@ -835,7 +841,7 @@ dictates a smaller α.
 
 > **Withdrawn:** an earlier version of this section claimed the ordering holds — *"the most
 > collinear dataset needs the smallest scale, the least collinear the largest"* — and named PSM
-> as the least collinear. It is not; ETTh1 is (ρ = 0.076 against PSM's 0.226), and ETTh1's α\*
+> as the least collinear. It is not; ETTh1 is (ρ = 0.070 against PSM's 0.216), and ETTh1's α\*
 > is *smaller* than PSM's, not larger. Across four datasets the ranking by ρ
 > (SWaT, PSM, exchange_rate, ETTh1) does not match the ranking by α\*
 > (SWaT, ETTh1, exchange_rate, PSM). **ρ sets the direction — more agreement means a smaller
@@ -988,7 +994,7 @@ say the periods mostly repeat, slightly less so on exchange_rate.
 
 **Where the model fails, and this matters.** It predicts α·n should rise as the updates become
 *less* redundant — i.e. α·n should order inversely with ρ. **It does not.** SWaT has the highest
-ρ (0.607, most repetitive) yet not the lowest α·n; ETTh1 has the lowest ρ (0.076) and α·n ≈ 1.
+ρ (0.601, most repetitive) yet not the lowest α·n; ETTh1 has the lowest ρ (0.070) and α·n ≈ 1.
 Across four datasets the ρ ordering and the α·n ordering disagree (§6.3). So the
 shared-drift-plus-isotropic-noise picture gets the *magnitude* right and the *cross-dataset
 ordering* wrong — the εᵢ are evidently neither isotropic nor independent of d. Treat the
@@ -1179,9 +1185,9 @@ are no comparable task vectors and task arithmetic does not apply to them at all
 
 | | ρ | sequential — new | merged — new | verdict | sequential — old | merged — old | verdict |
 |---|---|---|---|---|---|---|---|
-| SWaT | 0.607 | 0.697 ±0.011 | **0.656** | **merge** | 1.635 ±0.049 | **1.013** | **merge** |
-| PSM | 0.226 | **0.702 ±0.013** | 0.759 | **sequential** | 1.159 ±0.024 | 1.139 | *tie* |
-| ETTh1 | 0.076 | **0.560 ±0.038** | 0.705 | **sequential** | 1.110 ±0.143 | 0.967 | *tie* |
+| SWaT | 0.601 | 0.697 ±0.011 | **0.656** | **merge** | 1.635 ±0.049 | **1.013** | **merge** |
+| PSM | 0.216 | **0.702 ±0.013** | 0.759 | **sequential** | 1.159 ±0.024 | 1.139 | *tie* |
+| ETTh1 | 0.070 | **0.560 ±0.038** | 0.705 | **sequential** | 1.110 ±0.143 | 0.967 | *tie* |
 
 **It is a stability/plasticity trade, and which side wins depends on the segment count, not
 only on the dataset** (EXPERIMENTS.md §1.13). Sequential
@@ -1194,9 +1200,9 @@ Base-regime ratio after each sequential step (>1 = worse than the model you star
 
 | | after seg 0 | after seg 1 | after seg 2 | ρ | headroom |
 |---|---|---|---|---|---|
-| SWaT | 1.115 | 1.209 | **1.586** | 0.607 | 1% |
-| PSM | 1.046 | 1.217 | 1.158 | 0.226 | 3% |
-| ETTh1 | 1.037 | 0.936 | **0.972** | 0.076 | 39% |
+| SWaT | 1.115 | 1.209 | **1.586** | 0.601 | 1% |
+| PSM | 1.046 | 1.217 | 1.158 | 0.216 | 3% |
+| ETTh1 | 1.037 | 0.936 | **0.972** | 0.070 | 39% |
 
 **SWaT gives the textbook forgetting curve — monotone, ending ~59% worse. ETTh1 shows none.**
 
@@ -1206,7 +1212,7 @@ Base-regime ratio after each sequential step (>1 = worse than the model you star
 
 ### 9.3 Two explanations, not separable here
 
-**Redundancy.** SWaT's updates repeat each other (ρ = 0.607), so sequential training drifts
+**Redundancy.** SWaT's updates repeat each other (ρ = 0.601), so sequential training drifts
 cumulatively in one consistent direction. Merging applies that same drift scaled by α\*, which
 is why its base slice stays near 1.00.
 
@@ -1224,8 +1230,8 @@ and *redundant updates* simultaneously, which none of these provides.
 
 | | SWaT | PSM | ETTh1 |
 |---|---|---|---|
-| ρ (update overlap) | **0.607** | 0.226 | 0.076 |
-| mean cosine | 0.737 | 0.399 | 0.240 |
+| ρ (update overlap) | **0.601** | 0.216 | 0.070 |
+| mean cosine | 0.736 | 0.391 | 0.225 |
 | α\* | 0.250 ±0.000 | 0.500 ±0.000 | 0.367 ±0.050 |
 | merge cost @ α\* | 1.079 ±0.002× | **1.008 ±0.020×** | **1.007 ±0.026×** |
 | old regime @ α\* | 1.013 ±0.012 | 1.139 ±0.053 | 0.967 ±0.029 |

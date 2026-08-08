@@ -78,5 +78,21 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
 
 ## Working-style notes
 
+- **Report what you found, not the tidier story.** Twice in this project the result contradicted
+  what both the author and the reviewer expected, and the value came from saying so plainly:
+  (a) **PSM's rising α\*·n** is statistically real — 2.4× the quantisation bound — yet
+  *mechanistically uncorroborated*, because the geometry points the other way (ETTh1 de-aligns
+  fastest but has the flattest product). Two sound measurements disagree, and §1.18 says so
+  instead of picking the one that supports the thesis. (b) **The early-stopping probe came back
+  under 1%** on AUROC/AUPRC, which *narrowed* the α-selection problem to α alone rather than
+  widening it into a general indictment of validation-based selection — a weaker, more useful
+  claim than the one it was run to support. A negative or awkward result that is *reported as
+  found* survives review; one quietly rounded toward the narrative gets caught later and costs
+  the credibility of everything near it. When a check disagrees with the story, the check wins.
+- **A number that reproduces is not thereby correct — check the mapping, not just the value.**
+  §1.9's ETTh1 mean/sd were stale for months while its floor percentage stayed right, because
+  the stale mean and sd had nearly the same ratio. §1.21's W-columns look correct on ETTh1 under
+  the wrong block, because at W=1 the merged model *is* `finetune_0`. Both passed every
+  eyeball test. Bind the cell to the experiment and block it claims to come from.
 - Be conservative with anything that changes RNG, data splits, or metric definitions — prefer preserving established behavior unless explicitly asked, and surface behavior changes explicitly.
 - Windows host, PowerShell primary; Bash tool available. `num_workers` defaults to 0 on Windows.

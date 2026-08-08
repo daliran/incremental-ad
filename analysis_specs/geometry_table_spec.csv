@@ -1,0 +1,5 @@
+dataset,experiment,note
+SWaT,noisefloor_swat,n=3 geometry of record
+PSM,noisefloor_psm,n=3 geometry of record
+ETTh1,noisefloor_etth,n=3 geometry of record
+Exchange,exch_incremental,n=3 geometry of record; exch_gate_incremental is a separate gate run

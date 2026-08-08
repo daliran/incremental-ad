@@ -1,0 +1,5 @@
+label,metric,run_dir,curve_run_dir,alpha_star
+SWaT,reconstruction/score_mean,slurm_grid_swat_train_incremental_diagnostics/79148,slurm_grid_swat_train_incremental_diagnostics/79148,0.25
+PSM,reconstruction/score_mean,noisefloor_psm_diagnostics/80929,slurm_grid_psm_train_incremental_diagnostics/79147,0.5
+ETTh1,forecast/mse,slurm_grid_etth_forecast_train_incremental_diagnostics/79153,slurm_grid_etth_forecast_train_incremental_diagnostics/79153,0.3
+Exchange,forecast/mse,exch_gate_incremental_diagnostics/79686,exch_gate_incremental_diagnostics/79686,0.4

@@ -59,7 +59,7 @@ question from "does merging work" into "what is your retention budget".
 
 **Q1 is the contribution.** In image classification task vectors for different classes are
 near-orthogonal because the tasks are disjoint. Time-series shards are not: subspace overlap ρ
-runs 0.607 (SWaT) to 0.076 (ETTh1), and cosine decays with temporal distance. Non-orthogonality
+runs 0.601 (SWaT) to 0.070 (ETTh1), and cosine decays with temporal distance. Non-orthogonality
 does not break merging — **it sets the scale**: average rather than sum. And accumulated merges
 **generalise forward**, beating the base on shards no task vector has seen in 7 of 8 cases
 (§2.15), which is the case merging exists for.
@@ -311,7 +311,7 @@ was already on disk.
 ### 2.13 The n = 1 baseline ✅ — merging is not an accuracy win (Q1/Q2)
 
 One fine-tune on the whole post-baseline block, unsplit. The null hypothesis the project had
-never run. Best merge versus n = 1: **SWaT +0.24%, PSM +1.01%, ETTh1 −9.25%, exchange_rate
+never run. Best merge versus n = 1: **SWaT +0.25%, PSM +1.70%, ETTh1 −9.25%, exchange_rate
 +8.38%** against floors of 0.09 / 0.07 / 8.76 / 5.73%.
 
 **Settled, and it reframes the headline claim.** Merging does **not** beat training on the same
@@ -793,7 +793,7 @@ has measured exactly the quantity OPCM acts on.**
 1. **Where the shared component *is* the signal, OPCM should lose.** On SWaT ρ = 0.607 — most of
    each new vector already lies in the accumulated span, so orthogonalising discards most of it.
    Plain task arithmetic should win there, and OPCM should be competitive on exchange_rate
-   (ρ = 0.117) where the vectors are nearly new each time.
+   (ρ = 0.128) where the vectors are nearly new each time.
 2. **OPCM's advantage should widen with the shard count**, because alignment falls as shards get
    finer (0.824 → 0.633 from n = 2 to n = 5, [EXPERIMENTS.md §1.15](EXPERIMENTS.md)).
 3. **It is a different composition rule from the one we measured as optimal.**
@@ -1058,7 +1058,7 @@ highest drift, smallest shards, the most likely to split.
 **Prerequisite:** a finest-granularity run at larger *T* than anything done so far — n = 5 is the
 current maximum. Check what *T* is affordable on exchange_rate before designing around it.
 
-### 3.13 Emit per-seed GRR from `scale_report` ⬜ — close the last unscripted number
+### 3.13 Emit per-seed GRR from `scale_report` 🟡 — two of three parts done
 
 **Why.** §1.10's per-seed GRR table (oracle 1.218 ±0.081, honest 1.164 ±0.080 on exchange n=3)
 is the only published table in EXPERIMENTS.md not reproduced by a script of record. It is not
@@ -1076,11 +1076,20 @@ GRRs) to `scale_summary.csv`, alongside the existing pooled columns rather than 
 both aggregations are legitimate and the document uses both. Then bind §1.10's table to the new
 columns in `scripts/check_tables_against_csv.py`.
 
+**Same fix closes §1.2, the headline table.** §1.2 selects α on the validation *block* — the
+mean of the per-shard ratios — which no script emits either. `routing_report`'s `merge_cost` is
+at the committed α and reproduces §1.2's **α = 1.0** column (SWaT 3.58 vs 3.79) but not its
+**α\*** column. Adding `alpha_star_blockmean` + the matching merge cost to `scale_report` would
+bind all 22 cells of the most-read table in the document. Until then §1.2 carries a
+not-machine-checked banner.
+
 **Cost.** No new training; `scale_report` already loads every per-seed curve.
 
-**Also in scope — two gaps found by the same coverage pass (2026-08-08):**
+**Two gaps found by the same coverage pass — both now CLOSED (2026-08-08):**
 
-1. **`results_audit` does not emit `finetune_i/test`.** `BLOCKS` covers `baseline/test`,
+1. ✅ **DONE — `results_audit` now emits `finetune_i/test`.** The specialists were already
+   collected into `entry["specialists"]` and simply never written; `run_metrics.csv` went from
+   1,401 to 2,968 rows, 443 of them `finetune_0/test`. Previously: `BLOCKS` covers `baseline/test`,
    `train/test`, `merged/test`, `merged/val` only, so `run_metrics.csv` has **zero**
    `finetune_0/test` rows. That is the block §1.21's W=1/W=2 retention columns are read from
    (verified on disk: `window_exchange_W1` = 0.5908, `window_exchange_W3` = 0.2053), and
@@ -1089,7 +1098,14 @@ columns in `scripts/check_tables_against_csv.py`.
    ETTh1 — at W=1 the merged model **is** `finetune_0` — and is wrong by 35% on exchange_rate;
    that trap is why the checks were left off rather than approximated.
 
-2. **§1.21's `base` column and PSM's W=3 do not reconcile.** The base column matches
+2. ✅ **RESOLVED — §1.21's two AD rows were stale in every column.** With `finetune_0/test`
+   emitted, the rule that reproduces the forecasting rows *exactly* is: `base` =
+   `window_<ds>_W1/baseline/test`, `W=k` = `window_<ds>_W{k}/finetune_0/test`, `W=5 (all)` =
+   `n1_<ds>/finetune_0/test`. Under it PSM's W=3 is **0.7987**, matching §1.26 — §1.21's 0.7952
+   was wrong. Both AD rows are restated and all 24 cells are machine-checked. The correction
+   flipped the **sign** of SWaT's gap-to-merge (window appeared to win by 0.2%; merging in fact
+   wins by 0.3–0.4%). The W=3 crossover conclusion is unaffected: it rests on the two datasets
+   with real headroom. The original description of the problem: The base column matches
    `window_*_W1/baseline/test` on ETTh1 (0.6920) and exchange_rate (0.6985) but on neither AD
    dataset — SWaT's 0.8013 matches `slurm_grid_swat_train_incremental`, PSM's 0.7746 matches
    `noisefloor_psm`, against 0.8001 / 0.7756 for the window runs. And **§1.21 prints PSM W=3 as
@@ -1097,4 +1113,27 @@ columns in `scripts/check_tables_against_csv.py`.
    0.0035 gap against a 0.0005 reproducibility floor, so it is outside noise. One of the two
    sections is reading different runs; neither states which. Resolve before either number is
    cited, and add the checks that are currently withheld.
+
+
+### 3.14 Pin the prefix-merge α convention ⬜ — §1.19 and §1.22 are unreproducible
+
+**Why.** §1.19 (forward transfer) and §1.22 (accumulate vs materialise) report ratios that no
+convention reproduces. `prefix_merges.csv` stores raw `value` per (prefix_k, merge_scale, column)
+with no ratio column and no record of which α was used. Tested and rejected: α = 1/k
+(= `scale_times_k` 1) gives ETTh1 0.937 / 0.868 / 0.942 / 0.892 against the published
+0.931 / 0.863 / 0.908 / 0.843, and exchange_rate 0.594 / 1.024 / 0.861 / 0.757 against
+0.468 / 1.037 / 0.779 / 0.542; a per-k argmin matches neither. §1.22's *materialise* row has no
+located source at all.
+
+**Why it matters.** §1.22's per-k verdicts (materialise / materialise / accumulate / materialise
+on exchange_rate) are the empirical basis for the materialisation trigger in §11 of THEORY.md.
+They rest on numbers that cannot currently be regenerated.
+
+**Work.** Decide the convention — most likely α = 1/k for a k-vector prefix, matching the
+`scale_times_k` column already emitted — write it into §0.6, add `ratio_to_base` to
+`prefix_merges.csv`, recompute both sections, and bind them. Expect the verdicts to move: at
+α = 1/k, exchange k=4 reads 0.757 rather than 0.542, which is a different margin against the
+materialise column.
+
+**Cost.** No new training — `prefix_merges.csv` already holds every (k, α) pair.
 

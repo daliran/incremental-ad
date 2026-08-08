@@ -182,7 +182,16 @@ def audit(runs_root: Path, metric_filter: set[str] | None) -> tuple[list, list]:
 
     for experiment, entry in sorted(data.items()):
         info = entry["info"]
-        for block, metrics in sorted(entry["blocks"].items()):
+        # Per-segment specialists are emitted alongside the named blocks. They were collected
+        # but never written, so `run_metrics.csv` had no `finetune_i/test` rows at all — and
+        # that is the block the windowed-retrain numbers (EXPERIMENTS.md §1.21) are read from,
+        # leaving two published columns unbindable to any generated CSV. `method_comparison`
+        # reached them by opening `result.json` directly, so the two tools disagreed about what
+        # a "window" model scores.
+        emitted = dict(entry["blocks"])
+        for name, metrics in entry["specialists"].items():
+            emitted[f"{name}/test"] = metrics
+        for block, metrics in sorted(emitted.items()):
             for metric, per_seed in sorted(metrics.items()):
                 if metric_filter and metric not in metric_filter:
                     continue

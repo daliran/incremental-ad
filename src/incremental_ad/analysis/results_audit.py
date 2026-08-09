@@ -112,8 +112,8 @@ def comparable(a: dict, b: dict) -> bool:
             if (k.startswith("dataset_") or k.startswith("mae_tx_")) and k not in PARTITION_ARGS}
     return all(a.get(k) == b.get(k) for k in keys)
 
-RUN_FIELDS = ["experiment", "dataset", "pipeline", "n_segments", "block", "metric",
-              "n_seeds", "seeds", "mean", "sd", "sd_pct"]
+RUN_FIELDS = ["experiment", "dataset", "pipeline", "n_segments", "of_record", "block",
+              "metric", "n_seeds", "seeds", "mean", "sd", "sd_pct"]
 DERIVED_FIELDS = ["experiment", "dataset", "metric", "n_segments", "n_seeds", "base", "joint",
                   "joint_from", "merged", "floor_pct", "headroom_pct", "merge_scale_selected",
                   "grr", "grr_paired", "n_paired", "best_specialist",
@@ -123,6 +123,25 @@ DERIVED_FIELDS = ["experiment", "dataset", "metric", "n_segments", "n_seeds", "b
 
 def higher_is_better(metric: str) -> bool:
     return any(k in metric.lower() for k in HIGHER_IS_BETTER)
+
+
+def load_of_record(spec_path: Path | None) -> dict[tuple, str]:
+    """experiment -> role(s), for the experiments the published numbers read.
+
+    Several experiments can share a (dataset, n_segments) key — a grid-search group and the
+    dedicated run, say — and "the one with the most seeds" is a heuristic, not a guarantee. This
+    marks the intended one explicitly so a consumer of the archive does not have to guess.
+    """
+    if spec_path is None or not spec_path.exists():
+        return {}
+    out: dict[str, set] = defaultdict(set)
+    with spec_path.open() as fh:
+        for row in csv.DictReader(fh):
+            # Keyed by experiment name alone: a joint run carries its own n_segments (0), not
+            # the incremental n it serves as reference for, so an (experiment, n) key would
+            # never match it.
+            out[row["experiment"]].add(row["role"])
+    return {name: ",".join(sorted(roles)) for name, roles in out.items()}
 
 
 def _metrics(path: Path) -> dict:
@@ -136,7 +155,16 @@ def _metrics(path: Path) -> dict:
 
 
 def collect(runs_root: Path) -> dict:
-    """experiment -> {"info": {...}, "blocks": {block: {metric: {seed: value}}}}."""
+    """(experiment, n_segments) -> {"info": {...}, "blocks": {block: {metric: {seed: value}}}}.
+
+    Keyed by segment count as well as name, because three `slurm_grid_*_train_incremental`
+    experiments hold runs at n = 2, 3 **and** 5 under one directory. Keying on the name alone
+    did two bad things at once: it stamped the row with whichever run's `n_segments` was read
+    last (3, the majority) while carrying `finetune_0..finetune_4` blocks from the n=5 runs, and
+    because blocks are keyed by seed, same-seed runs at different n silently overwrote each
+    other rather than averaging. Any consumer filtering on (dataset, n_segments, block) then
+    built a five-shard row out of a three-shard experiment.
+    """
     out: dict[str, dict] = {}
     for cfg_path in sorted(runs_root.glob("*/*/config.json")):
         try:
@@ -149,7 +177,8 @@ def collect(runs_root: Path) -> dict:
             continue
         run = cfg_path.parent
         experiment = run.parent.name
-        entry = out.setdefault(experiment, {
+        key = (experiment, args.get("dataset_n_finetune_segments"))
+        entry = out.setdefault(key, {
             "info": {
                 "dataset": cfg.get("dataset"),
                 "pipeline": cfg.get("pipeline"),
@@ -176,12 +205,15 @@ def _agg(per_seed: dict) -> tuple[float, float, int]:
     return st.mean(values), sd, len(values)
 
 
-def audit(runs_root: Path, metric_filter: set[str] | None) -> tuple[list, list]:
+def audit(runs_root: Path, metric_filter: set[str] | None,
+          of_record_map: dict | None = None) -> tuple[list, list]:
     data = collect(runs_root)
+    of_record_map = of_record_map or {}
     run_rows, derived_rows = [], []
 
-    for experiment, entry in sorted(data.items()):
+    for (experiment, _n), entry in sorted(data.items(), key=lambda kv: (kv[0][0], str(kv[0][1]))):
         info = entry["info"]
+        of_record = of_record_map.get(experiment, "")
         # Per-segment specialists are emitted alongside the named blocks. They were collected
         # but never written, so `run_metrics.csv` had no `finetune_i/test` rows at all — and
         # that is the block the windowed-retrain numbers (EXPERIMENTS.md §1.21) are read from,
@@ -199,6 +231,7 @@ def audit(runs_root: Path, metric_filter: set[str] | None) -> tuple[list, list]:
                 run_rows.append({
                     "experiment": experiment, "dataset": info["dataset"],
                     "pipeline": info["pipeline"], "n_segments": info["n_segments"],
+                    "of_record": of_record,
                     "block": block, "metric": metric, "n_seeds": n,
                     "seeds": " ".join(str(s) for s in sorted(per_seed)),
                     "mean": round(mean, 6), "sd": round(sd, 6),
@@ -295,10 +328,15 @@ def main() -> None:
     parser.add_argument("--runs_root", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--metric", action="append", help="restrict to these metrics")
+    parser.add_argument("--of_record_spec", type=Path,
+                        default=Path("analysis_specs/experiment_of_record.csv"),
+                        help="CSV: dataset,n,role,experiment — marks which experiment the "
+                             "published numbers read where several share a (dataset, n) key")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    run_rows, derived_rows = audit(args.runs_root, set(args.metric) if args.metric else None)
+    run_rows, derived_rows = audit(args.runs_root, set(args.metric) if args.metric else None,
+                                   load_of_record(args.of_record_spec))
     args.out.mkdir(parents=True, exist_ok=True)
     for name, rows, fields in (("run_metrics.csv", run_rows, RUN_FIELDS),
                                ("derived.csv", derived_rows, DERIVED_FIELDS)):

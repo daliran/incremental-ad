@@ -267,7 +267,9 @@ The outcomes table `novelty_report indicator` consumes is itself generated —
 configuration. Four committed specs now pin the mappings a number cannot be derived without:
 `rho_indicator_spec.csv`, `method_comparison_spec.csv`, `alignment_spec.csv` (§1.18),
 `floor_spec.csv` (§1.9 — which experiment supplies each dataset's floor) and
-`transfer_matrix_spec.csv` (§1.4 — which single run each matrix was measured on). The same holds for `novelty_report alignment` (§1.18), whose
+`transfer_matrix_spec.csv` (§1.4 — which single run each matrix was measured on) and
+`experiment_of_record.csv` (which experiment each published role reads, surfaced as the
+`of_record` column of `run_metrics.csv` — 18 (dataset, n) keys have more than one candidate). The same holds for `novelty_report alignment` (§1.18), whose
 `analysis_specs/alignment_spec.csv` maps each (dataset, n) to the geometry experiment **and**
 the scale group it must be read from — the two are not inferable from each other, and pooling
 all of a dataset's geometry runs silently shifts the n=3 rows. Nothing in this file is

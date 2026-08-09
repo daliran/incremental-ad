@@ -32,7 +32,7 @@ this directory alone. If it passes, the numbers in the markdown are still backed
 | path | what it is | used by |
 |---|---|---|
 | `audit/derived.csv` | per-experiment floor, headroom, GRR, retention, committed α | §0.1b, §1.9, §1.11, §1.25 |
-| `audit/run_metrics.csv` | mean/sd per (experiment, block, metric), **including `finetune_i/test`** | §1.17, §1.21, §1.23, §1.24 |
+| `audit/run_metrics.csv` | mean/sd per (experiment, **n_segments**, block, metric), including `finetune_i/test`, with an `of_record` column | §1.17, §1.21, §1.23, §1.24 |
 | `audit/scale_forecast/`, `audit/scale_ad/` | α\*, α\*·n, GRR, honest-α cost | §1.11, §1.12, §1.18 |
 | `audit/routing_forecast/`, `audit/routing_ad/` | routing headroom, merge cost, specialisation | §1.16 |
 | `audit/alignment/` | alignment vs α\*·n, within/between correlations | §1.18 |
@@ -54,6 +54,23 @@ this directory alone. If it passes, the numbers in the markdown are still backed
   published number reads them.
 - **Raw datasets** — downloaded from HuggingFace (`thuml/Time-Series-Library`); SWaT and PSM are
   access-restricted and were never in the repo.
+
+## Reading `run_metrics.csv` safely
+
+Two things a consumer needs to know, both fixed on 2026-08-08 after a reader hit them:
+
+- **Rows are keyed by (experiment, n_segments), not by experiment.** Three
+  `slurm_grid_*_train_incremental` groups hold runs at n = 2, **3 and 5** under one directory.
+  Keying on the name alone stamped the row with whichever `n_segments` was read last (3, the
+  majority) while carrying `finetune_0..finetune_4` blocks from the n=5 runs — so filtering on
+  `(dataset, n_segments, block)` built a five-shard row out of a three-shard experiment. Worse,
+  because blocks are keyed by seed, same-seed runs at different n silently *overwrote* each
+  other instead of averaging. Both are gone; those three groups now appear as three rows each.
+- **`of_record` names the experiment the published numbers read.** Eighteen (dataset, n) keys
+  have more than one experiment, and "the one with the most seeds" is a heuristic, not a
+  guarantee. The column carries `merge`, `sequential` or `joint` for the 42 experiments the
+  documents actually use, from `analysis_specs/experiment_of_record.csv`; blank means the run
+  exists but no published number reads it. **Filter on it** rather than guessing.
 
 ## Caveats worth knowing
 

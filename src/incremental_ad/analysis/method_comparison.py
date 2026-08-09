@@ -33,6 +33,7 @@ import argparse
 import csv
 import json
 import logging
+import math
 import statistics as st
 from pathlib import Path
 
@@ -40,7 +41,31 @@ log = logging.getLogger("method_comparison")
 
 FIELDS = ["dataset", "n", "metric", "floor_pct", "base", "specialists", "joint", "merge",
           "sequential", "window_W1", "window_W2", "window_W3", "window_best", "window_W",
-          "routing_headroom_pct", "best", "margin_pct", "decisive"]
+          "routing_headroom_pct", "best", "runner_up", "margin_pct", "margin_abs",
+          "sd_best", "sd_runner_up", "threshold", "ratio", "decisive", "boundary"]
+
+# A cell counts as decisive when the gap between the top two methods exceeds the combined
+# run-to-run spread of *those two models*:
+#
+#     |A - B| > sqrt(sd_A^2 + sd_B^2)
+#
+# The previous rule used the **base model's** spread, which is not a property of an A-vs-B
+# difference at all. The bias is large and signed differently per metric: on PSM the base
+# model's window_auprc sd is 7.4x the merged model's, while its window_auroc sd is 3.9x
+# *smaller*. Switching moved 12 of 48 verdicts, 5 into decisive and 7 into ties -- a correction,
+# not a loosening. EXPERIMENTS.md 1.9a lists every changed cell.
+#
+# Two deliberate choices, both conservative, both stated because a reader will ask:
+#
+# - **sd, not standard error.** sqrt(sd_A^2 + sd_B^2) is the spread of a single-draw difference.
+#   A test of two 3-seed *means* would divide by sqrt(3) and call substantially more cells
+#   decisive. Using sd keeps the same conservative reading the floor always had.
+# - **Independence.** Runs of different pipelines are treated as uncorrelated. If they share
+#   data splits this over-estimates the threshold, which again errs toward "tie".
+#
+# With 3 seeds each sd carries roughly 50% relative uncertainty, so the threshold is itself
+# uncertain: cells whose ratio lands in [1/BOUNDARY, BOUNDARY] are flagged rather than trusted.
+BOUNDARY = 1.5
 
 HIGHER = ("auroc", "auprc", "f1", "precision", "recall", "accuracy")
 
@@ -74,8 +99,20 @@ def _specialists_mean(runs_root: Path, experiment: str, n: int, metric: str) -> 
     return st.mean(values) if values else None
 
 
+def load_sds(run_metrics: Path | None) -> dict:
+    """(experiment, block, metric) -> sample sd across seeds."""
+    out: dict[tuple, float] = {}
+    if run_metrics is None or not run_metrics.is_file():
+        return out
+    with run_metrics.open() as fh:
+        for row in csv.DictReader(fh):
+            if row["sd"] not in ("", None) and int(row["n_seeds"]) > 1:
+                out[(row["experiment"], row["block"], row["metric"])] = float(row["sd"])
+    return out
+
+
 def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None = None,
-            floors: dict | None = None) -> dict | None:
+            floors: dict | None = None, sds: dict | None = None) -> dict | None:
     metric = metric or spec_row["metric"]
     n = int(spec_row["n"])
     # Per (dataset, metric) when a floors.csv is supplied, falling back to the spec's
@@ -130,13 +167,42 @@ def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None =
                     key=lambda kv: kv[1], reverse=higher_is_better(metric))
     top, second = ranked[0], ranked[1]
     margin = 100.0 * abs(top[1] - second[1]) / abs(second[1]) if second[1] else 0.0
-    decisive = margin > floor
+    margin_abs = abs(top[1] - second[1])
+
+    # Spread of the two models being compared, not of the base model.
+    sds = sds or {}
+    where = {"joint": (spec_row.get("joint_experiment"), "train/test"),
+             "merge": (spec_row.get("merge_experiment"), "merged/test"),
+             "sequential": (spec_row.get("seq_experiment"), f"continual_{n - 1}/test"),
+             "window_best": (spec_row.get(f"window_W{window_w}_experiment"),
+                             "finetune_0/test") if window_w else (None, None)}
+    def _sd(name):
+        experiment, block = where.get(name, (None, None))
+        return sds.get((experiment, block, metric)) if experiment else None
+    sd_top, sd_second = _sd(top[0]), _sd(second[0])
+
+    if sd_top is not None and sd_second is not None:
+        threshold = math.sqrt(sd_top ** 2 + sd_second ** 2)
+        ratio = margin_abs / threshold if threshold else float("inf")
+        decisive = margin_abs > threshold
+        boundary = decisive is not None and (1.0 / BOUNDARY) <= ratio <= BOUNDARY
+    else:
+        # No sd for one of the two models: fall back to the per-(dataset, metric) floor and say
+        # so, rather than silently applying a different rule than the rest of the table.
+        threshold = ratio = None
+        decisive = margin > floor
+        boundary = True
 
     row = {"dataset": spec_row["dataset"], "n": n, "metric": metric, "floor_pct": floor,
            "window_W": window_w, "routing_headroom_pct": router,
            "specialists": round(specialists, 6) if specialists is not None else "",
-           "best": top[0] if decisive else "tie",
-           "margin_pct": round(margin, 2), "decisive": decisive}
+           "best": top[0] if decisive else "tie", "runner_up": second[0],
+           "margin_pct": round(margin, 2), "margin_abs": round(margin_abs, 6),
+           "sd_best": round(sd_top, 6) if sd_top is not None else "",
+           "sd_runner_up": round(sd_second, 6) if sd_second is not None else "",
+           "threshold": round(threshold, 6) if threshold is not None else "",
+           "ratio": round(ratio, 3) if ratio is not None else "",
+           "decisive": decisive, "boundary": boundary}
     for name in ("base", "joint", "merge", "sequential", "window_best"):
         row[name] = round(entries[name], 6) if name in entries else ""
     for w in (1, 2, 3):
@@ -159,6 +225,8 @@ def main() -> None:
                         help="floors.csv from results_audit — per (dataset, metric) "
                              "reproducibility floor. Without it the spec's per-dataset floor is "
                              "used for every metric, which is too tight on AUPRC.")
+    parser.add_argument("--run_metrics", type=Path,
+                        help="run_metrics.csv — per-model sd for the pairwise decision rule")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -181,9 +249,11 @@ def main() -> None:
     if args.floors and args.floors.is_file():
         with args.floors.open() as fh:
             for row in csv.DictReader(fh):
-                floors[(row["dataset"], row["metric"])] = row["floor_pct"]
+                if row.get("role", "floor") == "floor":
+                    floors[(row["dataset"], row["metric"])] = row["floor_pct"]
+    sds = load_sds(args.run_metrics)
     rows = [r for s in spec for m in metrics
-            if (r := compare(args.runs_root, s, routing, m, floors)) is not None]
+            if (r := compare(args.runs_root, s, routing, m, floors, sds)) is not None]
     if not rows:
         raise SystemExit("nothing comparable — check the spec's experiment names")
 

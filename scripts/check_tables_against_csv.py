@@ -446,8 +446,26 @@ for _ds, _cols in (("SWaT", (0, 1, 2, 3)), ("PSM", (0, 1, 2, 3)),
     for _i in _cols:
         CHECKS += row_checks("§1.9", rf"\| {_ds} \| `[a-z0-9_]+`(?: \\\*)?",
                              {_i: (f"{_ds} floor {_FLOOR_M[_i]}",
-                                   {"dataset": _ds, "metric": _FLOOR_M[_i]})},
+                                   {"dataset": _ds, "metric": _FLOOR_M[_i],
+                                    "role": "floor"})},
                              "floors.csv", "floor_pct", 0.001)
+
+
+
+# §1.9a's disagreement table: the ten cells whose verdict depends on the variance convention.
+# Bound so the list cannot silently go stale as the rule or the seeds change.
+_D19A = [("ETTh1", 2, "forecast/mae"), ("ETTh1", 2, "forecast/mse"),
+         ("ETTh1", 3, "forecast/mae"), ("ETTh1", 3, "forecast/mse"),
+         ("ETTh1", 5, "forecast/mae"), ("ETTh1", 5, "forecast/mse"),
+         ("PSM", 2, "window_auroc"), ("PSM", 3, "window_auprc"),
+         ("PSM", 3, "window_auroc"), ("PSM", 5, "window_auroc")]
+for _ds, _n, _met in _D19A:
+    _w = {"dataset": _ds, "n": str(_n), "metric": _met}
+    _lbl = rf"\| {_ds} n={_n} `{re.escape(_met)}` \| \w+ \| \*\*\w+\*\*"
+    CHECKS += row_checks("§1.9a", _lbl, {0: (f"{_ds} n={_n} {_met} |diff|", _w)},
+                         "methods_all/method_comparison.csv", "margin_abs", 0.000006)
+    CHECKS += row_checks("§1.9a", _lbl, {1: (f"{_ds} n={_n} {_met} threshold", _w)},
+                         "methods_all/method_comparison.csv", "threshold", 0.000006)
 
 
 

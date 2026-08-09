@@ -125,7 +125,8 @@ def higher_is_better(metric: str) -> bool:
     return any(k in metric.lower() for k in HIGHER_IS_BETTER)
 
 
-FLOOR_FIELDS = ["dataset", "metric", "experiment", "n_seeds", "mean", "sd", "floor_pct"]
+FLOOR_FIELDS = ["dataset", "metric", "experiment", "block", "role", "n_seeds", "mean", "sd",
+                "floor_pct"]
 
 
 def floors_by_metric(run_rows: list[dict], floor_spec: Path | None) -> list[dict]:
@@ -138,8 +139,16 @@ def floors_by_metric(run_rows: list[dict], floor_spec: Path | None) -> list[dict
     moves 2.465%, a factor of 36. Judging an AUPRC difference against an AUROC-derived floor
     calls decisive what is inside noise.
 
-    Same definition as before — sample sd / mean of the **baseline-stage test** metric within
-    the one experiment `floor_spec.csv` names — just evaluated once per metric.
+    Same definition as before — sample sd / mean of the test metric within the one experiment
+    `floor_spec.csv` names — evaluated once per metric, and now for the **comparison blocks**
+    as well as the baseline.
+
+    ⚠️ Run-to-run spread is a property of the *model*, not only of the dataset and metric, and
+    the two do not move together: on PSM the merged model's `window_auroc` is 3.9x noisier than
+    the base model's, while the base model's `window_auprc` is 7.4x noisier than the merged
+    model's. Rows with `role == "floor"` are the published §1.9 floor (baseline); rows with
+    `role == "comparison"` are the spread of the models a verdict actually compares, which the
+    floor does not currently use. See EXPERIMENTS.md §1.9 for the open question that raises.
     """
     if floor_spec is None or not floor_spec.exists():
         return []
@@ -148,12 +157,16 @@ def floors_by_metric(run_rows: list[dict], floor_spec: Path | None) -> list[dict
     out = []
     for dataset, experiment in wanted.items():
         for row in run_rows:
-            if (row["experiment"] == experiment and row["block"] == "baseline/test"
-                    and row["sd_pct"] != "" and int(row["n_seeds"]) > 1):
+            if (row["experiment"] == experiment and row["sd_pct"] != ""
+                    and int(row["n_seeds"]) > 1
+                    and (row["block"] in ("baseline/test", "merged/test", "train/test")
+                         or row["block"].startswith("continual_"))):
                 out.append({"dataset": dataset, "metric": row["metric"],
-                            "experiment": experiment, "n_seeds": row["n_seeds"],
-                            "mean": row["mean"], "sd": row["sd"], "floor_pct": row["sd_pct"]})
-    return sorted(out, key=lambda r: (r["dataset"], r["metric"]))
+                            "experiment": experiment, "block": row["block"],
+                            "role": "floor" if row["block"] == "baseline/test" else "comparison",
+                            "n_seeds": row["n_seeds"], "mean": row["mean"], "sd": row["sd"],
+                            "floor_pct": row["sd_pct"]})
+    return sorted(out, key=lambda r: (r["dataset"], r["metric"], r["block"]))
 
 
 def load_of_record(spec_path: Path | None) -> dict[tuple, str]:

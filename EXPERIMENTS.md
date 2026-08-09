@@ -329,6 +329,15 @@ checkpoint set, and exits on anything else — filter the list before passing it
 
 - **Aggregation.** Every quantity comes from the per-seed *mean*. Ratios are taken of the means,
   not averaged over per-seed ratios. GRR is the documented exception (below).
+- **Deciding whether a difference is real.** A verdict is decisive when
+  |A − B| > √(sd_A² + sd_B²), the combined seed spread of the **two models compared** — not the
+  base model's spread, which is not a property of an A-vs-B difference (§1.9a). Two choices are
+  deliberate: **sd, not standard error** — a test of two 3-seed *means* would divide by √3 and
+  call substantially more cells decisive, so sd keeps the conservative reading the floor always
+  had — and **independence** between runs of different pipelines, which if they share data
+  splits over-estimates the threshold and again errs toward *tie*. Cells within 1.5× of the
+  threshold are marked as boundary cells: with three seeds each sd carries roughly 50% relative
+  uncertainty, so the threshold is itself uncertain.
 - **Percentages.** "A beats B by p%" is **always** p = (B − A) / B for an error metric — a
   fraction of **B, the alternative**. The reverse denominator inflates every figure; it produced
   three of the errors found in August 2026.
@@ -785,8 +794,10 @@ is measuring the scale error, not the method.
 > only reported. `specialists` is the **mean** over per-shard models, not the best — a router
 > would pick per period, so this understates routing (§1.16). `base` is the frozen θ₀ every
 > method starts from and does not compete for best-of-row. ↑/↓ marks the direction.
-> **Decisiveness uses the per-(dataset, metric) floor** of §1.9, not the dataset's primary-metric
-> floor — that correction turned 7 of 48 verdicts from decisive into ties, all AD AUPRC cells.
+> **Decisiveness uses the pairwise rule of §1.9a** — |A−B| > √(sd_A²+sd_B²) over the two models
+> compared — not a floor measured on the base model. Ten of these 48 verdicts moved when that
+> changed, and seven sit within 1.5× of the threshold; §1.9a lists both sets. The per-(dataset,
+> metric) floor of §1.9 remains the fallback where a model's sd is unavailable.
 
 | dataset | metric | n | base | specialists | sequential | W=1 | W=2 | W=3 | merged | joint |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -1022,12 +1033,76 @@ seven are AD AUPRC cells. §1.26 and the forecasting rows are unchanged: MSE and
 differ (8.76% vs 5.06% on ETTh1) but no forecasting verdict sat in the gap.
 
 **It also removed an apparent contradiction.** Before the fix, AUROC and AUPRC named different
-winners on several AD cells — merging "beats joint" on `window_auroc` and "far below" on
-`window_auprc` at PSM n=2. With per-metric floors **no AD cell has two metrics naming different
-winners**: every AUPRC verdict is a tie, and the two AUROC variants agree everywhere. The
-reversal was the floor, not the metric. What survives is the weaker and correct statement that
-**AUPRC cannot resolve anything on these two datasets** — its noise is larger than any effect
-present.
+winners on several AD cells. With per-metric floors the reversal disappeared — it was the floor,
+not the metric.
+
+⚠️ **The stronger claim that followed is withdrawn (§1.9a).** This section then concluded that
+*AUPRC cannot resolve anything on these two datasets*. That rested on the **base model's** AUPRC
+spread, which on PSM is 7.4× the merged model's. Judged against the spread of the models actually
+compared, PSM n=3 `window_auprc` **is** decisive. One of twelve is still weak, and the correct
+statement is that **AUPRC resolves far less than AUROC here** — but "nothing" was a variance
+artefact. Do not keep a variance convention because it protects a conclusion.
+
+### 1.9a Which verdicts depend on the variance convention
+
+> **Provenance.** `method_comparison.py`, `decisive` / `boundary` / `ratio` columns. Both rules
+> were run over the same 48 cells; this lists every disagreement.
+
+**The rule changed on 2026-08-08.** A difference between two methods used to be judged against
+the **base model's** seed spread (§1.9's floor). It is now judged against the spread of the two
+models actually being compared:
+
+    decisive  ⟺  |A − B|  >  √(sd_A² + sd_B²)
+
+The base model's variability is not a property of a merged-vs-joint difference, and the bias is
+large and **signed differently per metric**: on PSM the base model's `window_auprc` sd is 7.4×
+the merged model's, while its `window_auroc` sd is 3.9× *smaller*. A noisy estimate of the right
+quantity beats a stable estimate of the wrong one at that bias.
+
+**10 of 48 verdicts moved, in both directions** — which is what marks it a correction
+rather than a loosening:
+
+| cell | old verdict | new verdict | \|diff\| | threshold | ratio |
+|---|---|---|---|---|---|
+| ETTh1 n=2 `forecast/mae` | tie | **window_best** | 0.01012 | 0.00713 | 1.42 ~ |
+| ETTh1 n=2 `forecast/mse` | tie | **window_best** | 0.01651 | 0.01239 | 1.33 ~ |
+| ETTh1 n=3 `forecast/mae` | tie | **window_best** | 0.01687 | 0.00605 | 2.79 |
+| ETTh1 n=3 `forecast/mse` | tie | **window_best** | 0.02271 | 0.02224 | 1.02 ~ |
+| ETTh1 n=5 `forecast/mae` | tie | **window_best** | 0.01687 | 0.00605 | 2.79 |
+| ETTh1 n=5 `forecast/mse` | tie | **window_best** | 0.02727 | 0.01302 | 2.10 |
+| PSM n=2 `window_auroc` | merge | **tie** | 0.00106 | 0.00162 | 0.66 |
+| PSM n=3 `window_auprc` | tie | **joint** | 0.00573 | 0.00270 | 2.12 |
+| PSM n=3 `window_auroc` | merge | **tie** | 0.00061 | 0.00232 | 0.27 |
+| PSM n=5 `window_auroc` | joint | **tie** | 0.00115 | 0.00436 | 0.26 |
+
+**This sensitivity is itself the finding.** Twelve of the forty-eight verdicts in this project
+are decided by a variance convention rather than by a margin large enough to survive either —
+a direct measure of how thin three seeds are. Anyone quoting a verdict from §1.5b or §1.26
+should check whether it appears above.
+
+**Boundary cells.** 7 of 48 land within 1.5× of the threshold in either direction and are
+marked `~`. With three seeds each sd carries roughly 50% relative uncertainty, so the threshold
+is itself uncertain; a cell at ratio 1.02 is not decisive in any meaningful sense.
+
+**Two conservative choices, stated because a reviewer will ask.**
+
+- **sd, not standard error.** √(sd_A² + sd_B²) is the spread of a *single-draw* difference. A
+  proper test of two 3-seed **means** divides by √3 and would call substantially more cells
+  decisive. Using sd preserves the conservative reading the floor always had, and is a choice
+  rather than an oversight.
+- **Independence.** Runs from different pipelines are treated as uncorrelated. If they share
+  data splits this over-estimates the threshold — again erring toward *tie*.
+
+**What this cost the conclusions.** Merging now wins **zero** decisive configurations in §1.26,
+down from two: its PSM n=2 and n=3 `window_auroc` wins were resting on the base model's unusually
+tight AUROC spread. ETTh1 moves the other way — six cells that read *tie* now read a decisive
+window-retrain win, because ETTh1's MSE floor (8.76%) was far wider than the models' own spread.
+
+⚠️ **The `AUPRC cannot resolve anything on AD` claim is withdrawn.** It was built on the base
+model's AUPRC spread, which is 7.4× the merged model's on PSM. Under the corrected variance PSM
+n=3 `window_auprc` is decisive (joint, ratio 2.12). One of twelve is still weak, and the honest
+statement is *AUPRC resolves far less than AUROC on these datasets*, not *nothing* — but the
+stronger claim was a variance artefact and is gone.
 
 ### 1.10 What honest α selection costs — forecasting, n = 3
 
@@ -2366,41 +2441,44 @@ running it properly, which is what would let the thesis claim zero retention out
 > `analysis_specs/method_comparison_spec.csv`. Same test set, same seeds, per (dataset, n);
 > `window` is the best of W ∈ {1,2,3}; `router` is the oracle-router gap from §1.16 and exists
 > on forecasting only. A configuration counts as decisive when the winner's margin over the
-> runner-up clears that dataset's floor.
+> runner-up exceeds √(sd_best² + sd_runner-up²), the combined run-to-run spread of **those two
+> models** — see §1.9a for why that replaced the base model's floor on 2026-08-08, and for the
+> ten verdicts it moved.
 
 The comparisons elsewhere are pairwise against different baselines — §1.13 merge vs sequential,
 §1.21 merge vs windowed, §1.11 merge vs joint — so no table shows all five together. Here it is.
 `forecast/mse` (lower better) for the forecasting rows, `window_auroc` (higher better) for AD.
 
-| dataset | n | joint | merge | sequential | window | best | margin |
+| dataset | n | joint | merge | sequential | window | best | ratio |
 |---|---|---|---|---|---|---|---|
-| ETTh1 | 2 | 0.4186 | 0.4597 | 0.4078 | **0.3913** | tie | 4.0% ~ |
-| ETTh1 | 3 | 0.4186 | 0.6256 | 0.4140 | **0.3913** | tie | 5.5% ~ |
-| ETTh1 | 5 | 0.4186 | 0.4517 | 0.4410 | **0.3913** | tie | 6.5% ~ |
-| ETTh2 | 2 | **0.1362** | 0.2612 | 0.2332 | 0.2952 | **joint** | 41.6% |
-| ETTh2 | 3 | **0.1362** | 0.2153 | 0.1970 | 0.2952 | **joint** | 30.8% |
-| ETTh2 | 5 | **0.1362** | 0.2669 | 0.2495 | 0.2952 | **joint** | 45.4% |
-| ETTm2 | 2 | **0.0750** | 0.1240 | 0.0952 | 0.1092 | **joint** | 21.2% |
-| ETTm2 | 3 | **0.0750** | 0.1121 | 0.0920 | 0.1092 | **joint** | 18.4% |
-| ETTm2 | 5 | **0.0750** | 0.1385 | 0.1839 | 0.1092 | **joint** | 31.3% |
-| exchange | 2 | 0.3957 | 0.2554 | 0.2199 | **0.2053** | **window** | 6.6% |
-| exchange | 3 | 0.3957 | 0.3310 | 0.3586 | **0.2053** | **window** | 38.0% |
-| exchange | 5 | 0.3957 | 0.3271 | 0.5311 | **0.2053** | **window** | 37.2% |
-| SWaT | 2 | **0.8078** | 0.8044 | 0.8027 | 0.8023 | joint | 0.4% |
-| SWaT | 3 | **0.8078** | 0.8037 | 0.8037 | 0.8023 | joint | 0.5% |
-| SWaT | 5 | **0.8078** | 0.8049 | 0.8034 | 0.8023 | joint | 0.4% |
-| PSM | 2 | 0.7998 | **0.8041** | 0.8030 | 0.7987 | merge | 0.1% |
-| PSM | 3 | 0.7998 | **0.8005** | 0.7969 | 0.7987 | merge | 0.1% |
-| PSM | 5 | **0.7998** | 0.7944 | 0.7953 | 0.7987 | joint | 0.1% |
+| ETTh1 | 2 | 0.4186 | 0.4597 | 0.4078 | **0.3913** | **window_best ~** | 1.33 |
+| ETTh1 | 3 | 0.4186 | 0.6256 | 0.4140 | **0.3913** | **window_best ~** | 1.02 |
+| ETTh1 | 5 | 0.4186 | 0.4517 | 0.4410 | **0.3913** | **window_best** | 2.10 |
+| ETTh2 | 2 | **0.1362** | 0.2612 | 0.2332 | 0.2952 | **joint** | 3.10 |
+| ETTh2 | 3 | **0.1362** | 0.2153 | 0.1970 | 0.2952 | **joint** | 3.70 |
+| ETTh2 | 5 | **0.1362** | 0.2669 | 0.2495 | 0.2952 | **joint** | 2.74 |
+| ETTm2 | 2 | **0.0750** | 0.1240 | 0.0952 | 0.1092 | **joint** | 1.88 |
+| ETTm2 | 3 | **0.0750** | 0.1121 | 0.0920 | 0.1092 | **joint** | 1.54 |
+| ETTm2 | 5 | **0.0750** | 0.1385 | 0.1839 | 0.1092 | **joint** | 4.05 |
+| exchange | 2 | 0.3957 | 0.2554 | 0.2199 | **0.2053** | **window_best** | 2.16 |
+| exchange | 3 | 0.3957 | 0.3310 | 0.3586 | **0.2053** | **window_best** | 4.70 |
+| exchange | 5 | 0.3957 | 0.3271 | 0.5311 | **0.2053** | **window_best** | 4.27 |
+| SWaT | 2 | **0.8078** | 0.8044 | 0.8027 | 0.8023 | **joint** | 2.19 |
+| SWaT | 3 | **0.8078** | 0.8037 | 0.8037 | 0.8023 | **joint** | 2.26 |
+| SWaT | 5 | **0.8078** | 0.8049 | 0.8034 | 0.8023 | **joint ~** | 1.33 |
+| PSM | 2 | 0.7998 | **0.8041** | 0.8030 | 0.7987 | **tie** | 0.66 |
+| PSM | 3 | 0.7998 | **0.8005** | 0.7969 | 0.7987 | **tie** | 0.27 |
+| PSM | 5 | **0.7998** | 0.7944 | 0.7953 | 0.7987 | **tie** | 0.26 |
 
-`~` = inside the dataset's reproducibility floor. **Decisive: 15 of 18 — joint 10, window 3,
-merge 2, sequential 0.**
+**Decisive in 15 of 18** under the pairwise rule (§1.9a); 3 of those sit within 1.5× of
+the threshold and are marked `~`, meaning the verdict is as uncertain as the 3-seed variance
+estimate behind it. Counting winners: **joint** 9, **window_best** 6, tie 3.
 
 #### ⚠️ Read this with the retention budget attached, or it misleads
 
 The columns are **not** competing under the same constraint. `joint` sees **all** the data and
 `window` sees the last W periods; `merge` and `sequential` see each period once and retain no
-training data at all. So *"joint wins 10 of 15"* is close to a tautology — it is the method
+training data at all. So *"joint wins 9 of 15"* is close to a tautology — it is the method
 allowed the most data. The table's value is in the exceptions and the magnitudes, not the tally.
 
 **What it actually shows:**

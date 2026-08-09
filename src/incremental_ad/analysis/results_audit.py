@@ -143,6 +143,12 @@ def floors_by_metric(run_rows: list[dict], floor_spec: Path | None) -> list[dict
     `floor_spec.csv` names — evaluated once per metric, and now for the **comparison blocks**
     as well as the baseline.
 
+    **Scope.** This file is the published floor, so it covers only the experiments
+    `floor_spec.csv` names — one per dataset. It is **not** the sd source for comparing two
+    arbitrary methods: `run_metrics.csv` carries sd for every (experiment, block, metric), and
+    that is what `method_comparison.py` reads. Do not conclude from a missing row here that a
+    comparison has to fall back to the base-model floor.
+
     ⚠️ Run-to-run spread is a property of the *model*, not only of the dataset and metric, and
     the two do not move together: on PSM the merged model's `window_auroc` is 3.9x noisier than
     the base model's, while the base model's `window_auprc` is 7.4x noisier than the merged

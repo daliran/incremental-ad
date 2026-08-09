@@ -1093,10 +1093,18 @@ is itself uncertain; a cell at ratio 1.02 is not decisive in any meaningful sens
 - **Independence.** Runs from different pipelines are treated as uncorrelated. If they share
   data splits this over-estimates the threshold — again erring toward *tie*.
 
-**What this cost the conclusions.** Merging now wins **zero** decisive configurations in §1.26,
-down from two: its PSM n=2 and n=3 `window_auroc` wins were resting on the base model's unusually
-tight AUROC spread. ETTh1 moves the other way — six cells that read *tie* now read a decisive
-window-retrain win, because ETTh1's MSE floor (8.76%) was far wider than the models' own spread.
+**What this cost the conclusions.** Merging wins **zero** of the 18 primary-metric cells in
+§1.26, down from two: its PSM n=2 and n=3 `window_auroc` wins were resting on the base model's
+unusually tight AUROC spread. ETTh1 moves the other way — six cells that read *tie* now read a
+decisive window-retrain win, because ETTh1's MSE floor (8.76%) was far wider than the models'
+own spread.
+
+⚠️ **"Merging never wins" is true of §1.26 and false of the wider table.** Across §1.5b's 48
+cells merging still wins **2**, both PSM `point_auroc`: n=3 at ratio 2.65 (a clear win) and n=2
+at 1.02 (a boundary cell). §1.26 reports `window_auroc` only, where merging ties. So the
+defensible statement is *merging wins nothing on either dataset's primary metric, and wins on
+PSM's point-AUROC* — not that it never wins. The two tables disagree because they read different
+metrics, which is the same lesson as §1.9's per-metric floors one level up.
 
 ⚠️ **The `AUPRC cannot resolve anything on AD` claim is withdrawn.** It was built on the base
 model's AUPRC spread, which is 7.4× the merged model's on PSM. Under the corrected variance PSM

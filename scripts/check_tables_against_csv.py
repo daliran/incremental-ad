@@ -653,6 +653,32 @@ def check_scale_curves(text: str, runs_root: Path, spec_path: Path,
     return failures
 
 
+def check_no_floor_fallback(audit_dir: Path) -> int:
+    """Assert every comparison used the pairwise rule. Returns failure count.
+
+    A cell with an empty `threshold` silently reverted to the base-model floor — the convention
+    1.9a corrected — while sitting in a table that looks uniform. Cheap to assert, invisible
+    otherwise.
+    """
+    failures = 0
+    print("\nVARIANCE RULE — every comparison must use the pairwise threshold:")
+    for name in ("methods/method_comparison.csv", "methods_all/method_comparison.csv"):
+        path = audit_dir / name
+        if not path.exists():
+            continue
+        with path.open() as fh:
+            rows = list(csv.DictReader(fh))
+        back = [r for r in rows if not r.get("threshold")]
+        if back:
+            named = ", ".join(f"{r['dataset']} n={r['n']} {r['metric']}" for r in back[:4])
+            print(f"  FALLBACK  {name}: {len(back)}/{len(rows)} cells used the base-model "
+                  f"floor — {named}")
+            failures += 1
+        else:
+            print(f"  ok        {name}: {len(rows)}/{len(rows)} cells pairwise")
+    return failures
+
+
 # Cross-section consistency ---------------------------------------------------------------
 
 # §1.11 publishes GRR at the validation-selected alpha and at the oracle alpha; §1.12 publishes
@@ -818,6 +844,10 @@ def main() -> None:
     curves = check_scale_curves(text, args.runs_root, args.matrix_spec) if args.runs_root else 0
     if curves:
         print(f"  -> {curves} merge-scale-curve failure(s)")
+
+    fallback = check_no_floor_fallback(args.audit_dir)
+    if fallback:
+        print(f"  -> {fallback} table(s) contain cells on the superseded floor rule")
 
     recon = check_reconciliation(text)
     if recon:

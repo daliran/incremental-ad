@@ -100,7 +100,14 @@ def _specialists_mean(runs_root: Path, experiment: str, n: int, metric: str) -> 
 
 
 def load_sds(run_metrics: Path | None) -> dict:
-    """(experiment, block, metric) -> sample sd across seeds."""
+    """(experiment, block, metric) -> sample sd across seeds.
+
+    **`run_metrics.csv` is the sd source, not `floors.csv`.** `floors.csv` publishes the §1.9
+    floor and covers only the six experiments `floor_spec.csv` names; the pairwise rule needs
+    the spread of whichever two models a cell compares — a joint run, a sequential run, a
+    window run — which live in other experiments entirely. `run_metrics.csv` carries sd for
+    every (experiment, block, metric), so no comparison has to fall back.
+    """
     out: dict[tuple, float] = {}
     if run_metrics is None or not run_metrics.is_file():
         return out
@@ -254,6 +261,15 @@ def main() -> None:
     sds = load_sds(args.run_metrics)
     rows = [r for s in spec for m in metrics
             if (r := compare(args.runs_root, s, routing, m, floors, sds)) is not None]
+
+    # A missing sd silently reverts that cell to the base-model floor — the convention §1.9a
+    # corrected. It must be visible, not discovered later in a table that looks uniform.
+    fell_back = [r for r in rows if r["threshold"] == ""]
+    if fell_back:
+        log.warning("⚠️  %d of %d cells fell back to the base-model floor (no sd for one of the "
+                    "two models). Those verdicts use a different rule than the rest of the "
+                    "table: %s", len(fell_back), len(rows),
+                    ", ".join(f"{r['dataset']} n={r['n']} {r['metric']}" for r in fell_back[:6]))
     if not rows:
         raise SystemExit("nothing comparable — check the spec's experiment names")
 

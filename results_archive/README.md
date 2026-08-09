@@ -31,7 +31,7 @@ this directory alone. If it passes, the numbers in the markdown are still backed
 
 | path | what it is | used by |
 |---|---|---|
-| `audit/floors.csv` | reproducibility floor per (dataset, **metric**) — seed variability differs up to 36× between metrics on one dataset | §1.9, decisiveness in §1.5b |
+| `audit/floors.csv` | the **published §1.9 floor**, per (dataset, metric) — covers only the six experiments `floor_spec.csv` names | §1.9 |
 | `audit/derived.csv` | per-experiment floor, headroom, GRR, retention, committed α | §0.1b, §1.9, §1.11, §1.25 |
 | `audit/run_metrics.csv` | mean/sd per (experiment, **n_segments**, block, metric), including `finetune_i/test`, with an `of_record` column | §1.17, §1.21, §1.23, §1.24 |
 | `audit/scale_forecast/`, `audit/scale_ad/` | α\*, α\*·n, GRR, honest-α cost | §1.11, §1.12, §1.18 |
@@ -43,6 +43,14 @@ this directory alone. If it passes, the numbers in the markdown are still backed
 | `audit/methods_all/` | **every technique on every metric** — all six metrics, per-W windowed | §1.5b |
 | `audit/prefix_ETTh1/`, `audit/prefix_exchange/` | forward transfer, accumulate vs materialise | §1.19, §1.22 |
 | `audit/oracle_router/` | per-window routing ceiling on test, per run + seed-aggregated summary | §1.16b |
+
+⚠️ **Where to get a standard deviation.** `run_metrics.csv`'s `sd` column, for **every**
+(experiment, block, metric) — that is what `method_comparison.py` reads for the pairwise
+decision rule (§1.9a), and it covers joint runs, sequential runs, window runs and specialists
+alike. `floors.csv` is **not** the general sd source: it publishes the §1.9 floor and therefore
+covers only one experiment per dataset. A missing row there does **not** mean a comparison must
+fall back to the base-model floor. The checker asserts that no cell does
+(`VARIANCE RULE — every comparison must use the pairwise threshold`).
 
 ⚠️ **Two different quantities, two different scales — never pool them.** `methods_all/method_comparison.csv:routing_headroom_pct` is a **percentage** (5.6, 22.6, 108.3): how far merging sits from the per-regime optimum on validation slices, §1.16. `oracle_router/oracle_router_summary.csv:oracle_router` is an **absolute test metric** (0.4057, 0.2354): the per-window ceiling of §1.16b. Both were briefly called `oracle_router`; the first was renamed on 2026-08-08 so a percentage cannot be misread as an MSE.
 | `geometry/` | `geometry_summary.csv` + small per-run geometry | §1.7, §1.8, §1.15, §1.18 |

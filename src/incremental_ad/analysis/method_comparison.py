@@ -18,7 +18,7 @@ The five strategies, all scored on the **same test set** with the same seeds:
 | `merge` | θ₀ + α·Στ at the committed α |
 | `sequential` | the continual chain's final model |
 | `window_W` | a fresh fine-tune of θ₀ on the last W periods (best W reported) |
-| `oracle_router` | routing **headroom** from `routing_report`: how far the merged model sits from the per-regime column optimum, as a percentage on that report's own metric. Blank unless a routing summary exists for this exact (group, **metric**) — it was previously keyed by group alone, so an mse-derived percentage was pasted onto the MAE row as well. Blank on AD is correct: the per-regime columns carry no detection metric (§1.16). **Not** the same quantity as `analysis/oracle_router.py`, which is a per-window test-set oracle in the metric's own units |
+| `routing_headroom_pct` | routing **headroom** from `routing_report`: how far the merged model sits from the per-regime column optimum, as a **percentage** on that report's own metric — not an absolute error like every other column here. Blank unless a routing summary exists for this exact (group, **metric**); blank on AD is correct, since the per-regime columns carry no detection metric (§1.16). Deliberately *not* named `oracle_router`: `analysis/oracle_router.py` emits a column of that name holding an absolute test-set MSE (§1.16b). Two scales under one name invites reading a percentage as an error — **the two must never be pooled or compared directly** |
 
 **Decisiveness, not winners.** Every pairwise gap is compared against that dataset's
 reproducibility floor and marked `~` when it falls inside — a difference smaller than run-to-run
@@ -40,7 +40,7 @@ log = logging.getLogger("method_comparison")
 
 FIELDS = ["dataset", "n", "metric", "floor_pct", "base", "specialists", "joint", "merge",
           "sequential", "window_W1", "window_W2", "window_W3", "window_best", "window_W",
-          "oracle_router", "best", "margin_pct", "decisive"]
+          "routing_headroom_pct", "best", "margin_pct", "decisive"]
 
 HIGHER = ("auroc", "auprc", "f1", "precision", "recall", "accuracy")
 
@@ -127,7 +127,7 @@ def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None =
     decisive = margin > floor
 
     row = {"dataset": spec_row["dataset"], "n": n, "metric": metric, "floor_pct": floor,
-           "window_W": window_w, "oracle_router": router,
+           "window_W": window_w, "routing_headroom_pct": router,
            "specialists": round(specialists, 6) if specialists is not None else "",
            "best": top[0] if decisive else "tie",
            "margin_pct": round(margin, 2), "decisive": decisive}
@@ -176,7 +176,7 @@ def main() -> None:
              "dataset", "n", "joint", "merge", "sequential", "window", "router", "best", "margin")
     for r in rows:
         f = lambda k: (f"{r[k]:.4f}" if isinstance(r.get(k), float) else "—")  # noqa: E731
-        router = f"+{r['oracle_router']}%" if r.get("oracle_router") else "—"
+        router = f"+{r['routing_headroom_pct']}%" if r.get("routing_headroom_pct") else "—"
         log.info("%-10s %2d %10s %10s %11s %11s %9s  %-11s %s",
                  r["dataset"], r["n"], f("joint"), f("merge"), f("sequential"),
                  f("window_best"), router, r["best"],

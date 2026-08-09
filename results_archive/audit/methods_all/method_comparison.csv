@@ -1,4 +1,4 @@
-dataset,n,metric,floor_pct,base,specialists,joint,merge,sequential,window_W1,window_W2,window_W3,window_best,window_W,oracle_router,best,margin_pct,decisive
+dataset,n,metric,floor_pct,base,specialists,joint,merge,sequential,window_W1,window_W2,window_W3,window_best,window_W,routing_headroom_pct,best,margin_pct,decisive
 ETTh1,2,forecast/mse,8.76,0.728958,0.499926,0.41857,0.459709,0.40781,0.489864,0.430049,0.391297,0.391297,3,5.6,tie,4.05,False
 ETTh1,2,forecast/mae,8.76,0.622366,0.5147,0.457119,0.481175,0.450362,0.504959,0.466082,0.440246,0.440246,3,,tie,2.25,False
 ETTh1,3,forecast/mse,8.76,0.707287,0.574744,0.41857,0.625624,0.414003,0.489864,0.430049,0.391297,0.391297,3,,tie,5.48,False

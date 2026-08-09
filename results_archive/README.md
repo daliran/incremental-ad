@@ -42,6 +42,8 @@ this directory alone. If it passes, the numbers in the markdown are still backed
 | `audit/methods_all/` | **every technique on every metric** — all six metrics, per-W windowed | §1.5b |
 | `audit/prefix_ETTh1/`, `audit/prefix_exchange/` | forward transfer, accumulate vs materialise | §1.19, §1.22 |
 | `audit/oracle_router/` | per-window routing ceiling on test, per run + seed-aggregated summary | §1.16b |
+
+⚠️ **Two different quantities, two different scales — never pool them.** `methods_all/method_comparison.csv:routing_headroom_pct` is a **percentage** (5.6, 22.6, 108.3): how far merging sits from the per-regime optimum on validation slices, §1.16. `oracle_router/oracle_router_summary.csv:oracle_router` is an **absolute test metric** (0.4057, 0.2354): the per-window ceiling of §1.16b. Both were briefly called `oracle_router`; the first was renamed on 2026-08-08 so a percentage cannot be misread as an MSE.
 | `geometry/` | `geometry_summary.csv` + small per-run geometry | §1.7, §1.8, §1.15, §1.18 |
 | `run_diagnostics/<group>/<run>/merge_diagnostics/` | `transfer_matrix.csv`, `merge_scale_curve.csv` | §1.3, §1.4 |
 | `MANIFEST.csv` | every file with size and SHA-256 | integrity check |

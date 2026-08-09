@@ -1521,6 +1521,10 @@ you keep one model, the merge is the right one, not the most recent.
 
 > **Not §1.16's quantity.** That asks how far merging sits from the best model *per regime*, on
 > each regime's validation slice, as a ratio to base. This is per-window, on test, in raw units.
+> The two live in different files under different column names for exactly this reason —
+> `routing_headroom_pct` (a percentage) in `methods_all/method_comparison.csv`, `oracle_router`
+> (an absolute metric) in `oracle_router/oracle_router_summary.csv`. They shared a name until
+> 2026-08-08, which made it possible to read 108.3 as an error rather than a percentage.
 > Per-window is strictly finer than per-regime, so this ceiling is the higher of the two; the
 > two are not comparable as numbers, only as a nesting.
 

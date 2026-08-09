@@ -18,7 +18,7 @@ The five strategies, all scored on the **same test set** with the same seeds:
 | `merge` | θ₀ + α·Στ at the committed α |
 | `sequential` | the continual chain's final model |
 | `window_W` | a fresh fine-tune of θ₀ on the last W periods (best W reported) |
-| `oracle_router` | the transfer matrix's column optimum — the best any router could do. **Forecasting only**: on AD the per-regime columns carry no detection metric (§1.16) |
+| `oracle_router` | routing **headroom** from `routing_report`: how far the merged model sits from the per-regime column optimum, as a percentage on that report's own metric. Blank unless a routing summary exists for this exact (group, **metric**) — it was previously keyed by group alone, so an mse-derived percentage was pasted onto the MAE row as well. Blank on AD is correct: the per-regime columns carry no detection metric (§1.16). **Not** the same quantity as `analysis/oracle_router.py`, which is a per-window test-set oracle in the metric's own units |
 
 **Decisiveness, not winners.** Every pairwise gap is compared against that dataset's
 reproducibility floor and marked `~` when it falls inside — a difference smaller than run-to-run
@@ -112,7 +112,10 @@ def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None =
 
     # Oracle router is a ratio-to-base, so convert it onto the same scale as the rest:
     # merged / (1 + headroom_over_merged) is not recoverable, so report it only as a ratio.
-    router = routing.get(spec_row.get("diagnostics_group", ""))
+    # Blank means "no routing report for this (group, metric)", which is the honest state for
+    # every AD row: the per-regime columns carry no detection metric, so the column optimum is
+    # not defined there at all (§1.16).
+    router = routing.get((spec_row.get("diagnostics_group", ""), metric))
 
     if len(entries) < 2:
         return None
@@ -154,7 +157,11 @@ def main() -> None:
     if args.routing_dir and (args.routing_dir / "routing_summary.csv").is_file():
         with (args.routing_dir / "routing_summary.csv").open() as fh:
             for row in csv.DictReader(fh):
-                routing[row["group"]] = row.get("merged_vs_oracle_pct", "")
+                # Keyed by metric as well as group. It was keyed by group alone, so a routing
+                # headroom computed on forecast/mse was pasted onto the MAE row too — the same
+                # 5.6% appearing under two different metrics, which is simply wrong.
+                routing[(row["group"], row.get("metric", ""))] = \
+                    row.get("merged_vs_oracle_pct", "")
 
     with args.spec.open() as fh:
         spec = list(csv.DictReader(fh))

@@ -1,0 +1,3 @@
+run,dataset,n_segments,seed,metric,base,best_single,oracle_router,oracle_vs_best_single_pct
+79917,EtthForecastDataset,5,42,forecast/mse,0.704458,0.433942,0.366573,15.525
+79917,EtthForecastDataset,5,42,forecast/mae,0.606077,0.47116,0.43756,7.131

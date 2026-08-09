@@ -418,6 +418,22 @@ for _ds, _mets in (("PSM", ("window_auroc", "window_auprc", "point_auroc", "poin
 
 
 
+# §1.16b's per-window oracle. Bound to the seed-aggregated summary; `best specialist alone` and
+# the gain come from the same rows, so a mismatch between them cannot hide.
+for _ds in ("ETTh1", "ETTh2", "ETTm2", "exchange"):
+    for _n in (2, 3, 5):
+        _w = {"dataset": _ds, "n": str(_n), "metric": "forecast/mse"}
+        _lbl = rf"\| {_ds} \| {_n}"
+        CHECKS += row_checks("§1.16b", _lbl, {0: (f"{_ds} n={_n} oracle", _w)},
+                             "oracle_router/oracle_router_summary.csv", "oracle_router", 0.0001)
+        CHECKS += row_checks("§1.16b", _lbl, {1: (f"{_ds} n={_n} best specialist", _w)},
+                             "oracle_router/oracle_router_summary.csv", "best_single", 0.0001)
+        CHECKS += row_checks("§1.16b", _lbl, {2: (f"{_ds} n={_n} oracle gain", _w)},
+                             "oracle_router/oracle_router_summary.csv",
+                             "oracle_vs_best_single_pct", 0.06)
+
+
+
 def section_slice(text: str, section: str) -> str:
     """The document text belonging to `section` (e.g. "§1.11"), else the whole document.
 

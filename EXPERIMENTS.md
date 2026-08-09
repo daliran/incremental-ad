@@ -258,6 +258,7 @@ command; a provenance line closes both, and gives
 | `analysis/scale_report.py` | `merge_scale_curve.csv` | **α\*** (both poolings), α\*·n, honest-α cost, the α = 1/n penalty |
 | `analysis/drift_screen.py` | the raw HuggingFace series | **drift** and **KS**, at any segmentation |
 | `analysis/method_comparison.py` | runs + `method_comparison_spec.csv` | all six techniques on **any set of metrics** (`--metrics`), with per-W windowed values — §1.5b, §1.26 |
+| `analysis/oracle_router.py` | specialist checkpoints + test set | **per-window routing ceiling** on test (§1.16b) — forecasting only; refuses on AD |
 | `analysis/prefix_report.py` | `prefix_merges.csv` + `transfer_matrix.csv` | **forward transfer** (§1.19) and **accumulate vs materialise** (§1.22), at the pre-declared α = 1/k |
 | `analysis/novelty_report.py` | geometry output + an outcomes table | per-step ρ and new_k, **alignment vs α\*·n** (within-, between- and per-dataset correlation), **the ρ-indicator test** (fitted threshold, permutation, leave-one-dataset-out) |
 
@@ -291,6 +292,8 @@ python -m incremental_ad.analysis.method_comparison --runs_root $RUNS_ROOT \\
     --spec analysis_specs/method_comparison_spec.csv --routing_dir $OUT/routing \\
     --metrics forecast/mse forecast/mae window_auroc window_auprc point_auroc point_auprc \\
     --out $OUT/methods_all
+for r in $RUNS_ROOT/<forecasting merge experiment>/*/; do \\
+    python -m incremental_ad.analysis.oracle_router --run_dir $r --out $OUT/oracle_router; done  # GPU
 python -m incremental_ad.analysis.novelty_report  indicator --outcomes $OUT/outcomes.csv
 python -m incremental_ad.analysis.novelty_report  alignment --geometry $OUT/geometry/geometry_summary.csv \
     --scale $OUT/scale/scale_summary.csv $OUT/scale_ad/scale_summary.csv \
@@ -1418,8 +1421,11 @@ arriving here for free: more segments means more mutually orthogonal task vector
 You end up holding several models: the base, one specialist per period, and the merge. Which
 do you use on new data? The transfer matrix answers the prior question directly, because its
 column minimum *is* the best possible router — pick, for every regime, whichever model turns
-out best on it. No real router beats that ceiling, so the distance from the merged model to it
-bounds what routing could ever gain.
+out best on it. No **per-regime** router beats that ceiling, so the distance from the merged
+model to it bounds what regime-level routing could gain. ⚠️ It is not a bound on routing in
+general: a router choosing per *window* is strictly finer and has a higher ceiling, measured
+separately in §1.16b. That one is on test in raw units rather than a ratio to base on
+validation slices, so the two are not comparable as numbers — only as a nesting.
 
 Measured at n = 5, ratio-to-base on each regime's held-out slice, with the merged model taken
 at its **validation-selected α**. Recomputed 2026-08-07 by
@@ -1498,6 +1504,68 @@ you keep one model, the merge is the right one, not the most recent.
 > is α·n = 5 — a fivefold overshoot, and the stored `merged` row was a wrecked model. Rebuilding
 > that row from the curve at α\* is what produces the table above. Any comparison involving a
 > merged model must fix α first.
+
+### 1.16b The routing ceiling on test — a per-window oracle
+
+> **Provenance.** `analysis/oracle_router.py` over the merge experiments of record, **three
+> seeds per cell** → `results_archive/audit/oracle_router/`. For every test window each
+> specialist θ₀+τᵢ is scored and the **smallest** error kept, then averaged over windows. No
+> router beats that: picking the best model per window is what a router would have to do. It is
+> an oracle on test, so it is unobtainable — it prices the prize, it is not a method.
+
+> **Forecasting only, by construction rather than omission.** MSE and MAE are means over
+> per-window errors, so a per-window minimum is defined and aggregates correctly. AUROC and
+> AUPRC rank the *whole* test set: there is no per-window value to minimise, and anomaly scores
+> from different specialists are not mutually comparable. The script refuses on AD rather than
+> emit a usable-looking number.
+
+> **Not §1.16's quantity.** That asks how far merging sits from the best model *per regime*, on
+> each regime's validation slice, as a ratio to base. This is per-window, on test, in raw units.
+> Per-window is strictly finer than per-regime, so this ceiling is the higher of the two; the
+> two are not comparable as numbers, only as a nesting.
+
+| dataset | n | oracle | best specialist alone | gain | merge | sequential | window W=3 | joint |
+|---|---|---|---|---|---|---|---|---|
+| ETTh1 | 2 | **0.4057** | 0.4162 | 2.5% | 0.4597 | 0.4078 | 0.3913 ✓ | 0.4186 |
+| ETTh1 | 3 | **0.4230** | 0.4536 | 6.7% | 0.6256 | 0.4140 ✓ | 0.3913 ✓ | 0.4186 ✓ |
+| ETTh1 | 5 | **0.3626** | 0.4264 | 15.0% | 0.4517 | 0.4410 | 0.3913 | 0.4186 |
+| ETTh2 | 2 | **0.2354** | 0.2902 | 18.9% | 0.2612 | 0.2332 ✓ | 0.2952 | 0.1362 ✓ |
+| ETTh2 | 3 | **0.1639** | 0.1771 | 7.5% | 0.2153 | 0.1970 | 0.2952 | 0.1362 ✓ |
+| ETTh2 | 5 | **0.1672** | 0.2160 | 22.6% | 0.2669 | 0.2495 | 0.2952 | 0.1362 ✓ |
+| ETTm2 | 2 | **0.0849** | 0.1150 | 26.2% | 0.1240 | 0.0952 | 0.1092 | 0.0750 ✓ |
+| ETTm2 | 3 | **0.0779** | 0.0989 | 21.3% | 0.1121 | 0.0920 | 0.1092 | 0.0750 ✓ |
+| ETTm2 | 5 | **0.0832** | 0.1334 | 37.6% | 0.1385 | 0.1839 | 0.1092 | 0.0750 ✓ |
+| exchange | 2 | **0.2222** | 0.2260 | 1.7% | 0.2554 | 0.2199 ✓ | 0.2053 ✓ | 0.3957 |
+| exchange | 3 | **0.2669** | 0.4657 | 42.7% | 0.3310 | 0.3586 | 0.2053 ✓ | 0.3957 |
+| exchange | 5 | **0.2581** | 0.3112 | 17.0% | 0.3271 | 0.5311 | 0.2053 ✓ | 0.3957 |
+
+✓ marks a method that **beats the oracle**. Counting those columns:
+
+| the oracle beats… | wins | what that method must store |
+|---|---|---|
+| the best single specialist | **12 / 12** | n model checkpoints |
+| merging | **12 / 12** | one model, no raw data |
+| sequential fine-tuning | 9 / 12 | one model, no raw data |
+| a 3-period window retrain | 7 / 12 | 3 periods of raw data |
+| joint training | 5 / 12 | the entire series |
+
+**Routing's advantage over merging is real and universal — and that is the weakest possible
+reading of it.** A perfect router beats the merged model in every one of the twelve
+configurations, which is what §1.16's headroom already implied. But it beats a plain 3-period
+window retrain in only 7, and that window keeps **no models at all** while routing keeps n of
+them plus selection logic. Against joint training it wins 5 of 12.
+
+So the ceiling is high relative to merging and unremarkable relative to everything else. The
+honest summary is that **routing buys the most where the alternatives are already cheap**:
+routing wins against the window on ETTh2 and ETTm2 (6 of 6), the two datasets where joint
+training beats *everything* by a wide margin anyway, and loses to it on ETTh1 and exchange_rate
+(5 of 6), where the window is the best method overall. It is not that a router cannot help; it
+is that it helps in the cases where a simpler answer already exists.
+
+⚠️ **This section is why the seed count mattered.** ETTh1 n=5 — the one cell where the oracle
+beats every alternative — was also the single seed used to smoke-test the script. Read alone it
+suggested routing dominated. Twelve cells at three seeds say something much more qualified.
+
 
 ### 1.17 The n = 1 baseline — does merging beat *not splitting the data at all*?
 

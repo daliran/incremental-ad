@@ -300,7 +300,12 @@ datasets then available.
 
 **Settled:** a *perfect* router recovers ≤7% **on low-drift data** — not worth storing n
 models and building selection logic that can be wrong. Under strong drift it recovers far more,
-and §2.21 shows the split is drift, not shard size. Merging also beats
+and §2.21 shows the split is drift, not shard size. ⚠️ **Qualified 2026-08-08 by
+EXPERIMENTS.md §1.16b**, which measures a strictly higher ceiling — a *per-window* oracle on
+test rather than a per-regime one on validation. It beats merging in **12 of 12** configurations,
+confirming the headroom is real, but beats a plain 3-period window retrain in only **7 of 12** —
+and that window stores no models at all against routing's n. "Routing has headroom over merging"
+survives; "routing is worth building" does not follow from it. Merging also beats
 always-use-the-newest-specialist on all four. Routing only has real headroom under strong drift
 (exchange_rate), which is the same place merging beats joint training. On AD it is doubly
 unattractive: little headroom *and* no way to select without labels (§3.4).

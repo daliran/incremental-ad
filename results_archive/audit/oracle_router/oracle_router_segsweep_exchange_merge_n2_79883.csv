@@ -1,0 +1,3 @@
+run,dataset,n_segments,seed,metric,base,best_single,oracle_router,oracle_vs_best_single_pct
+79883,ExchangeRateForecastDataset,2,42,forecast/mse,0.732462,0.22419,0.217524,2.973
+79883,ExchangeRateForecastDataset,2,42,forecast/mae,0.688286,0.392298,0.378587,3.495

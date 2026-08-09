@@ -393,6 +393,31 @@ for _ds, _acc, _mat in (("ETTh1", r"\| ETTh1 accumulate", r"\| ETTh1 materialise
 
 
 
+# §1.5b: every technique on every metric, 48 rows x 8 numeric columns. Generated from the CSV
+# rather than transcribed, and bound here so it stays that way. The row label carries dataset,
+# metric and n, which is what makes it unique — the earlier per-dataset layout repeated
+# `| AUROC-w | 2 |` across datasets and could not be bound at all.
+_M15B = {"window_auroc": "AUROC-w ↑", "window_auprc": "AUPRC-w ↑", "point_auroc": "AUROC-p ↑",
+         "point_auprc": "AUPRC-p ↑", "forecast/mse": "MSE ↓", "forecast/mae": "MAE ↓"}
+_COLS15B = ["base", "specialists", "sequential", "window_W1", "window_W2", "window_W3",
+            "merge", "joint"]
+for _ds, _mets in (("PSM", ("window_auroc", "window_auprc", "point_auroc", "point_auprc")),
+                   ("SWaT", ("window_auroc", "window_auprc", "point_auroc", "point_auprc")),
+                   ("ETTm2", ("forecast/mse", "forecast/mae")),
+                   ("ETTh2", ("forecast/mse", "forecast/mae")),
+                   ("ETTh1", ("forecast/mse", "forecast/mae")),
+                   ("exchange", ("forecast/mse", "forecast/mae"))):
+    for _met in _mets:
+        for _n in (2, 3, 5):
+            _label = rf"\| {_ds} \| {re.escape(_M15B[_met])} \| {_n}"
+            _where = {"dataset": _ds, "metric": _met, "n": str(_n)}
+            for _i, _col in enumerate(_COLS15B):
+                CHECKS += row_checks("§1.5b", _label,
+                                     {_i: (f"{_ds} {_M15B[_met]} n={_n} {_col}", _where)},
+                                     "methods_all/method_comparison.csv", _col, 0.0001)
+
+
+
 def section_slice(text: str, section: str) -> str:
     """The document text belonging to `section` (e.g. "§1.11"), else the whole document.
 

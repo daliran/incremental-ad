@@ -257,6 +257,7 @@ command; a provenance line closes both, and gives
 | `analysis/geometry_report.py` | checkpoints | cosine, ρ per step, effective rank, principal angles, ‖τ‖ |
 | `analysis/scale_report.py` | `merge_scale_curve.csv` | **α\*** (both poolings), α\*·n, honest-α cost, the α = 1/n penalty |
 | `analysis/drift_screen.py` | the raw HuggingFace series | **drift** and **KS**, at any segmentation |
+| `analysis/method_comparison.py` | runs + `method_comparison_spec.csv` | all six techniques on **any set of metrics** (`--metrics`), with per-W windowed values — §1.5b, §1.26 |
 | `analysis/prefix_report.py` | `prefix_merges.csv` + `transfer_matrix.csv` | **forward transfer** (§1.19) and **accumulate vs materialise** (§1.22), at the pre-declared α = 1/k |
 | `analysis/novelty_report.py` | geometry output + an outcomes table | per-step ρ and new_k, **alignment vs α\*·n** (within-, between- and per-dataset correlation), **the ρ-indicator test** (fitted threshold, permutation, leave-one-dataset-out) |
 
@@ -284,6 +285,10 @@ python -m incremental_ad.analysis.scale_report    $RUNS_ROOT/*_{swat,psm}*_diagn
 python -m incremental_ad.analysis.novelty_report  outcomes --runs_root $RUNS_ROOT \
     --geometry_root $OUT/geometry --spec analysis_specs/rho_indicator_spec.csv \
     --out $OUT/outcomes.csv
+python -m incremental_ad.analysis.method_comparison --runs_root $RUNS_ROOT \\
+    --spec analysis_specs/method_comparison_spec.csv --routing_dir $OUT/routing \\
+    --metrics forecast/mse forecast/mae window_auroc window_auprc point_auroc point_auprc \\
+    --out $OUT/methods_all
 python -m incremental_ad.analysis.novelty_report  indicator --outcomes $OUT/outcomes.csv
 python -m incremental_ad.analysis.novelty_report  alignment --geometry $OUT/geometry/geometry_summary.csv \
     --scale $OUT/scale/scale_summary.csv $OUT/scale_ad/scale_summary.csv \
@@ -763,6 +768,70 @@ bad as the base model's 0.5608**, and worse than doing nothing at all. This is t
 §0.3 in its clearest form: summing three aligned task vectors instead of averaging them steps
 three times too far. The same merge at α\* = 0.267 scores 0.1121. Any result reported at α = 1
 is measuring the scale error, not the method.
+
+### 1.5b Every technique on every metric
+
+> **Provenance.** `analysis/method_comparison.py --metrics …`, which now accepts several metrics
+> and emits `base`, `specialists`, per-W windowed values and `merged` side by side →
+> `results_archive/audit/methods_all/method_comparison.csv`. ⚠️ **Added 2026-08-08 because the
+> secondary metrics had never been tabulated.** The windowed column existed only for each
+> dataset's primary metric, so AUPRC, point-AUROC, point-AUPRC and MAE showed no windowed value
+> anywhere — 0 of 48 rows were complete. The runs existed the whole time; nothing was retrained,
+> only reported. `specialists` is the **mean** over per-shard models, not the best — a router
+> would pick per period, so this understates routing (§1.16). `base` is the frozen θ₀ every
+> method starts from and does not compete for best-of-row. ↑/↓ marks the direction.
+
+| dataset | metric | n | base | specialists | sequential | W=1 | W=2 | W=3 | merged | joint |
+|---|---|---|---|---|---|---|---|---|---|---|
+| PSM | AUROC-w ↑ | 2 | 0.7730 | 0.7947 | 0.8030 | 0.7884 | 0.7929 | 0.7987 | 0.8041 | 0.7998 |
+| PSM | AUROC-w ↑ | 3 | 0.7742 | 0.7896 | 0.7969 | 0.7884 | 0.7929 | 0.7987 | 0.8005 | 0.7998 |
+| PSM | AUROC-w ↑ | 5 | 0.7757 | 0.7835 | 0.7953 | 0.7884 | 0.7929 | 0.7987 | 0.7944 | 0.7998 |
+| PSM | AUPRC-w ↑ | 2 | 0.6326 | 0.6391 | 0.6509 | 0.6407 | 0.6334 | 0.6438 | 0.6503 | 0.6521 |
+| PSM | AUPRC-w ↑ | 3 | 0.6325 | 0.6359 | 0.6450 | 0.6407 | 0.6334 | 0.6438 | 0.6463 | 0.6521 |
+| PSM | AUPRC-w ↑ | 5 | 0.6386 | 0.6367 | 0.6426 | 0.6407 | 0.6334 | 0.6438 | 0.6392 | 0.6521 |
+| PSM | AUROC-p ↑ | 2 | 0.7691 | 0.7925 | 0.8027 | 0.7838 | 0.7899 | 0.7964 | 0.8064 | 0.7973 |
+| PSM | AUROC-p ↑ | 3 | 0.7707 | 0.7856 | 0.7967 | 0.7838 | 0.7899 | 0.7964 | 0.8032 | 0.7973 |
+| PSM | AUROC-p ↑ | 5 | 0.7714 | 0.7779 | 0.7943 | 0.7838 | 0.7899 | 0.7964 | 0.7975 | 0.7973 |
+| PSM | AUPRC-p ↑ | 2 | 0.5565 | 0.5579 | 0.5695 | 0.5616 | 0.5516 | 0.5631 | 0.5693 | 0.5645 |
+| PSM | AUPRC-p ↑ | 3 | 0.5555 | 0.5537 | 0.5650 | 0.5616 | 0.5516 | 0.5631 | 0.5662 | 0.5645 |
+| PSM | AUPRC-p ↑ | 5 | 0.5627 | 0.5561 | 0.5622 | 0.5616 | 0.5516 | 0.5631 | 0.5578 | 0.5645 |
+| SWaT | AUROC-w ↑ | 2 | 0.7998 | 0.8005 | 0.8027 | 0.8016 | 0.8023 | 0.8023 | 0.8044 | 0.8078 |
+| SWaT | AUROC-w ↑ | 3 | 0.7992 | 0.7997 | 0.8037 | 0.8016 | 0.8023 | 0.8023 | 0.8037 | 0.8078 |
+| SWaT | AUROC-w ↑ | 5 | 0.7990 | 0.7994 | 0.8034 | 0.8016 | 0.8023 | 0.8023 | 0.8049 | 0.8078 |
+| SWaT | AUPRC-w ↑ | 2 | 0.7021 | 0.7021 | 0.7020 | 0.7025 | 0.7022 | 0.7019 | 0.7026 | 0.7022 |
+| SWaT | AUPRC-w ↑ | 3 | 0.7017 | 0.7019 | 0.7028 | 0.7025 | 0.7022 | 0.7019 | 0.7028 | 0.7022 |
+| SWaT | AUPRC-w ↑ | 5 | 0.7021 | 0.7019 | 0.7025 | 0.7025 | 0.7022 | 0.7019 | 0.7033 | 0.7022 |
+| SWaT | AUROC-p ↑ | 2 | 0.8152 | 0.8159 | 0.8178 | 0.8168 | 0.8174 | 0.8174 | 0.8193 | 0.8224 |
+| SWaT | AUROC-p ↑ | 3 | 0.8146 | 0.8151 | 0.8187 | 0.8168 | 0.8174 | 0.8174 | 0.8186 | 0.8224 |
+| SWaT | AUROC-p ↑ | 5 | 0.8144 | 0.8148 | 0.8185 | 0.8168 | 0.8174 | 0.8174 | 0.8195 | 0.8224 |
+| SWaT | AUPRC-p ↑ | 2 | 0.7049 | 0.7042 | 0.7043 | 0.7042 | 0.7035 | 0.7021 | 0.7052 | 0.7028 |
+| SWaT | AUPRC-p ↑ | 3 | 0.7040 | 0.7035 | 0.7058 | 0.7042 | 0.7035 | 0.7021 | 0.7054 | 0.7028 |
+| SWaT | AUPRC-p ↑ | 5 | 0.7041 | 0.7035 | 0.7053 | 0.7042 | 0.7035 | 0.7021 | 0.7058 | 0.7028 |
+| ETTm2 | MSE ↓ | 2 | 0.5727 | 0.1412 | 0.0952 | 0.1589 | 0.1459 | 0.1092 | 0.1240 | 0.0750 |
+| ETTm2 | MSE ↓ | 3 | 0.5788 | 0.1531 | 0.0920 | 0.1589 | 0.1459 | 0.1092 | 0.1121 | 0.0750 |
+| ETTm2 | MSE ↓ | 5 | 0.5695 | 0.2018 | 0.1839 | 0.1589 | 0.1459 | 0.1092 | 0.1385 | 0.0750 |
+| ETTm2 | MAE ↓ | 2 | 0.5537 | 0.2727 | 0.2294 | 0.3179 | 0.2974 | 0.2553 | 0.2709 | 0.1940 |
+| ETTm2 | MAE ↓ | 3 | 0.5575 | 0.2826 | 0.2265 | 0.3179 | 0.2974 | 0.2553 | 0.2586 | 0.1940 |
+| ETTm2 | MAE ↓ | 5 | 0.5572 | 0.3323 | 0.3311 | 0.3179 | 0.2974 | 0.2553 | 0.2967 | 0.1940 |
+| ETTh2 | MSE ↓ | 2 | 0.7885 | 0.4032 | 0.2332 | 0.4475 | 0.3644 | 0.2952 | 0.2612 | 0.1362 |
+| ETTh2 | MSE ↓ | 3 | 0.9122 | 0.2970 | 0.1970 | 0.4475 | 0.3644 | 0.2952 | 0.2153 | 0.1362 |
+| ETTh2 | MSE ↓ | 5 | 0.8628 | 0.3323 | 0.2495 | 0.4475 | 0.3644 | 0.2952 | 0.2669 | 0.1362 |
+| ETTh2 | MAE ↓ | 2 | 0.6457 | 0.4707 | 0.3781 | 0.5332 | 0.4924 | 0.4276 | 0.3947 | 0.2690 |
+| ETTh2 | MAE ↓ | 3 | 0.7085 | 0.4136 | 0.3377 | 0.5332 | 0.4924 | 0.4276 | 0.3625 | 0.2690 |
+| ETTh2 | MAE ↓ | 5 | 0.6817 | 0.4495 | 0.3946 | 0.5332 | 0.4924 | 0.4276 | 0.3947 | 0.2690 |
+| ETTh1 | MSE ↓ | 2 | 0.7290 | 0.4999 | 0.4078 | 0.4899 | 0.4300 | 0.3913 | 0.4597 | 0.4186 |
+| ETTh1 | MSE ↓ | 3 | 0.7073 | 0.5747 | 0.4140 | 0.4899 | 0.4300 | 0.3913 | 0.6256 | 0.4186 |
+| ETTh1 | MSE ↓ | 5 | 0.7058 | 0.5258 | 0.4410 | 0.4899 | 0.4300 | 0.3913 | 0.4517 | 0.4186 |
+| ETTh1 | MAE ↓ | 2 | 0.6224 | 0.5147 | 0.4504 | 0.5050 | 0.4661 | 0.4402 | 0.4812 | 0.4571 |
+| ETTh1 | MAE ↓ | 3 | 0.6043 | 0.5552 | 0.4596 | 0.5050 | 0.4661 | 0.4402 | 0.5920 | 0.4571 |
+| ETTh1 | MAE ↓ | 5 | 0.5999 | 0.5273 | 0.4820 | 0.5050 | 0.4661 | 0.4402 | 0.4763 | 0.4571 |
+| exchange | MSE ↓ | 2 | 0.7474 | 0.4462 | 0.2199 | 0.5908 | 0.3949 | 0.2053 | 0.2554 | 0.3957 |
+| exchange | MSE ↓ | 3 | 0.7081 | 0.5366 | 0.3586 | 0.5908 | 0.3949 | 0.2053 | 0.3310 | 0.3957 |
+| exchange | MSE ↓ | 5 | 0.7013 | 0.5810 | 0.5311 | 0.5908 | 0.3949 | 0.2053 | 0.3271 | 0.3957 |
+| exchange | MAE ↓ | 2 | 0.6954 | 0.5314 | 0.3944 | 0.6018 | 0.4943 | 0.3917 | 0.4246 | 0.5077 |
+| exchange | MAE ↓ | 3 | 0.6838 | 0.5913 | 0.4674 | 0.6018 | 0.4943 | 0.3917 | 0.4857 | 0.5077 |
+| exchange | MAE ↓ | 5 | 0.6778 | 0.6185 | 0.5465 | 0.6018 | 0.4943 | 0.3917 | 0.4950 | 0.5077 |
+
 
 ### 1.6 Versus sequential fine-tuning — validation block, n = 3
 

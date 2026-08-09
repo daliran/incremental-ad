@@ -39,6 +39,8 @@ this directory alone. If it passes, the numbers in the markdown are still backed
 | `audit/geometry/geometry_by_dataset.csv` | per-dataset ρ, cosine, rank, τ norms | §1.8 |
 | `audit/novelty/<dataset>/` | per-step ρ and new_k | §1.7 |
 | `audit/methods/`, `audit/outcomes.csv` | five-method comparison, ρ-indicator outcomes | §1.26, THEORY §5.4 |
+| `audit/methods_all/` | **every technique on every metric** — all six metrics, per-W windowed | §1.5b |
+| `audit/prefix_ETTh1/`, `audit/prefix_exchange/` | forward transfer, accumulate vs materialise | §1.19, §1.22 |
 | `geometry/` | `geometry_summary.csv` + small per-run geometry | §1.7, §1.8, §1.15, §1.18 |
 | `run_diagnostics/<group>/<run>/merge_diagnostics/` | `transfer_matrix.csv`, `merge_scale_curve.csv` | §1.3, §1.4 |
 | `MANIFEST.csv` | every file with size and SHA-256 | integrity check |

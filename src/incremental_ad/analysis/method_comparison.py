@@ -38,8 +38,9 @@ from pathlib import Path
 
 log = logging.getLogger("method_comparison")
 
-FIELDS = ["dataset", "n", "metric", "floor_pct", "joint", "merge", "sequential",
-          "window_best", "window_W", "oracle_router", "best", "margin_pct", "decisive"]
+FIELDS = ["dataset", "n", "metric", "floor_pct", "base", "specialists", "joint", "merge",
+          "sequential", "window_W1", "window_W2", "window_W3", "window_best", "window_W",
+          "oracle_router", "best", "margin_pct", "decisive"]
 
 HIGHER = ("auroc", "auprc", "f1", "precision", "recall", "accuracy")
 
@@ -61,8 +62,21 @@ def mean_metric(runs_root: Path, experiment: str, block: str, metric: str) -> fl
     return st.mean(values) if values else None
 
 
-def compare(runs_root: Path, spec_row: dict, routing: dict) -> dict | None:
-    metric = spec_row["metric"]
+def _specialists_mean(runs_root: Path, experiment: str, n: int, metric: str) -> float | None:
+    """Mean over the per-shard specialists on the global test set.
+
+    This is the *average* specialist, not the best one — a router would pick per period, so this
+    understates what routing could reach. It is reported anyway because the average is what you
+    get without a router, and on AD no router can be built at all (1.16).
+    """
+    values = [mean_metric(runs_root, experiment, f"finetune_{i}/test", metric) for i in range(n)]
+    values = [v for v in values if v is not None]
+    return st.mean(values) if values else None
+
+
+def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None = None
+            ) -> dict | None:
+    metric = metric or spec_row["metric"]
     n = int(spec_row["n"])
     floor = float(spec_row["floor_pct"])
     better = max if higher_is_better(metric) else min
@@ -72,12 +86,16 @@ def compare(runs_root: Path, spec_row: dict, routing: dict) -> dict | None:
         ("joint", spec_row.get("joint_experiment"), "train/test"),
         ("merge", spec_row.get("merge_experiment"), "merged/test"),
         ("sequential", spec_row.get("seq_experiment"), f"continual_{n - 1}/test"),
+        # The base model is the same frozen theta_0 every method starts from; read it off the
+        # merge run so it is the base those numbers were actually produced against.
+        ("base", spec_row.get("merge_experiment"), "baseline/test"),
     ):
         if not experiment:
             continue
         value = mean_metric(runs_root, experiment, block, metric)
         if value is not None:
             entries[name] = value
+    specialists = _specialists_mean(runs_root, spec_row.get("merge_experiment", ""), n, metric)
 
     # The window axis is independent of n, so report the best W and say which it was.
     windows = {}
@@ -98,17 +116,22 @@ def compare(runs_root: Path, spec_row: dict, routing: dict) -> dict | None:
 
     if len(entries) < 2:
         return None
-    ranked = sorted(entries.items(), key=lambda kv: kv[1], reverse=higher_is_better(metric))
+    # `base` is the starting point every method improves on, not a competitor for "best".
+    ranked = sorted(((k, v) for k, v in entries.items() if k != "base"),
+                    key=lambda kv: kv[1], reverse=higher_is_better(metric))
     top, second = ranked[0], ranked[1]
     margin = 100.0 * abs(top[1] - second[1]) / abs(second[1]) if second[1] else 0.0
     decisive = margin > floor
 
     row = {"dataset": spec_row["dataset"], "n": n, "metric": metric, "floor_pct": floor,
            "window_W": window_w, "oracle_router": router,
+           "specialists": round(specialists, 6) if specialists is not None else "",
            "best": top[0] if decisive else "tie",
            "margin_pct": round(margin, 2), "decisive": decisive}
-    for name in ("joint", "merge", "sequential", "window_best"):
+    for name in ("base", "joint", "merge", "sequential", "window_best"):
         row[name] = round(entries[name], 6) if name in entries else ""
+    for w in (1, 2, 3):
+        row[f"window_W{w}"] = round(windows[w], 6) if w in windows else ""
     return row
 
 
@@ -118,6 +141,11 @@ def main() -> None:
     parser.add_argument("--spec", type=Path, required=True)
     parser.add_argument("--routing_dir", type=Path,
                         help="directory holding routing_summary.csv, for the oracle column")
+    parser.add_argument("--metrics", nargs="+",
+                        help="override the spec's metric; repeat to emit one row per metric "
+                             "(e.g. window_auroc window_auprc point_auroc point_auprc). "
+                             "Secondary metrics were never tabulated, which is why the "
+                             "windowed column read '—' for everything but the primary one.")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -131,7 +159,9 @@ def main() -> None:
     with args.spec.open() as fh:
         spec = list(csv.DictReader(fh))
 
-    rows = [r for r in (compare(args.runs_root, s, routing) for s in spec) if r]
+    metrics = args.metrics or [None]
+    rows = [r for s in spec for m in metrics
+            if (r := compare(args.runs_root, s, routing, m)) is not None]
     if not rows:
         raise SystemExit("nothing comparable — check the spec's experiment names")
 

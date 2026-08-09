@@ -125,6 +125,37 @@ def higher_is_better(metric: str) -> bool:
     return any(k in metric.lower() for k in HIGHER_IS_BETTER)
 
 
+FLOOR_FIELDS = ["dataset", "metric", "experiment", "n_seeds", "mean", "sd", "floor_pct"]
+
+
+def floors_by_metric(run_rows: list[dict], floor_spec: Path | None) -> list[dict]:
+    """The reproducibility floor **per (dataset, metric)**, not per dataset.
+
+    The floor was measured once per dataset on its primary metric and then applied to every
+    metric — the same mistake 1.9 fixed when it replaced a universal 2% assumption with
+    per-dataset values, one level down. Seed variability is not a property of the dataset: on
+    PSM's own floor experiment `window_auroc` moves 0.068% across seeds while `point_auprc`
+    moves 2.465%, a factor of 36. Judging an AUPRC difference against an AUROC-derived floor
+    calls decisive what is inside noise.
+
+    Same definition as before — sample sd / mean of the **baseline-stage test** metric within
+    the one experiment `floor_spec.csv` names — just evaluated once per metric.
+    """
+    if floor_spec is None or not floor_spec.exists():
+        return []
+    with floor_spec.open() as fh:
+        wanted = {row["dataset"]: row["experiment"] for row in csv.DictReader(fh)}
+    out = []
+    for dataset, experiment in wanted.items():
+        for row in run_rows:
+            if (row["experiment"] == experiment and row["block"] == "baseline/test"
+                    and row["sd_pct"] != "" and int(row["n_seeds"]) > 1):
+                out.append({"dataset": dataset, "metric": row["metric"],
+                            "experiment": experiment, "n_seeds": row["n_seeds"],
+                            "mean": row["mean"], "sd": row["sd"], "floor_pct": row["sd_pct"]})
+    return sorted(out, key=lambda r: (r["dataset"], r["metric"]))
+
+
 def load_of_record(spec_path: Path | None) -> dict[tuple, str]:
     """experiment -> role(s), for the experiments the published numbers read.
 
@@ -328,6 +359,10 @@ def main() -> None:
     parser.add_argument("--runs_root", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--metric", action="append", help="restrict to these metrics")
+    parser.add_argument("--floor_spec", type=Path,
+                        default=Path("analysis_specs/floor_spec.csv"),
+                        help="CSV: dataset,experiment — the run each dataset's floor is "
+                             "measured on; a floors.csv is emitted per (dataset, metric)")
     parser.add_argument("--of_record_spec", type=Path,
                         default=Path("analysis_specs/experiment_of_record.csv"),
                         help="CSV: dataset,n,role,experiment — marks which experiment the "
@@ -338,8 +373,10 @@ def main() -> None:
     run_rows, derived_rows = audit(args.runs_root, set(args.metric) if args.metric else None,
                                    load_of_record(args.of_record_spec))
     args.out.mkdir(parents=True, exist_ok=True)
+    floor_rows = floors_by_metric(run_rows, args.floor_spec)
     for name, rows, fields in (("run_metrics.csv", run_rows, RUN_FIELDS),
-                               ("derived.csv", derived_rows, DERIVED_FIELDS)):
+                               ("derived.csv", derived_rows, DERIVED_FIELDS),
+                               ("floors.csv", floor_rows, FLOOR_FIELDS)):
         path = args.out / name
         with path.open("w", newline="") as fh:
             writer = csv.DictWriter(fh, fieldnames=fields)

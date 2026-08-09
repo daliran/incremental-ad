@@ -31,6 +31,7 @@ this directory alone. If it passes, the numbers in the markdown are still backed
 
 | path | what it is | used by |
 |---|---|---|
+| `audit/floors.csv` | reproducibility floor per (dataset, **metric**) — seed variability differs up to 36× between metrics on one dataset | §1.9, decisiveness in §1.5b |
 | `audit/derived.csv` | per-experiment floor, headroom, GRR, retention, committed α | §0.1b, §1.9, §1.11, §1.25 |
 | `audit/run_metrics.csv` | mean/sd per (experiment, **n_segments**, block, metric), including `finetune_i/test`, with an `of_record` column | §1.17, §1.21, §1.23, §1.24 |
 | `audit/scale_forecast/`, `audit/scale_ad/` | α\*, α\*·n, GRR, honest-α cost | §1.11, §1.12, §1.18 |

@@ -785,6 +785,8 @@ is measuring the scale error, not the method.
 > only reported. `specialists` is the **mean** over per-shard models, not the best — a router
 > would pick per period, so this understates routing (§1.16). `base` is the frozen θ₀ every
 > method starts from and does not compete for best-of-row. ↑/↓ marks the direction.
+> **Decisiveness uses the per-(dataset, metric) floor** of §1.9, not the dataset's primary-metric
+> floor — that correction turned 7 of 48 verdicts from decisive into ties, all AD AUPRC cells.
 
 | dataset | metric | n | base | specialists | sequential | W=1 | W=2 | W=3 | merged | joint |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -983,6 +985,49 @@ conservative for the AD datasets, 4× too loose for ETTh1.
 about 4% across the same seeds, because dividing by a run's own base model cancels the
 shared variance. Two rules follow: **report ETTh1 as ratios**, and **treat ETTh1's GRR as
 fragile** since GRR mixes a base model from one run with a `standard` model from another.
+
+#### The floor is per (dataset, **metric**), not per dataset
+
+> **Provenance.** `results_audit.py` → `floors.csv`, same definition as above (sample sd ÷ mean
+> of the baseline-stage test metric within the experiment `floor_spec.csv` names), evaluated
+> once **per metric** instead of once per dataset.
+
+⚠️ **Until 2026-08-08 the primary metric's floor was applied to every metric.** That is the same
+error §1.9 fixed one level up when it replaced the universal 2% assumption — seed variability is
+not a property of the dataset either:
+
+| dataset | measured on | w-auroc | w-auprc | p-auroc | p-auprc | mse | mae |
+|---|---|---|---|---|---|---|---|
+| SWaT | `noisefloor_swat` | 0.087% | 0.123% | 0.085% | 0.662% | — | — |
+| PSM | `noisefloor_psm` | 0.068% | 1.655% | 0.088% | 2.465% | — | — |
+| ETTh1 | `noisefloor_etth` | — | — | — | — | 8.759% | 5.059% |
+| exchange_rate | `n1_exchange` \* | — | — | — | — | 5.734% | 2.958% |
+| ETTh2 | `etth2_gate_base` \* | — | — | — | — | 6.741% | 4.222% |
+| ETTm2 | `ettm2_gate_base` \* | — | — | — | — | 14.107% | 9.721% |
+
+\* **Every dataset has a floor for every metric it reports** — the source experiment differs, not
+the granularity. Three datasets have a run built for the purpose (`noisefloor_*`); the other
+three use a 3-seed baseline run of the same configuration, named in `analysis_specs/floor_spec.csv`.
+A dedicated run for those three would add a *fourth* estimate to a spread that is already 2.3–3.3×
+wide (table above) rather than settle anything, which is why the floor is a rough threshold and
+never a significance test.
+
+**PSM's `point_auprc` moves 36× more across seeds than its `window_auroc`** (2.465% against
+0.068%), and `window_auprc` 24× more. Judging an AUPRC difference against the AUROC-derived
+floor called differences decisive that sit well inside noise.
+
+**Correcting it flipped 7 of 48 verdicts in §1.5b, every one from a decisive call to a tie** —
+nothing became newly decisive, so no claim was strengthened by the fix, only withdrawn. All
+seven are AD AUPRC cells. §1.26 and the forecasting rows are unchanged: MSE and MAE floors
+differ (8.76% vs 5.06% on ETTh1) but no forecasting verdict sat in the gap.
+
+**It also removed an apparent contradiction.** Before the fix, AUROC and AUPRC named different
+winners on several AD cells — merging "beats joint" on `window_auroc` and "far below" on
+`window_auprc` at PSM n=2. With per-metric floors **no AD cell has two metrics naming different
+winners**: every AUPRC verdict is a tie, and the two AUROC variants agree everywhere. The
+reversal was the floor, not the metric. What survives is the weaker and correct statement that
+**AUPRC cannot resolve anything on these two datasets** — its noise is larger than any effect
+present.
 
 ### 1.10 What honest α selection costs — forecasting, n = 3
 

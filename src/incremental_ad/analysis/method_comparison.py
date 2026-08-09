@@ -74,11 +74,17 @@ def _specialists_mean(runs_root: Path, experiment: str, n: int, metric: str) -> 
     return st.mean(values) if values else None
 
 
-def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None = None
-            ) -> dict | None:
+def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None = None,
+            floors: dict | None = None) -> dict | None:
     metric = metric or spec_row["metric"]
     n = int(spec_row["n"])
-    floor = float(spec_row["floor_pct"])
+    # Per (dataset, metric) when a floors.csv is supplied, falling back to the spec's
+    # per-dataset value. Seed variability differs by up to 36x between metrics on the same
+    # dataset (PSM: window_auroc 0.068%, point_auprc 2.465%), so one floor across metrics makes
+    # AUPRC differences look decisive that are well inside noise.
+    alias = {"exchange": "exchange_rate"}
+    floor = (floors or {}).get((alias.get(spec_row["dataset"], spec_row["dataset"]), metric))
+    floor = float(floor) if floor is not None else float(spec_row["floor_pct"])
     better = max if higher_is_better(metric) else min
 
     entries: dict[str, float] = {}
@@ -149,6 +155,10 @@ def main() -> None:
                              "(e.g. window_auroc window_auprc point_auroc point_auprc). "
                              "Secondary metrics were never tabulated, which is why the "
                              "windowed column read '—' for everything but the primary one.")
+    parser.add_argument("--floors", type=Path,
+                        help="floors.csv from results_audit — per (dataset, metric) "
+                             "reproducibility floor. Without it the spec's per-dataset floor is "
+                             "used for every metric, which is too tight on AUPRC.")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -167,8 +177,13 @@ def main() -> None:
         spec = list(csv.DictReader(fh))
 
     metrics = args.metrics or [None]
+    floors: dict[tuple, str] = {}
+    if args.floors and args.floors.is_file():
+        with args.floors.open() as fh:
+            for row in csv.DictReader(fh):
+                floors[(row["dataset"], row["metric"])] = row["floor_pct"]
     rows = [r for s in spec for m in metrics
-            if (r := compare(args.runs_root, s, routing, m)) is not None]
+            if (r := compare(args.runs_root, s, routing, m, floors)) is not None]
     if not rows:
         raise SystemExit("nothing comparable — check the spec's experiment names")
 

@@ -119,7 +119,8 @@ CHECKS = [
 # counted columns wrong silently grabbed the neighbouring value and still "passed". For tables
 # that are a plain grid of numbers, describe the row once and generate a check per cell.
 
-_CELL = r"\*{0,2}[+−-]?[\d.]+%?\*{0,2}"   # a skipped cell may be signed, e.g. "+0.25%"
+_CELL = r"(?:\*{0,2}[+−-]?[\d.]+%?\*{0,2}|—)"   # a skipped cell may be signed ("+0.25%")
+                                              # or an em-dash for "not applicable"
 _CAP = r"\*{0,2}([\d.]+)%?\*{0,2}"
 
 
@@ -431,6 +432,22 @@ for _ds in ("ETTh1", "ETTh2", "ETTm2", "exchange"):
         CHECKS += row_checks("§1.16b", _lbl, {2: (f"{_ds} n={_n} oracle gain", _w)},
                              "oracle_router/oracle_router_summary.csv",
                              "oracle_vs_best_single_pct", 0.06)
+
+
+
+# §1.9's per-(dataset, metric) floor table. The whole point of the table is that these differ,
+# so bind every cell — a single per-dataset check could not detect them collapsing again.
+_FLOOR_M = ["window_auroc", "window_auprc", "point_auroc", "point_auprc",
+            "forecast/mse", "forecast/mae"]
+# Cell 0 is now the source-experiment name, so the metric columns start at 1.
+for _ds, _cols in (("SWaT", (0, 1, 2, 3)), ("PSM", (0, 1, 2, 3)),
+                   ("ETTh1", (4, 5)), ("exchange_rate", (4, 5)),
+                   ("ETTh2", (4, 5)), ("ETTm2", (4, 5))):
+    for _i in _cols:
+        CHECKS += row_checks("§1.9", rf"\| {_ds} \| `[a-z0-9_]+`(?: \\\*)?",
+                             {_i: (f"{_ds} floor {_FLOOR_M[_i]}",
+                                   {"dataset": _ds, "metric": _FLOOR_M[_i]})},
+                             "floors.csv", "floor_pct", 0.001)
 
 
 

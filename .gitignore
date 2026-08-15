@@ -201,3 +201,11 @@ fabric.properties
 
 # unignore project scripts excluded by the VirtualEnv template above
 !scripts/
+
+# HuggingFace caches, if a tool ever resolves HF_HOME relative to the repo again.
+# `drift_screen.py` used to set HF_HOME="" when unset, which put 460 MB of hub/, datasets/,
+# xet/ and .agent_harnesses.json in the repo root — none of it ignored.
+/hub/
+/datasets/
+/xet/
+.agent_harnesses.json

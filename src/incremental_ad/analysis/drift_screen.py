@@ -50,8 +50,8 @@ DEFAULT_CANDIDATES = [
     "electricity", "exchange_rate", "national_illness",
 ]
 
-FIELDS = ["dataset", "rows", "features", "drift", "ks", "n_segments",
-          "baseline_fraction", "test_fraction"]
+FIELDS = ["dataset", "rows", "features", "drift", "ks", "ks_train_test", "drift_train_test",
+          "n_segments", "baseline_fraction", "test_fraction"]
 
 
 def segment_statistics(values: np.ndarray, baseline_fraction: float, n_segments: int,
@@ -87,7 +87,37 @@ def segment_statistics(values: np.ndarray, baseline_fraction: float, n_segments:
     return drift, float(np.mean(stats)) if stats else float("nan")
 
 
-def load_series(name: str, test_fraction: float) -> np.ndarray:
+def train_test_distance(train: np.ndarray, test: np.ndarray,
+                        ks_features: int = 25, ks_sample: int = 3000) -> tuple[float, float]:
+    """(KS, drift) between the training portion and the held-out test portion.
+
+    The within-training drift this file already reports says how much a series moves *while you
+    are learning it*. This says something different and, for choosing a dataset to study a
+    merging technique on, more useful: whether the test period is the **same regime** the model
+    was trained on. A dataset can drift steadily inside training and still end in a test block
+    drawn from the same distribution -- that is the "balanced" case, where a merging result is
+    not confounded by the test set having moved somewhere none of the specialists have seen.
+
+    Both statistics use the z-scoring of the *training* block, so the test block is measured on
+    the scale the model actually saw. `drift` is the mean absolute standardised difference of
+    per-feature means; `ks` is the mean two-sample KS statistic, sub-sampled with a fixed seed.
+    """
+    from scipy.stats import ks_2samp
+
+    mean, std = train.mean(axis=0), train.std(axis=0)
+    std[std == 0] = 1.0
+    a, b = (train - mean) / std, (test - mean) / std
+    drift = float(np.abs(a.mean(axis=0) - b.mean(axis=0)).mean())
+
+    rng = np.random.default_rng(0)
+    columns = range(min(ks_features, a.shape[1]))
+    ia = rng.choice(len(a), min(ks_sample, len(a)), replace=False)
+    ib = rng.choice(len(b), min(ks_sample, len(b)), replace=False)
+    ks = float(np.mean([ks_2samp(a[ia, j], b[ib, j]).statistic for j in columns]))
+    return ks, drift
+
+
+def load_series(name: str, test_fraction: float, with_test: bool = False):
     """The training portion of one HuggingFace series, numeric columns only."""
     import pandas as pd
     from datasets import load_dataset
@@ -96,7 +126,8 @@ def load_series(name: str, test_fraction: float) -> np.ndarray:
     frame = frame.drop(columns=[c for c in frame.columns
                                 if c.lower() in ("date", "timestamp")])
     values = frame.apply(pd.to_numeric, errors="coerce").ffill().bfill().values
-    return values[: len(values) - int(len(values) * test_fraction)]
+    cut = len(values) - int(len(values) * test_fraction)
+    return (values[:cut], values[cut:]) if with_test else values[:cut]
 
 
 def main() -> None:
@@ -110,11 +141,16 @@ def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    os.environ.setdefault("HF_HOME", os.environ.get("HF_HOME", ""))
+    # Never set HF_HOME to "" — an empty value makes huggingface_hub resolve its cache
+    # *relative to the working directory*, which dumped hub/, datasets/, xet/ and
+    # .agent_harnesses.json (460 MB) into the repo root. Leave it alone when unset so the
+    # library falls back to ~/.cache/huggingface.
+    if not os.environ.get("HF_HOME"):
+        os.environ.pop("HF_HOME", None)
     rows = []
     for name in args.datasets:
         try:
-            values = load_series(name, args.test_fraction)
+            values, test_values = load_series(name, args.test_fraction, with_test=True)
         except Exception as exc:  # noqa: BLE001 - a missing dataset must not abort the screen
             log.warning("%-20s unavailable: %s: %s", name, type(exc).__name__, str(exc)[:70])
             continue
@@ -122,13 +158,16 @@ def main() -> None:
             log.warning("%-20s too short (%d rows) — skipped", name, len(values))
             continue
         drift, ks = segment_statistics(values, args.baseline_fraction, args.n_segments)
+        ks_tt, drift_tt = train_test_distance(values, test_values)
         rows.append({"dataset": name, "rows": len(values), "features": values.shape[1],
                      "drift": round(drift, 4), "ks": round(ks, 4),
+                     "ks_train_test": round(ks_tt, 4),
+                     "drift_train_test": round(drift_tt, 4),
                      "n_segments": args.n_segments,
                      "baseline_fraction": args.baseline_fraction,
                      "test_fraction": args.test_fraction})
-        log.info("%-20s rows=%7d  feat=%4d  drift=%.3f  KS=%.3f",
-                 name, len(values), values.shape[1], drift, ks)
+        log.info("%-20s rows=%7d  feat=%4d  drift=%.3f  KS=%.3f | train-vs-test KS=%.3f "
+                 "drift=%.3f", name, len(values), values.shape[1], drift, ks, ks_tt, drift_tt)
 
     if not rows:
         raise SystemExit("no datasets could be screened")

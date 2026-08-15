@@ -85,12 +85,16 @@ class HfSeriesForecastDataset(TimeSeriesDataset, PartitionedDataset):
         normalization: Normalization,
         split_config: SplitConfig,
         test_fraction: float,
+        series_fraction: float = 1.0,
     ) -> None:
         self._window_len = window_len
         self.stride = stride
         self._eval_stride = 1
         self._test_fraction = test_fraction
-        self._train_data, self._test_data = self._prepare_data(normalization, test_fraction)
+        self._series_fraction = series_fraction
+        self._train_data, self._test_data = self._prepare_data(
+            normalization, test_fraction, series_fraction
+        )
         self._forecast_len = forecast_len
         self.split_config = split_config
         self.split_config.validate(len(self._train_data))
@@ -124,6 +128,14 @@ class HfSeriesForecastDataset(TimeSeriesDataset, PartitionedDataset):
             help="Fraction of the series held out (chronologically) as the test set. "
                  "0 = no test set (train + val only).",
         )
+        parser.add_argument(
+            f"--{p}_series_fraction", type=float, default=1.0,
+            help="Truncate the series to this fraction BEFORE the train/test split. "
+                 "Moves the rolling-origin cut without changing the test block's "
+                 "relative size: 1.0 tests on [0.8,1.0] of the series, 0.875 on "
+                 "[0.70,0.875], 0.75 on [0.60,0.75]. Data past the cut is discarded, "
+                 "so no origin ever trains on its own future.",
+        )
 
     @classmethod
     def from_config(cls, cfg: Namespace, prefix: str | None = None) -> Self:
@@ -135,6 +147,7 @@ class HfSeriesForecastDataset(TimeSeriesDataset, PartitionedDataset):
             normalization=getattr(cfg, f"{p}_normalization"),
             split_config=cls._split_config_from_cfg(cfg, prefix),
             test_fraction=getattr(cfg, f"{p}_test_fraction"),
+            series_fraction=getattr(cfg, f"{p}_series_fraction", 1.0),
         )
 
     # ── Dataset interface ──────────────────────────────────────────────────────
@@ -256,7 +269,8 @@ class HfSeriesForecastDataset(TimeSeriesDataset, PartitionedDataset):
         )
 
     def _prepare_data(
-        self, normalization: Normalization, test_fraction: float
+        self, normalization: Normalization, test_fraction: float,
+        series_fraction: float = 1.0,
     ) -> tuple[Tensor, Tensor]:
         """Load the single series and carve a chronological train/test split.
 
@@ -264,10 +278,21 @@ class HfSeriesForecastDataset(TimeSeriesDataset, PartitionedDataset):
         held out as the test set (test_fraction=0 → no test set). The scaler is fit on
         the train portion only, then applied to both, so test normalization uses
         training statistics with no leakage.
+
+        ``series_fraction`` < 1.0 truncates the series **before** the split, which moves the
+        train/test origin without changing the test block's relative size. It is the knob for a
+        rolling-origin evaluation: f=1.0 tests on [0.8, 1.0] of the series, f=0.875 on
+        [0.70, 0.875], f=0.75 on [0.60, 0.75]. Every result in this project rests on a single
+        origin (f=1.0), and one cut gives no error bar for the choice of cut — see EXPERIMENTS.md.
+        Data after the truncation point is discarded, never used for training, so causality holds
+        at every origin.
         """
         train_df = self._load_raw()
         features = self._feature_cols(train_df)
         series = train_df[features].values.astype(np.float32)
+
+        if series_fraction < 1.0:
+            series = series[: int(len(series) * series_fraction)]
 
         n = len(series)
         test_start = n - int(n * test_fraction) if test_fraction > 0 else n

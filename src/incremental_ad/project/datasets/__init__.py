@@ -9,3 +9,4 @@ from .exchange_rate import ExchangeRateForecastDataset
 from .test_classification import TestClassificationDataset
 from .test_forecast import TestForecastDataset
 from .test_imputation import TestImputationDataset
+from incremental_ad.project.datasets.psm_forecast import PsmForecastDataset  # noqa: F401

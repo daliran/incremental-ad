@@ -118,6 +118,24 @@ class Experiment:
         runs_root = Path(os.environ.get("RUNS_ROOT", "runs"))
         run_dir = runs_root / self.experiment_name / run_id
 
+        # `run_id` is the SLURM job id when there is one, which assumes **one run per job** —
+        # the way `slurm_grid_search` submits (one sbatch per trial). Looping several runs
+        # inside a single job breaks that: every run shares the job id, so each overwrites the
+        # last and only the final seed survives, with nothing reported. That destroyed 56 of 84
+        # runs once. Submit one job per run; if a directory is somehow reused anyway, keep both
+        # and say so rather than silently replacing finished results.
+        if run_dir.exists():
+            original = run_dir
+            suffix = 2
+            while run_dir.exists():
+                run_dir = runs_root / self.experiment_name / f"{run_id}_{suffix}"
+                suffix += 1
+            log.warning(
+                "run directory %s already exists — writing to %s instead. Two runs share a "
+                "run_id, which happens when several are launched inside one SLURM job; "
+                "prefer one job per run.", original, run_dir,
+            )
+
         args = _cfg_to_dict(self._cfg) if self._cfg is not None else {}
         commit = git_commit()
 

@@ -1154,3 +1154,60 @@ accumulate win. The headline 7-of-8 claim survived unchanged.)*
 
 **Cost.** No new training — `prefix_merges.csv` already holds every (k, α) pair.
 
+
+### 2.25 Rolling origin ✅ — the winner is not stable under the train/test cut
+
+Every forecasting result sat on one cut (last 20%). Re-run at three origins
+(`--dataset_series_fraction` 0.75 / 0.875 / 1.00, expanding window, no origin trains on its own
+future), 2 datasets × 4 pipelines × 3 seeds = 72 runs. EXPERIMENTS.md §1.27.
+
+**On ETTh1 the window retrain wins only at the published origin**; at both earlier cuts joint
+training wins. On exchange_rate the winner moves to sequential at f=0.875. And exchange_rate's
+MSE spans **0.20 to 2.05** across origins — its published block is by far the easiest of the
+three, so its magnitudes (GRR > 1.0, 43.8% headroom) are properties of that slice, not the
+dataset.
+
+**Nothing published is wrong** — f=1.00 reproduces the published ordering and is the
+deployment-realistic cut. But "a 3-period window beats merging on ETTh1" is a statement about one
+cut, and §1.21/§1.26 now say so.
+
+**What it was NOT.** The motivating worry — that a test block at the end structurally favours
+recency-weighted methods — does not hold: §1.8's per-period distances put the *last* period
+closest to the test block in essentially no dataset. One block is one sample; that is the whole
+problem.
+
+**Next.** Three origins on two datasets is thin. Extending to ETTh2/ETTm2 and to five origins
+would say whether any ranking is stable anywhere, and is pure compute — the machinery exists
+(`scripts/generate_rolling_origin.py`).
+
+### 2.26 Baseline fraction ✅ — 50% was never justified, and is wrong on ETTh1
+
+`dataset_baseline_fraction` fixed at 0.5 everywhere, never varied. Swept to 0.3 and 0.7 on both
+datasets, 3 seeds, merge pipeline. EXPERIMENTS.md §1.28.
+
+**ETTh1 confirms the noise-floor account**: larger base → lower floor (9.42% → 8.76% → **5.31%**),
+better base model and better merge, monotonically. That is the prediction §1.9 makes about the
+floor being a property of a deliberately half-trained model, and it holds.
+
+**exchange_rate refutes the monotone version**: 0.5 is best, 0.7 worse than 0.5 on both floor and
+base MSE. Likely size, not convergence — 6,071 rows means segments of ~600 at 0.7.
+
+**Consequence:** 50% is a free parameter that costs accuracy on ETTh1 (0.7 is better on every
+measure) and happens to be optimal on exchange_rate. Every published number uses it consistently,
+so nothing is invalidated — but it should be justified or swept in the thesis.
+
+### 3.15 One SLURM job per run — the run_id footgun ⬜
+
+`Experiment.run` builds `run_id` from `SLURM_JOB_ID`, which assumes **one run per job** — how
+`slurm_grid_search/submit.py` already works. Looping runs inside one job makes them share the id,
+so each overwrites the last in the same experiment directory. That silently destroyed **56 of 84
+runs** on 2026-08-15; the job reported "0 failures" and was telling the truth, because every
+command *did* succeed.
+
+Two mitigations are in place: `experiment.run` now appends a suffix and logs a warning rather
+than overwriting, and `$WORK/sweeps/submit_per_run.sh` submits one `sbatch` per command. Also
+remember `RUNS_ROOT` — unset, the framework writes `./runs` **inside the repo** (627 MB did land
+there once; `/runs/` is gitignored, so nothing reached git).
+
+**Open:** the warning is a backstop, not a fix. Sweeps should be one job per run by construction.
+

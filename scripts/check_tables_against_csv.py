@@ -469,6 +469,44 @@ for _ds, _n, _met in _D19A:
 
 
 
+# §1.27 rolling origin and §1.28 baseline fraction, both bound to run_metrics.csv. These two
+# sections qualify claims made elsewhere, so a silent drift here would leave the qualification
+# pointing at numbers that no longer say what it claims.
+_ORIGIN_BLOCK = {"merge": "merged/test", "sequential": "continual_2/test",
+                 "joint": "train/test", "window": "finetune_0/test"}
+_ORIGIN_COL = ["merge", "sequential", "joint", "window"]
+_ORIGIN_CELL = r"\*{0,2}[\d.]+\*{0,2} ±[\d.]+"
+_ORIGIN_CAP = r"\*{0,2}([\d.]+)\*{0,2} ±[\d.]+"
+for _ds in ("etth1", "exchange"):
+    for _f, _lbl in (("075", "0.75"), ("0875", "0.875"), ("10", r"1\.00 ←published")):
+        for _i, _role in enumerate(_ORIGIN_COL):
+            CHECKS += row_checks("§1.27", rf"\| {_ds} \| {_lbl}",
+                                 {_i: (f"{_ds} f={_f} {_role}",
+                                       {"experiment": f"origin_{_ds}_{_role}_f{_f}",
+                                        "block": _ORIGIN_BLOCK[_role], "metric": "forecast/mse"})},
+                                 "run_metrics.csv", "mean", 0.0001,
+                                 cell=_ORIGIN_CELL, cap=_ORIGIN_CAP)
+
+_BASEFRAC = {("etth1", "0.3"): "basefrac_etth1_03", ("etth1", "0.5"): "noisefloor_etth",
+             ("etth1", "0.7"): "basefrac_etth1_07", ("exchange", "0.3"): "basefrac_exchange_03",
+             ("exchange", "0.5"): "exch_incremental", ("exchange", "0.7"): "basefrac_exchange_07"}
+for (_ds, _frac), _exp in _BASEFRAC.items():
+    _lbl = rf"\| {_ds} \| {_frac.replace('.', chr(92) + '.')}" + (r" ←published" if _frac == "0.5" else "")
+    CHECKS += row_checks("§1.28", _lbl, {0: (f"{_ds} bf={_frac} base MSE",
+                                             {"experiment": _exp, "block": "baseline/test",
+                                              "metric": "forecast/mse"})},
+                         "run_metrics.csv", "mean", 0.0001)
+    CHECKS += row_checks("§1.28", _lbl, {1: (f"{_ds} bf={_frac} floor",
+                                             {"experiment": _exp, "block": "baseline/test",
+                                              "metric": "forecast/mse"})},
+                         "run_metrics.csv", "sd_pct", 0.01)
+    CHECKS += row_checks("§1.28", _lbl, {2: (f"{_ds} bf={_frac} merged MSE",
+                                             {"experiment": _exp, "block": "merged/test",
+                                              "metric": "forecast/mse"})},
+                         "run_metrics.csv", "mean", 0.0001)
+
+
+
 def section_slice(text: str, section: str) -> str:
     """The document text belonging to `section` (e.g. "§1.11"), else the whole document.
 

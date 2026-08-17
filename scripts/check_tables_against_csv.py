@@ -507,6 +507,99 @@ for (_ds, _frac), _exp in _BASEFRAC.items():
 
 
 
+# §1.29 the α-convention fix and §1.30 the AD-forecasting grid. Both are new conclusions bound to
+# fresh experiments, so they get checked from the day they are written rather than after a later
+# audit finds them stale — which is how §1.7/§1.8/§1.19/§1.22 became unreproducible.
+_SELALPHA_CELL = r"\*{0,2}[\d.]+\*{0,2} ±[\d.]+ ?(?:\(α = [\d.]+\))?"
+for _row, _exp, _idx in ((r"\| ETTh1 n=3", "noisefloor_etth", 0),
+                         (r"\| ETTh1 n=3", "selalpha_etth1_n3", 1),
+                         (r"\| exchange n=3", "exch_incremental", 0),
+                         (r"\| exchange n=3", "selalpha_exchange_n3", 1)):
+    CHECKS += row_checks("§1.29", _row,
+                         {_idx: (f"{_exp} merged MSE",
+                                 {"experiment": _exp, "block": "merged/test",
+                                  "metric": "forecast/mse"})},
+                         "run_metrics.csv", "mean", 0.0001,
+                         cell=_SELALPHA_CELL,
+                         cap=r"\*{0,2}([\d.]+)\*{0,2} ±[\d.]+ ?(?:\(α = [\d.]+\))?")
+
+# §1.30 — PSM/SWaT forecasting. PSM's base/joint block carries both metrics; SWaT's carries MSE
+# only (the MAE column was dropped because every SWaT-forecast cell is inside a 69.75% floor and
+# a second uninformative column adds nothing). The two tables therefore need different checks —
+# writing one loop over both is what produced a check that could never match.
+_PM_CELL = r"\*{0,2}[\d.]+\*{0,2} ±[\d.]+"
+_PM_CAP = r"\*{0,2}([\d.]+)\*{0,2} ±[\d.]+"
+for _i, _met in ((0, "forecast/mse"), (1, "forecast/mae")):
+    CHECKS += row_checks("§1.30/PSM-forecast", r"\| base \(50% of the training capture\)",
+                         {_i: (f"PSM-forecast base {_met}",
+                               {"experiment": "adfc2_psm_merge_n3", "block": "baseline/test",
+                                "metric": _met})},
+                         "run_metrics.csv", "mean", 0.0001, cell=_PM_CELL, cap=_PM_CAP)
+    CHECKS += row_checks("§1.30/PSM-forecast", r"\| joint \(full capture, retrained\)",
+                         {_i: (f"PSM-forecast joint {_met}",
+                               {"experiment": "adfc2_psm_joint", "block": "train/test",
+                                "metric": _met})},
+                         "run_metrics.csv", "mean", 0.0001, cell=_PM_CELL, cap=_PM_CAP)
+
+# SWaT-forecast: one column, and the floor is the finding — check the floor itself, not just
+# the mean, because "69.75%" is the number every SWaT claim in this file rests on.
+CHECKS += row_checks("§1.30/SWaT-forecast", r"\| base", {0: ("SWaT-forecast base MSE",
+                                              {"experiment": "adfc2_swat_merge_n3",
+                                               "block": "baseline/test",
+                                               "metric": "forecast/mse"})},
+                     "run_metrics.csv", "mean", 0.0001, cell=_PM_CELL, cap=_PM_CAP)
+CHECKS += row_checks("§1.30/SWaT-forecast", r"\| \*\*reproducibility floor\*\*",
+                     {0: ("SWaT-forecast floor",
+                          {"experiment": "adfc2_swat_merge_n3", "block": "baseline/test",
+                           "metric": "forecast/mse"})},
+                     "run_metrics.csv", "sd_pct", 0.01,
+                     cell=r"\*{0,2}[\d.]+%\*{0,2}", cap=r"\*{0,2}([\d.]+)%\*{0,2}")
+
+for _n in (2, 3, 5):
+    CHECKS += row_checks("§1.30/PSM-forecast", rf"\| {_n}",
+                         {0: (f"PSM-forecast n={_n} merge MSE",
+                              {"experiment": f"adfc2_psm_merge_n{_n}", "block": "merged/test",
+                               "metric": "forecast/mse"})},
+                         "run_metrics.csv", "mean", 0.0001, cell=_PM_CELL, cap=_PM_CAP)
+
+# The α* block, bound to scale_report rather than to the pipeline's own selection — those are two
+# different computations that happen to agree here, and the table claims the scale_report one.
+# The α table's rows are labelled `n = 2` rather than `2` on purpose: the GRR table in the same
+# sub-section starts its rows with a bare segment count, so a `| 2 |` label binds to whichever
+# table comes first and reads back as a drift.
+for _n in (2, 3, 5):
+    CHECKS += row_checks("§1.30/PSM-forecast", rf"\| n = {_n}",
+                         {0: (f"PSM-forecast n={_n} alpha*",
+                              {"group": f"adfc2_psm_merge_n{_n}_diagnostics"})},
+                         "scale_psm_forecast/scale_summary.csv", "alpha_star", 0.001,
+                         cell=r"[\d.]+", cap=r"([\d.]+)")
+
+
+# The training-fraction sweep — §1.30's analogue of §1.27's rolling origin, and the one table
+# there that argues a direction ("more training data is simply better, unlike moving the cut").
+for _f, _lbl, _exp in ((0.6, r"\| 0\.6", "adfc2_psm_merge_tf06"),
+                       (0.8, r"\| 0\.8", "adfc2_psm_merge_tf08"),
+                       (1.0, r"\| 1\.0", "adfc2_psm_merge_n3")):
+    for _i, _met in ((0, "forecast/mse"), (1, "forecast/mae")):
+        CHECKS += row_checks("§1.30/PSM-forecast", _lbl,
+                             {_i: (f"PSM-forecast train_frac={_f} {_met}",
+                                   {"experiment": _exp, "block": "merged/test",
+                                    "metric": _met})},
+                             "run_metrics.csv", "mean", 0.0001,
+                             cell=r"\*{0,2}[\d.]+\*{0,2} ±[\d.]+",
+                             cap=r"\*{0,2}([\d.]+)\*{0,2} ±[\d.]+")
+
+# Sequential is the comparator for every "merging wins" claim in §1.30, so it is checked too.
+for _n in (2, 3, 5):
+    CHECKS += row_checks("§1.30/PSM-forecast", rf"\| {_n}",
+                         {2: (f"PSM-forecast n={_n} sequential MSE",
+                              {"experiment": f"adfc2_psm_sequential_n{_n}",
+                               "block": f"continual_{_n - 1}/test", "metric": "forecast/mse"})},
+                         "run_metrics.csv", "mean", 0.0001,
+                         cell=r"\*{0,2}[+\-−\d.]+\*{0,2}(?: ±[\d.]+)?",
+                         cap=r"\*{0,2}([\d.]+)\*{0,2} ±[\d.]+")
+
+
 def section_slice(text: str, section: str) -> str:
     """The document text belonging to `section` (e.g. "§1.11"), else the whole document.
 
@@ -514,12 +607,25 @@ def section_slice(text: str, section: str) -> str:
     search binds to the first table in the file rather than the intended one. Falling back to
     the whole document keeps checks whose label is not a section reference working.
     """
+    # "§1.30/PSM" narrows to the `#### PSM…` sub-heading inside §1.30. A section with two tables
+    # of the same shape — §1.30 has one per dataset, both with a `| base |` row and a
+    # `| **reproducibility floor** |` row — otherwise binds every check to whichever table comes
+    # first, which reads as a drift in the second table and is really a mis-scoped check.
+    section, _, sub = section.partition("/")
     number = section.lstrip("§")
     start = re.search(rf"^#{{2,5}} {re.escape(number)}[ \\]", text, re.M)
     if start is None:
         return text
     nxt = re.search(r"^#{1,3} ", text[start.end():], re.M)
-    return text[start.start(): start.end() + nxt.start()] if nxt else text[start.start():]
+    body = text[start.start(): start.end() + nxt.start()] if nxt else text[start.start():]
+    if not sub:
+        return body
+    sub_start = re.search(rf"^#{{4,6}} .*{re.escape(sub)}", body, re.M)
+    if sub_start is None:
+        return body
+    sub_next = re.search(r"^#{1,6} ", body[sub_start.end():], re.M)
+    return (body[sub_start.start(): sub_start.end() + sub_next.start()]
+            if sub_next else body[sub_start.start():])
 
 
 # Transfer matrices ------------------------------------------------------------------------
@@ -865,7 +971,11 @@ def main() -> None:
     # Known-blocked: the number exists but no script emits it. Each has a plan entry.
     BLOCKED = {"1.2": "§3.13 block-mean α", "1.10": "§3.13 per-seed GRR",
                "1.6": "§3.13 block-mean α (ρ column is checked)"}
-    unchecked = [s for s in with_tables if f"§{s}" not in checked_sections]
+    # A check named "§1.30/PSM-forecast" covers §1.30: the suffix scopes the *search* to a
+    # sub-heading (section_slice), it does not name a different section. Comparing the full
+    # string left §1.30 reported as unchecked while 23 of its cells were being verified.
+    covered = {c.split("/")[0] for c in checked_sections}
+    unchecked = [s for s in with_tables if f"§{s}" not in covered]
     todo = [s for s in unchecked if s not in OUT_OF_SCOPE and s not in BLOCKED]
     blocked = [s for s in unchecked if s in BLOCKED]
     print(f"UNCHECKED, in scope ({len(todo)}): "

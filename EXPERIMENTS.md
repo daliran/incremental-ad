@@ -838,17 +838,36 @@ is measuring the scale error, not the method.
 | ETTh2 | MAE ↓ | 3 | 0.7085 | 0.4136 | 0.3377 | 0.5332 | 0.4924 | 0.4276 | 0.3625 | 0.2690 |
 | ETTh2 | MAE ↓ | 5 | 0.6817 | 0.4495 | 0.3946 | 0.5332 | 0.4924 | 0.4276 | 0.3947 | 0.2690 |
 | ETTh1 | MSE ↓ | 2 | 0.7290 | 0.4999 | 0.4078 | 0.4899 | 0.4300 | 0.3913 | 0.4597 | 0.4186 |
-| ETTh1 | MSE ↓ | 3 | 0.7073 | 0.5747 | 0.4140 | 0.4899 | 0.4300 | 0.3913 | 0.6256 | 0.4186 |
+| ETTh1 | MSE ↓ | 3 | 0.7589 | 0.5685 | 0.4140 | 0.4899 | 0.4300 | 0.3913 | 0.4964 | 0.4186 |
 | ETTh1 | MSE ↓ | 5 | 0.7058 | 0.5258 | 0.4410 | 0.4899 | 0.4300 | 0.3913 | 0.4517 | 0.4186 |
 | ETTh1 | MAE ↓ | 2 | 0.6224 | 0.5147 | 0.4504 | 0.5050 | 0.4661 | 0.4402 | 0.4812 | 0.4571 |
-| ETTh1 | MAE ↓ | 3 | 0.6043 | 0.5552 | 0.4596 | 0.5050 | 0.4661 | 0.4402 | 0.5920 | 0.4571 |
+| ETTh1 | MAE ↓ | 3 | 0.6250 | 0.5533 | 0.4596 | 0.5050 | 0.4661 | 0.4402 | 0.4949 | 0.4571 |
 | ETTh1 | MAE ↓ | 5 | 0.5999 | 0.5273 | 0.4820 | 0.5050 | 0.4661 | 0.4402 | 0.4763 | 0.4571 |
 | exchange | MSE ↓ | 2 | 0.7474 | 0.4462 | 0.2199 | 0.5908 | 0.3949 | 0.2053 | 0.2554 | 0.3957 |
-| exchange | MSE ↓ | 3 | 0.7081 | 0.5366 | 0.3586 | 0.5908 | 0.3949 | 0.2053 | 0.3310 | 0.3957 |
+| exchange | MSE ↓ | 3 | 0.7109 | 0.5552 | 0.3586 | 0.5908 | 0.3949 | 0.2053 | 0.3626 | 0.3957 |
 | exchange | MSE ↓ | 5 | 0.7013 | 0.5810 | 0.5311 | 0.5908 | 0.3949 | 0.2053 | 0.3271 | 0.3957 |
 | exchange | MAE ↓ | 2 | 0.6954 | 0.5314 | 0.3944 | 0.6018 | 0.4943 | 0.3917 | 0.4246 | 0.5077 |
-| exchange | MAE ↓ | 3 | 0.6838 | 0.5913 | 0.4674 | 0.6018 | 0.4943 | 0.3917 | 0.4857 | 0.5077 |
+| exchange | MAE ↓ | 3 | 0.6782 | 0.6002 | 0.4674 | 0.6018 | 0.4943 | 0.3917 | 0.5022 | 0.5077 |
 | exchange | MAE ↓ | 5 | 0.6778 | 0.6185 | 0.5465 | 0.6018 | 0.4943 | 0.3917 | 0.4950 | 0.5077 |
+| PSM-forecast | MSE ↓ | 2 | 0.5300 | 0.4209 | 0.4425 | 0.4143 | 0.4152 | 0.3609 | 0.3546 | 0.3041 |
+| PSM-forecast | MSE ↓ | 3 | 0.5079 | 0.4396 | 0.3747 | 0.4143 | 0.4152 | 0.3609 | 0.3864 | 0.3041 |
+| PSM-forecast | MSE ↓ | 5 | 0.5283 | 0.4778 | 0.4491 | 0.4143 | 0.4152 | 0.3609 | 0.4080 | 0.3041 |
+| PSM-forecast | MAE ↓ | 2 | 0.4162 | 0.4124 | 0.4354 | 0.3641 | 0.3900 | 0.3699 | 0.3710 | 0.3304 |
+| PSM-forecast | MAE ↓ | 3 | 0.4061 | 0.4114 | 0.3849 | 0.3641 | 0.3900 | 0.3699 | 0.3665 | 0.3304 |
+| PSM-forecast | MAE ↓ | 5 | 0.4177 | 0.4287 | 0.4315 | 0.3641 | 0.3900 | 0.3699 | 0.3743 | 0.3304 |
+| SWaT-forecast ⚠ | MSE ↓ | 2 | 19.4847 | 14.0707 | 3.6895 | 3.3490 | 3.0166 | 3.0818 | 14.1637 | 12.4898 |
+| SWaT-forecast ⚠ | MSE ↓ | 3 | 5.3724 | 4.0643 | 4.1554 | 3.3490 | 3.0166 | 3.0818 | 3.8638 | 12.4898 |
+| SWaT-forecast ⚠ | MSE ↓ | 5 | 6.4470 | 5.0733 | 4.0205 | 3.3490 | 3.0166 | 3.0818 | 5.2412 | 12.4898 |
+| SWaT-forecast ⚠ | MAE ↓ | 2 | 1.8474 | 1.4042 | 0.6362 | 0.6340 | 0.5536 | 0.5951 | 1.3979 | 1.5582 |
+| SWaT-forecast ⚠ | MAE ↓ | 3 | 0.9665 | 0.7528 | 0.7771 | 0.6340 | 0.5536 | 0.5951 | 0.7270 | 1.5582 |
+| SWaT-forecast ⚠ | MAE ↓ | 5 | 1.0459 | 0.8529 | 0.7139 | 0.6340 | 0.5536 | 0.5951 | 0.8765 | 1.5582 |
+
+⚠️ **Every `SWaT-forecast` row is inside its own noise floor and none of them means anything** —
+that dataset's baseline MSE has a 69.7% reproducibility floor, so the whole block is one tie.
+It is printed rather than dropped because the floor *is* the finding (§1.30). ETTh1 n=3 and
+exchange n=3 changed on 2026-08-17 when their merge cell moved to the α-selected convention
+(§1.29); their `base` and `specialists` cells moved with the experiment and both shifts (7.3%
+and 0.4%) are inside those datasets' floors.
 
 
 ### 1.6 Versus sequential fine-tuning — validation block, n = 3
@@ -1464,11 +1483,13 @@ of any such proposal rather than an afterthought.
 > margins are 0.01–0.45% against floors of 0.09% and 0.07%, so this changes the direction but
 > not the substance — the AD comparison remains dominated by α (below).
 >
-> † **ETTh1 n=3 is α-dependent, not a correction.** Its only n=3 run (`noisefloor_etth`) merged
-> at **α = 1.0**, which overshoots; at that scale the merge loses by 51%, not 17%. The published
-> 17% presumably came from a val-selected α that no surviving run carries. Treat this cell as
-> *"merging at α=1 loses badly"*, which is §2.2's finding, rather than as a merge-vs-sequential
-> verdict.
+> † **ETTh1 n=3 was α-dependent; resolved 2026-08-17 (§1.29).** Its only n=3 run
+> (`noisefloor_etth`) merged at a fixed **α = 1.0**, three times the pre-declared 1/n, and at that
+> scale the merge loses by 51% rather than the published 17%. `selalpha_etth1_n3` re-runs it with
+> α selected on validation (0.30 / 0.30 / 0.35) and the merge lands at 0.4964, so the cell becomes
+> **sequential (−19.9%)** — the same direction, a quarter of the magnitude. **The −51.12% in the
+> table above is the fixed-α figure and is left as printed**, because this section's other cells
+> also read each run's committed α; the honest reading of the ETTh1 n=3 cell is −19.9%.
 >
 > **ETTh2 and ETTm2 were missing entirely** — their results lived only in §1.23/§1.24. Added,
 > and they matter: ETTh2 favours sequential at every n, on the dataset with the most headroom.
@@ -2466,7 +2487,7 @@ The comparisons elsewhere are pairwise against different baselines — §1.13 me
 | dataset | n | joint | merge | sequential | window | best | ratio |
 |---|---|---|---|---|---|---|---|
 | ETTh1 | 2 | 0.4186 | 0.4597 | 0.4078 | **0.3913** | **window_best ~** | 1.33 |
-| ETTh1 | 3 | 0.4186 | 0.6256 | 0.4140 | **0.3913** | **window_best ~** | 1.02 |
+| ETTh1 | 3 | 0.4186 | 0.4964 | 0.4140 | **0.3913** | **window_best ~** | 1.02 |
 | ETTh1 | 5 | 0.4186 | 0.4517 | 0.4410 | **0.3913** | **window_best** | 2.10 |
 | ETTh2 | 2 | **0.1362** | 0.2612 | 0.2332 | 0.2952 | **joint** | 3.10 |
 | ETTh2 | 3 | **0.1362** | 0.2153 | 0.1970 | 0.2952 | **joint** | 3.70 |
@@ -2475,22 +2496,37 @@ The comparisons elsewhere are pairwise against different baselines — §1.13 me
 | ETTm2 | 3 | **0.0750** | 0.1121 | 0.0920 | 0.1092 | **joint** | 1.54 |
 | ETTm2 | 5 | **0.0750** | 0.1385 | 0.1839 | 0.1092 | **joint** | 4.05 |
 | exchange | 2 | 0.3957 | 0.2554 | 0.2199 | **0.2053** | **window_best** | 2.16 |
-| exchange | 3 | 0.3957 | 0.3310 | 0.3586 | **0.2053** | **window_best** | 4.70 |
+| exchange | 3 | 0.3957 | 0.3626 | 0.3586 | **0.2053** | **window_best** | 6.33 |
 | exchange | 5 | 0.3957 | 0.3271 | 0.5311 | **0.2053** | **window_best** | 4.27 |
 | SWaT | 2 | **0.8078** | 0.8044 | 0.8027 | 0.8023 | **joint** | 2.19 |
 | SWaT | 3 | **0.8078** | 0.8037 | 0.8037 | 0.8023 | **joint** | 2.26 |
 | SWaT | 5 | **0.8078** | 0.8049 | 0.8034 | 0.8023 | **joint ~** | 1.33 |
-| PSM | 2 | 0.7998 | **0.8041** | 0.8030 | 0.7987 | **tie** | 0.66 |
-| PSM | 3 | 0.7998 | **0.8005** | 0.7969 | 0.7987 | **tie** | 0.27 |
-| PSM | 5 | **0.7998** | 0.7944 | 0.7953 | 0.7987 | **tie** | 0.26 |
+| PSM | 2 | 0.7998 | 0.8041 | 0.8030 | 0.7987 | **tie ~** | 0.66 |
+| PSM | 3 | 0.7998 | 0.8005 | 0.7969 | 0.7987 | **tie ~** | 0.27 |
+| PSM | 5 | 0.7998 | 0.7944 | 0.7953 | 0.7987 | **tie ~** | 0.26 |
+| PSM-forecast | 2 | **0.3041** | 0.3546 | 0.4425 | 0.3609 | **joint** | 1.99 |
+| PSM-forecast | 3 | **0.3041** | 0.3864 | 0.3747 | 0.3609 | **joint** | 3.10 |
+| PSM-forecast | 5 | **0.3041** | 0.4080 | 0.4491 | 0.3609 | **joint** | 3.10 |
+| SWaT-forecast | 2 | 12.4898 | 14.1637 | 3.6895 | 3.0166 | **tie ~** | 0.47 |
+| SWaT-forecast | 3 | 12.4898 | 3.8638 | 4.1554 | 3.0166 | **tie ~** | 0.44 |
+| SWaT-forecast | 5 | 12.4898 | 5.2412 | 4.0205 | 3.0166 | **tie ~** | 0.62 |
 
 ⚠️ **The window-retrain wins are origin-dependent (§1.27).** ETTh1's three `window_best` rows hold
 at the published cut only; at two earlier cuts joint training wins. The ranking below is valid for
 this origin — it is not a property of the dataset.
 
-**Decisive in 15 of 18** under the pairwise rule (§1.9a); 3 of those sit within 1.5× of
+⚠️ **Two merge cells changed on 2026-08-17 and the change is not cosmetic.** ETTh1 n=3 and
+exchange n=3 were the only rows whose merge came from a *fixed* α (1.0 and 0.5) while every
+other row selected α on validation — §1.29. Re-run under the common convention, ETTh1 n=3 moved
+0.6256 → **0.4964** (a 20.7% improvement, decisive) and exchange n=3 0.3310 → **0.3626** (a tie).
+Neither changed which method wins its row, but the ETTh1 n=3 merge column was carrying a
+**20.7% penalty that was a convention artefact, not a property of merging** — and it appeared
+in every table quoting that cell.
+
+**Decisive in 18 of 24** under the pairwise rule (§1.9a); 3 of those sit within 1.5× of
 the threshold and are marked `~`, meaning the verdict is as uncertain as the 3-seed variance
-estimate behind it. Counting winners: **joint** 9, **window_best** 6, tie 3.
+estimate behind it. Counting winners among the decisive rows: **joint** 12, **window_best** 6;
+the remaining 6 are ties.
 
 #### ⚠️ Read this with the retention budget attached, or it misleads
 
@@ -2507,9 +2543,10 @@ allowed the most data. The table's value is in the exceptions and the magnitudes
 - **exchange_rate inverts it completely** — joint is the *worst* of the five (0.3957 against the
   window's 0.2053) because its oldest data actively hurts. This is the one dataset where the
   constrained methods beat the unconstrained one, and it is the small-shard, high-drift case.
-- **Merging never wins a decisive forecasting configuration** — 0 of 12. Its two wins are PSM at
-  0.1% margins, on a dataset whose base is already within 3.4% of joint.
-- **Sequential never wins one either** — 0 of 18. Yet §1.13 has sequential beating merging **8–3**
+- **Merging never wins a decisive forecasting configuration** — now 0 of 18, with the two new
+  datasets added and the α convention repaired. Its two wins are PSM (detection) at 0.1%
+  margins, on a dataset whose base is already within 3.4% of joint.
+- **Sequential never wins one either** — 0 of 24. Yet §1.13 has sequential beating merging **8–3**
   on decisive forecasting configurations. Both statements are true: the two are competing for
   third place behind joint and window, and §1.13 is a comparison *among the also-rans*. That
   context is missing wherever merge-vs-sequential is quoted alone.
@@ -2596,6 +2633,198 @@ made — it holds on one dataset of two.
 every measure recorded here. Nothing else in this file is invalidated — every published number
 uses 0.5 consistently — but the setting is a free parameter that was never justified, and on ETTh1
 it costs accuracy.
+
+### 1.29 One α convention for the whole merge column
+
+> **Provenance.** `run_metrics.csv`, experiments `selalpha_etth1_n3` and `selalpha_exchange_n3`
+> against the published `noisefloor_etth` and `exch_incremental`, three seeds each,
+> `forecast/mse`. Commands generated by `scripts/generate_adfc_grid.py` (Part A) from the
+> published runs' own `config.json` with only the α-selection settings overridden, so nothing
+> else can drift. Decisiveness by the pairwise rule of §1.9a.
+
+**The merge column was produced by two different conventions and the tables never said so.**
+`segsweep_*`, `etth2_merge_*` and `ettm2_merge_*` select α on the merged-validation union over
+11–25 candidate scales. `noisefloor_etth` (ETTh1 n=3) merged at a **fixed α = 1.0** and
+`exch_incremental` (exchange n=3) at a **fixed α = 0.5**. §1.26 and §1.5b put all of them in one
+column. §1.13 had already noticed the ETTh1 case and footnoted it; the fix was never made, so
+every table quoting that cell carried it.
+
+At n = 3 a fixed α = 1.0 is **three times** the pre-declared α ≈ 1/n, which is exactly the
+overshoot regime §1.16 warns about. So the ETTh1 n=3 merge cell was not measuring merging — it
+was measuring what happens when you triple the scale.
+
+| cell | published (fixed α) | re-run (α selected on val) | α selected, per seed | change | verdict |
+|---|---|---|---|---|---|
+| ETTh1 n=3 | 0.6256 ±0.109 (α = 1.0) | **0.4964** ±0.011 | 0.30 / 0.30 / 0.35 | **+20.7%** | decisive |
+| exchange n=3 | 0.3310 ±0.026 (α = 0.5) | 0.3626 ±0.066 | 0.55 / 0.55 / 0.55 | −9.5% | tie |
+
+**ETTh1 n=3 improves by 20.7% and the gap clears the pairwise threshold** (|Δ| = 0.1292 against
+√(sd² + sd²) = 0.1099). The published cell carried a penalty that was an artefact of the
+convention, not a property of merging. **exchange n=3 is a tie** — its fixed 0.5 was already
+close to the selected 0.55, which is why nothing looked wrong there.
+
+Both cells are now produced the same way as every other cell in the column.
+`analysis_specs/method_comparison_spec.csv` and `experiment_of_record.csv` point at the
+`selalpha_*` runs, so §1.26 and §1.5b regenerate under one convention.
+
+**What did *not* change.** Neither row's *winner* moved: window retraining still wins ETTh1 n=3
+and exchange n=3. The correction removes a spurious 20.7% handicap on merging, it does not
+reverse a conclusion. **§1.28 is deliberately left on the old convention** — its 0.3 and 0.7 rows
+were run at fixed α from the same reference, so swapping only the 0.5 row would make that sweep
+internally inconsistent; the sweep compares base fractions to each other, not to §1.26.
+
+⚠️ **The ETTh1 n=3 `base` cell also moved, 0.7073 → 0.7589 (7.3%), and that is not an error.**
+The re-run trains its own baseline; ETTh1's floor is 8.76%, so a 7.3% shift between two runs of
+the same configuration is ordinary (§1.9, §3.2). It is a reminder that on ETTh1 the third digit
+of any single number is not meaningful.
+
+### 1.30 PSM and SWaT as forecasting benchmarks — a real held-out capture, and a failed control
+
+> **Provenance.** `run_metrics.csv`, experiments `adfc2_{psm,swat}_*`, three seeds each,
+> `forecast/mse` and `forecast/mae`; grid generated by `scripts/generate_adfc_grid.py` (Part B).
+> Datasets `PsmForecastDataset` / `SwatForecastDataset`. α selected on validation over 25 scales
+> in every merge cell, so this grid is on the §1.29 convention from the start. Floors from
+> `floors.csv`, decisiveness by the pairwise rule of §1.9a.
+
+**Why run forecasting on the anomaly-detection datasets at all.** §1.27 showed that every
+forecasting conclusion here rests on one cut of one series, and that the winner moves when the
+cut moves. PSM and SWaT are the only datasets in the project that ship a **genuinely separate
+test capture** rather than a chronological cut — so they are the one place where the train/test
+relationship is a property of the data collection rather than of an arbitrary 80% mark.
+
+**Scoring rule (option C).** A test window is scored only when **every** point it spans is
+labelled normal — the input span *and* the forecast horizon, since an anomaly in the horizon
+corrupts the target as badly as one in the input. Forecast error during an incident measures how
+badly a normal-behaviour model predicts an incident, a different question that would swamp the
+metric. Labels decide which windows are scored and nothing else.
+
+| dataset | train capture | test capture | anomalous points | windows scored |
+|---|---|---|---|---|
+| PSM-forecast | 132,481 rows (13 weeks) | 87,841 rows (8 weeks) | 27.8% | 56,239 of 87,722 (64.1%) |
+| SWaT-forecast | 495,000 rows (7 days) | 449,919 rows (4 days) | 12.1% | 390,346 of 449,800 (86.8%) |
+
+#### PSM-forecast is the cleanest forecasting benchmark in the project
+
+| quantity | MSE | MAE |
+|---|---|---|
+| base (50% of the training capture) | 0.5079 ±0.0058 | 0.4061 ±0.0062 |
+| **reproducibility floor** | **1.14%** | **1.52%** |
+| joint (full capture, retrained) | 0.3041 ±0.0150 | 0.3304 ±0.0058 |
+| headroom (base → joint) | 40.1% | 18.6% |
+
+**A 1.14% floor, against 8.76% on ETTh1, 6.74% on ETTh2 and 14.11% on ETTm2.** That is the
+single most useful number here: it is 6–12× tighter than any other forecasting dataset in the
+project, so differences that are permanently invisible elsewhere are resolvable. The cause is
+what §1.9 predicted — PSM's base model trains on 132k rows and converges properly, where ETTh1's
+is deliberately half-trained on a short series.
+
+| n | merge | GRR | sequential | GRR | merge vs base | merge vs seq |
+|---|---|---|---|---|---|---|
+| 2 | **0.3546** ±0.0205 | **+0.75** | 0.4425 ±0.0478 | +0.32 | decisive | decisive |
+| 3 | 0.3864 ±0.0052 | +0.60 | 0.3747 ±0.0126 | +0.65 | decisive | boundary |
+| 5 | 0.4080 ±0.0115 | +0.49 | 0.4491 ±0.0386 | +0.29 | decisive | decisive |
+
+- **Merging recovers 49–75% of the base-to-joint gap, and beats the base decisively at every n.**
+  That is the strongest merge result in the project — on ETTh1/ETTh2/ETTm2 the merge does not
+  beat the base decisively at any n.
+- **GRR falls monotonically with n** (0.75 → 0.60 → 0.49), the same decay §1.11 reports elsewhere,
+  now measured against a floor tight enough for the ordering to be decisive rather than suggestive.
+- **Merging beats sequential fine-tuning at n = 2 and n = 5, and ties at n = 3.** This is the one
+  dataset where that comparison goes merging's way; §1.13's 8–3 for sequential is measured on the
+  high-floor datasets.
+- **Joint still wins every row** (0.3041), by 14–16%. Nothing here overturns §1.26's framing:
+  merging is a method for when retention is forbidden, not an accuracy method.
+
+**α\* ≈ 1/n replicates, on a dataset that was never used to derive it.**
+
+> **Provenance.** `analysis/scale_report.py` over `adfc2_psm_merge_n{2,3,5}_diagnostics`, three
+> seeds each, 31-point grid (0.00–1.50 step 0.05) → `results_archive/audit/scale_psm_forecast/`.
+> α\* is the §0.6 definition: per seed, pool the validation columns by window count, take the
+> argmin, then average the per-seed argmins. `val_base` is **in** the pool (it carries 50.3–51.2%
+> of the weight here) unless the column says otherwise.
+
+| segments | α\* | α\*·n | α\*·n excl. `val_base` | 1/n penalty | honest-α cost |
+|---|---|---|---|---|---|
+| n = 2 | 0.550 | **1.10** | 1.20 | 1.6% | 0.4% |
+| n = 3 | 0.317 | **0.95** | 1.15 | 0.0% | 3.5% |
+| n = 5 | 0.200 | **1.00** | 1.33 | 2.0% | 6.4% |
+
+α\*·n lands in **[0.95, 1.10]** across three segment counts with no tuning — an independent
+replication of §1.18's rule on a dataset outside the population it was fitted on, and tighter
+than the fitted datasets themselves (exchange reaches 1.60, §1.18). The **1/n penalty is 0.0–2.0%**:
+pre-declaring α = 1/n instead of selecting it costs almost nothing here, which is the cleanest
+support the zero-retention claim (EXECUTION_PLAN §3.9) has anywhere.
+
+The **honest-α cost rises with n** (0.4% → 3.5% → 6.4%): selecting α on validation lands further
+from the test-optimal α as the segments get smaller and their validation slices noisier. That is
+the same direction §1.11 reports, measured here against a 1.14% floor.
+
+⚠️ **The grid had to be re-run at 0.05.** The first pass used the project's usual 0.1 grid, and
+the diagnostics pipeline appends each source run's *selected* α to the curve — 0.55 at n=2 and
+0.35 at n=3 — so those seeds carried an off-grid point and `scale_report` dropped them for grid
+mismatch, silently reducing two of three groups to 2 seeds. The 0.05 grid contains every selected
+value, so nothing is appended and all three seeds count. The coarse runs are kept as
+`adfc2_psm_merge_n*_diagnostics_coarse`; their α\* agrees (0.55 / 0.30 / 0.20).
+
+**Routing headroom** (`routing_report`, same groups): merging sits **+12.6% / +14.4% / +40.0%**
+above the per-regime optimum at n = 2/3/5, against the newest specialist's +20.1% / +6.6% /
++91.2%. Merging beats "just use the newest model" at n=2 and n=5 and loses to it at n=3 — the
+same non-monotonicity §1.16 reports elsewhere, and the n=5 headroom is the largest measured in
+the project.
+
+**Training-fraction sweep** — the fixed test capture cannot be moved, so §1.27's rolling origin
+becomes "how much of the training capture does the base see":
+
+| train fraction | merge MSE (n=3) | merge MAE |
+|---|---|---|
+| 0.6 | 1.0239 ±0.0121 | 0.5529 ±0.0041 |
+| 0.8 | 0.5104 ±0.0041 | 0.4479 ±0.0012 |
+| 1.0 | **0.3864** ±0.0052 | **0.3665** ±0.0039 |
+
+Monotone in both metrics, and steep — a 2.6× MSE penalty for using 60% of the capture. Unlike
+§1.27's rolling origin, **the ordering does not move**: with the test set fixed, more training
+data is simply better. That contrast is the point. §1.27's instability is a property of moving
+the *test block*, not of varying the training data.
+
+#### SWaT-forecast fails as a benchmark, and the failure is the result
+
+| quantity | MSE |
+|---|---|
+| base | 5.3724 ±3.7471 |
+| **reproducibility floor** | **69.75%** |
+| joint (full capture) | 12.4898 ±11.1459 |
+
+**A 69.75% floor makes every comparison a tie, and `method_comparison` correctly refuses to name
+a winner in any of the three SWaT-forecast rows.** Worse, **joint training is 2.3× *worse* than
+the base model it is supposed to bound** — the base-to-joint "headroom" is negative, so GRR is
+undefined on this dataset and any GRR-shaped number computed from it is meaningless.
+
+The cause is one divergent seed, visible in every block:
+
+| block | seed 7 | seed 42 | seed 123 |
+|---|---|---|---|
+| base | 3.1697 | 3.2486 | **9.6990** |
+| joint | 10.2379 | 2.6419 | **24.5898** |
+| merge n=2 | 2.8331 | 4.0127 | **35.6454** |
+| merge n=5 | 2.9065 | 3.4911 | **9.3261** |
+
+Seeds 7 and 42 agree to within a few percent everywhere; seed 123 is 3–12× higher. This is
+optimisation divergence at the training stage that every downstream block inherits, not an
+artefact of the merge. Adding seeds would not repair it — it would estimate the divergence rate
+more precisely, which is a different experiment.
+
+⚠️ **SWaT-forecast numbers must not be quoted.** They appear in §1.26 and §1.5b marked as ties
+and flagged, and they are archived, so the measurement is on record and reproducible. But no
+comparison on this dataset resolves anything, and no PSM/SWaT-forecast diagnostic should be
+pooled with the ETT/exchange forecasting results.
+
+**This was the predicted outcome, and it is worth saying that it was predicted.**
+`swat_forecast.py`'s docstring, written before the runs, says to expect SWaT to separate very
+little: its within-series drift is 0.112, the lowest of any dataset here (§0.1b), because it is a
+tightly controlled testbed running a fixed process. The prediction was right about the direction
+and wrong about the mechanism — SWaT does not fail by being *saturated* (all methods equal and
+good), it fails by being *unstable* (one seed in three diverges). A control that fails for an
+unforeseen reason is still a control; it is not evidence for the drift story it was meant to test.
 
 ## 2. Exact configurations
 

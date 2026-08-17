@@ -35,7 +35,9 @@ this directory alone. If it passes, the numbers in the markdown are still backed
 | `audit/derived.csv` | per-experiment floor, headroom, GRR, retention, committed α | §0.1b, §1.9, §1.11, §1.25 |
 | `audit/run_metrics.csv` | mean/sd per (experiment, **n_segments**, block, metric), including `finetune_i/test`, with an `of_record` column | §1.17, §1.21, §1.23, §1.24 |
 | `audit/scale_forecast/`, `audit/scale_ad/` | α\*, α\*·n, GRR, honest-α cost | §1.11, §1.12, §1.18 |
+| `audit/scale_psm_forecast/` | the same, for PSM-forecast — **kept separate because its curve grid is 0.05, not 0.1**, and pooling grids is what §2.23 had to retract | §1.30 |
 | `audit/routing_forecast/`, `audit/routing_ad/` | routing headroom, merge cost, specialisation | §1.16 |
+| `audit/routing_psm_forecast/` | routing headroom on PSM-forecast | §1.30 |
 | `audit/alignment/` | alignment vs α\*·n, within/between correlations | §1.18 |
 | `audit/geometry/geometry_by_dataset.csv` | per-dataset ρ, cosine, rank, τ norms | §1.8 |
 | `audit/novelty/<dataset>/` | per-step ρ and new_k | §1.7 |
@@ -92,5 +94,20 @@ Two things a consumer needs to know, both fixed on 2026-08-08 after a reader hit
 - Four sections cannot be checked from here or anywhere else yet, because no script emits the
   quantity they use: **§1.2 and §1.10** (block-mean α, EXECUTION_PLAN.md §3.13) and **§1.19 and
   §1.22** (prefix-merge α, §3.14). The checker names them on every run.
+**`MANIFEST.csv` covers every file here** — walk the directory, not the last archiver run. It
+listed only the most recently copied files until 2026-08-17, which meant a partial re-archive
+could drop 1,101 of 1,443 entries and still verify clean. When re-archiving, pass the *real*
+geometry output tree to `--geometry_root` (the one with per-run directories), not the two
+summary CSVs that live under `audit/geometry/`.
+
+**Regenerating this directory.** `bash scripts/regenerate_analysis.sh $WORK/audit_full` rebuilds
+every CSV above in one command, then `scripts/archive_results.py` copies the result here. Before
+that script existed the directory was assembled by hand across several sessions, which made the
+archive as a whole unreproducible even though every individual number in it was. The script's
+own regression test is that its output matches this directory byte-for-byte on unchanged runs.
+`geometry_report` reads checkpoints, so it sits behind `WITH_GEOMETRY=1` and is not run on a
+login node; `oracle_router` and `error_concentration` need a GPU and are carried forward rather
+than regenerated. Both cases print that they were carried, so a stale copy is visible.
+
 - `audit/` is copied wholesale rather than by filename, so output from a newly added analysis
   tool lands here automatically.

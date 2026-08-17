@@ -45,6 +45,28 @@ Research codebase for **incremental anomaly detection on multivariate time serie
 - **`ReferenceEvaluator`** protocol (`needs_reference()` / `set_reference(outputs)`) is the generic "calibration pass" hook; the runner's `collect_reference_outputs()` runs `model.score` over an auxiliary dataset. AD percentile-threshold logic lives in `AdTestEvaluator.set_reference`.
 - **`results_archive/` holds the evidence, in the repo.** `$WORK` is scratch and is not backed up, so the ~3.4 MB of CSVs every published number is checked against is archived under `results_archive/` by `scripts/archive_results.py`. The invariant to preserve: `python scripts/check_tables_against_csv.py --audit_dir results_archive/audit --runs_root results_archive/run_diagnostics --strict` must pass **with no `$WORK` mounted** — that is what makes the documents auditable after the scratch space is purged. It is a *snapshot*: re-run the archiver after anything that changes a published number, or the checker will pass against stale evidence, which is worse than not checking. Checkpoints and `wandb/` are excluded (gigabytes, reproducible from `config.json`), which means the bitwise merge-reproduction check cannot be run from the archive.
 - **One SLURM job per run, and always export `RUNS_ROOT`.** `run_id` is `SLURM_JOB_ID` when set, so several runs looped inside one job share a directory and **overwrite each other silently** — that destroyed 56 of 84 runs once while the job reported "0 failures" (every command really did succeed). `experiment.run` now appends a suffix and warns, but that is a backstop: submit one `sbatch` per run, as `slurm_grid_search/submit.py` does. Unset `RUNS_ROOT` writes `./runs` **inside the repo** (gitignored, but 627 MB on the home filesystem).
+- **`MANIFEST.csv` must cover the whole archive, not the last copy.** `archive_results.py` used
+  to hash only the files *that invocation wrote*, so an incremental re-archive shrank the
+  integrity record from 1,443 entries to 373 while 1,101 real files sat on disk unlisted — and
+  the verification still printed "0 problems". Fixed: the manifest is now built by walking
+  `results_archive/`. Related trap: `--geometry_root` must point at the **real** geometry output
+  tree (per-run directories), not at the two summary CSVs carried into the audit dir, or the
+  per-run geometry silently stops being refreshed.
+- **`scripts/regenerate_analysis.sh` rebuilds every audit CSV in one command** — the archive used
+  to be assembled by hand, one subdirectory per session, which made the *whole* thing
+  unreproducible even though each number in it was. Two traps it encodes: AD routing runs on
+  `reconstruction/score_mean`, **not** `window_auroc` (an AD transfer matrix has no detection
+  metric in its per-regime columns — the refusal is intended, §1.16); and `prefix_report` reads
+  `prefix_merges.csv`, written only by the `prefix_etth1`/`prefix_exchange` runs, never by the
+  `*_diagnostics` groups. `geometry_report` loads checkpoints, so it is behind `WITH_GEOMETRY=1`
+  and stays off the login node. Everything else is pure CSV aggregation and reproduces the
+  archived outputs byte-for-byte — that equality is the regression test for the script.
+- **The diagnostics pipeline appends the source run's *selected* α to the merge-scale grid.** With
+  `--pipeline_select_merge_scale_on_val` on, a run that selected 0.55 produces a curve with an
+  extra off-grid point, and `scale_report` then drops that seed for grid mismatch — silently, so
+  a 3-seed group reports as 2 seeds in `n_dropped_grid_mismatch` and nowhere else. Choose a
+  diagnostics grid that already contains every selected α (0.05 steps, not 0.1). This cost a full
+  re-run of the PSM-forecast diagnostics.
 - **Analysis output** goes to `$RUNS_ROOT/analysis/<Dataset>/` (shared across runs, `done.flag`-cached), NOT the per-run dir.
 - **Task-vector code lives in `framework/merging/`** — `task_vectors.py` (`task_vector`, `apply_task_vectors`, `merge_task_arithmetic`) and `geometry.py`. There is no `_task_arithmetic_merge` in the pipeline any more. `merge_task_arithmetic` = `apply_task_vectors(base, [task_vector(...)], scale)`; the split exists because a scale sweep builds τ once and re-applies it. **The merge is bitwise reproducible from checkpoints** — recomputing every `merged/checkpoints/best.pt` under `runs/` from its baseline + finetunes gives `torch.equal` on every tensor, **87/87**. Read the *committed* scale (`merge_scale/selected`, falling back to `pipeline_merge_scale`) or selecting runs will look broken. Use that as the regression test for any change here; it is stronger than any unit test you could write.
 - **Snapshotting a state dict needs `.detach().cpu().clone()`, not `.cpu()`.** `Tensor.cpu()` returns *self* for a tensor already on CPU, so `{k: v.cpu() for k, v in model.state_dict().items()}` aliases the live parameters and every later `load_state_dict` rewrites the snapshot in place. On GPU `.cpu()` copies and the bug is invisible; on a CPU run it silently drives every task vector to zero (all merge scales score identically, merged == baseline) and makes the continual pipeline's L2-SP anchor follow θ_t. Four sites were affected; all fixed.

@@ -116,13 +116,22 @@ def main() -> None:
         raise SystemExit("nothing copied — check --runs_root and --audit_dir")
 
     total = sum(p.stat().st_size for p in written)
+    # The manifest describes the **whole archive**, not just what this invocation copied.
+    # It used to list `written` only, so an incremental re-archive — say, one that regenerates
+    # the audit CSVs but is pointed at a geometry root holding only the two summary files —
+    # silently shrank the integrity record from 1,443 entries to 373 while leaving 1,101 real
+    # files on disk unlisted. An integrity record that quietly stops covering most of the
+    # archive is worse than none, because it still reports "0 problems".
+    everything = sorted(p for p in args.out.rglob("*")
+                        if p.is_file() and p.name != "MANIFEST.csv")
     manifest = args.out / "MANIFEST.csv"
     with manifest.open("w", newline="") as fh:
         writer = csv.writer(fh)
         writer.writerow(["path", "bytes", "sha256"])
-        for path in sorted(written):
+        for path in everything:
             writer.writerow([path.relative_to(args.out).as_posix(), path.stat().st_size,
                              _sha256(path)])
+    carried = len(everything) - len(written)
 
     print(f"archived {len(written)} files, {total / 1e6:.1f} MB -> {args.out}")
     for section in ("audit", "geometry", "run_diagnostics"):
@@ -130,7 +139,13 @@ def main() -> None:
         if files:
             size = sum(p.stat().st_size for p in files)
             print(f"  {section:16s} {len(files):>4d} files  {size / 1e6:>6.2f} MB")
-    print(f"  MANIFEST.csv     {len(written)} entries with SHA-256")
+    print(f"  MANIFEST.csv     {len(everything)} entries with SHA-256 "
+          f"({len(written)} written now, {carried} already present)")
+    if carried:
+        print(f"  ℹ️  {carried} file(s) were left from an earlier archive run and are still "
+              f"listed. That is correct for inputs this invocation did not regenerate "
+              f"(e.g. per-run geometry when --geometry_root holds only the summaries), and "
+              f"WRONG if their source runs changed — re-archive with the full inputs if so.")
     if total / 1e6 > SIZE_WARN_MB:
         print(f"\n⚠️  {total / 1e6:.0f} MB is far above the expected ~4 MB — check the inputs "
               f"before committing this.")

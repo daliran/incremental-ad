@@ -49,6 +49,12 @@ PSM,window_precision,noisefloor_psm,baseline/test,floor,3,0.53851,0.034787,6.46
 PSM,window_precision,noisefloor_psm,merged/test,comparison,3,0.572618,0.016399,2.864
 PSM,window_recall,noisefloor_psm,baseline/test,floor,3,0.785546,0.073912,9.409
 PSM,window_recall,noisefloor_psm,merged/test,comparison,3,0.86755,0.008418,0.97
+PSM-forecast,forecast/mae,adfc2_psm_merge_n3,baseline/test,floor,3,0.406071,0.006177,1.521
+PSM-forecast,forecast/mae,adfc2_psm_merge_n3,merged/test,comparison,3,0.366493,0.00391,1.067
+PSM-forecast,forecast/mse,adfc2_psm_merge_n3,baseline/test,floor,3,0.507899,0.005793,1.141
+PSM-forecast,forecast/mse,adfc2_psm_merge_n3,merged/test,comparison,3,0.386417,0.005193,1.344
+PSM-forecast,forecast/rmse,adfc2_psm_merge_n3,baseline/test,floor,3,0.712662,0.004071,0.571
+PSM-forecast,forecast/rmse,adfc2_psm_merge_n3,merged/test,comparison,3,0.621615,0.004181,0.673
 SWaT,event_f1,noisefloor_swat,baseline/test,floor,3,0.273333,0.092616,33.884
 SWaT,event_f1,noisefloor_swat,merged/test,comparison,3,0.366455,0.004882,1.332
 SWaT,event_fn,noisefloor_swat,baseline/test,floor,3,27.0,0.0,0.0
@@ -87,6 +93,12 @@ SWaT,window_precision,noisefloor_swat,baseline/test,floor,3,0.993083,0.003351,0.
 SWaT,window_precision,noisefloor_swat,merged/test,comparison,3,0.995313,0.000331,0.033
 SWaT,window_recall,noisefloor_swat,baseline/test,floor,3,0.602462,9.6e-05,0.016
 SWaT,window_recall,noisefloor_swat,merged/test,comparison,3,0.602876,0.000138,0.023
+SWaT-forecast,forecast/mae,adfc2_swat_merge_n3,baseline/test,floor,3,0.966513,0.531282,54.969
+SWaT-forecast,forecast/mae,adfc2_swat_merge_n3,merged/test,comparison,3,0.727039,0.264729,36.412
+SWaT-forecast,forecast/mse,adfc2_swat_merge_n3,baseline/test,floor,3,5.372442,3.747094,69.747
+SWaT-forecast,forecast/mse,adfc2_swat_merge_n3,merged/test,comparison,3,3.863846,1.675937,43.375
+SWaT-forecast,forecast/rmse,adfc2_swat_merge_n3,baseline/test,floor,3,2.232362,0.763876,34.218
+SWaT-forecast,forecast/rmse,adfc2_swat_merge_n3,merged/test,comparison,3,1.937254,0.407847,21.053
 exchange_rate,forecast/mae,n1_exchange,baseline/test,floor,3,0.678779,0.020081,2.958
 exchange_rate,forecast/mae,n1_exchange,merged/test,comparison,3,0.521856,0.0196,3.756
 exchange_rate,forecast/mse,n1_exchange,baseline/test,floor,3,0.699907,0.040136,5.734

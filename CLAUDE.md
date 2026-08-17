@@ -113,6 +113,19 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
   claim than the one it was run to support. A negative or awkward result that is *reported as
   found* survives review; one quietly rounded toward the narrative gets caught later and costs
   the credibility of everything near it. When a check disagrees with the story, the check wins.
+- **Pool ranks, not raw means, when the pooled quantity's scale varies across conditions.**
+  exchange_rate's MSE spans 0.20–2.05 across the three rolling origins, so a naive mean over
+  origins is ~entirely a statement about the hardest one — and it named a different winner
+  (sequential) than the two scale-free aggregations (window), by a 0.4% margin against a 5.73%
+  floor. Mean rank is the primary aggregation in §1.27a; ratio-to-joint is reported beside it
+  because it preserves margin as well as order.
+- **An experiment that moves several variables cannot attribute its own result.** §1.27's rolling
+  origin moves training size, test position *and* test size together, and §1.28 shows the
+  training-size term alone is large — so §1.27 could not attribute its instability to the test
+  block, which is what it was run to test. §1.27b isolates the test block by re-grouping an
+  evaluation pass that already exists (`analysis/subblock_report.py`), at zero training cost.
+  Before adding runs to a confounded design, check whether the isolating measurement is already
+  sitting in the finished runs.
 - **A number that reproduces is not thereby correct — check the mapping, not just the value.**
   §1.9's ETTh1 mean/sd were stale for months while its floor percentage stayed right, because
   the stale mean and sd had nearly the same ratio. §1.21's W-columns look correct on ETTh1 under

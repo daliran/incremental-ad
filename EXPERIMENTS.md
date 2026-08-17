@@ -2579,6 +2579,20 @@ a single dataset (§1.8). This asks whether the conclusions survive moving it.
 | exchange | 0.875 | 1.6029 ±0.026 | **1.1485** ±0.013 | 2.0485 ±0.177 | 1.3271 ±0.029 | **sequential** |
 | exchange | 1.00 ←published | 0.3487 ±0.049 | 0.3577 ±0.022 | 0.3940 ±0.036 | **0.2034** ±0.004 | **window** |
 
+> **One dataset here does not have this problem at all.** PSM-forecast ships a *separate test
+> capture* — 13 weeks of training telemetry and 8 different weeks of test telemetry — rather than
+> one recording cut at 80%. There is no cut to move, so its train/test relationship is a property
+> of how the data was collected, not of an arbitrary mark. Combined with a 1.14% reproducibility
+> floor against ETTh1's 8.76%, that is why §1.30 calls it the strongest forecasting benchmark in
+> the project: it is the only one where a difference can be resolved *and* the comparison does
+> not rest on a choice nobody justified.
+
+> **Read this with §1.27b.** Isolating the test block — same training set, same test block,
+> scored in quarters — leaves **14 of 15 configurations consistent**. So what moves the winner
+> below is the *training set*, not where the test block sits. The caveat this section imposes on
+> the rest of the file is therefore "this ranking assumes this much training data", not "this
+> ranking assumes this cut".
+
 ⚠️ **The winner is not stable under the cut.** On ETTh1 the window retrain wins **only at the
 published origin**; at both earlier cuts joint training wins. On exchange_rate the winner moves to
 sequential at f=0.875. The f=1.00 column reproduces the published ordering, so nothing elsewhere
@@ -2597,11 +2611,122 @@ end of the series structurally favours recency-weighted methods — is *not* wha
 dataset. The instability here is that one block is one sample, not that late blocks flatter late
 data.
 
+#### 1.27a Aggregating the three origins — and why the raw mean must not be the headline
+
+> **Provenance.** `run_metrics.csv`, the same `origin_*` experiments as §1.27, `forecast/mse`.
+> Three aggregations of the identical numbers: the naive mean of raw MSE across origins; the
+> mean rank (1 = best at that origin); and the mean of each method's ratio to *joint at its own
+> origin*, which removes the per-origin difficulty scale before averaging.
+
+§1.27 reports the three origins side by side and never combines them, which leaves "does the
+published ordering survive averaging over cuts?" unanswered. It does not, and the way you
+average changes the answer on one of the two datasets.
+
+| dataset | aggregation | merge | sequential | joint | window | winner |
+|---|---|---|---|---|---|---|
+| ETTh1 | naive mean MSE | 0.7617 | 0.4930 | **0.3827** | 0.4463 | **joint** |
+| ETTh1 | mean rank | 4.00 | 2.67 | **1.33** | 2.00 | **joint** |
+| ETTh1 | ratio to joint | 2.051 | 1.320 | **1.000** | 1.188 | **joint** |
+| exchange | naive mean MSE | 1.0944 | **0.9445** | 1.2755 | 0.9485 | *no winner* |
+| exchange | mean rank | 2.67 | 2.00 | 4.00 | **1.33** | **window** |
+| exchange | ratio to joint | 0.877 | 0.809 | 1.000 | **0.705** | **window** |
+
+**On ETTh1 all three agree, and they contradict the published cut.** Averaged over origins,
+joint training wins on every measure — so **"a 3-period window beats merging on ETTh1" does not
+survive averaging over cuts**; it is a statement about f = 1.00, where the window happens to win.
+§1.26 and §1.21 already carry the warning; this quantifies it.
+
+**On exchange_rate the raw mean disagrees with both scale-free measures — and the raw mean is
+the one to discard.** exchange's MSE spans 0.20–2.05 across origins, so a naive mean is dominated
+almost entirely by the hardest cut and is really a statement about f = 0.875. Its apparent
+"winner" is sequential at 0.9445 against window's 0.9485 — a **0.4% margin against a 5.73%
+reproducibility floor**, so the raw mean does not resolve a winner at all rather than picking a
+different one. The two scale-free aggregations both give window, and they are what §1.27 should
+be read through.
+
+**The rule this fixes:** where a quantity's scale varies by an order of magnitude across the
+conditions being pooled, pool the *ranks* or the *normalised* values, never the raw means. The
+mean rank is the primary aggregation here; ratio-to-joint is reported alongside because it
+preserves margin as well as order, and the two agree on both datasets.
+
+⚠️ **This aggregation cannot separate test position from training size.** All three origins move
+the training set as well as the test block, and §1.28 shows the training-size component alone is
+large. §1.27b isolates the test block at zero training cost and is the cleaner test of the same
+worry.
+
+#### 1.27b Isolating the test block — the instability is in the training set, not the cut
+
+> **Provenance.** `analysis/subblock_report.py` over the §1.26 experiments of record, three seeds
+> each, `forecast/mse` → `results_archive/audit/subblocks/subblock_summary.csv`. Each run's
+> **existing** test windows are partitioned into four contiguous, time-ordered spans and the
+> methods ranked within each. **Nothing is retrained** — this is a regrouping of an evaluation
+> pass that already ran. A sub-block counts as *decisive* under §1.9a's pairwise rule: the
+> winner beats the runner-up by more than √(sd² + sd²) over the two models' seed spreads.
+
+§1.27 cannot attribute its own result. `--dataset_series_fraction` moves **three** things at
+once — training size, test position and test size — and §1.28 shows the training-size term alone
+moves ETTh1's merged MSE from 1.19 to 0.49. So "the winner moves when the cut moves" could be a
+statement about the test block or about the training set, and §1.27 cannot tell them apart. This
+holds the training set and the test block fixed and varies only *which quarter of the test block
+you score*, which is the isolated question.
+
+| dataset | n | decisive winner per quarter | verdict |
+|---|---|---|---|
+| ETTh1 | 2 | tie → tie → tie → window | consistent |
+| ETTh1 | 3 | tie → tie → tie → window | consistent |
+| ETTh1 | 5 | tie → window → tie → window | consistent |
+| ETTh2 | 2 | joint → joint → joint → joint | consistent |
+| ETTh2 | 3 | joint → joint → joint → joint | consistent |
+| ETTh2 | 5 | joint → joint → joint → joint | consistent |
+| ETTm2 | 2 | tie → joint → joint → joint | consistent |
+| ETTm2 | 3 | **sequential → joint → joint → joint** | ⚠️ **contradicts** |
+| ETTm2 | 5 | joint → joint → joint → joint | consistent |
+| exchange | 2 | sequential → tie → tie → tie | consistent |
+| exchange | 3 | tie → window → tie → window | consistent |
+| exchange | 5 | window → window → tie → window | consistent |
+| PSM-forecast | 2 | joint → joint → joint → tie | consistent |
+| PSM-forecast | 3 | joint → joint → joint → tie | consistent |
+| PSM-forecast | 5 | joint → joint → joint → tie | consistent |
+
+**14 of 15 configurations are consistent across all four quarters** — no sub-block decisively
+contradicts another. **So §1.27's instability is about moving the *training set*, not the test
+block**, and the caveat attached to every forecasting conclusion in this file narrows
+correspondingly: it is *"this ranking assumes this much training data"*, not *"this ranking
+assumes this cut"*. That is a materially weaker qualification than §1.27 currently implies, and
+it comes from runs that already existed.
+
+⚠️ **The one exception is real, not noise.** On **ETTm2 n = 3** the first quarter favours
+sequential by 0.0049 against a 0.0024 threshold, and the remaining three favour joint — every one
+of the four decisive. A single test block genuinely is not one sample there.
+
+**The more common limit is resolution, not instability.** Count the ties: on ETTh1 at n = 2 and
+n = 3, **three of four quarters cannot resolve any winner at all**, and exchange n = 2 resolves
+one. A quarter-block with three seeds is thin evidence on a dataset with an 8.76% floor, so
+"consistent" on those rows means "never contradicted", not "confirmed four times". Read the tie
+counts as a measure of how much of §1.26's ordering rests on aggregate margins that individual
+parts of the test set do not reproduce.
+
+**PSM-forecast is the cleanest row here too** — joint decisive in three quarters and a tie in the
+fourth, at every n. A 1.14% floor buys resolution that the ETT datasets do not have, which is the
+same reason §1.30 calls it the strongest forecasting benchmark in the project.
+
+⚠️ **SWaT-forecast is deliberately excluded.** 390k test windows × 51 features is roughly three
+hours of scoring against a 69.75% floor that makes every sub-block a guaranteed tie — cost with
+no reachable finding. The exclusion is a choice, recorded here so it is not read as an oversight.
+
+**What this makes unnecessary.** A cleaner rolling origin — fix training at [0, 0.60] and test on
+[0.60, 1.00], varying only the test block — was the natural follow-up, and it is **not worth
+running**: it asks the question this section already answers with no training at all, and the
+answer is that the test block is not where the instability lives. If §1.27 is to be strengthened,
+the variable to sweep is **training size**, which §1.28 already does.
+
 ### 1.28 How much history the base model needs — the 50% choice
 
-> **Provenance.** `run_metrics.csv`, experiments `basefrac_<dataset>_<fraction>` plus the
-> published 0.5 runs (`noisefloor_etth`, `exch_incremental`), three seeds each, merge pipeline
-> at the published origin. `floor` is the §1.9 definition on this experiment's own baseline.
+> **Provenance.** `run_metrics.csv`, experiments `basefrac_<dataset>_<fraction>` plus each
+> dataset's published 0.5 run (`noisefloor_etth`, `exch_incremental`, `ettm2_merge_n3`), three
+> seeds each, merge pipeline at the published origin. `floor` is the §1.9 definition on this
+> experiment's own baseline. ⚠️ The ETTm2 rows select α on validation and the other two are
+> fixed-α — see the note below the table.
 
 `dataset_baseline_fraction` is 0.5 everywhere in this project and had never been varied. It sets
 three things at once — how good the base model is, how large each segment is (at n=3: 23.3% of the
@@ -2617,6 +2742,9 @@ whether the noise floor is a property of the *half-trained base model*.
 | exchange | 0.3 | 1.1586 | 5.52% | 0.6073 |
 | exchange | 0.5 ←published | 0.7081 | 1.51% | 0.3310 |
 | exchange | 0.7 | 0.8733 | 1.78% | 0.4243 |
+| ettm2 | 0.3 | 0.7817 | 7.87% | 0.3014 |
+| ettm2 | 0.5 ←published | 0.5788 | 17.34% | 0.1121 |
+| ettm2 | 0.7 | **0.1019** | 10.37% | **0.0881** |
 
 **On ETTh1 the prediction holds, monotonically.** A larger base gives a lower floor
 (9.42% → 8.76% → **5.31%**), a better base model (0.9572 → **0.5908**) and a better merge
@@ -2629,10 +2757,32 @@ not convergence: exchange_rate has 6,071 rows, so at 0.7 each of the three segme
 600 rows, too thin to fine-tune on. The prediction was made before the runs and is reported as
 made — it holds on one dataset of two.
 
-**Practical reading: 50% was lucky on exchange_rate and poor on ETTh1**, where 0.7 is better on
-every measure recorded here. Nothing else in this file is invalidated — every published number
-uses 0.5 consistently — but the setting is a free parameter that was never justified, and on ETTh1
-it costs accuracy.
+**ETTm2 was added on 2026-08-17 to test the size explanation directly, and it confirms it.**
+If thin segments are what breaks exchange_rate at 0.7, then a dataset with exchange's drift and
+nine times the data should behave like ETTh1 — at base = 0.7 with n = 3 its segments are still
+~5,500 rows against exchange's ~600. It does: **base MSE 0.7817 → 0.5788 → 0.1019 and merged
+0.3014 → 0.1121 → 0.0881, monotone in both, 0.7 best.** So the disagreement between the first
+two datasets is not a disagreement about base fraction; it is **the crossover depending on
+segment size**, and exchange_rate is the one dataset here thin enough to hit it.
+
+⚠️ **The floor does not follow.** ETTm2's floor is non-monotone — 7.87% → 17.34% → 10.37% — so
+the accuracy story carries over from ETTh1 and the *floor* story does not. §1.9's account (the
+floor is high because the base is half-trained) is supported on ETTh1 and unsupported here, on
+the dataset with the most training data. Two of three datasets now show a non-monotone floor;
+treat "a bigger base gives a tighter floor" as an ETTh1 observation, not a rule.
+
+⚠️ **The ETTm2 rows select α on validation; the ETTh1 and exchange rows are fixed-α.** They were
+built from each dataset's own merge experiment of record, and those predate §1.29's consistency
+fix on two of three datasets. Each dataset is internally consistent, which is what this table
+compares — base fractions *within* a dataset — but the merged column must not be read across
+datasets here. §1.26 is the table for that.
+
+**Practical reading: 50% was lucky on exchange_rate and poor on ETTh1 and ETTm2**, where 0.7 is
+better on every accuracy measure recorded here. Nothing else in this file is invalidated — every
+published number uses 0.5 consistently — but the setting is a free parameter that was never
+justified, and on two of three datasets it costs accuracy. **The rule to carry forward is not
+"use 0.7" but "check the segment size":** a larger base is better until the segments get too
+thin to fine-tune, which on this model happens somewhere between 600 and 1,400 rows.
 
 ### 1.29 One α convention for the whole merge column
 
@@ -2686,11 +2836,20 @@ of any single number is not meaningful.
 > in every merge cell, so this grid is on the §1.29 convention from the start. Floors from
 > `floors.csv`, decisiveness by the pairwise rule of §1.9a.
 
+**PSM-forecast is the strongest forecasting benchmark in this project, for two independent
+reasons.** It is the only dataset here whose test set is a **different recording** — 13 weeks of
+training telemetry, 8 separate weeks of test telemetry — rather than one series cut at 80%. So it
+**sidesteps the cut-choice problem of §1.27 entirely**: there is no cut to move, and its
+train/test relationship is a property of how eBay collected the data, not of a mark this project
+chose. And its reproducibility floor is **1.14%** against 8.76% / 6.74% / 14.11% on the ETT
+datasets, so differences that are permanently invisible elsewhere are resolvable here. Every
+other forecasting conclusion in this file carries both caveats; this one carries neither.
+
 **Why run forecasting on the anomaly-detection datasets at all.** §1.27 showed that every
 forecasting conclusion here rests on one cut of one series, and that the winner moves when the
-cut moves. PSM and SWaT are the only datasets in the project that ship a **genuinely separate
-test capture** rather than a chronological cut — so they are the one place where the train/test
-relationship is a property of the data collection rather than of an arbitrary 80% mark.
+cut moves. PSM and SWaT are the only datasets in the project that ship a genuinely separate
+test capture — so they are the one place where the train/test relationship is a property of the
+data collection rather than of an arbitrary 80% mark.
 
 **Scoring rule (option C).** A test window is scored only when **every** point it spans is
 labelled normal — the input span *and* the forecast horizon, since an anomaly in the horizon

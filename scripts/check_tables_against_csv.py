@@ -20,6 +20,8 @@ Run it after any re-audit, and before committing a change to a published number.
 import argparse
 import copy
 import csv
+import math
+import statistics as st
 import re
 import sys
 from pathlib import Path
@@ -600,6 +602,28 @@ for _n in (2, 3, 5):
                          cap=r"\*{0,2}([\d.]+)\*{0,2} ±[\d.]+")
 
 
+# §1.27a's three aggregations and §1.28's new ETTm2 rows. Both sections argue a direction, so
+# both get bound to the CSVs the day they are written.
+for _ds, _lbl in (("etth1", r"\| ETTh1 \| naive mean MSE"), ("exchange", r"\| exchange \| naive mean MSE")):
+    pass  # §1.27a is derived (means of means); its inputs are the §1.27 cells already checked.
+
+for _frac, _exp in (("0.3", "basefrac_ettm2_03"), ("0.5", "ettm2_merge_n3"),
+                    ("0.7", "basefrac_ettm2_07")):
+    _lbl = rf"\| ettm2 \| {_frac.replace('.', chr(92) + '.')}" + (r" ←published" if _frac == "0.5" else "")
+    CHECKS += row_checks("§1.28", _lbl, {0: (f"ettm2 bf={_frac} base MSE",
+                                             {"experiment": _exp, "block": "baseline/test",
+                                              "metric": "forecast/mse"})},
+                         "run_metrics.csv", "mean", 0.0001)
+    CHECKS += row_checks("§1.28", _lbl, {1: (f"ettm2 bf={_frac} floor",
+                                             {"experiment": _exp, "block": "baseline/test",
+                                              "metric": "forecast/mse"})},
+                         "run_metrics.csv", "sd_pct", 0.01)
+    CHECKS += row_checks("§1.28", _lbl, {2: (f"ettm2 bf={_frac} merged MSE",
+                                             {"experiment": _exp, "block": "merged/test",
+                                              "metric": "forecast/mse"})},
+                         "run_metrics.csv", "mean", 0.0001)
+
+
 def section_slice(text: str, section: str) -> str:
     """The document text belonging to `section` (e.g. "§1.11"), else the whole document.
 
@@ -823,6 +847,116 @@ def check_no_floor_fallback(audit_dir: Path) -> int:
     return failures
 
 
+def check_origin_aggregations(text: str, audit_dir: Path) -> int:
+    """Recompute §1.27a's three aggregations from run_metrics.csv. Returns failure count.
+
+    These are the only published cells that are *functions of other published cells* rather than
+    a single CSV lookup, so `row_checks` cannot bind them — and a derived cell is exactly where a
+    stale number survives, because its inputs still verify. All three aggregations are recomputed
+    here from the same origin_* rows §1.27 reads.
+    """
+    section = section_slice(text, "§1.27a")
+    failures = 0
+    print("\nORIGIN AGGREGATIONS (§1.27a) — recomputed from run_metrics.csv:")
+    path = audit_dir / "run_metrics.csv"
+    if not path.exists() or "naive mean MSE" not in section:
+        print("  skipped — no run_metrics.csv or no §1.27a table")
+        return 0
+    with path.open() as fh:
+        rm = {(r["experiment"], r["block"], r["metric"]): float(r["mean"])
+              for r in csv.DictReader(fh)}
+    block = {"merge": "merged/test", "sequential": "continual_2/test",
+             "joint": "train/test", "window": "finetune_0/test"}
+    roles = ("merge", "sequential", "joint", "window")
+    for dataset, label in (("etth1", "ETTh1"), ("exchange", "exchange")):
+        per_origin = {}
+        for suffix in ("075", "0875", "10"):
+            try:
+                per_origin[suffix] = {r: rm[(f"origin_{dataset}_{r}_f{suffix}",
+                                             block[r], "forecast/mse")] for r in roles}
+            except KeyError:
+                per_origin = {}
+                break
+        if not per_origin:
+            print(f"  skipped {label} — origin runs absent")
+            continue
+        naive = {r: st.mean(o[r] for o in per_origin.values()) for r in roles}
+        ranks = {r: [] for r in roles}
+        for o in per_origin.values():
+            for i, r in enumerate(sorted(roles, key=lambda m: o[m])):
+                ranks[r].append(i + 1)
+        rankavg = {r: st.mean(ranks[r]) for r in roles}
+        ratio = {r: st.mean(o[r] / o["joint"] for o in per_origin.values()) for r in roles}
+        for name, values, tol in (("naive mean MSE", naive, 0.0001),
+                                  ("mean rank", rankavg, 0.01),
+                                  ("ratio to joint", ratio, 0.001)):
+            row = re.search(rf"\| {re.escape(label)} \| {re.escape(name)} \|([^\n]*)",
+                            section)
+            if row is None:
+                print(f"  NOT FOUND  {label} {name}")
+                failures += 1
+                continue
+            cells = [c.strip().strip("*") for c in row.group(1).split("|")][:4]
+            for role, cell in zip(roles, cells):
+                got = _to_float(cell)
+                if got is None or abs(got - values[role]) > tol:
+                    print(f"  DRIFT      {label} {name} {role}: document {cell}, "
+                          f"recomputed {values[role]:.4f}")
+                    failures += 1
+        if not failures:
+            print(f"  ok        {label}: all three aggregations reproduce")
+    return failures
+
+
+def check_subblock_verdicts(text: str, audit_dir: Path) -> int:
+    """Recompute §1.27b's per-quarter verdicts from subblock_summary.csv. Returns failures.
+
+    The table is a chain of decisions — rank, then the pairwise decisiveness test — and a first
+    pass got it wrong by skipping the second step, turning a 0.0002 gap into a "winner change"
+    and 1 unstable configuration into 4. Recomputing the whole chain is the only check that
+    would have caught that.
+    """
+    section = section_slice(text, "§1.27b")
+    path = audit_dir / "subblocks" / "subblock_summary.csv"
+    print("\nSUB-BLOCK VERDICTS (§1.27b) — recomputed from subblock_summary.csv:")
+    if not path.exists() or "decisive winner per quarter" not in section:
+        print("  skipped — no subblock_summary.csv or no §1.27b table")
+        return 0
+    with path.open() as fh:
+        rows = list(csv.DictReader(fh))
+    cells: dict = {}
+    for r in rows:
+        cells.setdefault((r["dataset"], r["n_segments"], int(r["subblock"])), {})[r["method"]] = (
+            float(r["mean"]), float(r["sd"]))
+    failures = 0
+    checked = 0
+    for (dataset, n), _ in {(k[0], k[1]): None for k in cells}.items():
+        got = []
+        for b in sorted({k[2] for k in cells if k[0] == dataset and k[1] == n}):
+            compete = {m: v for m, v in cells[(dataset, n, b)].items() if m != "base"}
+            order = sorted(compete, key=lambda m: compete[m][0])
+            best, runner = order[0], order[1]
+            gap = compete[runner][0] - compete[best][0]
+            threshold = math.sqrt(compete[best][1] ** 2 + compete[runner][1] ** 2)
+            got.append(best if gap > threshold else "tie")
+        expected = " → ".join(got)
+        pattern = rf"\| {re.escape(dataset)} \| {n} \| \*{{0,2}}([^|]*?)\*{{0,2}} \|"
+        row = re.search(pattern, section)
+        if row is None:
+            print(f"  NOT FOUND  {dataset} n={n}")
+            failures += 1
+            continue
+        checked += 1
+        documented = row.group(1).strip().strip("*").strip()
+        if documented != expected:
+            print(f"  DRIFT      {dataset} n={n}: document '{documented}', "
+                  f"recomputed '{expected}'")
+            failures += 1
+    if not failures:
+        print(f"  ok        {checked} configurations, every quarter's verdict reproduces")
+    return failures
+
+
 # Cross-section consistency ---------------------------------------------------------------
 
 # §1.11 publishes GRR at the validation-selected alpha and at the oracle alpha; §1.12 publishes
@@ -975,6 +1109,9 @@ def main() -> None:
     # sub-heading (section_slice), it does not name a different section. Comparing the full
     # string left §1.30 reported as unchecked while 23 of its cells were being verified.
     covered = {c.split("/")[0] for c in checked_sections}
+    # Sections verified by a dedicated recompute rather than by row_checks. They are checked,
+    # just not through CHECKS, so the coverage line must not report them as gaps.
+    covered |= {"§1.27a", "§1.27b"}
     unchecked = [s for s in with_tables if f"§{s}" not in covered]
     todo = [s for s in unchecked if s not in OUT_OF_SCOPE and s not in BLOCKED]
     blocked = [s for s in unchecked if s in BLOCKED]
@@ -992,6 +1129,16 @@ def main() -> None:
     curves = check_scale_curves(text, args.runs_root, args.matrix_spec) if args.runs_root else 0
     if curves:
         print(f"  -> {curves} merge-scale-curve failure(s)")
+
+    origins = check_origin_aggregations(text, args.audit_dir)
+    if origins:
+        print(f"  -> {origins} origin-aggregation failure(s)")
+        drift += origins
+
+    subblocks = check_subblock_verdicts(text, args.audit_dir)
+    if subblocks:
+        print(f"  -> {subblocks} sub-block verdict failure(s)")
+        drift += subblocks
 
     fallback = check_no_floor_fallback(args.audit_dir)
     if fallback:

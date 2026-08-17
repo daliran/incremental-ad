@@ -31,6 +31,8 @@ adfcsel_psm_merge,PsmForecastDataset,forecast/mse,3,3,0.506042,0.304124,"('adfc2
 adfcsel_swat_merge,SwatForecastDataset,forecast/mse,3,3,5.372442,12.489844,"('adfc2_swat_joint', 0)",3.863846,69.747,-132.48,0.3167,-0.212,0.1159,3,3.146292,0.9,2.3,3.45
 basefrac_etth1_03,EtthForecastDataset,forecast/mse,3,3,0.957182,0.417322,"('origin_etth1_joint_f10', 0)",1.1935,9.423,56.4,,-0.4377,-0.525,3,0.549278,0.643,2.3,3.45
 basefrac_etth1_07,EtthForecastDataset,forecast/mse,3,3,0.59078,0.417322,"('origin_etth1_joint_f10', 0)",0.493871,5.313,29.36,,0.5587,0.5303,3,0.418415,1.5,2.3,3.45
+basefrac_ettm2_03,Ettm2ForecastDataset,forecast/mse,3,3,0.781733,,,0.301381,7.875,,0.5,,,0,0.184371,0.643,2.3,3.45
+basefrac_ettm2_07,Ettm2ForecastDataset,forecast/mse,3,3,0.101914,,,0.088136,10.374,,0.0833,,,0,0.124756,1.5,2.3,3.45
 basefrac_exchange_03,ExchangeRateForecastDataset,forecast/mse,3,3,1.15861,0.394,"('origin_exchange_joint_f10', 0)",0.607335,5.522,65.99,,0.721,0.7237,3,0.451585,1.071,2.5,3.75
 basefrac_exchange_07,ExchangeRateForecastDataset,forecast/mse,3,3,0.873347,0.394,"('origin_exchange_joint_f10', 0)",0.424314,1.778,54.89,,0.9368,0.9353,3,0.305849,2.5,2.5,3.75
 continual_etth,EtthForecastDataset,forecast/mse,3,3,0.749038,0.41857,"('noisefloor_std_etth', 0)",,4.549,44.12,,,,0,0.414003,0.9,2.3,3.45

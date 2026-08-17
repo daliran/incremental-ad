@@ -1253,6 +1253,83 @@ budgets, §1.19/§1.22's prefix analysis, and §1.16's routing headroom — its 
 that those would produce decisive answers rather than ties. That is pure compute; the machinery
 exists.
 
+### 2.29 Aggregating the rolling origins ✅ — and the raw mean is the wrong statistic
+
+§1.27 reported three origins side by side and never combined them. Three aggregations of the
+same numbers, EXPERIMENTS.md §1.27a:
+
+- **ETTh1: all three agree on joint.** So **"a 3-period window beats merging on ETTh1" does not
+  survive averaging over cuts** — it is a statement about f = 1.00.
+- **exchange: the naive mean disagrees with both scale-free measures, and it is the one to
+  discard.** Its MSE spans 0.20–2.05 across origins, so a raw mean is essentially a statement
+  about the hardest cut. Its "winner" is sequential by **0.4% against a 5.73% floor** — it does
+  not resolve a winner rather than picking a different one. Mean rank and ratio-to-joint both
+  give window.
+
+**Rule:** where the pooled quantity's scale varies by an order of magnitude across conditions,
+pool ranks or normalised values, never raw means. Mean rank is primary; ratio-to-joint reported
+beside it because it preserves margin as well as order.
+
+### 2.30 The test block, isolated from training size ✅ — the instability is in the training set
+
+§1.27's rolling origin moves **three** variables together: training size, test position and test
+size. §1.28 shows the training-size term alone moves ETTh1's merged MSE from 1.19 to 0.49, so
+§1.27 cannot attribute its instability to the test block — which is what it was run to test.
+
+`analysis/subblock_report.py` isolates it at **zero training cost**: partition each run's existing
+test windows into four contiguous time-ordered spans and rank the methods within each. No
+retraining; it is a regrouping of an evaluation pass that already ran. EXPERIMENTS.md §1.27b.
+
+**14 of 15 configurations are consistent across all four quarters.** So §1.27's instability is
+about moving the **training set**, not the test block, and the caveat on every forecasting
+conclusion narrows from "assumes this cut" to "assumes this much training data".
+
+- **One real exception: ETTm2 n = 3** — quarter 1 decisively favours sequential, quarters 2–4
+  decisively favour joint. All four decisive, so a single test block genuinely is not one sample
+  there.
+- **The commoner limit is resolution.** On ETTh1 at n = 2 and n = 3, *three of four quarters
+  resolve no winner at all*. "Consistent" on those rows means "never contradicted", not
+  "confirmed four times" — a quarter-block with three seeds is thin against an 8.76% floor.
+- **PSM-forecast is the cleanest**: joint decisive in three quarters at every n. Its 1.14% floor
+  buys resolution the ETT datasets do not have.
+
+**⚠️ A first pass counted 4 of 15 as unstable — that was my own error, not a result.** It ranked
+by raw mean without checking decisiveness, so exchange's third quarter, where joint and window
+differ by **0.0002**, registered as a "winner change". Applying §1.9a's pairwise rule to the
+sub-blocks cut it to 1 of 15. Any "the ordering changed" claim needs the decisiveness test
+attached, or rank noise reads as a finding.
+
+**Consequence: the clean rolling-origin redesign is NOT worth running.** Fixing training at
+[0, 0.60] and testing on [0.60, 1.00] would vary only the test block — the question §1.27b just
+answered for free, with the answer being that the test block is not where the instability lives.
+To strengthen §1.27, sweep **training size** (§1.28), not test position.
+
+**SWaT-forecast is deliberately excluded.** 390k test windows × 51 features is ~3 h of scoring,
+against a 69.75% floor that makes every sub-block a guaranteed tie. Cost with no possible finding.
+
+**Operational lesson, already fixed:** the first version wrote its CSV once at the end, and the
+run order put ~3 h of uninformative work behind ~20 min of informative work — a wall-clock
+timeout would have destroyed every finished config. It now flushes after each configuration.
+Any analysis whose per-item cost spans two orders of magnitude needs incremental output.
+
+### 2.31 Base fraction on ETTm2 ✅ — the disagreement is segment size, not base fraction
+
+§1.28 had two datasets disagreeing: ETTh1 monotone with 0.7 best, exchange_rate non-monotone with
+0.5 best. Hypothesis: exchange has 6,071 rows, so at base = 0.7 with n = 3 each segment is ~600
+rows — too thin to fine-tune. ETTm2 tests it directly at nine times the data and the same drift.
+
+**Confirmed.** Base MSE 0.7817 → 0.5788 → **0.1019**, merged 0.3014 → 0.1121 → **0.0881**,
+monotone in both, 0.7 best — ETTm2 behaves like ETTh1, and its segments are still ~5,500 rows at
+0.7. "Two datasets disagree" becomes **"the crossover depends on segment size"**, somewhere
+between 600 and 1,400 rows on this model.
+
+⚠️ **The floor does not follow the accuracy.** ETTm2's floor is non-monotone (7.87% → 17.34% →
+10.37%), so §1.9's "a bigger base gives a tighter floor" is supported on ETTh1 and unsupported on
+the dataset with the most data. Downgrade it to an ETTh1 observation.
+
+**Not extending this further** — and not adding rolling-origin datasets either. Two datasets
+already establish that one cut is one sample; a third does not strengthen it.
+
 ### 3.15 One SLURM job per run — the run_id footgun ⬜
 
 `Experiment.run` builds `run_id` from `SLURM_JOB_ID`, which assumes **one run per job** — how

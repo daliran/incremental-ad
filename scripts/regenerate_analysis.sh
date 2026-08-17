@@ -1,7 +1,12 @@
 #!/bin/bash
 # Regenerate every analysis output the documents are checked against, into ONE directory.
 #
-#     bash scripts/regenerate_analysis.sh $WORK/audit_full
+#     srun --account=... --partition=all_usr_prod --time=00:30:00 --mem=16G \
+#          bash scripts/regenerate_analysis.sh $WORK/audit_full
+#
+# Run it under srun, not on the login node. It is only CSV aggregation, but `results_audit`
+# walks every run directory and takes over a minute on a full $RUNS_ROOT — past what a shared
+# login node should be asked to do.
 #     python scripts/check_tables_against_csv.py --audit_dir $WORK/audit_full --runs_root $RUNS_ROOT --strict
 #     python scripts/archive_results.py --runs_root $RUNS_ROOT --audit_dir $WORK/audit_full \
 #         --geometry_root $WORK/audit_full/geometry --out results_archive

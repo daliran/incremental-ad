@@ -1,4 +1,4 @@
 group,n_segments,n_seeds,n_dropped_no_val,n_dropped_grid_mismatch,n_grid_points,val_base_weight_pct,alpha_star,alpha_star_pooled,alpha_star_n,alpha_excl_val_base,alpha_excl_n,alpha_oracle,grr_val,grr_oracle,honest_alpha_cost_pct,alpha_one_over_n,penalty_one_over_n_pct
-adfc2_psm_merge_n2_diagnostics,2,3,0,0,31,50.3,0.55,0.55,1.1,0.6,1.2,0.6,0.7806,0.7835,0.4,0.5,1.6
-adfc2_psm_merge_n3_diagnostics,3,3,0,0,31,50.6,0.3167,0.3,0.95,0.3833,1.15,0.35,0.5831,0.6043,3.5,0.3333,0.0
-adfc2_psm_merge_n5_diagnostics,5,3,0,0,31,51.2,0.2,0.2,1.0,0.2667,1.333,0.25,0.5367,0.5732,6.4,0.2,2.0
+adfc2_psm_merge_n2_diagnostics,2,3,0,0,31,50.3,0.5333,0.55,1.067,0.5833,1.167,0.6,0.7455,0.7477,0.3,0.5,1.4
+adfc2_psm_merge_n3_diagnostics,3,3,0,0,31,50.6,0.3167,0.35,0.95,0.3833,1.15,0.4,0.571,0.6061,5.8,0.3333,0.3
+adfc2_psm_merge_n5_diagnostics,5,3,0,0,31,51.2,0.2,0.2,1.0,0.2667,1.333,0.25,0.5183,0.5438,4.7,0.2,1.4

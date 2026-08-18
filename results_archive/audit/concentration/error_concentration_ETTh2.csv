@@ -1,0 +1,2 @@
+label,dataset,n_seeds,n_windows,metric,mean,sd,floor_pct,top1pct_share,top5pct_share,trimmed1_mean,trimmed1_floor_pct,trimmed5_mean,trimmed5_floor_pct,cross_seed_pearson
+ETTh2,Etth2ForecastDataset,3,3365,forecast/mse,0.841485,0.056725,6.741,0.0264,0.0975,0.82741,6.875,0.799553,7.267,0.9543

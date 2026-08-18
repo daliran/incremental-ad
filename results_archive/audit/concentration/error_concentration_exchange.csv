@@ -1,0 +1,2 @@
+label,dataset,n_seeds,n_windows,metric,mean,sd,floor_pct,top1pct_share,top5pct_share,trimmed1_mean,trimmed1_floor_pct,trimmed5_mean,trimmed5_floor_pct,cross_seed_pearson
+exchange,ExchangeRateForecastDataset,3,1470,forecast/mse,0.699907,0.040136,5.734,0.0226,0.1088,0.690678,5.756,0.656368,5.831,0.999

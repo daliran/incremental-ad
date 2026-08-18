@@ -103,9 +103,21 @@ else
     echo "  skipped (set WITH_GEOMETRY=1 on a compute node to regenerate)"
 fi
 
+echo "== sub-block report (checkpoint reader — GPU node) =="
+# Same gating as geometry: it loads every checkpoint and scores the test set. SWaT-forecast is
+# excluded on purpose — 390k windows x 51 features is ~3 h of scoring against a 69.75% floor that
+# makes every sub-block a guaranteed tie (EXPERIMENTS.md §1.27b).
+if [ "${WITH_GEOMETRY:-0}" = "1" ]; then
+    python -m incremental_ad.analysis.subblock_report --runs_root "$RUNS" \
+        --spec analysis_specs/method_comparison_spec.csv --n_subblocks 4 \
+        --datasets ETTh1 ETTh2 ETTm2 exchange PSM-forecast --out "$OUT/subblocks"
+else
+    echo "  skipped (set WITH_GEOMETRY=1 on a compute node to regenerate)"
+fi
+
 echo "== carrying forward GPU-only outputs (not regenerated here) =="
 for sub in oracle_router concentration novelty_swat selection_probe drift \
-           geometry novelty alignment; do
+           geometry novelty alignment subblocks mask_span; do
     if [ -d "$CARRY/$sub" ] && [ ! -d "$OUT/$sub" ]; then
         cp -r "$CARRY/$sub" "$OUT/$sub"
         echo "  carried $sub from results_archive (regenerate with a GPU job if its runs changed)"

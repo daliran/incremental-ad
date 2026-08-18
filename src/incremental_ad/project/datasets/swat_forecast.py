@@ -105,7 +105,13 @@ class SwatForecastDataset(HfSeriesForecastDataset):
         full = ForecastWindowDataset(
             self._test_data, self._window_len, self._forecast_len, self._eval_stride
         )
-        span = self._window_len + self._forecast_len
+        # `window_len` ALREADY includes the horizon — ForecastWindowDataset sets
+        # context_len = window_len - forecast_len and window i spans [start, start + window_len).
+        # Adding forecast_len again checked forecast_len points *past* the window's own extent,
+        # which discarded clean windows merely because one followed them, and tilted the scored
+        # set toward quieter stretches. Derive the span from the dataset's definition, never
+        # recompute it independently.
+        span = self._window_len
         labels = self._test_labels
         keep = [i for i in range(len(full))
                 if labels[i * self._eval_stride: i * self._eval_stride + span].sum() == 0]

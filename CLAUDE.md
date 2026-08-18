@@ -84,6 +84,16 @@ Research codebase for **incremental anomaly detection on multivariate time serie
   pooled in. PSM is sensitive to it (0.50 vs 0.75 at n = 2). The dataset you reach for first is
   often the one least able to reveal an ambiguity, and a definition that reproduces on it is not
   thereby confirmed. When pinning down a rule, pick the case where competing readings *diverge*.
+- **The checker covers EXPERIMENTS.md only — EXECUTION_PLAN.md numbers go stale silently.**
+  After the 2026-08-18 mask re-run, §1.30 was regenerated and verified while EXECUTION_PLAN §2.28
+  still quoted the pre-correction floor (1.14% vs 1.16%), GRR triple and α\*·n range; every one of
+  the 856 checks passed throughout, because none of them looks at that file. Either re-derive plan
+  summaries from EXPERIMENTS.md when a number moves, or accept that the plan is prose and never
+  quote it as evidence. **Related:** a number can also disagree with *itself* across two sections
+  of the checked file — §1.16b's merge column kept the fixed-α values after §1.29 moved the
+  experiment of record, so ETTh1 n=3 read 0.6256 there and 0.4964 in §1.26 while both tables
+  passed their own per-cell checks. Only a cross-section comparison catches that; there are now
+  two (`check_merge_column_agrees`, `check_reconciliation`), both negative-tested.
 - **Numbers in the markdown are hand-transcribed; the CSVs are generated.** That gap is where
   every documentation error in the August 2026 audit lived. `scripts/check_tables_against_csv.py`
   spot-checks documented values against the generated CSVs (`--self-test` proves each check can
@@ -113,6 +123,19 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
   claim than the one it was run to support. A negative or awkward result that is *reported as
   found* survives review; one quietly rounded toward the narrative gets caught later and costs
   the credibility of everything near it. When a check disagrees with the story, the check wins.
+- **Never recompute a derived span — read it off the structure that defines it.** The AD-forecast
+  anomaly mask used `window_len + forecast_len`, but `ForecastWindowDataset` already defines
+  `context_len = window_len - forecast_len` and window i covers `[start, start + window_len)`, so
+  the mask tested `forecast_len` points past the window's own extent. It over-filtered — clean
+  windows were dropped merely because an anomaly followed them, biasing the scored set toward
+  quieter stretches. Conservative, so nothing published was invalid, and invisible for exactly
+  that reason. **Convention for any new windowing/masking code: assert the derived quantity
+  against the dataset's own definition (`len(ds[i][0])`, `ds.window_len`) in the same commit;
+  do not re-derive it from the constructor arguments.**
+- **The checker verifies documents against CSVs and CSVs against runs — nothing verifies that new
+  data-path code does what its docstring says.** That is the uncovered link, and it is where the
+  mask bug lived for a week of committed, used, written-up runs. New dataset or evaluation code
+  needs a self-check on its own semantics before its first result is quoted.
 - **Pool ranks, not raw means, when the pooled quantity's scale varies across conditions.**
   exchange_rate's MSE spans 0.20–2.05 across the three rolling origins, so a naive mean over
   origins is ~entirely a statement about the hardest one — and it named a different winner

@@ -1,0 +1,5 @@
+dataset,experiment,block,n_seeds,metric,windows_old,windows_new,windows_recovered,pct_more_windows,mean_old_span,mean_new_span,pct_change
+psm,adfc2_psm_merge_n3_oldmask,merged,3,forecast/mse,56239,57319,1080,1.92,0.386417,0.38664,0.058
+psm,adfc2_psm_merge_n3_oldmask,merged,3,forecast/mae,56239,57319,1080,1.92,0.366493,0.366669,0.048
+swat,adfc2_swat_merge_n3_oldmask,merged,3,forecast/mse,390346,391138,792,0.203,3.863846,3.866059,0.057
+swat,adfc2_swat_merge_n3_oldmask,merged,3,forecast/mae,390346,391138,792,0.203,0.727039,0.727216,0.024

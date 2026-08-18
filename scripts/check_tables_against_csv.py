@@ -624,6 +624,44 @@ for _frac, _exp in (("0.3", "basefrac_ettm2_03"), ("0.5", "ettm2_merge_n3"),
                          "run_metrics.csv", "mean", 0.0001)
 
 
+# §1.9b — the two refuted explanations for the forecasting floor. Each row is checked on all of
+# concentration share, trimmed floor and cross-seed correlation, because the *argument* is that
+# the first two are small and the third is large; checking only one cell per row would let the
+# claim drift away from its own evidence.
+_CONC = ("ETTh1", "ETTh2", "ETTm2", "exchange")
+_C9 = r"[\d.]+%?"
+_P9 = r"([\d.]+)%?"
+for _ds in _CONC:
+    _rel = f"concentration/error_concentration_{_ds}.csv"
+    for _i, (_col, _tol, _cell, _cap) in enumerate((
+            ("floor_pct", 0.01, _C9, _P9),
+            ("top1pct_share_pct100", 0.01, _C9, _P9),
+            ("top5pct_share_pct100", 0.01, _C9, _P9),
+            ("trimmed1_floor_pct", 0.01, _C9, _P9),
+            ("trimmed5_floor_pct", 0.01, _C9, _P9),
+            ("cross_seed_pearson", 0.001, _C9, _P9))):
+        # shares are stored as fractions and published as percentages
+        CHECKS += row_checks("§1.9b", rf"\| {_ds}",
+                             {_i: (f"{_ds} {_col}", {"label": _ds})},
+                             _rel, _col, _tol, cell=_cell, cap=_cap)
+
+
+def csv_value(row: dict, column: str) -> float | None:
+    """One CSV cell, with a documented unit conversion applied.
+
+    A column named `foo_pct100` reads `foo` and multiplies by 100. `error_concentration.py`
+    stores its shares as fractions (0.0274) while §1.9b publishes percentages (2.7%), and the
+    alternative — duplicating the same quantity in two units inside the CSV — is how a generated
+    file starts disagreeing with itself. The suffix keeps the conversion in one place and visible
+    at the call site.
+    """
+    if column.endswith("_pct100"):
+        raw = row.get(column[: -len("_pct100")], "")
+        return float(raw) * 100 if raw != "" else None
+    raw = row.get(column, "")
+    return float(raw) if raw != "" else None
+
+
 def section_slice(text: str, section: str) -> str:
     """The document text belonging to `section` (e.g. "§1.11"), else the whole document.
 
@@ -957,6 +995,48 @@ def check_subblock_verdicts(text: str, audit_dir: Path) -> int:
     return failures
 
 
+def check_merge_column_agrees(text: str) -> int:
+    """§1.16b's merge column must equal §1.26's. Returns failure count.
+
+    Both tables quote "the merged model's test MSE" for the same (dataset, n), from the same
+    experiment of record — so they are the same number written twice. They drifted apart when
+    §1.29 moved two experiments of record: §1.26 regenerated, §1.16b did not, and ETTh1 n=3 read
+    0.4964 in one table and 0.6256 in the other. Every per-cell check passed throughout, because
+    each table was individually consistent with a CSV; only the *cross-section* comparison could
+    catch it. Same shape as the §1.11/§1.12 reconciliation below, and added for the same reason.
+    """
+    print("\nMERGE COLUMN — §1.16b must agree with §1.26 cell for cell:")
+    row = re.compile(r"\| ([A-Za-z0-9_-]+) \| (\d) \|((?:[^|\n]*\|){4})([^|\n]*)\|")
+
+    def merge_cells(section: str, index: int) -> dict:
+        out = {}
+        for line in section.splitlines():
+            parts = [c.strip() for c in line.split("|")]
+            if len(parts) < 8 or not parts[2].isdigit():
+                continue
+            value = _to_float(parts[index].strip("*").strip())
+            if value is not None:
+                out[(parts[1], parts[2])] = value
+        return out
+
+    # §1.16b: dataset | n | oracle | best single | gain | merge | ...   -> merge is field 6
+    # §1.26 : dataset | n | joint | merge | ...                        -> merge is field 4
+    a = merge_cells(section_slice(text, "§1.16b"), 6)
+    b = merge_cells(section_slice(text, "§1.26"), 4)
+    shared = sorted(set(a) & set(b))
+    if not shared:
+        print("  skipped — could not locate both tables")
+        return 0
+    failures = 0
+    for key in shared:
+        if abs(a[key] - b[key]) > 0.0001:
+            print(f"  DISAGREE   {key[0]} n={key[1]}: §1.16b {a[key]:.4f} vs §1.26 {b[key]:.4f}")
+            failures += 1
+    if not failures:
+        print(f"  ok        {len(shared)} shared cells agree")
+    return failures
+
+
 # Cross-section consistency ---------------------------------------------------------------
 
 # §1.11 publishes GRR at the validation-selected alpha and at the oracle alpha; §1.12 publishes
@@ -1067,7 +1147,7 @@ def main() -> None:
         # Average when the filter matches several rows. Per-run CSVs (geometry_summary) carry
         # one row per seed while the document quotes the seed mean, and taking hits[0] compared
         # a single seed against a 3-seed average — which reads as drift in a correct document.
-        values = [float(r[column]) for r in hits if r.get(column, "") != ""]
+        values = [v for r in hits if (v := csv_value(r, column)) is not None]
         if not values:
             print(f"  EMPTY      {label}: {rel}:{column} is blank in {len(hits)} matching row(s)")
             missing += 1
@@ -1144,6 +1224,11 @@ def main() -> None:
     if fallback:
         print(f"  -> {fallback} table(s) contain cells on the superseded floor rule")
 
+    merge_cols = check_merge_column_agrees(text)
+    if merge_cols:
+        print(f"  -> {merge_cols} cell(s) where §1.16b and §1.26 disagree about the same merge")
+        drift += merge_cols
+
     recon = check_reconciliation(text)
     if recon:
         print(f"  -> {recon} reconciliation failure(s): §1.11 and §1.12 disagree")
@@ -1159,7 +1244,7 @@ def main() -> None:
             if not hits or match is None:
                 print(f"  SKIP  {label}: not resolvable"); failures += 1; continue
             # Perturb far beyond tolerance and confirm the comparison would reject it.
-            corrupted = float(hits[0][column]) + 10 * max(tol, 1.0)
+            corrupted = csv_value(hits[0], column) + 10 * max(tol, 1.0)
             if abs(corrupted - _to_float(match.group(1))) > tol:
                 print(f"  ok    {label}: corruption detected")
             else:

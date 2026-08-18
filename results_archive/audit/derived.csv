@@ -1,34 +1,56 @@
 experiment,dataset,metric,n_segments,n_seeds,base,joint,joint_from,merged,floor_pct,headroom_pct,merge_scale_selected,grr,grr_paired,n_paired,best_specialist,retention_merge_alpha_selected_periods,retention_window_W2_periods,retention_window_W3_periods
-adfc2_psm_merge_n2,PsmForecastDataset,forecast/mse,2,3,0.52996,0.304124,"('adfc2_psm_joint', 0)",0.354614,3.972,42.61,0.55,0.7764,0.77,3,0.370227,0.6,2.3,3.45
-adfc2_psm_merge_n3,PsmForecastDataset,forecast/mse,3,3,0.507899,0.304124,"('adfc2_psm_joint', 0)",0.386417,1.141,40.12,0.3167,0.5962,0.597,3,0.423753,0.9,2.3,3.45
-adfc2_psm_merge_n5,PsmForecastDataset,forecast/mse,5,3,0.528329,0.304124,"('adfc2_psm_joint', 0)",0.407993,7.266,42.44,0.2,0.5367,0.5268,3,0.41536,1.5,2.3,3.45
-adfc2_psm_merge_tf06,PsmForecastDataset,forecast/mse,3,3,1.203234,,,1.023935,2.353,,0.3,,,0,1.034821,0.9,2.3,3.45
-adfc2_psm_merge_tf08,PsmForecastDataset,forecast/mse,3,3,0.626502,,,0.510422,4.218,,0.3333,,,0,0.517827,0.9,2.3,3.45
-adfc2_psm_sequential_n2,PsmForecastDataset,forecast/mse,2,3,0.511476,0.304124,"('adfc2_psm_joint', 0)",,5.478,40.54,,,,0,0.382947,0.6,2.3,3.45
-adfc2_psm_sequential_n3,PsmForecastDataset,forecast/mse,3,3,0.525445,0.304124,"('adfc2_psm_joint', 0)",,4.624,42.12,,,,0,0.374712,0.9,2.3,3.45
-adfc2_psm_sequential_n5,PsmForecastDataset,forecast/mse,5,3,0.495226,0.304124,"('adfc2_psm_joint', 0)",,0.508,38.59,,,,0,0.429833,1.5,2.3,3.45
-adfc2_psm_window_W1,PsmForecastDataset,forecast/mse,1,3,0.490637,0.304124,"('adfc2_psm_joint', 0)",0.414294,1.138,38.01,,0.4093,0.4106,3,0.414294,1.5,2.3,3.45
-adfc2_psm_window_W2,PsmForecastDataset,forecast/mse,1,3,0.489735,0.304124,"('adfc2_psm_joint', 0)",0.415228,1.827,37.9,,0.4014,0.4052,3,0.415228,0.75,2.3,3.45
-adfc2_psm_window_W3,PsmForecastDataset,forecast/mse,1,3,0.491562,0.304124,"('adfc2_psm_joint', 0)",0.360933,1.46,38.13,,0.6969,0.7027,3,0.360933,0.5,2.3,3.45
-adfc2_swat_merge_n2,SwatForecastDataset,forecast/mse,2,3,19.484735,12.489844,"('adfc2_swat_joint', 0)",14.163713,126.422,35.9,0.5167,0.7607,0.3947,3,13.255126,0.6,2.3,3.45
-adfc2_swat_merge_n3,SwatForecastDataset,forecast/mse,3,3,5.372442,12.489844,"('adfc2_swat_joint', 0)",3.863846,69.747,-132.48,0.3167,-0.212,0.1159,3,3.146292,0.9,2.3,3.45
-adfc2_swat_merge_n5,SwatForecastDataset,forecast/mse,5,3,6.447045,12.489844,"('adfc2_swat_joint', 0)",5.241226,76.485,-93.73,0.1667,-0.1995,0.0826,3,3.704324,1.5,2.3,3.45
-adfc2_swat_merge_tf06,SwatForecastDataset,forecast/mse,3,3,2.587392,,,2.648117,3.071,,0.2,,,0,2.747994,0.9,2.3,3.45
-adfc2_swat_merge_tf08,SwatForecastDataset,forecast/mse,3,3,3.534448,,,3.130192,38.262,,0.25,,,0,2.793824,0.9,2.3,3.45
-adfc2_swat_sequential_n2,SwatForecastDataset,forecast/mse,2,3,5.294473,12.489844,"('adfc2_swat_joint', 0)",,52.664,-135.9,,,,0,3.689451,0.6,2.3,3.45
-adfc2_swat_sequential_n3,SwatForecastDataset,forecast/mse,3,3,5.726624,12.489844,"('adfc2_swat_joint', 0)",,39.863,-118.1,,,,0,4.155417,0.9,2.3,3.45
-adfc2_swat_sequential_n5,SwatForecastDataset,forecast/mse,5,3,5.120422,12.489844,"('adfc2_swat_joint', 0)",,48.904,-143.92,,,,0,4.020549,1.5,2.3,3.45
-adfc2_swat_window_W1,SwatForecastDataset,forecast/mse,1,3,4.405835,12.489844,"('adfc2_swat_joint', 0)",3.348952,63.196,-183.48,,-0.1307,0.8313,3,3.348952,1.5,2.3,3.45
-adfc2_swat_window_W2,SwatForecastDataset,forecast/mse,1,3,4.571294,12.489844,"('adfc2_swat_joint', 0)",3.016596,57.838,-173.22,,-0.1963,0.365,3,3.016596,0.75,2.3,3.45
-adfc2_swat_window_W3,SwatForecastDataset,forecast/mse,1,3,4.405835,12.489844,"('adfc2_swat_joint', 0)",3.081771,63.196,-183.48,,-0.1638,0.6565,3,3.081771,0.5,2.3,3.45
-adfc_psm_merge,PsmForecastDataset,forecast/mse,3,3,0.506042,0.304124,"('adfc2_psm_joint', 0)",0.958126,2.556,39.9,,-2.2389,-2.2968,3,0.431784,0.9,2.3,3.45
-adfc_psm_sequential,PsmForecastDataset,forecast/mse,3,3,0.511476,0.304124,"('adfc2_psm_joint', 0)",,5.478,40.54,,,,0,0.383637,0.9,2.3,3.45
-adfc_psm_window,PsmForecastDataset,forecast/mse,1,3,0.489735,0.304124,"('adfc2_psm_joint', 0)",0.361019,1.827,37.9,,0.6935,0.6983,3,0.361019,0.5,2.3,3.45
-adfc_swat_merge,SwatForecastDataset,forecast/mse,3,3,6.246109,12.489844,"('adfc2_swat_joint', 0)",2.887243,84.217,-99.96,,-0.538,0.1413,3,3.87376,0.9,2.3,3.45
-adfc_swat_sequential,SwatForecastDataset,forecast/mse,3,3,5.552573,12.489844,"('adfc2_swat_joint', 0)",,35.716,-124.94,,,,0,3.915133,0.9,2.3,3.45
-adfc_swat_window,SwatForecastDataset,forecast/mse,1,3,4.405835,12.489844,"('adfc2_swat_joint', 0)",3.081771,63.196,-183.48,,-0.1638,0.6565,3,3.081771,0.5,2.3,3.45
-adfcsel_psm_merge,PsmForecastDataset,forecast/mse,3,3,0.506042,0.304124,"('adfc2_psm_joint', 0)",0.387008,2.556,39.9,0.3167,0.5895,0.5912,3,0.431784,0.9,2.3,3.45
-adfcsel_swat_merge,SwatForecastDataset,forecast/mse,3,3,5.372442,12.489844,"('adfc2_swat_joint', 0)",3.863846,69.747,-132.48,0.3167,-0.212,0.1159,3,3.146292,0.9,2.3,3.45
+adfc2_psm_merge_n2,PsmForecastDataset,forecast/mse,2,3,0.532746,0.302186,"('adfc2_psm_joint', 0)",0.362958,3.364,43.28,0.5333,0.7364,0.7261,3,0.385508,0.6,2.3,3.45
+adfc2_psm_merge_n2_oldmask,PsmForecastDataset,forecast/mse,2,3,0.52996,0.302186,"('adfc2_psm_joint', 0)",0.354614,3.972,42.98,0.55,0.7698,0.7629,3,0.370227,0.6,2.3,3.45
+adfc2_psm_merge_n3,PsmForecastDataset,forecast/mse,3,3,0.518848,0.302186,"('adfc2_psm_joint', 0)",0.392485,1.157,41.76,0.3167,0.5832,0.5834,3,0.409855,0.9,2.3,3.45
+adfc2_psm_merge_n3_oldmask,PsmForecastDataset,forecast/mse,3,3,0.507899,0.302186,"('adfc2_psm_joint', 0)",0.386417,1.141,40.5,0.3167,0.5905,0.5905,3,0.423753,0.9,2.3,3.45
+adfc2_psm_merge_n5,PsmForecastDataset,forecast/mse,5,3,0.512621,0.302186,"('adfc2_psm_joint', 0)",0.40356,6.634,41.05,0.2,0.5183,0.5086,3,0.408463,1.5,2.3,3.45
+adfc2_psm_merge_n5_oldmask,PsmForecastDataset,forecast/mse,5,3,0.528329,0.302186,"('adfc2_psm_joint', 0)",0.407993,7.266,42.8,0.2,0.5321,0.5221,3,0.41536,1.5,2.3,3.45
+adfc2_psm_merge_tf06,PsmForecastDataset,forecast/mse,3,3,1.198128,,,1.025903,3.001,,0.2833,,,0,1.030288,0.9,2.3,3.45
+adfc2_psm_merge_tf06_oldmask,PsmForecastDataset,forecast/mse,3,3,1.203234,,,1.023935,2.353,,0.3,,,0,1.034821,0.9,2.3,3.45
+adfc2_psm_merge_tf08,PsmForecastDataset,forecast/mse,3,3,0.627281,,,0.511974,4.159,,0.3333,,,0,0.519294,0.9,2.3,3.45
+adfc2_psm_merge_tf08_oldmask,PsmForecastDataset,forecast/mse,3,3,0.626502,,,0.510422,4.218,,0.3333,,,0,0.517827,0.9,2.3,3.45
+adfc2_psm_sequential_n2,PsmForecastDataset,forecast/mse,2,3,0.511611,0.302186,"('adfc2_psm_joint', 0)",,5.493,40.93,,,,0,0.383358,0.6,2.3,3.45
+adfc2_psm_sequential_n2_oldmask,PsmForecastDataset,forecast/mse,2,3,0.511476,0.302186,"('adfc2_psm_joint', 0)",,5.478,40.92,,,,0,0.382947,0.6,2.3,3.45
+adfc2_psm_sequential_n3,PsmForecastDataset,forecast/mse,3,3,0.511611,0.302186,"('adfc2_psm_joint', 0)",,5.493,40.93,,,,0,0.383954,0.9,2.3,3.45
+adfc2_psm_sequential_n3_oldmask,PsmForecastDataset,forecast/mse,3,3,0.525445,0.302186,"('adfc2_psm_joint', 0)",,4.624,42.49,,,,0,0.374712,0.9,2.3,3.45
+adfc2_psm_sequential_n5,PsmForecastDataset,forecast/mse,5,3,0.511611,0.302186,"('adfc2_psm_joint', 0)",,5.493,40.93,,,,0,0.438182,1.5,2.3,3.45
+adfc2_psm_sequential_n5_oldmask,PsmForecastDataset,forecast/mse,5,3,0.495226,0.302186,"('adfc2_psm_joint', 0)",,0.508,38.98,,,,0,0.429833,1.5,2.3,3.45
+adfc2_psm_window_W1,PsmForecastDataset,forecast/mse,1,3,0.491587,0.302186,"('adfc2_psm_joint', 0)",0.413191,1.479,38.53,,0.4139,0.4139,3,0.413191,1.5,2.3,3.45
+adfc2_psm_window_W1_oldmask,PsmForecastDataset,forecast/mse,1,3,0.490637,0.302186,"('adfc2_psm_joint', 0)",0.414294,1.138,38.41,,0.4051,0.4057,3,0.414294,1.5,2.3,3.45
+adfc2_psm_window_W2,PsmForecastDataset,forecast/mse,1,3,0.491587,0.302186,"('adfc2_psm_joint', 0)",0.414021,1.479,38.53,,0.4095,0.4125,3,0.414021,0.75,2.3,3.45
+adfc2_psm_window_W2_oldmask,PsmForecastDataset,forecast/mse,1,3,0.489735,0.302186,"('adfc2_psm_joint', 0)",0.415228,1.827,38.3,,0.3973,0.3987,3,0.415228,0.75,2.3,3.45
+adfc2_psm_window_W3,PsmForecastDataset,forecast/mse,1,3,0.491587,0.302186,"('adfc2_psm_joint', 0)",0.361129,1.479,38.53,,0.6888,0.6921,3,0.361129,0.5,2.3,3.45
+adfc2_psm_window_W3_oldmask,PsmForecastDataset,forecast/mse,1,3,0.491562,0.302186,"('adfc2_psm_joint', 0)",0.360933,1.46,38.53,,0.6898,0.6932,3,0.360933,0.5,2.3,3.45
+adfc2_swat_merge_n2,SwatForecastDataset,forecast/mse,2,3,19.956665,12.491002,"('adfc2_swat_joint', 0)",14.858959,121.674,37.41,0.5167,0.6828,0.3045,3,14.017968,0.6,2.3,3.45
+adfc2_swat_merge_n2_oldmask,SwatForecastDataset,forecast/mse,2,3,19.484735,12.491002,"('adfc2_swat_joint', 0)",14.163713,126.422,35.89,0.5167,0.7608,0.395,3,13.255126,0.6,2.3,3.45
+adfc2_swat_merge_n3,SwatForecastDataset,forecast/mse,3,3,6.249477,12.491002,"('adfc2_swat_joint', 0)",4.760369,84.232,-99.87,0.2833,-0.2386,0.1006,3,3.876768,0.9,2.3,3.45
+adfc2_swat_merge_n3_oldmask,SwatForecastDataset,forecast/mse,3,3,5.372442,12.491002,"('adfc2_swat_joint', 0)",3.863846,69.747,-132.5,0.3167,-0.2119,0.1181,3,3.146292,0.9,2.3,3.45
+adfc2_swat_merge_n5,SwatForecastDataset,forecast/mse,5,3,6.450763,12.491002,"('adfc2_swat_joint', 0)",5.244547,76.497,-93.64,0.1667,-0.1997,0.0831,3,3.706979,1.5,2.3,3.45
+adfc2_swat_merge_n5_oldmask,SwatForecastDataset,forecast/mse,5,3,6.447045,12.491002,"('adfc2_swat_joint', 0)",5.241226,76.485,-93.75,0.1667,-0.1995,0.0832,3,3.704324,1.5,2.3,3.45
+adfc2_swat_merge_tf06,SwatForecastDataset,forecast/mse,3,3,2.642382,,,2.681639,4.05,,0.2,,,0,2.776186,0.9,2.3,3.45
+adfc2_swat_merge_tf06_oldmask,SwatForecastDataset,forecast/mse,3,3,2.587392,,,2.648117,3.071,,0.2,,,0,2.747994,0.9,2.3,3.45
+adfc2_swat_merge_tf08,SwatForecastDataset,forecast/mse,3,3,2.834102,,,2.862697,13.521,,0.2333,,,0,2.883675,0.9,2.3,3.45
+adfc2_swat_merge_tf08_oldmask,SwatForecastDataset,forecast/mse,3,3,3.534448,,,3.130192,38.262,,0.25,,,0,2.793824,0.9,2.3,3.45
+adfc2_swat_sequential_n2,SwatForecastDataset,forecast/mse,2,3,5.123328,12.491002,"('adfc2_swat_joint', 0)",,48.924,-143.81,,,,0,3.309501,0.6,2.3,3.45
+adfc2_swat_sequential_n2_oldmask,SwatForecastDataset,forecast/mse,2,3,5.294473,12.491002,"('adfc2_swat_joint', 0)",,52.664,-135.93,,,,0,3.689451,0.6,2.3,3.45
+adfc2_swat_sequential_n3,SwatForecastDataset,forecast/mse,3,3,5.123328,12.491002,"('adfc2_swat_joint', 0)",,48.924,-143.81,,,,0,3.965431,0.9,2.3,3.45
+adfc2_swat_sequential_n3_oldmask,SwatForecastDataset,forecast/mse,3,3,5.726624,12.491002,"('adfc2_swat_joint', 0)",,39.863,-118.12,,,,0,4.155417,0.9,2.3,3.45
+adfc2_swat_sequential_n5,SwatForecastDataset,forecast/mse,5,3,5.123328,12.491002,"('adfc2_swat_joint', 0)",,48.924,-143.81,,,,0,4.02288,1.5,2.3,3.45
+adfc2_swat_sequential_n5_oldmask,SwatForecastDataset,forecast/mse,5,3,5.120422,12.491002,"('adfc2_swat_joint', 0)",,48.904,-143.94,,,,0,4.020549,1.5,2.3,3.45
+adfc2_swat_window_W1,SwatForecastDataset,forecast/mse,1,3,7.357774,12.491002,"('adfc2_swat_joint', 0)",5.415152,107.306,-69.77,,-0.3784,0.7004,3,5.415152,1.5,2.3,3.45
+adfc2_swat_window_W1_oldmask,SwatForecastDataset,forecast/mse,1,3,4.405835,12.491002,"('adfc2_swat_joint', 0)",3.348952,63.196,-183.51,,-0.1307,0.8574,3,3.348952,1.5,2.3,3.45
+adfc2_swat_window_W2,SwatForecastDataset,forecast/mse,1,3,4.408169,12.491002,"('adfc2_swat_joint', 0)",2.892129,63.224,-183.36,,-0.1876,0.8549,3,2.892129,0.75,2.3,3.45
+adfc2_swat_window_W2_oldmask,SwatForecastDataset,forecast/mse,1,3,4.571294,12.491002,"('adfc2_swat_joint', 0)",3.016596,57.838,-173.25,,-0.1963,0.3704,3,3.016596,0.75,2.3,3.45
+adfc2_swat_window_W3,SwatForecastDataset,forecast/mse,1,3,4.408169,12.491002,"('adfc2_swat_joint', 0)",3.08365,63.224,-183.36,,-0.1639,0.6762,3,3.08365,0.5,2.3,3.45
+adfc2_swat_window_W3_oldmask,SwatForecastDataset,forecast/mse,1,3,4.405835,12.491002,"('adfc2_swat_joint', 0)",3.081771,63.196,-183.51,,-0.1638,0.678,3,3.081771,0.5,2.3,3.45
+adfc_psm_merge,PsmForecastDataset,forecast/mse,3,3,0.506042,0.302186,"('adfc2_psm_joint', 0)",0.958126,2.556,40.28,,-2.2177,-2.2532,3,0.431784,0.9,2.3,3.45
+adfc_psm_sequential,PsmForecastDataset,forecast/mse,3,3,0.511476,0.302186,"('adfc2_psm_joint', 0)",,5.478,40.92,,,,0,0.383637,0.9,2.3,3.45
+adfc_psm_window,PsmForecastDataset,forecast/mse,1,3,0.489735,0.302186,"('adfc2_psm_joint', 0)",0.361019,1.827,38.3,,0.6863,0.6888,3,0.361019,0.5,2.3,3.45
+adfc_swat_merge,SwatForecastDataset,forecast/mse,3,3,6.246109,12.491002,"('adfc2_swat_joint', 0)",2.887243,84.217,-99.98,,-0.5379,0.1456,3,3.87376,0.9,2.3,3.45
+adfc_swat_sequential,SwatForecastDataset,forecast/mse,3,3,5.552573,12.491002,"('adfc2_swat_joint', 0)",,35.716,-124.96,,,,0,3.915133,0.9,2.3,3.45
+adfc_swat_window,SwatForecastDataset,forecast/mse,1,3,4.405835,12.491002,"('adfc2_swat_joint', 0)",3.081771,63.196,-183.51,,-0.1638,0.678,3,3.081771,0.5,2.3,3.45
+adfcsel_psm_merge,PsmForecastDataset,forecast/mse,3,3,0.506042,0.302186,"('adfc2_psm_joint', 0)",0.387008,2.556,40.28,0.3167,0.5839,0.5847,3,0.431784,0.9,2.3,3.45
+adfcsel_swat_merge,SwatForecastDataset,forecast/mse,3,3,5.372442,12.491002,"('adfc2_swat_joint', 0)",3.863846,69.747,-132.5,0.3167,-0.2119,0.1181,3,3.146292,0.9,2.3,3.45
 basefrac_etth1_03,EtthForecastDataset,forecast/mse,3,3,0.957182,0.417322,"('origin_etth1_joint_f10', 0)",1.1935,9.423,56.4,,-0.4377,-0.525,3,0.549278,0.643,2.3,3.45
 basefrac_etth1_07,EtthForecastDataset,forecast/mse,3,3,0.59078,0.417322,"('origin_etth1_joint_f10', 0)",0.493871,5.313,29.36,,0.5587,0.5303,3,0.418415,1.5,2.3,3.45
 basefrac_ettm2_03,Ettm2ForecastDataset,forecast/mse,3,3,0.781733,,,0.301381,7.875,,0.5,,,0,0.184371,0.643,2.3,3.45
@@ -99,7 +121,7 @@ origin_exchange_window_f075,ExchangeRateForecastDataset,forecast/mse,1,3,1.56149
 origin_exchange_window_f0875,ExchangeRateForecastDataset,forecast/mse,1,3,2.584115,2.048522,"('origin_exchange_joint_f0875', 0)",1.758466,5.372,20.73,,1.5416,1.5581,3,1.327058,0.833,2.5,3.75
 origin_exchange_window_f10,ExchangeRateForecastDataset,forecast/mse,1,3,0.700868,0.394,"('origin_exchange_joint_f10', 0)",0.305319,10.458,43.78,,1.289,1.3488,3,0.203436,0.833,2.5,3.75
 psm_selection_probe,Psm,window_auroc,3,1,0.774034,0.799845,"('noisefloor_std_psm', 0)",0.799106,,3.33,,0.9713,0.9917,1,0.793572,0.9,2.3,3.45
-psmfc_smoke,PsmForecastDataset,forecast/mse,3,1,0.495189,0.304124,"('adfc2_psm_joint', 0)",0.965308,,38.58,,-2.4605,-2.7057,1,0.412822,0.9,2.3,3.45
+psmfc_smoke,PsmForecastDataset,forecast/mse,3,1,0.495189,0.302186,"('adfc2_psm_joint', 0)",0.965308,,38.98,,-2.4358,-2.61,1,0.412822,0.9,2.3,3.45
 segsweep_etth1_merge_n2,EtthForecastDataset,forecast/mse,2,3,0.728958,0.41857,"('noisefloor_std_etth', 0)",0.459709,3.164,42.58,0.5,0.8675,0.8654,3,0.416247,0.6,2.3,3.45
 segsweep_etth1_merge_n5,EtthForecastDataset,forecast/mse,5,3,0.705769,0.41857,"('noisefloor_std_etth', 0)",0.451689,7.229,40.69,0.2,0.8847,0.8846,3,0.426411,1.5,2.3,3.45
 segsweep_etth1_seq_n2,EtthForecastDataset,forecast/mse,2,3,0.75227,0.41857,"('noisefloor_std_etth', 0)",,5.141,44.36,,,,0,0.40781,0.6,2.3,3.45

@@ -1229,20 +1229,22 @@ throughout. EXPERIMENTS.md §1.30.
 
 **PSM-forecast is the best forecasting benchmark in the project.**
 
-- **Reproducibility floor 1.14%** against 8.76% (ETTh1) / 6.74% (ETTh2) / 14.11% (ETTm2) — 6–12×
+- **Reproducibility floor 1.16%** against 8.76% (ETTh1) / 6.74% (ETTh2) / 14.11% (ETTm2) — 6–12×
   tighter, so differences invisible elsewhere resolve here.
-- **Merging beats the base decisively at every n**, GRR +0.75 / +0.60 / +0.49 falling monotonically
+- **Merging beats the base decisively at every n**, GRR +0.72 / +0.58 / +0.53 falling monotonically
   with n. That does not happen on any other forecasting dataset.
-- **Merging beats sequential at n=2 and n=5**, ties at n=3 — the one dataset where that comparison
-  goes merging's way (§1.13's 8–3 for sequential is measured on the high-floor datasets).
-- **α\*·n ∈ [0.95, 1.10]** across n ∈ {2,3,5}, an independent replication of §1.18's rule on a
+- **Merging beats sequential decisively at n=2, a boundary win at n=5, tie at n=3** — still the one
+  dataset where that comparison goes merging's way at all (§1.13's 8–3 for sequential is measured
+  on the high-floor datasets). The n=3/n=5 cells each softened a step in the corrected re-run;
+  they were the two narrowest margins in the table.
+- **α\*·n ∈ [0.95, 1.07]** across n ∈ {2,3,5}, an independent replication of §1.18's rule on a
   dataset outside the population it was fitted on, with the spread inside grid quantisation.
 - Joint still wins every row by 14–16%. §1.26's framing is unchanged.
 
-**SWaT-forecast fails, and the failure is the result.** Floor **69.75%**, so every comparison is
+**SWaT-forecast fails, and the failure is the result.** Floor **84.23%**, so every comparison is
 a tie and `method_comparison` correctly refuses to name a winner. Joint training is 2.3× *worse*
 than the base it is supposed to bound, so GRR is undefined there. Cause: **seed 123 diverges in
-every block** (base 9.70 vs 3.17/3.25; joint 24.59 vs 10.24/2.64) — training-stage optimisation
+every block** (base 12.33 vs 3.17/3.25; joint 24.59 vs 10.24/2.65) — training-stage optimisation
 divergence that everything downstream inherits. Adding seeds would measure the divergence rate,
 not fix it. `swat_forecast.py`'s docstring predicted SWaT would separate little (drift 0.112,
 lowest here); the direction was right and the **mechanism wrong** — it fails by being unstable,
@@ -1280,7 +1282,11 @@ size. §1.28 shows the training-size term alone moves ETTh1's merged MSE from 1.
 test windows into four contiguous time-ordered spans and rank the methods within each. No
 retraining; it is a regrouping of an evaluation pass that already ran. EXPERIMENTS.md §1.27b.
 
-**14 of 15 configurations are consistent across all four quarters.** So §1.27's instability is
+**14 of 15 configurations are consistent across all four quarters.** Re-derived from the
+corrected-mask runs on 2026-08-18: the verdict column is identical, but PSM-forecast's fourth
+quarter moved `tie` → decisive `joint` at all three n, so those rows are now decisive in all four
+quarters. I predicted "unchanged" and one column moved — the machine check caught it, which is
+the argument for binding a derived table to a recompute rather than to eyeballing. So §1.27's instability is
 about moving the **training set**, not the test block, and the caveat on every forecasting
 conclusion narrows from "assumes this cut" to "assumes this much training data".
 
@@ -1290,8 +1296,9 @@ conclusion narrows from "assumes this cut" to "assumes this much training data".
 - **The commoner limit is resolution.** On ETTh1 at n = 2 and n = 3, *three of four quarters
   resolve no winner at all*. "Consistent" on those rows means "never contradicted", not
   "confirmed four times" — a quarter-block with three seeds is thin against an 8.76% floor.
-- **PSM-forecast is the cleanest**: joint decisive in three quarters at every n. Its 1.14% floor
-  buys resolution the ETT datasets do not have.
+- **PSM-forecast is the cleanest**: joint decisive in **all four** quarters at every n after the
+  corrected re-run — the only row in the table with no unresolved quarter. Its 1.16% floor buys
+  resolution the ETT datasets do not have.
 
 **⚠️ A first pass counted 4 of 15 as unstable — that was my own error, not a result.** It ranked
 by raw mean without checking decisiveness, so exchange's third quarter, where joint and window
@@ -1305,7 +1312,7 @@ answered for free, with the answer being that the test block is not where the in
 To strengthen §1.27, sweep **training size** (§1.28), not test position.
 
 **SWaT-forecast is deliberately excluded.** 390k test windows × 51 features is ~3 h of scoring,
-against a 69.75% floor that makes every sub-block a guaranteed tie. Cost with no possible finding.
+against an 84.23% floor that makes every sub-block a guaranteed tie. Cost with no possible finding.
 
 **Operational lesson, already fixed:** the first version wrote its CSV once at the end, and the
 run order put ~3 h of uninformative work behind ~20 min of informative work — a wall-clock
@@ -1329,6 +1336,52 @@ the dataset with the most data. Downgrade it to an ETTh1 observation.
 
 **Not extending this further** — and not adding rolling-origin datasets either. Two datasets
 already establish that one cut is one sample; a third does not strengthen it.
+
+### 2.32 The anomaly-mask span was wrong ✅ — real bug, negligible effect, and now attributable
+
+`PsmForecastDataset` / `SwatForecastDataset` masked with `window_len + forecast_len`, but
+`ForecastWindowDataset` already defines `context_len = window_len - forecast_len` and window i
+covers `[start, start + window_len)`. The mask therefore tested `forecast_len` points **past the
+window's own extent**, discarding clean windows merely because an anomaly followed them.
+Conservative, so nothing published was invalid — and invisible for exactly that reason.
+
+**Isolated before re-running, on purpose.** A re-run re-rolls GPU placement (§3.2: up to 18.8%),
+so its deltas cannot attribute themselves — the same criticism §1.27b makes of §1.27.
+`scripts/verify_mask_span.py` scores the *same frozen checkpoints* under both masks:
+
+| dataset | windows recovered | metric change |
+|---|---|---|
+| PSM-forecast | +1,080 (+1.92%) | **+0.058%** MSE |
+| SWaT-forecast | +792 (+0.20%) | +0.057% MSE |
+
+**The feared selection bias is absent**: recovering 1.92% of windows moves the metric by 0.058%,
+two orders of magnitude below PSM's 1.16% floor. Being followed by an anomaly does not make a
+window harder to forecast.
+
+**All 72 experiments + 9 diagnostics + the sub-block pass re-run against the fixed code**
+(old runs preserved as `adfc2_*_oldmask`). PSM's blocks moved ±2.5% with *mixed signs* — the
+signature of hardware placement, not a systematic mask effect. Every conclusion held; two
+narrow cells softened a step (merge-vs-sequential n=3 decisive→tie, n=5 decisive→boundary) and
+§1.30 says so. **SWaT-forecast's floor widened 69.75% → 84.23%**, which confirms rather than
+contradicts its unusability.
+
+**Convention added to CLAUDE.md:** never recompute a derived span — assert it against the
+dataset's own definition. And the uncovered link is now named: the checker verifies
+documents→CSVs→runs, but nothing verifies that new data-path code does what its docstring says.
+
+### 2.33 Why the forecasting floor is high ✅ — two explanations tested, both refuted
+
+`error_concentration.py` had been committed and never written up. It is not dead code: it holds
+the negative result that leaves §1.9's account standing. EXPERIMENTS.md §1.9b.
+
+- **Heavy tail — refuted.** Worst 1% of windows carry 2.26–2.74% of total squared error; worst 5%
+  carry 9.75–10.88%. **Trimming them does not move the floor** on any of the four datasets
+  (ETTh1 8.76% → 8.74% → 8.92%).
+- **Seeds failing on different windows — refuted.** Cross-seed per-window correlation 0.83–0.999:
+  every seed finds the same windows hard.
+- **What survives** is the half-trained base — confirmed on ETTh1 by §1.28's base-fraction sweep,
+  and **contradicted on ETTm2**, whose floor is non-monotone in the base fraction. Stated as one
+  supported case of two, not as a rule.
 
 ### 3.15 One SLURM job per run — the run_id footgun ⬜
 

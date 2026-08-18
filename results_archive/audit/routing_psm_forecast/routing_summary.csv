@@ -1,4 +1,4 @@
 group,dataset,metric,merge_scale,n_segments,n_seeds,oracle,merged,newest,merged_vs_oracle_pct,newest_vs_oracle_pct,merged_vs_oracle_pct_excl_last,merge_cost,specialisation
-adfc2_psm_merge_n2_diagnostics,?,forecast/mse,0.5/0.55/0.6,2,3,0.4935,0.5554,0.5929,12.6,20.1,8.2,1.1222,0.2452
-adfc2_psm_merge_n3_diagnostics,?,forecast/mse,0.3/0.35,3,3,0.5933,0.6786,0.6322,14.4,6.6,4.9,1.1566,0.2858
-adfc2_psm_merge_n5_diagnostics,?,forecast/mse,0.2,5,3,0.4673,0.6543,0.8933,40.0,91.2,38.6,1.4546,0.5347
+adfc2_psm_merge_n2_diagnostics,?,forecast/mse,0.5/0.55,2,3,0.5039,0.5664,0.6106,12.4,21.2,8.7,1.1225,0.2946
+adfc2_psm_merge_n3_diagnostics,?,forecast/mse,0.3/0.35,3,3,0.6047,0.6767,0.6422,11.9,6.2,4.9,1.1466,0.2762
+adfc2_psm_merge_n5_diagnostics,?,forecast/mse,0.2,5,3,0.4728,0.674,0.8915,42.5,88.6,38.9,1.4801,0.5423

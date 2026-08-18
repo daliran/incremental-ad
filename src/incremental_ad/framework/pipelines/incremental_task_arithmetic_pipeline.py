@@ -18,8 +18,12 @@ from incremental_ad.framework.contracts.evaluator import (
 from incremental_ad.framework.contracts.pipeline import Pipeline, RunContext, StepResult
 from incremental_ad.framework.core.checkpoints import save_model_state
 from incremental_ad.framework.evaluators.evaluation_runner import EvaluationRunner
+from incremental_ad.framework.merging.became import became_weights, diagonal_fisher
 from incremental_ad.framework.merging.task_vectors import (
+    StateDict,
     apply_task_vectors,
+    merge_sequential,
+    opcm_residual,
     merge_task_arithmetic,
     task_vector,
 )
@@ -30,6 +34,43 @@ from incremental_ad.framework.pipelines.standard_pipeline import (
 from incremental_ad.framework.trainers.standard_trainer import StandardTrainer
 
 log = logging.getLogger(__name__)
+
+
+def became_weights_per_vector(lambdas: list[float]) -> list[float]:
+    """The weight the BECAME fold ends up giving each task vector.
+
+    Task vector t is scaled by ``lambda_t * prod_{j>t}(1 - lambda_j)``. These are the numbers
+    to compare against a uniform 1/n, because the fold is a *convex combination*: the weights
+    always sum to 1 regardless of what the Fisher says.
+
+    ⚠️ That last property is why the first version of this file reported a scalar
+    "effective alpha" = sum(weights)/n and it was **vacuous** — identically 1/n for every
+    possible lambda sequence, including lambda = [1, 0.9, 0.9] whose weights are
+    [0.01, 0.09, 0.90]. It would have confirmed §1.31's prediction 2 for free, without
+    measuring anything. BECAME matches alpha = 1/n when the *weights are uniform*, not when
+    they happen to sum to 1 — which they always do.
+    """
+    weights = []
+    for index, lam in enumerate(lambdas):
+        weight = lam
+        for later in lambdas[index + 1:]:
+            weight *= 1.0 - later
+        weights.append(weight)
+    return weights
+
+
+def became_uniformity(lambdas: list[float]) -> float:
+    """Largest departure of any task vector's weight from uniform, as a fraction of uniform.
+
+    0 means the fold is exactly alpha = 1/n; 0.19 means some vector is weighted 19% away from
+    its uniform share. This is the non-degenerate replacement for the vacuous scalar above,
+    and it is what §1.31's second prediction is actually tested against.
+    """
+    n = len(lambdas)
+    if not n:
+        return float("nan")
+    uniform = 1.0 / n
+    return max(abs(w - uniform) for w in became_weights_per_vector(lambdas)) / uniform
 
 
 class IncrementalTaskArithmeticPipeline(Pipeline):
@@ -68,6 +109,10 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
         merge_scale: float = 1.0,
         extra_merge_scales: list[float] | None = None,
         select_merge_scale_on_val: bool = False,
+        merge_rule: str = "sum",
+        coefficient_source: str = "scale",
+        opcm_threshold: float = 0.5,
+        fisher_batches: int = 64,
     ) -> None:
         self.trainer = trainer
         self.finetune_trainer = finetune_trainer
@@ -75,6 +120,22 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
         self.merge_scale = merge_scale
         self.extra_merge_scales = extra_merge_scales or []
         self.select_merge_scale_on_val = select_merge_scale_on_val
+        # Two *independent* axes, deliberately: the rule decides WHAT of each task vector is
+        # merged, the coefficient source decides HOW MUCH. Keeping them orthogonal is what
+        # makes the 2x2 of §1.31 four interpretable cells rather than three special cases.
+        self.merge_rule = merge_rule
+        self.coefficient_source = coefficient_source
+        self.opcm_threshold = opcm_threshold
+        self.fisher_batches = fisher_batches
+        assert merge_rule in ("sum", "opcm"), f"unknown merge rule {merge_rule!r}"
+        assert coefficient_source in ("scale", "became"), (
+            f"unknown coefficient source {coefficient_source!r}"
+        )
+        assert not (coefficient_source == "became" and select_merge_scale_on_val), (
+            "coefficient_source=became derives the coefficient from each shard's Fisher, so "
+            "there is nothing to select on validation — passing both means one of them is "
+            "silently ignored. Drop --*_select_merge_scale_on_val for the BECAME cells."
+        )
 
     @classmethod
     def add_args(cls, parser: ArgumentParser, prefix: str | None = None) -> None:
@@ -112,6 +173,41 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
         StandardTrainer.add_args(parser, prefix="trainer")
         StandardTrainer.add_args(parser, prefix="finetune_trainer")
 
+        parser.add_argument(
+            f"--{p}_merge_rule",
+            choices=["sum", "opcm"],
+            default="sum",
+            help="what to merge. 'sum' is plain task arithmetic. 'opcm' keeps only the "
+            "component of each incoming task vector orthogonal to the span of its "
+            "predecessors — the exact complement of the rho that geometry.py reports. "
+            "Independent of --{p}_coefficient_source; see EXPERIMENTS.md §1.31.",
+        )
+        parser.add_argument(
+            f"--{p}_coefficient_source",
+            choices=["scale", "became"],
+            default="scale",
+            help="how much to merge. 'scale' uses --{p}_merge_scale (optionally selected on "
+            "val). 'became' derives a per-step lambda* from each shard's diagonal Fisher, "
+            "which needs no sweep — and reduces exactly to alpha=1/n when the shard Fishers "
+            "are equal. Mutually exclusive with --{p}_select_merge_scale_on_val.",
+        )
+        parser.add_argument(
+            f"--{p}_opcm_threshold",
+            type=float,
+            default=0.5,
+            help="fraction of squared singular values retained when truncating the "
+            "accumulated subspace, for --{p}_merge_rule opcm. The paper reports a stable "
+            "optimum in 0.4-0.6.",
+        )
+        parser.add_argument(
+            f"--{p}_fisher_batches",
+            type=int,
+            default=64,
+            help="batches per shard used to estimate the diagonal Fisher for "
+            "--{p}_coefficient_source became. The Fisher is an expectation; a few dozen "
+            "batches suffice for a ratio of two quadratic forms.",
+        )
+
     @classmethod
     def from_config(cls, cfg: Namespace, prefix: str | None = None) -> Self:
         p = prefix or cls.ARG_PREFIX
@@ -123,6 +219,10 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
             merge_scale=getattr(cfg, f"{p}_merge_scale"),
             extra_merge_scales=getattr(cfg, f"{p}_extra_merge_scales"),
             select_merge_scale_on_val=getattr(cfg, f"{p}_select_merge_scale_on_val"),
+            merge_rule=getattr(cfg, f"{p}_merge_rule"),
+            coefficient_source=getattr(cfg, f"{p}_coefficient_source"),
+            opcm_threshold=getattr(cfg, f"{p}_opcm_threshold"),
+            fisher_batches=getattr(cfg, f"{p}_fisher_batches"),
         )
 
     def run(self, context: RunContext) -> list[StepResult]:
@@ -437,9 +537,9 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 )
                 merged_val_metrics = val_metrics_by_scale[effective_scale]
 
-            log.info(f"[merged] Merging {len(ft_states)} finetune models (scale={effective_scale})")
-            merged_state = merge_task_arithmetic(
-                baseline_state, ft_states, effective_scale
+            merged_state, became_lambdas = self._build_merge(
+                context, model, baseline_state, ft_states, incremental_segments,
+                effective_scale,
             )
             log.info("[merged] Merge complete")
 
@@ -484,6 +584,19 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
                 val_result_metrics = dict(merged_val_metrics)
                 if self.select_merge_scale_on_val:
                     val_result_metrics["merge_scale/selected"] = effective_scale
+                # config.json records the *requested* settings; with a derived coefficient it
+                # no longer identifies the model at all, so the realised lambdas go in the
+                # metrics beside the selected scale. Same argument as merge_scale/selected.
+                if became_lambdas:
+                    for step, lam in enumerate(became_lambdas):
+                        val_result_metrics[f"became_lambda/step_{step}"] = lam
+                    for step, weight in enumerate(
+                        became_weights_per_vector(became_lambdas)
+                    ):
+                        val_result_metrics[f"became_weight/tau_{step}"] = weight
+                    val_result_metrics["became_lambda/max_dev_from_uniform"] = (
+                        became_uniformity(became_lambdas)
+                    )
 
                 if wandb.run is not None:
                     wandb.run.summary.update(
@@ -558,6 +671,91 @@ class IncrementalTaskArithmeticPipeline(Pipeline):
             )
 
         return results
+
+    def _build_merge(
+        self,
+        context: RunContext,
+        model,
+        baseline_state: StateDict,
+        ft_states: list[StateDict],
+        incremental_segments: list,
+        effective_scale: float,
+    ) -> tuple[StateDict, list[float]]:
+        """Compose the merge rule and the coefficient source into one merged state dict.
+
+        Returns the state and the realised lambdas (empty unless the coefficient came from
+        BECAME). The default path — rule `sum`, source `scale` — delegates to
+        `merge_task_arithmetic`, so a run that touches neither flag executes exactly the code
+        that produced every published merge in this project rather than a new code path that
+        happens to agree.
+        """
+        taus = [task_vector(baseline_state, ft) for ft in ft_states]
+        transform = opcm_residual(self.opcm_threshold) if self.merge_rule == "opcm" else None
+        lambdas: list[float] = []
+
+        if self.coefficient_source == "became":
+            fishers = self._shard_fishers(context, model, ft_states, incremental_segments)
+            weights, lambdas = became_weights(baseline_state, taus, fishers)
+            log.info(
+                "[merged] rule=%s coefficient=became lambda*=%s weights=%s "
+                "(max departure from uniform 1/n = %.1f%%)",
+                self.merge_rule, [round(x, 4) for x in lambdas],
+                [round(w, 4) for w in became_weights_per_vector(lambdas)],
+                100 * became_uniformity(lambdas),
+            )
+            self._write_became_lambdas(context, lambdas)
+        else:
+            weights = [(1.0, effective_scale)] * len(taus)
+            log.info("[merged] rule=%s coefficient=scale (scale=%s), merging %d finetunes",
+                     self.merge_rule, effective_scale, len(ft_states))
+
+        if self.merge_rule == "sum" and self.coefficient_source == "scale":
+            # Identical arithmetic, but this is the published code path — keep it literal.
+            return merge_task_arithmetic(baseline_state, ft_states, effective_scale), lambdas
+        return merge_sequential(baseline_state, taus, weights, transform=transform), lambdas
+
+    def _shard_fishers(
+        self, context: RunContext, model, ft_states: list[StateDict], incremental_segments: list
+    ) -> list[dict]:
+        """Diagonal Fisher per shard, each from that shard's *own* fine-tuned weights.
+
+        The Fisher must be evaluated at theta_hat_t, not at the base: lambda*_t asks how much
+        task t's loss curves in the direction being moved, and curvature is a property of a
+        point. Evaluating every Fisher at theta_0 would make them all describe the same point
+        and collapse lambda* to 1/t by construction — which would look like this project's
+        headline result confirming itself, from a bug.
+        """
+        saved = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        fishers = []
+        for index, (segment, ft_state) in enumerate(zip(incremental_segments, ft_states)):
+            model.load_state_dict(ft_state)
+            loader = self.runner.loader_config.make_loader(segment.train, shuffle=True)
+            log.info("[fisher] shard %d over its own training split", index)
+            fishers.append(
+                diagonal_fisher(model, loader, self.runner.device,
+                                max_batches=self.fisher_batches)
+            )
+        model.load_state_dict(saved)
+        return fishers
+
+    def _write_became_lambdas(self, context: RunContext, lambdas: list[float]) -> None:
+        """The derived coefficients, as evidence rather than a log line.
+
+        Also a candidate materialisation trigger (EXECUTION_PLAN §3.12): lambda*_t is the
+        weight the derivation gives the newest shard, so a lambda that stops falling is the
+        Fisher saying the new shard is not being absorbed.
+        """
+        path = context.step_dir("merged") / "became_lambdas.csv"
+        with path.open("w", newline="") as fh:
+            writer = csv.writer(fh)
+            writer.writerow(["step", "lambda_star", "one_over_t", "weight", "one_over_n",
+                             "max_dev_from_uniform"])
+            weights = became_weights_per_vector(lambdas)
+            deviation = became_uniformity(lambdas)
+            for step, lam in enumerate(lambdas):
+                writer.writerow([step, lam, 1.0 / (step + 1), weights[step],
+                                 1.0 / len(lambdas), deviation])
+        log.info(f"[became] Wrote {path}")
 
     def _merge_scale_candidates(self) -> list[float]:
         """The primary scale plus every extra, de-duplicated, ascending.

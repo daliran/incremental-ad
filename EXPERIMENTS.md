@@ -526,11 +526,31 @@ three shards. **1.00× means merging costs nothing** relative to keeping one mod
 > answer "best on average across shards" versus "best on the pooled data". **Quote §1.11 for
 > anything compared across segment counts, and this section only for the n = 3 detail.**
 >
-> ⚠️ **Not machine-checked.** The block-mean convention this section uses is not emitted by any
-> script: `scale_report` produces the window-weighted pooled α\* (§1.11) and `routing_report`'s
-> `merge_cost` is computed at the committed α, which reproduces this table's **α = 1.0** column
-> (SWaT 3.58 against 3.79) but not its **α\*** column. Adding `alpha_star_blockmean` and the
-> matching merge cost to `scale_report` would close it — EXECUTION_PLAN.md §3.13.
+> ⚠️ **The α\* column is NOT REPRODUCIBLE, and neither is anything derived from it.**
+> `scale_report` gained an `alpha_star_blockmean` emitter on 2026-08-19 specifically to bind
+> this table, and it does not reproduce it. **Four** defensible readings of "the mean of the
+> per-shard ratios" were computed from the surviving diagnostics runs:
+>
+> | convention | SWaT | PSM | ETTh1 | exchange |
+> |---|---|---|---|---|
+> | mean of per-shard argmins, `val_base` in | **0.250** | 0.250 | 0.250 | 0.833 |
+> | mean of per-shard argmins, `val_base` out | 0.400 | 0.433 | 0.233 | 1.367 |
+> | argmin of the mean-ratio curve, `val_base` in | 0.200 | 0.267 | 0.300 | 0.533 |
+> | argmin of the mean-ratio curve, `val_base` out | 0.400 | 0.433 | 0.233 | 1.367 |
+> | **published in this table** | **0.250** | **0.500** | **0.367** | **0.433** |
+>
+> Only SWaT matches, on a 0.25-step grid where a match is cheap. **Three of four α\* values, and
+> the two columns computed at them (`merge cost @ α*`, `old regime @ α*`), come from an
+> aggregation that can no longer be identified** — the same failure as §1.7, §1.8 and §1.10's
+> seed-42 row, and the reason those were restated. They are *not* restated here because there is
+> no defensible target to restate them to: picking whichever of the four conventions looks
+> closest would be choosing a number to fit a published value.
+>
+> **Use §1.11 instead.** It answers the same question at n = 2, 3, 5, uses the window-weighted
+> convention the pipeline actually implements, and is machine-checked. This section is retained
+> for its **α = 1.0** column, which `routing_report` does reproduce (SWaT 3.58 against 3.79),
+> and for the qualitative point that the α = 1.0 damage is overshoot rather than interference —
+> neither of which depends on the α\* column. **Do not quote the α\* column.**
 
 | | merge cost @ α=1.0 | merge cost @ α\* | α\* | old regime @ α=1.0 | old regime @ α\* |
 |---|---|---|---|---|---|
@@ -1205,20 +1225,31 @@ unit", i.e. marginally resolvable; the corrected floor puts it just inside.)*
 
 | seed | GRR (oracle α) | GRR (honest α) |
 |---|---|---|
-| 42 | 1.308 | 1.276 |
+| 42 | 1.470 | 1.382 |
 | 7 | 1.145 | 1.089 |
 | 123 | 1.200 | 1.127 |
-| **mean ± sd** | **1.218 ± 0.081** | **1.164 ± 0.080** |
+| **mean ± sd** | **1.272 ± 0.174** | **1.199 ± 0.160** |
 
-Merging still beats joint training on every seed when α is chosen without touching test.
+Merging still beats joint training on every seed when α is chosen without touching test — and
+by a wider margin than previously published.
 
-> ⚠️ **These are per-seed GRRs averaged across seeds; §1.11's block is GRR computed from the
+> ⚠️ **Restated 2026-08-19, when `scale_report` finally emitted this aggregation
+> (EXECUTION_PLAN §3.13).** Seeds 7 and 123 reproduce the previously published rows *exactly*
+> (1.145/1.089 and 1.200/1.127). **Seed 42 does not**: the run now in the group reads
+> 1.470/1.382 against a published 1.308/1.276, and no surviving run produces the old pair. It
+> would require a joint reference of 0.4025, while every seed's joint in the transfer matrices
+> matches `exch_gate_standard` exactly (42 → 0.4356, 7 → 0.3564, 123 → 0.3949), so the
+> reference is not the discrepancy. The old row came from a run that no longer exists — the same
+> cause as §1.7's and §1.8's restatements. **The conclusion is unchanged and slightly
+> strengthened**, since the corrected seed-42 GRR is higher, not lower; the sd doubles
+> (0.081 → 0.174), which is the more honest picture of a three-seed spread.
+>
+> **These are per-seed GRRs averaged across seeds; §1.11's block is GRR computed from the
 > seed-pooled curve.** The two aggregations do not coincide — averaging ratios is not the ratio
-> of averages — and on this cell they differ by about 0.04 (honest 1.164 here against 1.207 in
-> §1.11; oracle 1.218 against 1.243). Neither is wrong; they answer "what does a typical seed
-> get?" and "what does the pooled curve say?". Only the pooled form is emitted by
-> `scale_report`, so **the per-seed column above is not currently reproduced by a script of
-> record** — the one place in this file where that is still true (EXECUTION_PLAN.md §3.13).
+> of averages — and they still differ here (honest 1.199 against 1.207 in §1.11; oracle 1.272
+> against 1.243). Neither is wrong; they answer "what does a typical seed get?" and "what does
+> the pooled curve say?". **Both are now emitted** — `grr_val_per_seed` / `grr_oracle_per_seed`
+> alongside the pooled `grr_val` / `grr_oracle` — and both are machine-checked.
 
 **Caveat.** The candidate list is itself a choice, and a coarse grid cannot land on a fine
 optimum — these penalties come from the grid already used for the curve. A finer grid would
@@ -3077,6 +3108,191 @@ tightly controlled testbed running a fixed process. The prediction was right abo
 and wrong about the mechanism — SWaT does not fail by being *saturated* (all methods equal and
 good), it fails by being *unstable* (one seed in three diverges). A control that fails for an
 unforeseen reason is still a control; it is not evidence for the drift story it was meant to test.
+
+### 1.31 OPCM and BECAME — a 2×2 of *what* to merge against *how much*
+
+> **Provenance.** `IncrementalTaskArithmeticPipeline` with two independent flags,
+> `--pipeline_merge_rule ∈ {sum, opcm}` and `--pipeline_coefficient_source ∈ {scale, became}`.
+> Merge code in `framework/merging/{task_vectors,became}.py`; semantics checked by
+> `scripts/verify_merge_rules.py` **before any number here was produced**, per the convention
+> §1.30's mask bug forced. Run on PSM-forecast n = 3, three seeds.
+
+Two published methods target different halves of the merge, and they compose:
+
+- **OPCM** is a *merge rule* — it decides **what** of each incoming task vector to keep,
+  discarding the component already spanned by its predecessors.
+- **BECAME** is a *coefficient rule* — it decides **how much**, deriving a per-step λ\* from
+  each shard's diagonal Fisher instead of sweeping α.
+
+|  | swept α (current) | BECAME λ\* |
+|---|---|---|
+| **plain sum** | baseline | coefficient only |
+| **OPCM-projected** | projection only | both |
+
+**Why PSM-forecast, n = 3.** Its **1.16% floor** (§1.30) makes a ~3% difference between cells
+resolvable; on ETTh1's 8.76% floor the entire 2×2 would return ties and the experiment would
+answer nothing. n = 3 only, because the question is about *mechanism*, not shard-count
+behaviour — four configurations rather than twelve.
+
+#### Predictions, registered before running
+
+⚠️ **These are stated in advance and will be reported as confirmed or refuted, whichever
+happens.** The value of a prediction is entirely in it having been made first.
+
+**1. OPCM will underperform plain task arithmetic, and the shortfall will scale with ρ.**
+OPCM discards exactly the fraction of each incoming vector that already lies in the
+accumulated subspace — precisely the ρ that `geometry.py` measures, which is why the method
+and the diagnostic share one projection (asserted in `verify_merge_rules.py`). But §1.8 puts
+this project's task vectors at ~92% of the fully-aligned bound: **the shared component is the
+signal, not interference**. Removing it should remove most of the update. Ordering the damage
+by ρ: **worst on SWaT (ρ = 0.601), then PSM (0.216), exchange (0.128), mildest on ETTh1
+(0.070)**. If OPCM instead *helps*, the aligned-regime reading of §1.8 is wrong and that is
+the more valuable outcome.
+
+**2. BECAME's λ\* will land near 1/n — and that would be theory explaining our headline, not
+a null result.** This is provable in one limit rather than merely expected: when every
+shard's Fisher is identical, λ\*_t = **exactly** 1/t, and the resulting fold is exactly a
+running mean, so BECAME **is** α = 1/n rather than approximating it (checked in
+`verify_merge_rules.py`). With 92% alignment the shard Fishers overlap heavily, so any
+measured deviation from 1/n is a direct read-out of *how unequal the shard curvatures are*.
+§1.18 reports α\*·n ≈ 1 as an unexplained empirical regularity; this is a candidate
+derivation of it.
+
+#### Two limits stated up front, so they are not mistaken for findings
+
+**Only BECAME's coefficient is implemented.** Its first stage — θ_GP via GPM/NSCL — is
+class-incremental-classification machinery built around a growing label space, and there is
+no label space here to grow. This is *BECAME's coefficient applied to our merges*, and must
+not be read as a reimplementation of BECAME.
+
+**The coordinate frame deviates from the paper, deliberately.** BECAME assumes θ̂_t was
+fine-tuned *from the accumulator* θ\*_{t−1}; every fine-tune here starts from the frozen θ₀,
+because that is what makes τ_i = θ_i − θ₀ a task vector in one shared frame — the assumption
+the entire project rests on. The coefficient is applied to the frozen-base checkpoints.
+Re-training each shard from the accumulator would satisfy the paper and destroy the frame,
+so it is not done.
+
+**On anomaly detection this removes the tuning problem, not the objective problem.** The
+Fisher is computed from the reconstruction loss, and §1.12 shows that loss is blind to
+detection quality. A coefficient derived from a signal that cannot see AUROC is not an honest
+α for AD merely because nothing was tuned. That is why this runs on PSM-**forecast**, where
+the Fisher's loss and the reported metric are the same quantity.
+
+**λ\*_t is logged per merge step** (`merged/became_lambdas.csv`) — it is also a candidate
+materialisation trigger, which §1.22's rule currently lacks a derived version of: λ\* is the
+weight the derivation gives the newest shard, so a λ that stops falling is the Fisher saying
+the new shard is no longer being absorbed.
+
+#### Results
+
+| forecast/mse | swept α | BECAME λ\* |
+|---|---|---|
+| **plain sum** | 0.3925 ±0.0108 | **0.3880** ±0.0086 |
+| **OPCM** (threshold 0.5) | 0.4041 ±0.0070 | 0.3974 ±0.0071 |
+
+Base 0.5188 ±0.0060. **The baseline cell reproduces §1.30's published merge to four decimals
+(0.3925)** — it runs the same code path by construction, which is what makes the other three
+cells readable as differences from a known number rather than from a re-derivation.
+
+| cell | vs baseline | verdict |
+|---|---|---|
+| plain sum + BECAME | −1.14% (better) | tie |
+| OPCM + swept α | +2.95% (worse) | boundary |
+| OPCM + BECAME | +1.24% (worse) | tie |
+
+**Prediction 1 — CONFIRMED in direction, weak in magnitude.** OPCM is worse in *both*
+coefficient columns, which is what the aligned-regime reading of §1.8 requires: discarding the
+component already spanned by earlier vectors discards signal, because at ~92% of the
+fully-aligned bound the shared component *is* the update. The cost on PSM (ρ = 0.216) is
++2.95% at swept α, boundary against the 1.16% floor. **This is one dataset at one ρ**, so the
+predicted *ordering* across ρ (SWaT 0.601 ≫ PSM 0.216 > exchange 0.128 > ETTh1 0.070) is
+untested — only the sign is. Testing the ordering means running the other three, and the two
+with headroom have floors of 5.7–8.8% that would return ties.
+
+**Prediction 2 — REFUTED, and the refutation is the more useful result.** λ\* does **not**
+land near 1/n. Per-seed weights:
+
+| cell | seed | λ\* per step | resulting weights | max departure from 1/n |
+|---|---|---|---|---|
+| sum | 7 | 1.000 / 0.500 / 0.271 | 0.365 / 0.364 / 0.271 | 18.6% |
+| sum | 42 | 1.000 / 0.751 / 0.765 | 0.059 / 0.176 / **0.765** | **129.5%** |
+| sum | 123 | 1.000 / 0.734 / 0.358 | 0.171 / 0.471 / 0.358 | 48.7% |
+| OPCM | 123 | 1.000 / 0.533 / 0.452 | 0.256 / 0.292 / 0.452 | 35.6% |
+
+Mean weight vector **[0.212, 0.307, 0.481]** against a uniform 0.333. So the shard Fishers are
+**not** equal — λ\* departs from 1/t by 0.128 at t=2 and 0.189 at t=3 — and the derivation
+systematically **over-weights the newest shard** (0.481 against 0.333). BECAME is behaving as a
+recency-weighted rule here, not as a rediscovery of uniform averaging.
+
+**And yet the outcome is indistinguishable from 1/n.** The three comparisons:
+
+| comparator | value | BECAME | difference |
+|---|---|---|---|
+| α = 1/n (grid point 0.35) | 0.3886 | 0.3880 | **+0.15%** for BECAME |
+| α oracle on test (0.40) | 0.3875 | 0.3880 | −0.13% for BECAME |
+| **α selected on validation** | 0.3925 | 0.3880 | **+1.14%** for BECAME — *the deployable one* |
+
+**The two results together are the finding.** Very different weightings — uniform 0.333 each
+versus 0.059/0.176/0.765 — land within **0.15%** of each other on test. The merge objective is
+locally flat over the weight simplex, which is why §1.18's α\*·n ≈ 1 reproduces so easily and
+why the honest-α cost is small (§1.30): **it is not that 1/n is special, it is that a wide
+range of coefficient choices is equally good.** That is a weaker claim than "theory derives our
+headline", and it is the one the data supports.
+
+**Practically: BECAME matches validation-selected α without a validation sweep** (+1.14%, a tie
+against the 1.16% floor). Same accuracy, no grid, no retained labels for selection — which is
+the whole point in a zero-retention setting. It does not beat the oracle, and nothing here says
+it should.
+
+⚠️ **λ\* is seed-unstable and that limits the claim.** Seed 42 gives a 129.5% departure from
+uniform where seed 7 gives 18.6%, on the same data with the same code. A 64-batch diagonal
+Fisher is a noisy estimate, and the three λ sequences do not agree on how unequal the shards
+are. The *outcome* is stable (±0.0086 across seeds) precisely because of the flatness above —
+the coefficient is poorly determined and it does not matter much. Read λ\* as a rough
+indicator, not a measurement, until the Fisher sample is enlarged.
+
+#### A metric that had to be thrown away before it was reported
+
+The pipeline first logged an `effective_alpha` = Σ(weights)/n, intended as "the uniform α this
+fold is equivalent to". It is **vacuous by construction**: the fold is a convex combination, so
+its weights always sum to 1 and the quantity is identically 1/n for *every* λ sequence —
+including λ = [1, 0.9, 0.9], whose weights are [0.01, 0.09, 0.90]. It would have reported
+"BECAME derives exactly 1/n" for free, confirming prediction 2 without measuring anything. It
+is replaced by the per-vector weights and their maximum departure from uniform, which is what
+the table above reports. Recorded here because the failure mode — a derived quantity that
+cannot vary, dressed as a measurement — is not one the doc-vs-CSV checker can catch.
+
+#### The projection threshold does not rescue OPCM
+
+Plain sum, no projection: **0.3925 ±0.0108**.
+
+| threshold | merged MSE | vs plain sum | verdict |
+|---|---|---|---|
+| 0.3 | 0.4028 ±0.0113 | +2.63% | tie |
+| 0.4 | 0.3992 ±0.0128 | +1.71% | tie |
+| 0.5 | 0.4041 ±0.0070 | +2.95% | boundary |
+| 0.6 | 0.4002 ±0.0008 | +1.98% | boundary |
+| 0.7 | **0.3978** ±0.0081 | +1.36% | tie |
+
+**OPCM is worse than plain summation at every threshold tested** — +1.36% to +2.95%. That is
+the part of prediction 1 that this sweep actually settles: the shortfall is not an artefact of
+a badly chosen hyperparameter, because there is no setting in the paper's recommended range,
+or outside it, that recovers plain summation. Combined with the direction holding in both
+coefficient columns, the aligned-regime reading of §1.8 survives its first direct test.
+
+⚠️ **The threshold itself does not resolve, and the paper's optimum is neither confirmed nor
+contradicted.** The whole sweep spans 0.0062 MSE — **1.59%** of the plain-sum value, against a
+1.16% floor — and four of five cells are ties or boundaries against plain sum. The best cell
+here is 0.7, outside the 0.4–0.6 the paper reports as a stable optimum, but that ordering is
+inside the noise and **must not be read as "the optimum moved"**. The honest statement is that
+this dataset cannot resolve the threshold; it can only resolve that projection costs something
+at all of them.
+
+**What this does not test.** Every OPCM number here is PSM-forecast at ρ = 0.216. The predicted
+*scaling* of the shortfall with ρ — worst on SWaT (0.601), mildest on ETTh1 (0.070) — remains
+untested, and the datasets that would test it have 5.7–8.8% floors that would return ties on a
+1.4–3.0% effect. Testing the ordering needs a low-floor dataset at a different ρ, which this
+project does not currently have.
 
 ## 2. Exact configurations
 

@@ -1063,7 +1063,7 @@ highest drift, smallest shards, the most likely to split.
 **Prerequisite:** a finest-granularity run at larger *T* than anything done so far — n = 5 is the
 current maximum. Check what *T* is affordable on exchange_rate before designing around it.
 
-### 3.13 Emit per-seed GRR from `scale_report` 🟡 — two of three parts done
+### 3.13 Emit per-seed GRR from `scale_report` ✅ — done, and it exposed two dead numbers
 
 **Why.** §1.10's per-seed GRR table (oracle 1.218 ±0.081, honest 1.164 ±0.080 on exchange n=3)
 is the only published table in EXPERIMENTS.md not reproduced by a script of record. It is not
@@ -1119,6 +1119,28 @@ not-machine-checked banner.
    sections is reading different runs; neither states which. Resolve before either number is
    cited, and add the checks that are currently withheld.
 
+
+**Done 2026-08-19.** `scale_report` now emits `grr_val_per_seed` / `grr_oracle_per_seed`
+(+ sds, + `n_seeds_grr`) alongside the pooled columns, and `alpha_star_blockmean`. Binding them
+immediately did what binding is for:
+
+- **§1.10 restated.** Seeds 7 and 123 reproduce the published rows *exactly*; **seed 42 does
+  not** (1.470/1.382 against a published 1.308/1.276), and no surviving run yields the old pair
+  — it would need a joint of 0.4025 while every seed's joint matches `exch_gate_standard`
+  exactly. The old row came from a run that no longer exists. Conclusion unchanged and slightly
+  strengthened; sd doubles to 0.174, which is the honest three-seed picture. §1.10 is now
+  machine-checked.
+- **§1.2's α\* column withdrawn as unreproducible.** The new emitter does *not* reproduce it,
+  and neither do three other defensible readings of "mean of the per-shard ratios" — only SWaT
+  matches, on a grid coarse enough to make that cheap. Three of four α\* values and both columns
+  derived from them are unidentifiable. **Not restated**, because choosing whichever convention
+  lands closest would be fitting a number to a published value. §1.2 now says so and directs
+  readers to §1.11, which is bound.
+
+**Net:** the checker's BLOCKED list drops from two entries to one, and the remaining entry is
+now a *withdrawal* rather than a gap — §1.2 needs its α\* column recomputed from a declared
+convention and its dependent columns rebuilt, which is a decision about what to publish, not
+missing machinery.
 
 ### 3.14 Pin the prefix-merge α convention ✅ — done 2026-08-08
 
@@ -1382,6 +1404,57 @@ the negative result that leaves §1.9's account standing. EXPERIMENTS.md §1.9b.
 - **What survives** is the half-trained base — confirmed on ETTh1 by §1.28's base-fraction sweep,
   and **contradicted on ETTm2**, whose floor is non-monotone in the base fraction. Stated as one
   supported case of two, not as a rule.
+
+### 2.34 OPCM and BECAME ✅ — one prediction confirmed, one refuted, and the refutation is better
+
+Two published methods on different halves of the merge, implemented as two *independent*
+pipeline flags (`--pipeline_merge_rule ∈ {sum,opcm}`, `--pipeline_coefficient_source ∈
+{scale,became}`) folded through one accumulation, so the 2×2 composes. PSM-forecast n=3, three
+seeds, chosen because its 1.16% floor is the only one here that resolves a ~3% difference.
+EXPERIMENTS.md §1.31. Closes §3.6 (OPCM) and the coefficient half of §3.3 (BECAME).
+
+| forecast/mse | swept α | BECAME λ\* |
+|---|---|---|
+| plain sum | 0.3925 | **0.3880** |
+| OPCM (0.5) | 0.4041 | 0.3974 |
+
+**Prediction 1 (OPCM underperforms, registered before running) — CONFIRMED.** Worse in both
+coefficient columns, and worse at **all five projection thresholds** (0.3–0.7, +1.36% to
++2.95%), so it is the method and not a hyperparameter. At ~92% of the fully-aligned bound the
+shared component is the signal, and projecting it out discards signal. The predicted *scaling*
+with ρ is untested — the other datasets' 5.7–8.8% floors cannot resolve a 1.4–3.0% effect.
+
+**Prediction 2 (λ\* ≈ 1/n) — REFUTED, and this is the more useful outcome.** Mean weights
+**[0.212, 0.307, 0.481]** against uniform 0.333: the Fishers are not equal and BECAME
+systematically over-weights the newest shard. **But the outcome is within 0.15% of α=1/n and
+0.13% of the test oracle.** Weightings as different as 0.333/0.333/0.333 and 0.059/0.176/0.765
+land in the same place, so **the merge objective is locally flat over the weight simplex**.
+That reframes §1.18: it is not that 1/n is special, it is that a wide range of coefficients is
+equally good — which also explains the small honest-α cost in §1.30. Weaker than "theory
+derives our headline", and what the data supports.
+
+**Deployable result:** BECAME matches validation-selected α (+1.14%, a tie against the floor)
+**with no sweep and no retained selection labels**, which is the point under zero retention.
+
+⚠️ **λ\* is seed-unstable** — 18.6% vs 129.5% departure from uniform on the same data. A
+64-batch diagonal Fisher is noisy; the *outcome* is stable only because of the flatness above.
+
+**Scope, stated in §1.31 so it is not read as an incomplete reimplementation:** BECAME's
+coefficient only — θ_GP via GPM/NSCL is class-incremental machinery with no label space here —
+and the coefficient is applied to frozen-θ₀ checkpoints, deviating from the paper's frame
+because re-training each shard from the accumulator would destroy the coordinate frame the
+whole project rests on.
+
+**A metric was discarded before it was reported.** The pipeline first logged an
+`effective_alpha` = Σweights/n. A convex fold's weights always sum to 1, so it is *identically*
+1/n for every λ — it would have confirmed prediction 2 for free. Replaced by the per-vector
+weights and their max departure from uniform. **The doc-vs-CSV checker cannot catch a derived
+quantity that cannot vary**; only computing it on adversarial inputs did.
+
+**New checks, all negative-tested:** `scripts/verify_merge_rules.py` (four semantics
+properties, run *before* any number was quoted, per the §1.30 convention) and
+`check_ablation_baseline` (§1.31's baseline cell must equal §1.30's published merge — it does,
+0.3925 == 0.3925, which is what makes the other three cells readable).
 
 ### 3.15 One SLURM job per run — the run_id footgun ⬜
 

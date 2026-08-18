@@ -102,6 +102,14 @@ n1_swat,Swat,window_auroc,1,3,0.799132,0.80784,"('noisefloor_std_swat', 0)",0.80
 noisefloor_etth,EtthForecastDataset,forecast/mse,3,3,0.707287,0.41857,"('noisefloor_std_etth', 0)",0.625624,8.759,40.82,,0.2828,0.2073,3,0.453578,0.9,2.3,3.45
 noisefloor_psm,Psm,window_auroc,3,3,0.774187,0.799845,"('noisefloor_std_psm', 0)",0.80046,0.068,3.31,,1.0239,1.0227,3,0.793376,0.9,2.3,3.45
 noisefloor_swat,Swat,window_auroc,3,3,0.799224,0.80784,"('noisefloor_std_swat', 0)",0.803736,0.087,1.08,,0.5237,0.5114,3,0.801296,0.9,2.3,3.45
+opcm2_psm_opcm_became,PsmForecastDataset,forecast/mse,3,3,0.512732,0.302186,"('adfc2_psm_joint', 0)",0.39736,1.622,41.06,,0.548,0.5484,3,0.426265,0.9,2.3,3.45
+opcm2_psm_opcm_scale,PsmForecastDataset,forecast/mse,3,3,0.527681,0.302186,"('adfc2_psm_joint', 0)",0.404077,4.874,42.73,0.3333,0.5481,0.5438,3,0.412238,0.9,2.3,3.45
+opcm2_psm_sum_became,PsmForecastDataset,forecast/mse,3,3,0.517549,0.302186,"('adfc2_psm_joint', 0)",0.38802,3.095,41.61,,0.6014,0.5989,3,0.434483,0.9,2.3,3.45
+opcm2_psm_sum_scale,PsmForecastDataset,forecast/mse,3,3,0.518848,0.302186,"('adfc2_psm_joint', 0)",0.392485,1.157,41.76,0.3167,0.5832,0.5834,3,0.409855,0.9,2.3,3.45
+opcm2_psm_thr03,PsmForecastDataset,forecast/mse,3,3,0.518848,0.302186,"('adfc2_psm_joint', 0)",0.402825,1.157,41.76,0.3167,0.5355,0.5357,3,0.409855,0.9,2.3,3.45
+opcm2_psm_thr04,PsmForecastDataset,forecast/mse,3,3,0.534169,0.302186,"('adfc2_psm_joint', 0)",0.399214,3.411,43.43,0.3333,0.5817,0.5794,3,0.416155,0.9,2.3,3.45
+opcm2_psm_thr06,PsmForecastDataset,forecast/mse,3,3,0.509302,0.302186,"('adfc2_psm_joint', 0)",0.400238,0.889,40.67,0.3167,0.5266,0.5275,3,0.425965,0.9,2.3,3.45
+opcm2_psm_thr07,PsmForecastDataset,forecast/mse,3,3,0.511448,0.302186,"('adfc2_psm_joint', 0)",0.397833,1.911,40.92,0.3167,0.5429,0.5441,3,0.433687,0.9,2.3,3.45
 origin_etth1_merge_f075,EtthForecastDataset,forecast/mse,3,3,0.656612,0.340818,"('origin_etth1_joint_f075', 0)",1.053794,7.204,48.09,,-1.2577,-1.3876,3,0.575715,0.9,2.3,3.45
 origin_etth1_merge_f0875,EtthForecastDataset,forecast/mse,3,3,0.685721,0.390019,"('origin_etth1_joint_f0875', 0)",0.654104,20.091,43.12,,0.1069,-0.0654,3,0.452809,0.9,2.3,3.45
 origin_etth1_merge_f10,EtthForecastDataset,forecast/mse,3,3,0.717195,0.417322,"('origin_etth1_joint_f10', 0)",0.577232,6.717,41.81,,0.4667,0.4527,3,0.439962,0.9,2.3,3.45

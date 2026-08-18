@@ -646,6 +646,65 @@ for _ds in _CONC:
                              _rel, _col, _tol, cell=_cell, cap=_cap)
 
 
+# §1.31's 2x2 ablation and threshold sweep. The 2x2 is the first table in this file whose
+# *baseline cell* is an assertion about the code — it must equal §1.30's published merge,
+# because every other cell is read as a difference from it — so that equality is checked here
+# rather than trusted.
+_CELL31 = r"\*{0,2}[\d.]+\*{0,2} ±[\d.]+"
+_CAP31 = r"\*{0,2}([\d.]+)\*{0,2} ±[\d.]+"
+for _i, _col in enumerate(("opcm2_psm_sum_scale", "opcm2_psm_sum_became")):
+    CHECKS += row_checks("§1.31", r"\| \*\*plain sum\*\*",
+                         {_i: (f"{_col} merged MSE",
+                               {"experiment": _col, "block": "merged/test",
+                                "metric": "forecast/mse"})},
+                         "run_metrics.csv", "mean", 0.0001, cell=_CELL31, cap=_CAP31)
+for _i, _col in enumerate(("opcm2_psm_opcm_scale", "opcm2_psm_opcm_became")):
+    CHECKS += row_checks("§1.31", r"\| \*\*OPCM\*\* \(threshold 0\.5\)",
+                         {_i: (f"{_col} merged MSE",
+                               {"experiment": _col, "block": "merged/test",
+                                "metric": "forecast/mse"})},
+                         "run_metrics.csv", "mean", 0.0001, cell=_CELL31, cap=_CAP31)
+
+for _th, _exp in ((r"0\.3", "opcm2_psm_thr03"), (r"0\.4", "opcm2_psm_thr04"),
+                  (r"0\.5", "opcm2_psm_opcm_scale"), (r"0\.6", "opcm2_psm_thr06"),
+                  (r"0\.7", "opcm2_psm_thr07")):
+    CHECKS += row_checks("§1.31", rf"\| {_th}",
+                         {0: (f"{_exp} threshold row",
+                              {"experiment": _exp, "block": "merged/test",
+                               "metric": "forecast/mse"})},
+                         "run_metrics.csv", "mean", 0.0001, cell=_CELL31, cap=_CAP31)
+
+
+# §1.10's per-seed GRR block, bindable since scale_report gained the per-seed columns
+# (EXECUTION_PLAN §3.13). This was the last table in the file with no script of record, and
+# binding it immediately exposed that its seed-42 row came from a run that no longer exists.
+_G = {"group": "exch_incremental_diagnostics"}
+for _i, _col in enumerate(("grr_oracle_per_seed", "grr_val_per_seed")):
+    CHECKS += row_checks("§1.10", r"\| \*\*mean ± sd\*\*",
+                         {_i: (f"exchange n=3 {_col}", _G)},
+                         "scale_forecast/scale_summary.csv", _col, 0.001,
+                         cell=r"\*{0,2}[\d.]+ ± [\d.]+\*{0,2}",
+                         cap=r"\*{0,2}([\d.]+) ± [\d.]+\*{0,2}")
+for _i, _col in enumerate(("grr_oracle_per_seed_sd", "grr_val_per_seed_sd")):
+    CHECKS += row_checks("§1.10", r"\| \*\*mean ± sd\*\*",
+                         {_i: (f"exchange n=3 {_col}", _G)},
+                         "scale_forecast/scale_summary.csv", _col, 0.001,
+                         cell=r"\*{0,2}[\d.]+ ± [\d.]+\*{0,2}",
+                         cap=r"\*{0,2}[\d.]+ ± ([\d.]+)\*{0,2}")
+
+
+# §1.2's convention table: the emitted block-mean row, so the withdrawal itself is checked
+# against the emitter rather than being a claim about it.
+for _i, _grp in enumerate(("noisefloor_swat_diagnostics", "noisefloor_psm_diagnostics",
+                           "noisefloor_etth_diagnostics", "exch_incremental_diagnostics")):
+    _rel = ("scale_ad/scale_summary.csv" if "swat" in _grp or "psm" in _grp
+            else "scale_forecast/scale_summary.csv")
+    CHECKS += row_checks("§1.2", r"\| mean of per-shard argmins, `val_base` in",
+                         {_i: (f"{_grp} block-mean α", {"group": _grp})},
+                         _rel, "alpha_star_blockmean", 0.001,
+                         cell=r"\*{0,2}[\d.]+\*{0,2}", cap=r"\*{0,2}([\d.]+)\*{0,2}")
+
+
 def csv_value(row: dict, column: str) -> float | None:
     """One CSV cell, with a documented unit conversion applied.
 
@@ -995,6 +1054,36 @@ def check_subblock_verdicts(text: str, audit_dir: Path) -> int:
     return failures
 
 
+def check_ablation_baseline(text: str, audit_dir: Path) -> int:
+    """§1.31's baseline cell must equal §1.30's PSM-forecast n=3 merge. Returns failures.
+
+    The whole 2x2 is read as differences from that cell, so if the new merge plumbing does not
+    reproduce the published merge, three of the four cells are being compared against a number
+    that no other section reports. `merge_sequential` delegates to `apply_task_vectors` for
+    exactly this case; this asserts the delegation actually happened end to end, through the
+    pipeline, rather than only in the unit check.
+    """
+    print("\nABLATION BASELINE — §1.31's plain-sum cell must equal §1.30's merge:")
+    path = audit_dir / "run_metrics.csv"
+    if not path.exists():
+        print("  skipped — no run_metrics.csv")
+        return 0
+    with path.open() as fh:
+        rows = [r for r in csv.DictReader(fh)
+                if r["block"] == "merged/test" and r["metric"] == "forecast/mse"]
+    values = {r["experiment"]: float(r["mean"]) for r in rows}
+    a, b = values.get("opcm2_psm_sum_scale"), values.get("adfc2_psm_merge_n3")
+    if a is None or b is None:
+        print("  skipped — one of the two experiments is absent")
+        return 0
+    if abs(a - b) > 0.0001:
+        print(f"  DISAGREE   ablation baseline {a:.6f} vs published merge {b:.6f} — the new "
+              f"merge path does not reproduce the old one")
+        return 1
+    print(f"  ok        {a:.4f} == {b:.4f}")
+    return 0
+
+
 def check_merge_column_agrees(text: str) -> int:
     """§1.16b's merge column must equal §1.26's. Returns failure count.
 
@@ -1183,7 +1272,7 @@ def main() -> None:
     OUT_OF_SCOPE = {"0", "0.1", "0.2", "0.4", "0.5", "0.6", "1", "1.1", "1.5", "1.14", "1.20",
                     "2", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "3", "3.1", "3.2"}
     # Known-blocked: the number exists but no script emits it. Each has a plan entry.
-    BLOCKED = {"1.2": "§3.13 block-mean α", "1.10": "§3.13 per-seed GRR",
+    BLOCKED = {"1.2": "α* column WITHDRAWN as unreproducible (§3.13) — not a missing emitter",
                "1.6": "§3.13 block-mean α (ρ column is checked)"}
     # A check named "§1.30/PSM-forecast" covers §1.30: the suffix scopes the *search* to a
     # sub-heading (section_slice), it does not name a different section. Comparing the full
@@ -1223,6 +1312,11 @@ def main() -> None:
     fallback = check_no_floor_fallback(args.audit_dir)
     if fallback:
         print(f"  -> {fallback} table(s) contain cells on the superseded floor rule")
+
+    ablation = check_ablation_baseline(text, args.audit_dir)
+    if ablation:
+        print(f"  -> {ablation} ablation-baseline failure(s)")
+        drift += ablation
 
     merge_cols = check_merge_column_agrees(text)
     if merge_cols:

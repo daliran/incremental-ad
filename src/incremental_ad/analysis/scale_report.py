@@ -65,6 +65,15 @@ FIELDS = [
     "alpha_star", "alpha_star_pooled", "alpha_star_n",
     "alpha_excl_val_base", "alpha_excl_n",
     "alpha_oracle", "grr_val", "grr_oracle", "honest_alpha_cost_pct",
+    # Per-seed aggregation, alongside the pooled one rather than replacing it: averaging
+    # ratios is not the ratio of averages, both forms are legitimate, and EXPERIMENTS.md
+    # quotes both (§1.10 per-seed, §1.11 pooled). Only the per-seed form carries a spread,
+    # and the spread is what "merging beats joint on *every* seed" rests on.
+    "grr_val_per_seed", "grr_val_per_seed_sd", "grr_oracle_per_seed",
+    "grr_oracle_per_seed_sd", "n_seeds_grr",
+    # alpha selected on the validation *block* — the mean over shards of each shard's own
+    # argmin — which is the convention §1.2 uses and no script emitted until now.
+    "alpha_star_blockmean", "alpha_star_blockmean_n",
     "alpha_one_over_n", "penalty_one_over_n_pct",
 ]
 
@@ -166,7 +175,8 @@ def analyse(runs: list[Path], val_metric: str, test_metric: str) -> dict | None:
     grid, runs = max(grids.items(), key=lambda kv: (len(kv[1]), len(kv[0])))
     dropped_grid = len(usable) - len(runs)
 
-    per_seed_alpha, per_seed_alpha_excl = [], []
+    per_seed_alpha, per_seed_alpha_excl, per_seed_blockmean = [], [], []
+    per_seed_curves: list[tuple[dict[float, float], dict[float, float], float | None]] = []
     pooled_val: dict[float, list[tuple[float, float]]] = defaultdict(list)
     pooled_test: dict[float, list[float]] = defaultdict(list)
     joint, weights, n_seg = [], [], set()
@@ -180,6 +190,20 @@ def analyse(runs: list[Path], val_metric: str, test_metric: str) -> dict | None:
                 pooled_val[a].extend(lst)
         if acc_out:
             per_seed_alpha_excl.append(_argbest(_pool(acc_out), val_higher))
+        # Block-mean alpha: argmin per validation *column*, then the mean over columns —
+        # every shard weighted equally, rather than by its window count. That is the
+        # convention §1.2's headline table uses, and it differs from the window-weighted
+        # `alpha_star` whenever the shards are unequal in size.
+        by_column: dict[str, dict[float, float]] = defaultdict(dict)
+        for a, lst in acc_in.items():
+            for value, column in lst:
+                by_column[column][a] = value
+        if by_column:
+            per_seed_blockmean.append(
+                st.mean(_argbest(curve, val_higher) for curve in by_column.values())
+            )
+        seed_test = {a: st.mean(v for v, _ in lst)
+                     for a, lst in _curve(run, test_metric, "test", True).items()}
         for a, lst in _curve(run, test_metric, "test", True).items():
             pooled_test[a].extend(v for v, _ in lst)
         matrix = run / "merge_diagnostics" / "transfer_matrix.csv"
@@ -187,6 +211,16 @@ def analyse(runs: list[Path], val_metric: str, test_metric: str) -> dict | None:
             for row, key in _rows(matrix):
                 if row["model"] == "standard" and row[key] == "test" and row["metric"] == test_metric:
                     joint.append(float(row["value"]))
+        seed_joint = None
+        matrix_path = run / "merge_diagnostics" / "transfer_matrix.csv"
+        if matrix_path.exists():
+            for row, key in _rows(matrix_path):
+                if (row["model"] == "standard" and row[key] == "test"
+                        and row["metric"] == test_metric):
+                    seed_joint = float(row["value"])
+        per_seed_curves.append(
+            (_pool(acc_in) if acc_in else {}, seed_test, seed_joint)
+        )
         w = _val_base_weight(run)
         if w is not None:
             weights.append(w)
@@ -217,6 +251,10 @@ def analyse(runs: list[Path], val_metric: str, test_metric: str) -> dict | None:
         "alpha_excl_val_base": round(alpha_excl, 4) if alpha_excl is not None else None,
         "alpha_excl_n": round(alpha_excl * n, 3) if (alpha_excl is not None and n) else None,
     }
+    if per_seed_blockmean:
+        block = st.mean(per_seed_blockmean)
+        out["alpha_star_blockmean"] = round(block, 4)
+        out["alpha_star_blockmean_n"] = round(block * n, 3) if n else None
 
     test = {a: st.mean(v) for a, v in pooled_test.items()} if pooled_test else {}
     if test and 0.0 in test and joint:
@@ -232,6 +270,31 @@ def analyse(runs: list[Path], val_metric: str, test_metric: str) -> dict | None:
             out["grr_oracle"] = round(go, 4)
             if go:
                 out["honest_alpha_cost_pct"] = round(100 * (go - gv) / go, 1)
+
+    # Per-seed GRR: each seed's own curve, own joint reference, own argmin — then mean and sd
+    # over seeds. Distinct from the pooled form above, which takes one ratio of seed-averaged
+    # curves. The two differ by ~0.04 on exchange n=3 and both are published; emitting only one
+    # is what left §1.10 unbindable.
+    per_seed_val_grr, per_seed_oracle_grr = [], []
+    for seed_val_curve, seed_test, seed_joint in per_seed_curves:
+        if not seed_val_curve or not seed_test or seed_joint is None or 0.0 not in seed_test:
+            continue
+        seed_base = seed_test[0.0]
+        if seed_joint == seed_base:
+            continue
+        seed_alpha = _argbest(seed_val_curve, val_higher)
+        near = min(seed_test, key=lambda x: abs(x - seed_alpha))
+        seed_oracle = _argbest(seed_test, test_higher)
+        denominator = seed_joint - seed_base
+        per_seed_val_grr.append((seed_test[near] - seed_base) / denominator)
+        per_seed_oracle_grr.append((seed_test[seed_oracle] - seed_base) / denominator)
+    if per_seed_val_grr:
+        out["n_seeds_grr"] = len(per_seed_val_grr)
+        out["grr_val_per_seed"] = round(st.mean(per_seed_val_grr), 4)
+        out["grr_oracle_per_seed"] = round(st.mean(per_seed_oracle_grr), 4)
+        if len(per_seed_val_grr) > 1:
+            out["grr_val_per_seed_sd"] = round(st.stdev(per_seed_val_grr), 4)
+            out["grr_oracle_per_seed_sd"] = round(st.stdev(per_seed_oracle_grr), 4)
         if n:
             inv = 1.0 / n
             near_inv = min(test, key=lambda x: abs(x - inv))

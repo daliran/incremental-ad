@@ -1,0 +1,10 @@
+{
+  "step_name": "merged/test",
+  "started_at": "2026-09-08T21:35:36.635063+00:00",
+  "finished_at": "2026-09-08T21:35:37.389561+00:00",
+  "metrics": {
+    "forecast/mse": 0.4804458022117615,
+    "forecast/rmse": 0.6931419783938652,
+    "forecast/mae": 0.5433153510093689
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "step_name": "finetune_3/test",
+  "started_at": "2026-08-16T13:21:12.868515+00:00",
+  "finished_at": "2026-08-16T13:21:16.263995+00:00",
+  "metrics": {
+    "forecast/mse": 0.5092763304710388,
+    "forecast/rmse": 0.7136359929761382,
+    "forecast/mae": 0.46362078189849854
+  }
+}

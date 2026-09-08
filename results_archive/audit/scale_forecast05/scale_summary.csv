@@ -1,0 +1,5 @@
+group,n_segments,n_seeds,n_dropped_no_val,n_dropped_grid_mismatch,n_grid_points,val_base_weight_pct,alpha_star,alpha_star_pooled,alpha_star_n,alpha_excl_val_base,alpha_excl_n,alpha_oracle,grr_val,grr_oracle,honest_alpha_cost_pct,grr_val_per_seed,grr_val_per_seed_sd,grr_oracle_per_seed,grr_oracle_per_seed_sd,n_seeds_grr,alpha_star_blockmean,alpha_star_blockmean_n,alpha_one_over_n,penalty_one_over_n_pct
+etth2_merge_n2_diagnostics05,2,3,0,0,31,53.5,0.4833,0.45,0.967,0.5333,1.067,0.55,0.7841,0.7841,0.0,0.8093,0.0474,0.8418,0.0298,3,0.5333,1.067,0.5,0.0
+etth2_merge_n3_diagnostics05,3,3,0,0,31,57.4,0.2667,0.25,0.8,0.3,0.9,0.3,0.8929,0.9269,3.7,0.8978,0.023,0.9261,0.0212,3,0.25,0.75,0.3333,5.2
+ettm2_merge_n2_diagnostics05,2,3,0,0,31,50.7,0.3833,0.4,0.767,0.3167,0.633,0.5,0.9103,0.927,1.8,0.8995,0.0313,0.9279,0.0154,3,0.4167,0.833,0.5,0.0
+ettm2_merge_n3_diagnostics05,3,3,0,0,31,51.5,0.2667,0.25,0.8,0.2667,0.8,0.3,0.9183,0.949,3.2,0.927,0.011,0.9478,0.0157,3,0.2583,0.775,0.3333,1.3

@@ -1,0 +1,46 @@
+{
+  "source_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/aeft_psm_sum_scale/102290",
+  "source_run_id": "102290",
+  "source_experiment_name": "aeft_psm_sum_scale",
+  "source_git_commit": "e20a993fcc34dc0fbd85852ea9894cf145f92fc9",
+  "standard_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_psm_joint/85155",
+  "checkpoint_name": "best",
+  "merge_scale": 0.35,
+  "merge_scale_requested": 1.0,
+  "n_finetune_segments": 3,
+  "rows": [
+    "base",
+    "ft_0",
+    "ft_1",
+    "ft_2",
+    "merged",
+    "standard"
+  ],
+  "columns": [
+    {
+      "name": "val_base",
+      "block": "val",
+      "n_windows": 9817
+    },
+    {
+      "name": "val_0",
+      "block": "val",
+      "n_windows": 3193
+    },
+    {
+      "name": "val_1",
+      "block": "val",
+      "n_windows": 3193
+    },
+    {
+      "name": "val_2",
+      "block": "val",
+      "n_windows": 3193
+    },
+    {
+      "name": "test",
+      "block": "test",
+      "n_windows": 57319
+    }
+  ]
+}

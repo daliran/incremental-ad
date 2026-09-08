@@ -40,6 +40,7 @@ class StandardTrainer(Trainer):
         checkpoint_interval: int = 0,
         reg_lambda: float = 0.0,
         reg_exclude: list[str] | None = None,
+        train_only: list[str] | None = None,
     ) -> None:
         self.n_epochs = n_epochs
         self.patience = patience
@@ -56,6 +57,10 @@ class StandardTrainer(Trainer):
         # (default) makes this a no-op, so plain baseline/StandardPipeline training is unaffected.
         self.reg_lambda = reg_lambda
         self.reg_exclude = reg_exclude if reg_exclude is not None else ["norm", "bias"]
+        # Attention-exclusive fine-tuning (QOMM's testable half): freeze everything whose name
+        # contains none of these substrings. Empty = train everything = exactly current
+        # behaviour, asserted by `scripts/verify_train_only.py` before any result is quoted.
+        self.train_only = train_only or []
         self.device = (
             torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if device == "auto"
@@ -82,6 +87,14 @@ class StandardTrainer(Trainer):
                  "Has no effect unless the caller actually passes a reference_state.",
         )
         parser.add_argument(
+            f"--{p}_train_only", nargs="*", default=[],
+            help="Train ONLY parameters whose name contains one of these substrings; freeze "
+            "the rest. Empty (the default) trains everything and is an exact no-op. Pass "
+            "e.g. `attn` for attention-exclusive fine-tuning, which is QOMM's claim that "
+            "restricting the update makes task vectors more orthogonal (EXPERIMENTS.md §1.33). "
+            "The task vector is then zero outside the named parameters by construction.",
+        )
+        parser.add_argument(
             f"--{p}_reg_exclude", nargs="*", default=["norm", "bias"],
             help="Parameter-name substrings excluded from the reg_lambda penalty "
                  "(default excludes LayerNorm and bias params, per common L2-SP practice). "
@@ -105,6 +118,7 @@ class StandardTrainer(Trainer):
             checkpoint_interval=getattr(cfg, f"{p}_checkpoint_interval"),
             reg_lambda=getattr(cfg, f"{p}_reg_lambda"),
             reg_exclude=getattr(cfg, f"{p}_reg_exclude"),
+            train_only=getattr(cfg, f"{p}_train_only", []),
         )
 
     def fit(
@@ -117,6 +131,23 @@ class StandardTrainer(Trainer):
         step_offset: int = 0,
         reference_state: dict[str, Tensor] | None = None,
     ) -> TrainSummary:
+
+        # Freeze before the optimiser is built, so frozen parameters never enter it. Doing it
+        # after would leave weight decay and momentum acting on them even with zero gradients.
+        if self.train_only:
+            trainable = frozen = 0
+            for name, parameter in model.named_parameters():
+                keep = any(pattern in name for pattern in self.train_only)
+                parameter.requires_grad = keep
+                trainable += parameter.numel() if keep else 0
+                frozen += 0 if keep else parameter.numel()
+            log.info("[%s] train_only=%s — %d trainable, %d frozen (%.1f%% of the model)",
+                     step_name or "fit", self.train_only, trainable, frozen,
+                     100.0 * frozen / max(trainable + frozen, 1))
+            assert trainable > 0, (
+                f"--train_only {self.train_only} matched no parameter, so nothing would train. "
+                f"Check the substrings against the model's parameter names."
+            )
 
         if len(cast(Sized, segment.train)) == 0:
             raise ValueError(
@@ -377,9 +408,16 @@ class StandardTrainer(Trainer):
         return self.reg_lambda * penalty
 
     def _build_optimizer(self, model: Model) -> torch.optim.Optimizer:
+        # Only parameters that actually require a gradient. AdamW applies **decoupled weight
+        # decay**, which moves a parameter every step regardless of its gradient — so handing it
+        # a frozen tensor would drift it even though `requires_grad` is False, and
+        # `--train_only`'s guarantee that the task vector is exactly zero outside the trained set
+        # would be quietly false at any non-zero weight decay. Caught by
+        # `scripts/verify_train_only.py`; inert when nothing is frozen.
+        trainable = [p for p in model.parameters() if p.requires_grad]
         if self.optimizer_type == "adamw":
             return torch.optim.AdamW(
-                model.parameters(),
+                trainable,
                 lr=self.learning_rate,
                 weight_decay=self.weight_decay,
             )

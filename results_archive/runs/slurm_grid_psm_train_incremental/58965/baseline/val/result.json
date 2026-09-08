@@ -1,0 +1,12 @@
+{
+  "step_name": "baseline/val",
+  "started_at": "2026-07-04T21:06:45.559270+00:00",
+  "finished_at": "2026-07-04T21:06:51.989879+00:00",
+  "metrics": {
+    "reconstruction/score_mean": 0.22154518326028122,
+    "reconstruction/score_std": 0.3417412606231963,
+    "reconstruction/score_p50": 0.12232901155948639,
+    "reconstruction/score_p95": 0.7110759139060959,
+    "reconstruction/score_p99": 1.9263564062118512
+  }
+}

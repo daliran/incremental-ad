@@ -19,6 +19,16 @@ What is copied:
 - **per-run diagnostics** — `transfer_matrix.csv` and `merge_scale_curve.csv` for every
   `*_diagnostics` run, which is what 1.3 and 1.4 are checked against cell by cell.
 
+- **raw per-run artefacts** (added 2026-08-20) — `config.json`, `run.log` and *every*
+  `*/result.json` for **every** run, not only the `*_diagnostics` groups, plus
+  `merge_scale_selection.csv`, `merge_scale_curve.csv`, `became_lambdas.csv` and the continual
+  chain's transfer CSV. Laid out as `runs/<experiment>/<run_id>/…`. Until this existed the
+  archive held only *aggregates*: `run_metrics.csv` is mean/sd per (experiment, block, metric),
+  so no per-seed value outside the diagnostics groups had a backing file — including §1.31's
+  per-seed lambdas. It is ~40 MB, which buys the ability to recompute any per-seed number from
+  the repo alone.
+- **sweep manifests** — whatever `$SLURM_GRID_OUTPUT_ROOT` holds, under `sweeps/`.
+
 What is NOT copied, and why: checkpoints (`*.pt`) and `wandb/` are gigabytes and reproducible
 from the run config; `principal_angles.csv`, `per_tensor_cosine.csv` and `geometry.json` are
 33 MB combined and no published number reads them; raw datasets come from HuggingFace.
@@ -44,6 +54,13 @@ GEOMETRY_FILES = ("sequential_overlap.csv", "norms.csv", "cosine_vs_distance.csv
                   "effective_rank.csv", "cosine_matrix.csv")
 # Per-run diagnostics files the transfer-matrix and merge-scale-curve checks read.
 DIAGNOSTIC_FILES = ("transfer_matrix.csv", "merge_scale_curve.csv", "source.json")
+# Raw per-run artefacts, archived for *every* run so per-seed values have a backing file.
+RUN_FILES = ("config.json", "result.json", "run.log", "merge_scale_selection.csv",
+             "merge_scale_curve.csv", "became_lambdas.csv", "transfer_matrix.csv",
+             "source.json", "continual_summary.json")
+# Never archived, whatever else matches: gigabytes, or reproducible from the config.
+EXCLUDED_SUFFIXES = (".pt", ".pth", ".ckpt", ".safetensors")
+EXCLUDED_DIRS = ("wandb", "debug", "checkpoints", "__pycache__")
 # A cap that catches "someone pointed this at the checkpoints directory" rather than a real
 # limit; the archive is expected to land around 4 MB.
 SIZE_WARN_MB = 50
@@ -55,6 +72,44 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def is_excluded(path: Path, root: Path) -> bool:
+    """True for anything that must never enter the archive, whatever its name.
+
+    Two independent guards, because either alone has failed elsewhere in this project: a suffix
+    check (a checkpoint is a checkpoint whatever the directory is called) and a directory check
+    (a `wandb/` tree contains files with innocuous names). `checkpoints/` is excluded by
+    directory rather than only by suffix so that a stray `.json` inside it does not ride along.
+    """
+    if path.suffix.lower() in EXCLUDED_SUFFIXES:
+        return True
+    return any(part in EXCLUDED_DIRS for part in path.relative_to(root).parts[:-1])
+
+
+def copy_runs(runs_root: Path, out: Path, dry_run: bool) -> list[Path]:
+    """Raw artefacts for every run, preserving `<experiment>/<run_id>/…`.
+
+    Walks *every* experiment directory, not only `*_diagnostics`: the point is that a per-seed
+    number anywhere in the documents has a file behind it in the repo. Returns what was (or
+    would be) written.
+    """
+    written: list[Path] = []
+    for experiment in sorted(p for p in runs_root.iterdir() if p.is_dir()):
+        if experiment.name in ("analysis", "wandb"):
+            continue
+        for run in sorted(p for p in experiment.iterdir() if p.is_dir()):
+            for source in sorted(run.rglob("*")):
+                if not source.is_file() or source.name not in RUN_FILES:
+                    continue
+                if is_excluded(source, runs_root):
+                    continue
+                target = out / "runs" / experiment.name / run.name / source.relative_to(run)
+                written.append(target)
+                if not dry_run:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, target)
+    return written
 
 
 def copy_tree(src: Path, dst: Path, names: tuple[str, ...] | None) -> list[Path]:
@@ -83,6 +138,13 @@ def main() -> None:
     parser.add_argument("--geometry_root", type=Path,
                         help="geometry_report output root (geometry_summary.csv + per-run dirs)")
     parser.add_argument("--out", type=Path, default=Path("results_archive"))
+    parser.add_argument("--sweep_root", type=Path,
+                        help="$SLURM_GRID_OUTPUT_ROOT — sweep manifests and collected CSVs")
+    parser.add_argument("--dry-run", dest="dry_run", action="store_true",
+                        help="print what would be copied, with counts and total size, and "
+                             "write nothing. Run this first: the raw-run copy walks every "
+                             "experiment, and a mistyped --runs_root would otherwise pull in "
+                             "whatever it found.")
     args = parser.parse_args()
 
     written: list[Path] = []
@@ -90,7 +152,26 @@ def main() -> None:
     # 1. Everything the analysis entry points emit. These are already summaries, so take them
     #    wholesale rather than filtering by name — a new tool's output should land here without
     #    this script needing to know about it.
+    if args.dry_run:
+        planned = copy_runs(args.runs_root, args.out, dry_run=True)
+        total = 0
+        for target in planned:
+            source = args.runs_root / target.relative_to(args.out / "runs")
+            if source.exists():
+                total += source.stat().st_size
+        print(f"DRY RUN — raw per-run artefacts: {len(planned)} files, {total / 1e6:.1f} MB")
+        by_kind: dict[str, int] = {}
+        for target in planned:
+            by_kind[target.name] = by_kind.get(target.name, 0) + 1
+        for name, count in sorted(by_kind.items(), key=lambda kv: -kv[1]):
+            print(f"    {count:>6}  {name}")
+        print("nothing written")
+        return
+
     written += copy_tree(args.audit_dir, args.out / "audit", None)
+    written += copy_runs(args.runs_root, args.out, dry_run=False)
+    if args.sweep_root and args.sweep_root.exists():
+        written += copy_tree(args.sweep_root, args.out / "sweeps", None)
 
     # 2. Geometry: the summary plus the small per-run files.
     if args.geometry_root:
@@ -134,7 +215,7 @@ def main() -> None:
     carried = len(everything) - len(written)
 
     print(f"archived {len(written)} files, {total / 1e6:.1f} MB -> {args.out}")
-    for section in ("audit", "geometry", "run_diagnostics"):
+    for section in ("audit", "geometry", "run_diagnostics", "runs", "sweeps"):
         files = [p for p in written if (args.out / section) in p.parents]
         if files:
             size = sum(p.stat().st_size for p in files)

@@ -1,0 +1,46 @@
+{
+  "source_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/noisefloor_swat/79349",
+  "source_run_id": "79349",
+  "source_experiment_name": "noisefloor_swat",
+  "source_git_commit": "546b45b1e5699b553177a76a781a5548a615c0ef",
+  "standard_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/noisefloor_std_swat/79440",
+  "checkpoint_name": "best",
+  "merge_scale": 1.0,
+  "merge_scale_requested": 1.0,
+  "n_finetune_segments": 3,
+  "rows": [
+    "base",
+    "ft_0",
+    "ft_1",
+    "ft_2",
+    "merged",
+    "standard"
+  ],
+  "columns": [
+    {
+      "name": "val_base",
+      "block": "val",
+      "n_windows": 37026
+    },
+    {
+      "name": "val_0",
+      "block": "val",
+      "n_windows": 12276
+    },
+    {
+      "name": "val_1",
+      "block": "val",
+      "n_windows": 12276
+    },
+    {
+      "name": "val_2",
+      "block": "val",
+      "n_windows": 12276
+    },
+    {
+      "name": "test",
+      "block": "test",
+      "n_windows": 449820
+    }
+  ]
+}

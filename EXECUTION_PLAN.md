@@ -737,7 +737,7 @@ If neither route works, the honest conclusion is that unsupervised AD cannot tun
 scale or route between models, and the thesis scopes Q3–Q5 to forecasting while AD carries
 plain task arithmetic with a pre-declared α (→ §3.5).
 
-### 3.3 BECAME — adaptive coefficient only ⬜
+### 3.3 BECAME — adaptive coefficient only ✅ — done (§1.31, §1.32)
 
 Derives its merging coefficient rather than tuning it, which **sidesteps §3.4 entirely**: if α
 cannot be selected honestly on AD, a method that computes it from the vectors is not a
@@ -781,7 +781,7 @@ with headroom preserved**, which no existing dataset does. Hold `baseline_fracti
 there. §2.11 already found α\*·n ≈ 1 on chronological splits, so the α\* half is partly
 answered — what remains is whether merging *wins* under high redundancy.
 
-### 3.6 OPCM ⬜ — orthogonal projection, and a sharp prediction from our own geometry
+### 3.6 OPCM ✅ — done (§1.31): worse at every threshold, as predicted
 
 **Correction (2026-08-06):** this item previously described OPCM as "scope as memory, not
 accuracy". That was wrong about the mechanism. OPCM's method is **orthogonal projection**: when
@@ -1455,6 +1455,149 @@ quantity that cannot vary**; only computing it on adversarial inputs did.
 properties, run *before* any number was quoted, per the §1.30 convention) and
 `check_ablation_baseline` (§1.31's baseline cell must equal §1.30's published merge — it does,
 0.3925 == 0.3925, which is what makes the other three cells readable).
+
+### 2.35 Repo self-sufficiency ✅ — the archive now holds per-run evidence, not just aggregates
+
+`results_archive/` held only aggregates: `run_metrics.csv` is mean/sd per (experiment, block,
+metric), so **no per-seed value outside the `*_diagnostics` groups had a backing file** — §1.31's
+λ\* and §1.10's per-seed GRR included, both published. Fixed:
+
+- `archive_results.py` copies `config.json`, `run.log` and every `*/result.json` for **every**
+  run, plus selection/curve/λ CSVs and the sweep manifests → `results_archive/runs/`
+  (**9,233 files, 38 MB**). `--dry-run` added; two independent guards against `*.pt`/`wandb/`.
+- `run_metrics_per_seed.csv` (33,847 rows), and the checker asserts **all 4,841 aggregate rows
+  re-derive from it** — self-sufficiency as a checked property, not a claim.
+- **Acceptance both ways**: `--strict` with no `$WORK`, and §1.26's merge column recomputed per
+  seed from the archive alone.
+- `CHECKPOINTS.md` + `checkpoints.csv` + `rsync_groups.txt` inventory the 2,418 checkpoints
+  (8.1 GB, 110 groups, SHA-256 each) for an off-cluster copy. Not staged — copied directly.
+- §2.7–§2.14 added for every missing group, **generated** by `generate_config_sections.py`; a
+  checker function asserts the document still equals the generator's output. Found and fixed
+  §2.5/§2.6 having been stranded after the `## 3` heading.
+- **The bitwise merge check had no committed script.** Now `verify_merge_reproduction.py`:
+  **412/412** (the cited 87/87 predated both the newer groups and any script). α from
+  `merge_scale/selected` for 153 runs, `config.json` for 265 — the split that ordering rule
+  exists for. Output in `results_archive/audit/verification_log.md`.
+- `build_results_report.py` was referenced by the brief as "provided separately" but **not
+  attached**; written from scratch and wired into `regenerate_analysis.sh`.
+
+### 2.36 BECAME's λ\* is not noise ✅ — and the flatness is local, not global
+
+Two experiments, EXPERIMENTS.md §1.32 and §1.31's per-n block.
+
+**Fisher sample size (§1.32).** `analysis/remerge.py` — training-free re-merge, self-checking
+bitwise against the source run's own merge before computing anything.
+
+- **P1 refuted.** The λ\* spread across seeds does **not** fall with sample size: 60.7 pp at 64
+  batches, 61.1 pp at the full pass. ⚠️ The sweep has only **two** distinct sizes — a shard
+  loader holds 146 batches, so 256/1024/all are the same computation.
+- **P2 confirmed.** Recency bias survives: mean weight on the newest shard 0.466 → 0.471 against
+  a uniform 0.333.
+- **P3 confirmed**, read correctly: within-seed MSE range **0.27–0.31%** against a 1.16% floor.
+  Pooled across seeds it is 4.81%, which would read as a refutation and would be wrong — that
+  figure is seed variance, not setting variance.
+
+So λ\*'s seed-to-seed variation is a **property of the shards**, not measurement noise — usable
+as a materialisation signal (§3.12) while remaining near-irrelevant as a coefficient.
+
+**Across shard counts (§1.31).** P1 confirmed in direction (OPCM worse in all six comparisons,
+mostly ties). **P3 refuted** — the shortfall is non-monotone in n and runs the opposite way in
+the BECAME column. **P4 confirmed strongly** — BECAME's departure from uniform is 30.9% → 65.6%
+→ **135.8%**. **P2 refuted, and it scopes §1.31**: BECAME matches swept α only at n = 3; at
+n = 2 and n = 5 it is **3.3–3.5% worse**, three times the floor.
+
+**P2 and P4 together sharpen the flatness claim.** The simplex is flat *near* uniform and not far
+from it. That explains why α\*·n ≈ 1 reproduces so easily and why a derived coefficient that
+wanders is not automatically safe — **the pre-declared α = 1/n looks better after this than the
+derived one**, because it stays in the flat region by construction.
+
+### 2.37 The window column was the only oracle in §1.26 ✅ — removing it moves three rows
+
+EXPERIMENTS.md §1.26b. `window_best` picks W on **test**; every other column is a single method
+or val-selected. Fixed, but not the obvious way:
+
+⚠️ **Selecting on each run's own val tail is invalid.** The window runs use different
+`baseline_fraction` (0.9/0.8/0.7), so each val tail is a *different slice of the series* and W=1
+wins on recency — it is picked in 33 of 54 cells against a test-best of W=3 in 48. That produced
+a ~40% "penalty" measuring the artefact. `--mode common_val` scores every budget on the
+merged-val union instead.
+
+- **Free on three of six datasets** — ETTh1/ETTh2/ETTm2 select the test-best budget every time.
+- **Not free on exchange_rate**: oracle W=3 (0.2053), honest W=2 (**0.3949**), a 92% penalty.
+- **All three exchange rows change winner.** Decisive tally goes from *joint 9 / window 6* to
+  *joint 9, window 3, sequential 1, merge 1*.
+- ⚠️ **"Merging never wins a decisive forecasting configuration" no longer holds** — it was true
+  only while the window column had test knowledge. Merging wins exchange n = 5 decisively. §1.26's
+  bullet is now scoped to its own table.
+
+Both columns are kept: §1.21's retention argument needs the oracle, §1.26 needs the honest one.
+
+### 2.38 Forgetting, measured ✅ — and "merging is free" is an ETTh1 property
+
+EXPERIMENTS.md §1.34, from `continual_summary/result.json`, which the pipeline has always written
+and no table read. **19 of 26 chains have positive BWT.** Of the three predictions:
+
+- **P1 half-confirmed** — exchange is monotone (−0.012 → +0.041 → +0.081); ETTm2 is not.
+- **P2 refuted** — ETTh2's BWT is positive at every n and n = 2 is the **largest in the table**
+  (+0.318). Sequential wins there *while forgetting most*: BWT measures the past, §1.26 scores
+  the future.
+- **P3 refuted on three of four** — merge cost is ~1.0–1.1× only on ETTh1; on ETTh2 it **grows
+  1.454 → 1.736 → 2.064 with n**. ⚠️ Wherever the documents call merging free, that is an
+  ETTh1/AD-pair property.
+
+### 2.39 QOMM's premise fails here ✅ — attention-only fine-tuning *increases* alignment
+
+EXPERIMENTS.md §1.33. `--finetune_trainer_train_only self_attn` (new), PSM-forecast n = 3,
+three seeds. **All four registered predictions refuted, and P1 causes the other three.**
+
+- **P1 refuted and reversed.** Mean off-diagonal cosine **0.157 → 0.212**, ρ **0.034 → 0.066**.
+  Confining every shard to the same 31.8% of parameters forces them through a shared subspace, so
+  they overlap *more*. Norms rise too (4.24 → 5.74): the same loss reduction with fewer weights.
+- **P2 refuted.** Specialists get slightly *better* (0.4365 → 0.4293) — attention alone fits a
+  shard here, so the restriction does not cost specialist quality.
+- **P3 refuted.** OPCM's shortfall *grows* (+2.95% → +3.67%), which is what P1's reversal implies.
+- **P4 refuted.** α\*·n *falls* (0.95 → 0.900) — more alignment, more overshoot, smaller α.
+
+AEFT costs 3.4–4.3% accuracy in all three cells. It was the one intervention that could have
+rescued OPCM, and it moves the geometry the wrong way.
+
+**The professor's list is now closed with a reason per method:** OPCM measured (§1.31), BECAME's
+coefficient measured (§1.31/§1.32), QOMM's projection half covered by OPCM and its AEFT half
+measured here, **ODE-M not run** (needs a retained calibration set — violates zero retention),
+**TRM not run** (re-optimises during merging — not training-free). The last two are scope
+refusals; QOMM is a measurement.
+
+⚠️ One model, one dataset, n = 3. QOMM was proposed for vision transformers; the claim is that
+its premise fails *in this setting*.
+
+### 2.40 Rolling origin on ETTh2/ETTm2 ✅ — and one dataset where the aggregation decides
+
+EXPERIMENTS.md §1.27c. 48 runs, f ∈ {0.75, 0.875} against each dataset's published f = 1.00.
+
+- **P1 refuted** — joint does *not* win at every ETTh2 origin; sequential takes f = 0.875.
+- **P2 confirmed** — ETTm2's sequential-over-merge win holds at 2 of 3 origins.
+- **P3 confirmed, 4 of 4** — `subblock_report` on the new runs finds **no sub-block that
+  decisively contradicts another**. §1.27b's conclusion (the instability is in the training set,
+  not the test block) reproduces on two more datasets.
+- **P4 refuted on ETTh2**, where mean rank says sequential and ratio-to-joint says joint. ETTh2's
+  MSE spans 0.136–1.268 across origins — the same order-of-magnitude condition that made §1.27a
+  discard the raw mean. **Neither aggregation should be quoted as *the* winner there.** ETTm2 is
+  unambiguous: joint everywhere, on both.
+
+### 2.41 ETTh2/ETTm2 restored to three seeds ✅ — the CSV was wrong, the document was right
+
+Item 4's premise was that a third seed was missing. It was not: all four `ett{h,m}2_merge_n{2,3}`
+groups already had three seeds. The loss was at the **diagnostics** level — two of three seeds
+selected α = 0.25, off the 0.1 grid, so the pipeline appended it and `scale_report` dropped the
+mismatched seed, silently reporting `n_seeds = 2`.
+
+Re-run on a 31-point 0.05 grid (`*_diagnostics05`): all four now report three seeds and zero
+drops, **with no training at all**. And the three-seed α\*·n **reproduces the published ETTh2
+values exactly** (0.967 / 0.800 / 0.75 against 0.97 / 0.80 / 0.75) — the two-seed CSV had moved
+them to 0.80 / 0.75 / 0.75. The document was right; the regenerated CSV had degraded under it.
+
+**This is the third time the appended-selected-α trap has cost something** (§2.23, §1.30's PSM
+diagnostics, and now these four cells). Any new diagnostics grid must be 0.05-stepped.
 
 ### 3.15 One SLURM job per run — the run_id footgun ⬜
 

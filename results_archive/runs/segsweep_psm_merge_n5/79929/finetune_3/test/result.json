@@ -1,0 +1,26 @@
+{
+  "step_name": "finetune_3/test",
+  "started_at": "2026-08-05T22:38:59.001102+00:00",
+  "finished_at": "2026-08-05T22:39:48.937404+00:00",
+  "metrics": {
+    "window_auroc": 0.7806836766677578,
+    "window_auprc": 0.6298958272070949,
+    "window_f1": 0.6432986582240313,
+    "window_precision": 0.5796451761893118,
+    "window_recall": 0.7226569115604783,
+    "point_auroc": 0.7751229793655259,
+    "point_auprc": 0.5504100260563113,
+    "point_f1": 0.5904911231972823,
+    "point_precision": 0.4905696219707455,
+    "point_recall": 0.7415292476823365,
+    "pa_f1": 0.7663745627099858,
+    "pa_precision": 0.6631698837069896,
+    "pa_recall": 0.9076216260562803,
+    "event_f1": 0.23305084745762714,
+    "event_precision": 0.1371571072319202,
+    "event_recall": 0.7746478873239436,
+    "event_tp": 55.0,
+    "event_fp": 346.0,
+    "event_fn": 16.0
+  }
+}

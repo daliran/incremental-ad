@@ -1,0 +1,19 @@
+trial,params,seed,extra_args,job_id,script_path
+0,"{""mae_tx_mask_ratio"": ""0.5"", ""mae_tx_patch_len"": ""5""}",42,[],58251,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_0.sh
+1,"{""mae_tx_mask_ratio"": ""0.65"", ""mae_tx_patch_len"": ""5""}",42,[],58252,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_1.sh
+2,"{""mae_tx_mask_ratio"": ""0.8"", ""mae_tx_patch_len"": ""5""}",42,[],58253,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_2.sh
+3,"{""mae_tx_mask_ratio"": ""0.5"", ""mae_tx_patch_len"": ""10""}",42,[],58254,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_3.sh
+4,"{""mae_tx_mask_ratio"": ""0.65"", ""mae_tx_patch_len"": ""10""}",42,[],58255,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_4.sh
+5,"{""mae_tx_mask_ratio"": ""0.8"", ""mae_tx_patch_len"": ""10""}",42,[],58256,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_5.sh
+6,"{""mae_tx_mask_ratio"": ""0.5"", ""mae_tx_patch_len"": ""20""}",42,[],58257,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_6.sh
+7,"{""mae_tx_mask_ratio"": ""0.65"", ""mae_tx_patch_len"": ""20""}",42,[],58258,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_7.sh
+8,"{""mae_tx_mask_ratio"": ""0.8"", ""mae_tx_patch_len"": ""20""}",42,[],58259,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_8.sh
+9,"{""mae_tx_encoder_layers"": ""3""}",42,[],58260,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_9.sh
+10,"{""mae_tx_encoder_layers"": ""4""}",42,[],58261,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_10.sh
+11,"{""mae_tx_encoder_heads"": ""4""}",42,[],58262,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_11.sh
+12,"{""mae_tx_encoder_embed_dim"": ""128""}",42,[],58263,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_12.sh
+13,"{""mae_tx_encoder_embed_dim"": ""512""}",42,[],58264,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_13.sh
+14,"{""mae_tx_decoder_layers"": ""2""}",42,[],58265,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_14.sh
+15,"{""mae_tx_decoder_heads"": ""4""}",42,[],58266,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_15.sh
+16,"{""mae_tx_decoder_embed_dim"": ""64""}",42,[],58267,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_16.sh
+17,"{""mae_tx_decoder_embed_dim"": ""256""}",42,[],58268,/work/tesi_ddellacasaventurelli01/incremental-ad/slurm_grid_search/_generated_sbatch/swat_model_trial_17.sh

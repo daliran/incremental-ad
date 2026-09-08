@@ -22,6 +22,8 @@ import copy
 import csv
 import math
 import statistics as st
+import sys
+from collections import defaultdict
 import re
 import sys
 from pathlib import Path
@@ -705,6 +707,96 @@ for _i, _grp in enumerate(("noisefloor_swat_diagnostics", "noisefloor_psm_diagno
                          cell=r"\*{0,2}[\d.]+\*{0,2}", cap=r"\*{0,2}([\d.]+)\*{0,2}")
 
 
+# §1.34's forgetting table — the first published use of ACC/BWT, which the continual pipeline
+# has emitted since it was written. Both columns per row: the argument is about their signs and
+# their trend in n, so checking one would let the other drift away from it.
+_FG = {"ETTh1": ("segsweep_etth1_seq_n2", "continual_etth", "segsweep_etth1_seq_n5"),
+       "ETTh2": ("etth2_continual_n2", "etth2_continual_n3", "etth2_continual_n5"),
+       "ETTm2": ("ettm2_continual_n2", "ettm2_continual_n3", "ettm2_continual_n5"),
+       "exchange": ("segsweep_exchange_seq_n2", "exch_continual", "segsweep_exchange_seq_n5"),
+       "PSM-forecast": ("adfc2_psm_sequential_n2", "adfc2_psm_sequential_n3",
+                        "adfc2_psm_sequential_n5")}
+_FGC = r"\*{0,2}[+−\-]?[\d.]+\*{0,2}"
+_FGP = r"\*{0,2}([+−\-]?[\d.]+)\*{0,2}"
+for _ds, _exps in _FG.items():
+    for _n, _exp in zip((2, 3, 5), _exps):
+        for _i, _col in ((0, "acc"), (1, "bwt")):
+            CHECKS += row_checks("§1.34", rf"\| {_ds} \| {_n}",
+                                 {_i: (f"{_ds} n={_n} {_col}",
+                                       {"experiment": _exp, "metric": "forecast/mse"})},
+                                 "forgetting/forgetting_summary.csv", _col, 0.0001,
+                                 cell=_FGC, cap=_FGP)
+
+
+# §1.26b — the honest-W window column and the three exchange_rate rows it moves. Bound to the
+# selection report and to the re-run comparison, because the section's whole claim is that these
+# two disagree with §1.26's window column in a specific, bounded way.
+for _ds, _agree, _best, _val in (("ETTh1", "1.00", "0.3913", "0.3913"),
+                                 ("ETTh2", "1.00", "0.2952", "0.2952"),
+                                 ("ETTm2", "1.00", "0.1092", "0.1092"),
+                                 ("PSM-forecast", "0.00", "0.3611", "0.4132"),
+                                 ("exchange", "0.00", "0.2053", "0.3949")):
+    for _i, _col in ((1, "window_best"), (2, "window_val")):
+        CHECKS += row_checks("§1.26b", rf"\| {_ds}",
+                             {_i: (f"{_ds} {_col}", {"dataset": _ds, "n": "3",
+                                                     "metric": "forecast/mse"})},
+                             "window_selection/window_selection.csv", _col, 0.0001,
+                             cell=r"\*{0,2}[\d.]+%?\*{0,2}", cap=r"\*{0,2}([\d.]+)%?\*{0,2}")
+
+
+# §1.31's per-n 2x2 (item 2) and §1.32's Fisher sweep. Both sections turn on comparisons
+# between cells, so every cell of the 2x2 is bound rather than a representative one.
+_C31 = r"\*{0,2}[\d.]+\*{0,2} ±[\d.]+"
+_P31 = r"\*{0,2}([\d.]+)\*{0,2} ±[\d.]+"
+for _n in (2, 3, 5):
+    _sfx = "" if _n == 3 else f"_n{_n}"
+    for _i, _cell in enumerate(("sum_scale", "opcm_scale", "sum_became", "opcm_became")):
+        CHECKS += row_checks("§1.31", rf"\| {_n}",
+                             {_i: (f"2x2 n={_n} {_cell}",
+                                   {"experiment": f"opcm2_psm_{_cell}{_sfx}",
+                                    "block": "merged/test", "metric": "forecast/mse"})},
+                             "run_metrics.csv", "mean", 0.0001, cell=_C31, cap=_P31)
+
+
+# §1.32's Fisher-sample table. The per-seed departures are the evidence that the spread is
+# structural rather than sampling noise, so all three seeds are bound at both sample sizes.
+for _i, _seed in enumerate((7, 42, 123)):
+    for _fb, _label in ((64, r"\| 64"), (100000, r"\| all")):
+        CHECKS += row_checks("§1.32", _label,
+                             {_i: (f"fisher fb={_fb} seed={_seed} departure",
+                                   {"seed": str(_seed), "fisher_batches": str(_fb),
+                                    "fisher_seed": "0"})},
+                             "remerge/fisher_sweep_summary.csv", "max_dev_from_uniform_pct", 0.05,
+                             cell=r"[\d.]+%", cap=r"([\d.]+)%")
+
+
+# §1.33 (AEFT) and §1.27c (rolling origin on ETTh2/ETTm2). Both sections are built entirely
+# from prediction verdicts, so the cells the verdicts rest on are bound rather than sampled.
+_A = r"\*{0,2}[\d.]+\*{0,2} ±[\d.]+"
+_AP = r"\*{0,2}([\d.]+)\*{0,2} ±[\d.]+"
+for _row, _full, _aeft in ((r"\| plain sum \+ swept α", "opcm2_psm_sum_scale", "aeft_psm_sum_scale"),
+                           (r"\| OPCM \+ swept α", "opcm2_psm_opcm_scale", "aeft_psm_opcm_scale"),
+                           (r"\| plain sum \+ BECAME", "opcm2_psm_sum_became", "aeft_psm_sum_became")):
+    for _i, _exp in ((0, _full), (1, _aeft)):
+        CHECKS += row_checks("§1.33", _row,
+                             {_i: (f"{_exp} merged MSE",
+                                   {"experiment": _exp, "block": "merged/test",
+                                    "metric": "forecast/mse"})},
+                             "run_metrics.csv", "mean", 0.0001, cell=_A, cap=_AP)
+
+_OB = {"merge": "merged/test", "sequential": "continual_2/test",
+       "joint": "train/test", "window": "finetune_0/test"}
+for _ds in ("ETTh2", "ETTm2"):
+    _slug = _ds.lower()
+    for _f, _lbl in (("075", r"0\.75"), ("0875", r"0\.875")):
+        for _i, _role in enumerate(("merge", "sequential", "joint", "window")):
+            CHECKS += row_checks("§1.27c", rf"\| {_ds} \| {_lbl}",
+                                 {_i: (f"{_ds} f={_f} {_role}",
+                                       {"experiment": f"origin_{_slug}_{_role}_f{_f}",
+                                        "block": _OB[_role], "metric": "forecast/mse"})},
+                                 "run_metrics.csv", "mean", 0.0001)
+
+
 def csv_value(row: dict, column: str) -> float | None:
     """One CSV cell, with a documented unit conversion applied.
 
@@ -941,6 +1033,83 @@ def check_no_floor_fallback(audit_dir: Path) -> int:
             failures += 1
         else:
             print(f"  ok        {name}: {len(rows)}/{len(rows)} cells pairwise")
+    return failures
+
+
+def check_generated_config_sections(text: str) -> int:
+    """§2.7+ must match `generate_config_sections.py` exactly. Returns failure count.
+
+    Those subsections are generated from the archived `config.json`s, so the right check is not
+    "does each cell match a CSV" but "does the document still equal what the generator emits".
+    That catches a hand-edit, which is the only way they can go wrong — and a hand-edit to a
+    configuration record is worse than one to a results table, because nothing downstream would
+    ever contradict it.
+    """
+    import subprocess
+    print("\nGENERATED CONFIG SECTIONS (§2.7+) — document must equal the generator's output:")
+    try:
+        result = subprocess.run(
+            [sys.executable, "scripts/generate_config_sections.py"],
+            capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"  skipped — could not run the generator ({exc})")
+        return 0
+    if result.returncode != 0:
+        print(f"  skipped — generator failed: {result.stderr.strip().splitlines()[-1:]}")
+        return 0
+    failures = 0
+    checked = 0
+    for block in result.stdout.split("### ")[1:]:
+        title = block.splitlines()[0].strip()
+        body = "### " + block.rstrip() + "\n"
+        checked += 1
+        if body.rstrip() not in text:
+            print(f"  DRIFT      §{title}: the document differs from the generator's output — "
+                  f"re-run scripts/generate_config_sections.py rather than editing by hand")
+            failures += 1
+    if not failures:
+        print(f"  ok        {checked} generated subsections match")
+    return failures
+
+
+def check_per_seed_reproduces_aggregate(audit_dir: Path) -> int:
+    """`run_metrics.csv` must be derivable from `run_metrics_per_seed.csv`. Returns failures.
+
+    The per-seed file is the one the archive can regenerate everything else from, so it has to
+    actually contain the aggregate rather than merely sit beside it. Re-deriving mean and sd for
+    every (experiment, n_segments, block, metric) and comparing to the published aggregate is
+    what makes "the repo is self-sufficient" a checked statement instead of a claim.
+
+    Only rows the aggregate carries are compared: the per-seed file is deliberately a superset
+    (it walks every block, the aggregate uses a stable whitelist), and a superset is the right
+    direction — extra evidence, not missing evidence.
+    """
+    print("\nSELF-SUFFICIENCY — run_metrics.csv re-derived from run_metrics_per_seed.csv:")
+    per_seed_path = audit_dir / "run_metrics_per_seed.csv"
+    aggregate_path = audit_dir / "run_metrics.csv"
+    if not per_seed_path.exists() or not aggregate_path.exists():
+        print("  skipped — one of the two files is absent")
+        return 0
+    grouped: dict[tuple, dict[int, float]] = defaultdict(dict)
+    with per_seed_path.open() as fh:
+        for row in csv.DictReader(fh):
+            key = (row["experiment"], row["n_segments"], row["block"], row["metric"])
+            grouped[key][int(row["seed"])] = float(row["value"])
+
+    failures = checked = 0
+    with aggregate_path.open() as fh:
+        for row in csv.DictReader(fh):
+            key = (row["experiment"], row["n_segments"], row["block"], row["metric"])
+            values = list(grouped.get(key, {}).values())
+            if not values or not row.get("mean"):
+                continue
+            checked += 1
+            if abs(st.mean(values) - float(row["mean"])) > 1e-6:
+                print(f"  DRIFT      {key}: per-seed mean {st.mean(values):.6f} vs aggregate "
+                      f"{float(row['mean']):.6f}")
+                failures += 1
+    if not failures:
+        print(f"  ok        {checked} aggregate rows re-derived from the per-seed file")
     return failures
 
 
@@ -1281,6 +1450,9 @@ def main() -> None:
     # Sections verified by a dedicated recompute rather than by row_checks. They are checked,
     # just not through CHECKS, so the coverage line must not report them as gaps.
     covered |= {"§1.27a", "§1.27b"}
+    # §2.7+ are generated and verified by check_generated_config_sections, which
+    # compares the whole subsection rather than individual cells.
+    covered |= {f"§2.{i}" for i in range(7, 30)}
     unchecked = [s for s in with_tables if f"§{s}" not in covered]
     todo = [s for s in unchecked if s not in OUT_OF_SCOPE and s not in BLOCKED]
     blocked = [s for s in unchecked if s in BLOCKED]
@@ -1298,6 +1470,16 @@ def main() -> None:
     curves = check_scale_curves(text, args.runs_root, args.matrix_spec) if args.runs_root else 0
     if curves:
         print(f"  -> {curves} merge-scale-curve failure(s)")
+
+    generated = check_generated_config_sections(text)
+    if generated:
+        print(f"  -> {generated} generated subsection(s) edited by hand")
+        drift += generated
+
+    self_sufficient = check_per_seed_reproduces_aggregate(args.audit_dir)
+    if self_sufficient:
+        print(f"  -> {self_sufficient} row(s) where the aggregate is not derivable from per-seed")
+        drift += self_sufficient
 
     origins = check_origin_aggregations(text, args.audit_dir)
     if origins:

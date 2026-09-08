@@ -1,0 +1,21 @@
+{
+  "step_name": "merged/val",
+  "started_at": "2026-09-08T20:23:20.973290+00:00",
+  "finished_at": "2026-09-08T20:23:22.163002+00:00",
+  "metrics": {
+    "forecast/mse": 0.23759065568447113,
+    "forecast/rmse": 0.4874327191361605,
+    "forecast/mae": 0.32059741020202637,
+    "became_lambda/step_0": 1.0,
+    "became_lambda/step_1": 0.9283801656215975,
+    "became_lambda/step_2": 0.14157468072220303,
+    "became_lambda/step_3": 0.42371522926305866,
+    "became_lambda/step_4": 0.04822880409419378,
+    "became_weight/tau_0": 0.03372139490369062,
+    "became_weight/tau_1": 0.43711737757271674,
+    "became_weight/tau_2": 0.07765247295019469,
+    "became_weight/tau_3": 0.4032799504792042,
+    "became_weight/tau_4": 0.04822880409419378,
+    "became_lambda/max_dev_from_uniform": 1.1855868878635836
+  }
+}

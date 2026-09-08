@@ -444,6 +444,16 @@ Recomputed and **matching** the published values: the ETTh1 task-vector norms (1
 (ETTh1 1.00/1.00, exchange_rate 1.40/1.50, ETTh2 0.97/0.80/0.75), exchange_rate's 5.73%
 reproducibility floor, ETTh1's GRR, and **all three SWaT rows** of §1.12.
 
+> ✅ **ETTh2 and ETTm2 restored to three seeds, 2026-09-09.** Four cells
+> (`ett{h,m}2_merge_n{2,3}`) had silently degraded to **two** seeds in the regenerated CSVs: two
+> of the three diagnostics seeds selected α = 0.25, which is off the 0.1 grid, so the pipeline
+> appended it and `scale_report` dropped the mismatched seed. Re-run on a 31-point 0.05 grid that
+> contains every selected α — `*_diagnostics05` — all four now report `n_seeds = 3`,
+> `n_dropped_grid_mismatch = 0`. **The published values were right and the CSV was wrong**: at
+> three seeds ETTh2's α\*·n reads 0.967 / 0.800 / 0.75, reproducing the 0.97 / 0.80 / 0.75 above,
+> which the two-seed CSV had moved to 0.80 / 0.75 / 0.75. No training was needed — this was a
+> diagnostics-grid fault, not a missing run. ETTm2's three-seed products are 0.767 / 0.800 / 0.75.
+
 Recomputed and **corrected**: the PSM rows of §1.12, the routing table (§1.16), and three
 percentages in §1.23–§1.24.
 
@@ -2625,8 +2635,11 @@ allowed the most data. The table's value is in the exceptions and the magnitudes
 - **exchange_rate inverts it completely** — joint is the *worst* of the five (0.3957 against the
   window's 0.2053) because its oldest data actively hurts. This is the one dataset where the
   constrained methods beat the unconstrained one, and it is the small-shard, high-drift case.
-- **Merging never wins a decisive forecasting configuration** — now 0 of 18, with the two new
-  datasets added and the α convention repaired. Its two wins are PSM (detection) at 0.1%
+- **Merging never wins a decisive forecasting configuration** — 0 of 18 **in this table**, with
+  the two new datasets added and the α convention repaired. ⚠️ **That is a property of the
+  oracle-W window column, not of merging.** §1.26b re-runs the comparison with the window budget
+  chosen on validation, and merging then wins exchange_rate n = 5 decisively. Read this bullet as
+  scoped to the table above. Its two wins are PSM (detection) at 0.1%
   margins, on a dataset whose base is already within 3.4% of joint.
 - **Sequential never wins one either** — 0 of 24. Yet §1.13 has sequential beating merging **8–3**
   on decisive forecasting configurations. Both statements are true: the two are competing for
@@ -2637,6 +2650,71 @@ allowed the most data. The table's value is in the exceptions and the magnitudes
 method for the case where retention is *forbidden*, and the question worth asking is the one
 §1.21 asks — how many periods of retained data is it worth — not which method scores best when
 one of them is handed the full history.
+
+### 1.26b Choosing the window budget honestly — and what it costs the window column
+
+> **Provenance.** `analysis/window_selection.py --mode common_val`, then
+> `method_comparison.py --window_selection …`. Every `window_<dataset>_W<k>` checkpoint is scored
+> on the **merged-val union** — the same held-out set merge-scale selection uses — and W is
+> picked on that, per seed; the reported figure is the *test* value of the W that was picked.
+
+§1.26's `window` column is **the best of W ∈ {1,2,3} on test**. Every other column is either a
+single method or, since §1.29, val-selected. So the window retrain was the only entrant handed an
+oracle, and handed one over the exact axis that defines it. This removes that.
+
+⚠️ **The obvious way to fix it is wrong, and it is worth recording.** Each window run has its own
+validation tail (`finetune_0/val`), which looks like the natural signal. It is not: those runs use
+different `baseline_fraction` (0.9 / 0.8 / 0.7), so **each one's val tail is a different slice of
+the series**, and W=1's is the most recent and easiest. Selecting on it picks W=1 in 33 of 54
+cells while the test-best is W=3 in 48 — a ~40% "penalty" that measures the artefact, not the
+method. A selection signal must be *common* to the things being selected between, which is why
+the merged-val union is used instead.
+
+| dataset | agreement with test-best | window @ test-best | window @ val-selected | penalty |
+|---|---|---|---|---|
+| ETTh1 | **1.00** | 0.3913 | 0.3913 | 0.00% |
+| ETTh2 | **1.00** | 0.2952 | 0.2952 | 0.00% |
+| ETTm2 | **1.00** | 0.1092 | 0.1092 | 0.00% |
+| PSM-forecast | 0.00 | 0.3611 | 0.4132 | 14.42% |
+| SWaT-forecast | 0.33 | 2.8717 | 3.0837 | 7.38% |
+| exchange | 0.00 | 0.2053 | **0.3949** | **92.36%** |
+
+**On three of six datasets the honest choice is free** — validation picks the test-best budget
+every time, so §1.26's window column was not flattered there at all. **On exchange_rate it is not
+free by a factor of two.** The oracle picks W=3 (0.2053); validation picks W=2 (0.3949).
+
+#### The five-method table, with the window entrant chosen honestly
+
+| dataset | n | joint | merge | sequential | window @ val | winner (was) |
+|---|---|---|---|---|---|---|
+| ETTh1 | 2 / 3 / 5 | 0.4186 | 0.4597 / 0.4964 / 0.4517 | 0.4078 / 0.4140 / 0.4410 | **0.3913** | window (window) |
+| ETTh2 | 2 / 3 / 5 | **0.1362** | 0.2612 / 0.2153 / 0.2669 | 0.2332 / 0.1970 / 0.2495 | 0.2952 | joint (joint) |
+| ETTm2 | 2 / 3 / 5 | **0.0750** | 0.1240 / 0.1121 / 0.1385 | 0.0952 / 0.0920 / 0.1839 | 0.1092 | joint (joint) |
+| exchange | 2 | 0.3957 | 0.2554 | **0.2199** | 0.3949 | **sequential** (window) |
+| exchange | 3 | 0.3957 | 0.3626 | 0.3586 | 0.3949 | **tie** (window) |
+| exchange | 5 | 0.3957 | **0.3271** | 0.5311 | 0.3949 | **merge** (window) |
+| PSM-forecast | 2 / 3 / 5 | **0.3022** | 0.3630 / 0.3925 / 0.4036 | 0.4427 / 0.3840 / 0.4419 | 0.4132 | joint (joint) |
+| SWaT-forecast | 2 / 3 / 5 | 12.4910 | 14.8590 / 4.7604 / 5.2445 | 3.3095 / 3.9654 / 4.0229 | 3.0837 | tie (window) |
+
+**All three exchange_rate rows change winner**, and the decisive count over forecasting rows goes
+from **window 6 / joint 9** to **joint 9, window 3, sequential 1, merge 1**.
+
+⚠️ **"Merging never wins a decisive forecasting configuration" no longer holds.** That claim —
+0 of 18 in §1.26 — was true only while the window column was allowed to pick W with test
+knowledge. With the budget chosen honestly, **merging wins exchange_rate n = 5 decisively**
+(0.3271 against a val-selected window's 0.3949), and n = 3 becomes a tie rather than a window win.
+§1.26's tally is corrected below; the sentence there is now scoped to the oracle-W column.
+
+**What this does not change.** Nine of the twelve joint wins are untouched, and ETTh1's window
+wins survive at full strength because its selection is perfect. The correction is concentrated
+entirely on the dataset where §1.24 already established that shard size, not drift, drives the
+behaviour — exchange_rate, whose 607-row shards make every method unstable and whose window column
+was the most extreme number in the table.
+
+**Both columns are kept.** `window_best` answers "how good is a window retrain at the best budget?",
+which is what §1.21's retention argument needs; `window_val` answers "how good is it if you have to
+choose?", which is what a method comparison needs. Reporting only the first is what created the
+asymmetry.
 
 ### 1.27 Rolling origin — does the winner survive moving the cut?
 
@@ -2692,6 +2770,53 @@ end of the series structurally favours recency-weighted methods — is *not* wha
 §1.8's per-period distances show the last period is closest to the test block in essentially no
 dataset. The instability here is that one block is one sample, not that late blocks flatter late
 data.
+
+#### 1.27c ETTh2 and ETTm2 — the two datasets the ranking is used most on
+
+> **Provenance.** `run_metrics.csv`, experiments `origin_ett{h,m}2_<role>_f<origin>`, three seeds
+> each, `forecast/mse`; f = 1.00 is each dataset's published run. Grid from
+> `scripts/generate_rolling_origin.py`, extended to these two.
+
+§1.27 tested the cut on ETTh1 and exchange_rate only. ETTh2 and ETTm2 carry the largest headroom
+in the project and their ranking is quoted most, so the finding needed to hold there.
+
+| dataset | origin | merge | sequential | joint | window | winner |
+|---|---|---|---|---|---|---|
+| ETTh2 | 0.75 | 1.2677 | 1.0629 | **0.7636** | 1.2214 | joint |
+| ETTh2 | 0.875 | 0.5851 | **0.3077** | 0.6674 | 0.3935 | **sequential** |
+| ETTh2 | 1.00 ←published | 0.2153 | 0.1970 | **0.1362** | 0.2952 | joint |
+| ETTm2 | 0.75 | 0.5445 | 0.6750 | **0.1565** | 0.6697 | joint |
+| ETTm2 | 0.875 | 0.3472 | 0.1497 | **0.1348** | 0.1792 | joint |
+| ETTm2 | 1.00 ←published | 0.1121 | 0.0920 | **0.0750** | 0.1092 | joint |
+
+**P1 — "on ETTh2 joint wins at every origin" — REFUTED.** It loses to sequential at f = 0.875.
+ETTh2's own old data helping (§1.23) is not enough to make joint safe at every cut.
+
+**P2 — "ETTm2's sequential-over-merge win survives at ≥2 of 3 origins" — CONFIRMED.** Sequential
+beats merging at f = 0.875 and f = 1.00; merging wins only at f = 0.75.
+
+**P3 — "per-quarter verdicts stay consistent in ≥80% of configurations" — CONFIRMED, 4 of 4.**
+`subblock_report` on the new runs gives `joint → joint → joint → joint`,
+`sequential → sequential → sequential → tie`, `joint ×4`, and `tie → tie → joint → tie`; **no
+sub-block decisively contradicts another**. The §1.27b conclusion — the instability is in the
+*training set*, not the test block — reproduces on two more datasets.
+
+**P4 — "mean rank preserves the published winner on both" — REFUTED on ETTh2**, and the two
+scale-free aggregations disagree there:
+
+| dataset | mean rank | ratio to joint | published (f = 1.00) |
+|---|---|---|---|
+| ETTh2 | **sequential** (1.67 vs joint 2.00) | **joint** (1.000 vs sequential 1.100) | joint |
+| ETTm2 | **joint** (1.00) | **joint** (1.000) | joint |
+
+⚠️ ETTh2's MSE spans **0.1362 to 1.2677** across origins — an order of magnitude, the same
+condition that made §1.27a discard the raw mean on exchange_rate. Mean rank counts f = 0.875's
+sequential win equally with the two joint wins; ratio-to-joint weights by margin and joint's are
+larger. **On ETTh2 the aggregation choice decides the answer, so neither should be quoted as
+*the* winner** — the honest statement is that joint wins two of three origins and sequential the
+third, by a margin large enough to move a rank-based summary.
+
+**ETTm2 is unambiguous**: joint at every origin, on both aggregations, matching the published cut.
 
 #### 1.27a Aggregating the three origins — and why the raw mean must not be the headline
 
@@ -3239,9 +3364,12 @@ why the honest-α cost is small (§1.30): **it is not that 1/n is special, it is
 range of coefficient choices is equally good.** That is a weaker claim than "theory derives our
 headline", and it is the one the data supports.
 
-**Practically: BECAME matches validation-selected α without a validation sweep** (+1.14%, a tie
-against the 1.16% floor). Same accuracy, no grid, no retained labels for selection — which is
-the whole point in a zero-retention setting. It does not beat the oracle, and nothing here says
+**Practically: at n = 3, BECAME matches validation-selected α without a validation sweep**
+(+1.14%, a tie against the 1.16% floor). Same accuracy, no grid, no retained labels for
+selection — which is the whole point in a zero-retention setting. ⚠️ **This does not hold at
+other segment counts.** The per-n table below shows BECAME **3.3–3.5% worse** than sweeping α at
+n = 2 and n = 5, three times the floor; n = 3 is the only count where the two match. Read this
+paragraph as scoped to n = 3. It does not beat the oracle, and nothing here says
 it should.
 
 ⚠️ **λ\* is seed-unstable and that limits the claim.** Seed 42 gives a 129.5% departure from
@@ -3251,6 +3379,79 @@ are. The *outcome* is stable (±0.0086 across seeds) precisely because of the fl
 the coefficient is poorly determined and it does not matter much. Read λ\* as a rough
 indicator, not a measurement, until the Fisher sample is enlarged.
 
+#### Across shard counts — registered before running
+
+§1.31 above is one dataset at one n. "The merge objective is flat over the weight simplex" is a
+claim about the simplex, so it has to hold where the simplex is a different shape. Same four
+cells at **n = 2 and n = 5**, PSM-forecast, three seeds, OPCM at threshold 0.5 only, grid built
+by `scripts/generate_ablation_grid.py` — which reproduces the n = 3 grid above byte-for-byte,
+so the three segment counts differ only in n.
+
+⚠️ **Predictions, registered before the runs:**
+
+- **P1 — OPCM is worse than plain summation at both n.** The direction, not the magnitude: it is
+  the same aligned-regime argument, and if it reverses at some n the §1.8 reading is wrong.
+- **P2 — BECAME is within the floor of validation-selected α at both n.** The deployable claim.
+- **P3 — OPCM's shortfall grows with n.** More predecessors span more of the incoming vector, so
+  more is projected away. This is the one prediction that could plausibly fail while P1 holds.
+- **P4 — BECAME's weights depart further from uniform at n = 5 than at n = 3.** More shards, more
+  opportunity for their Fishers to differ.
+
+**Results** — `forecast/mse`, three seeds per cell:
+
+| n | plain sum + swept α | OPCM + swept α | plain sum + BECAME | OPCM + BECAME |
+|---|---|---|---|---|
+| 2 | **0.3647** ±0.0168 | 0.3680 ±0.0354 | 0.3775 ±0.0157 | 0.4010 ±0.0327 |
+| 3 | 0.3925 ±0.0108 | 0.4041 ±0.0070 | **0.3880** ±0.0086 | 0.3974 ±0.0071 |
+| 5 | **0.4129** ±0.0061 | 0.4220 ±0.0137 | 0.4266 ±0.0057 | 0.4303 ±0.0176 |
+
+**P1 — OPCM worse at both n — CONFIRMED in direction, unresolved in significance.** OPCM is worse
+in **all six** comparisons (+0.91% to +6.21%), so the sign never reverses. But only the two n = 3
+cells reach boundary; the n = 2 and n = 5 cells are ties. The aligned-regime argument survives
+another two segment counts without being sharpened by them.
+
+**P2 — BECAME within the floor of val-selected α at both n — REFUTED, and this scopes §1.31.**
+
+| n | swept α | BECAME | difference |
+|---|---|---|---|
+| 2 | 0.3647 | 0.3775 | **+3.53%** |
+| 3 | 0.3925 | 0.3880 | −1.14% |
+| 5 | 0.4129 | 0.4266 | **+3.32%** |
+
+Only n = 3 is inside the 1.16% floor. At n = 2 and n = 5 BECAME is **~3.3–3.5% worse** than
+sweeping α — three times the floor. **§1.31's "BECAME matches validation-selected α with no
+sweep" is an n = 3 result and does not generalise**, which is exactly what running the other two
+segment counts was for.
+
+**P3 — OPCM's shortfall grows with n — REFUTED.** Non-monotone in both columns
+(swept: +0.91 / +2.95 / +2.18; BECAME: +6.21 / +2.41 / +0.86), and the BECAME column runs the
+*opposite* way. "More predecessors span more of the incoming vector, so more is projected away"
+is intuitive and unsupported.
+
+**P4 — BECAME's weights depart further from uniform at larger n — CONFIRMED, strongly.**
+
+| n | mean departure from uniform | per seed |
+|---|---|---|
+| 2 | 30.9% | 26% / 17% / 50% |
+| 3 | 65.6% | 19% / 130% / 49% |
+| 5 | **135.8%** | 163% / 119% / 126% |
+
+Monotone and steep — the departure roughly doubles with each step in n.
+
+#### P2 and P4 together sharpen §1.31's flatness claim
+
+§1.31 concluded that the merge objective is *locally flat over the weight simplex*, from weights
+0.21/0.31/0.48 landing within 0.15% of uniform. P4 shows the departure grows to **135.8%** at
+n = 5, and P2 shows that is where BECAME starts to cost **3.3%**. The two together say the
+flatness is **local, not global**: near uniform the coefficient barely matters, and far from it
+it does.
+
+That is a more useful statement than either half. It explains why α\*·n ≈ 1 reproduces so easily
+(the region around 1/n is flat, so many α land equally well) *and* why a derived coefficient that
+wanders far from 1/n is not automatically safe. **The pre-declared α = 1/n looks better after this
+experiment than the derived one**, because it stays in the flat region by construction while
+BECAME's weights leave it as n grows.
+
 #### A metric that had to be thrown away before it was reported
 
 The pipeline first logged an `effective_alpha` = Σ(weights)/n, intended as "the uniform α this
@@ -3259,7 +3460,11 @@ its weights always sum to 1 and the quantity is identically 1/n for *every* λ s
 including λ = [1, 0.9, 0.9], whose weights are [0.01, 0.09, 0.90]. It would have reported
 "BECAME derives exactly 1/n" for free, confirming prediction 2 without measuring anything. It
 is replaced by the per-vector weights and their maximum departure from uniform, which is what
-the table above reports. Recorded here because the failure mode — a derived quantity that
+the table above reports. ⚠️ **The archived `opcm2_*` runs predate the replacement**: their
+`merged/val/result.json` still carries a `became_lambda/effective_alpha` field. It is the vacuous
+quantity and is ignored everywhere — the `became_lambdas.csv` derived columns were recomputed
+from the recorded `lambda_star`, which is the primary value and unchanged. Do not read that
+field. Recorded here because the failure mode — a derived quantity that
 cannot vary, dressed as a measurement — is not one the doc-vs-CSV checker can catch.
 
 #### The projection threshold does not rescue OPCM
@@ -3293,6 +3498,249 @@ at all of them.
 untested, and the datasets that would test it have 5.7–8.8% floors that would return ties on a
 1.4–3.0% effect. Testing the ordering needs a low-floor dataset at a different ρ, which this
 project does not currently have.
+
+### 1.32 Is λ\* unstable because the Fisher is noisy?
+
+> **Provenance.** `analysis/remerge.py` — a training-free re-merge from the finished
+> `opcm2_psm_sum_became` runs: it loads `baseline/` and `finetune_i/` checkpoints, recomputes the
+> Fishers at a chosen sample size, merges and evaluates. It **never writes into the run it
+> reads**, and it self-checks that plain summation at the committed α reproduces
+> `merged/checkpoints/best.pt` bitwise before computing anything else — if the re-merge path
+> were not the pipeline's path, nothing here would be comparable to §1.31.
+
+§1.31 measured λ\* departing from uniform by **18.6%** on seed 7 and **129.5%** on seed 42 — same
+data, same code. A 64-batch diagonal Fisher is a noisy estimator, so that spread has two
+possible causes and they call for opposite conclusions: if enlarging the sample collapses it,
+"BECAME over-weights the newest shard" is measurement noise; if it survives, it is a real
+property of the shards and a candidate materialisation signal.
+
+`fisher_batches ∈ {64, 256, 1024, all}` × Fisher draw seed ∈ {0, 1} at 64 and 256, on all three
+seeds. Two draws at one sample size separate the *estimator's* variance from the shards' —
+without them a stable λ\* could just mean both draws happened to land in the same place.
+
+⚠️ **Predictions, registered before running:**
+
+- **P1 — the λ\* spread across seeds falls monotonically with `fisher_batches`.** The plain
+  noise hypothesis.
+- **P2 — the recency bias survives at 1024 batches.** §1.31's mean weight on the newest shard was
+  0.481 against a uniform 0.333; if that is real rather than sampling error it should persist.
+- **P3 — test MSE moves by less than the 1.16% floor across every setting.** The flatness §1.31
+  argues for: if the coefficient barely matters, then how well it is estimated should matter even
+  less. This is the prediction whose failure would be most interesting, since it would mean the
+  weight simplex is not flat after all.
+
+#### Results
+
+Departure of the BECAME weights from uniform, per seed and Fisher sample size (draw 0):
+
+| batches | seed 7 | seed 42 | seed 123 | spread across seeds | w(newest), mean |
+|---|---|---|---|---|---|
+| 64 | 24.1% | 137.8% | 44.3% | 60.7 pp | 0.466 |
+| 256 | 21.7% | 136.9% | 44.2% | 61.1 pp | 0.471 |
+| 1024 | 21.7% | 136.9% | 44.2% | 61.1 pp | 0.471 |
+| all | 21.7% | 136.9% | 44.2% | 61.1 pp | 0.471 |
+
+⚠️ **The sweep has two distinct sample sizes, not four.** A shard's training loader holds **146
+batches**, so every setting ≥ 256 estimates the Fisher on the *same* full pass: the 1024 and
+`all` rows are bitwise identical, and 256 differs from them only at the seventh decimal, which is
+GPU reduction-order non-determinism rather than a different sample. That is a limitation of the
+design as specified, and it means P1 is tested on 64 → 146 rather than across four points.
+
+**P1 — "the λ\* spread across seeds falls monotonically with `fisher_batches`" — REFUTED.** It
+does not fall at all: **60.7 pp at 64 batches, 61.1 pp at the full pass.** Quadrupling the
+effective sample changes each seed's departure by at most 2.4 pp (seed 7: 24.1% → 21.7%) and
+leaves the between-seed ordering identical. **λ\*'s seed-to-seed variation is not measurement
+noise** — it is a property of the shards those seeds produced.
+
+**P2 — "the recency bias survives at 1024 batches" — CONFIRMED.** Mean weight on the newest shard
+is **0.466 at 64 batches and 0.471 at the full pass**, against a uniform 0.333. It is stable in
+the sample size and does not shrink toward uniform. BECAME genuinely over-weights the newest
+shard here.
+
+**P3 — "test MSE moves by less than the 1.16% floor across all settings" — CONFIRMED**, read as
+the effect of the Fisher setting:
+
+| seed | min | max | range |
+|---|---|---|---|
+| 7 | 0.3933 | 0.3943 | **0.27%** |
+| 42 | 0.3940 | 0.3951 | **0.29%** |
+| 123 | 0.3765 | 0.3776 | **0.31%** |
+
+⚠️ **Pooled across seeds the range is 4.81%, which would read as a refutation and would be
+wrong.** That figure is dominated by seed 123 sitting below seeds 7 and 42 — ordinary run-to-run
+spread, not the Fisher sample. The prediction is about the *setting*, so the comparison has to
+hold the seed fixed. The same mistake in the other direction is what §1.27 could not avoid and
+§1.27b had to repair.
+
+**The estimator's own variance is small.** Two independent draws at one sample size differ by
+0.6–4.7 pp (seed 42: 137.8% vs 133.1% at 64 batches; 136.9% vs 136.5% at 256), against a
+between-seed spread of ~61 pp. So the sampling noise is roughly an order of magnitude smaller
+than the effect it was suspected of causing.
+
+**What this settles.** §1.31 reported λ\* departing from uniform by 18.6% on one seed and 129.5%
+on another and could not say whether that was noise. It is not: the shards those seeds produce
+genuinely differ in curvature, and BECAME reads that difference. **And it still does not matter
+for accuracy** — the coefficient moves a long way while test error moves 0.3%, which is §1.31's
+flatness result confirmed from a second direction. λ\* is therefore a usable *signal about the
+shards* (and so a candidate materialisation trigger, EXECUTION_PLAN §3.12) while remaining
+close to irrelevant as a *coefficient*.
+
+### 1.33 Attention-exclusive fine-tuning — the testable half of QOMM
+
+> **Provenance.** `--finetune_trainer_train_only self_attn` (new in `StandardTrainer`), on
+> PSM-forecast n = 3, three seeds. Semantics checked by `scripts/verify_train_only.py` **before
+> the first run**: the task vector must be bitwise zero outside attention, trained parameters
+> must move, `requires_grad` must match the frozen set exactly, and an empty flag must be an
+> exact no-op. Only the *fine-tune* trainer is restricted — the baseline trains fully, or θ₀
+> would be a different model and the comparison would confound two changes.
+
+#### Where the professor's five methods stand
+
+| method | status | reason |
+|---|---|---|
+| **OPCM** | done, §1.31 | worse than plain summation at every threshold |
+| **BECAME** | coefficient done, §1.31/§1.32 | λ\* is real shard structure, ≈ 1/n only at n = 3 |
+| **QOMM** | its QOP half is covered by the OPCM result; **AEFT tested here** | the two halves are separable |
+| **ODE-M** | **not run** | needs a retained calibration set, which violates the zero-retention setting this project is about |
+| **TRM** | **not run** | re-optimises *during* merging, so it is not training-free — the same disqualification |
+
+The last two are refusals with reasons, not omissions. Both would be perfectly reasonable in a
+setting that allowed retention or merge-time training; neither is the setting here.
+
+**Why AEFT is worth a run.** QOMM's premise is that restricting fine-tuning to attention makes
+task vectors more orthogonal — which, if true, is the one intervention that could rescue OPCM,
+since OPCM only hurts here *because* the vectors are 92% aligned and the shared component is
+signal. Attention is **31.8% of MaeTx's parameters** (231,424 of 728,676), so this is a real
+restriction rather than a nominal one.
+
+⚠️ **Predictions, registered before running:**
+
+- **P1 — ρ and the mean pairwise cosine drop versus full fine-tuning.** QOMM's premise itself.
+- **P2 — the specialists get worse.** Fewer trainable parameters, so each shard's own model
+  should fit its shard less well; the transfer matrix's diagonal should rise.
+- **P3 — OPCM's shortfall shrinks but does not become a win.** Less shared component to discard,
+  so less damage — but P1 would have to be very large to flip the sign.
+- **P4 — α\*·n rises above 1.** Less aligned means less overshoot, so the optimal coefficient
+  should grow.
+
+#### Results — all four predictions refuted, and coherently so
+
+| cell | full fine-tuning | AEFT | change | verdict |
+|---|---|---|---|---|
+| plain sum + swept α | 0.3925 ±0.0108 | 0.4063 ±0.0101 | +3.53% | boundary |
+| OPCM + swept α | 0.4041 ±0.0070 | 0.4212 ±0.0143 | +4.25% | decisive |
+| plain sum + BECAME | 0.3880 ±0.0086 | 0.4011 ±0.0079 | +3.38% | decisive |
+
+**P1 — "ρ and mean pairwise cosine drop" — REFUTED, and reversed.** They *rise*:
+
+| geometry | full fine-tuning | AEFT |
+|---|---|---|
+| mean off-diagonal cosine | 0.1571 | **0.2118** |
+| ρ (mean sequential overlap) | 0.0343 | **0.0659** |
+| cosine at distance 1 | 0.1733 | 0.2461 |
+| effective rank | 2.01 | 2.67 |
+| mean ‖τ‖ | 4.24 | **5.74** |
+
+Restricting the update to attention makes the task vectors **more** aligned, not less — the
+cosine rises 35% and ρ nearly doubles. **This is the opposite of QOMM's premise**, and it has a
+straightforward mechanism: confining every shard's update to the same 31.8% of the parameters
+forces them through a shared subspace, so they overlap more. The norms rise too (4.24 → 5.74),
+because the same loss reduction has to be achieved with fewer weights.
+
+**P2 — "the specialists get worse" — REFUTED.** Mean specialist error goes 0.4365 → **0.4293**,
+slightly *better*. Attention alone is enough to fit a shard here; the restriction does not cost
+specialist quality, which makes the merged model's loss the more interesting number.
+
+**P3 — "OPCM's shortfall shrinks" — REFUTED.** It grows: +2.95% under full fine-tuning, **+3.67%**
+under AEFT. Exactly what P1's reversal predicts — more shared component means OPCM discards more.
+
+**P4 — "α\*·n rises above 1" — REFUTED.** It falls, 0.95 → **0.900**. Again consistent: more
+alignment means more overshoot, so the optimal coefficient is smaller.
+
+#### What this settles about QOMM
+
+The four refutations are not independent — **P1 causes the other three.** AEFT was the one
+intervention that could plausibly have rescued OPCM, because OPCM only hurts here *because* the
+vectors are aligned. It does the reverse: it aligns them further, so it makes OPCM worse, makes
+α\* smaller, and costs 3.4–4.3% accuracy while leaving specialist quality untouched.
+
+**QOMM's premise does not hold on this model.** Its projection half was already measured (§1.31,
+worse at every threshold); its attention-restriction half is measured here and moves the geometry
+the wrong way. That closes the professor's list with a reason attached to every method, and the
+reason for QOMM is a measurement rather than a scope decision.
+
+⚠️ **Scope.** One model, one dataset, n = 3. MaeTx's attention is 31.8% of its parameters; a
+model where attention dominates might behave differently, and QOMM was proposed for vision
+transformers rather than a small time-series MAE. The claim here is that the premise fails
+*in this setting*, not that it is false in general.
+
+### 1.34 Forgetting, measured — ACC and BWT from the sequential chains
+
+> **Provenance.** `analysis/forgetting_report.py` over `continual_summary/result.json`, which
+> `ContinualFineTuningPipeline` has written all along and **no table read until now**. Merge cost
+> is *read from* `routing_report`, not recomputed — a first version derived it independently and
+> produced 1.4–2.1× where §1.16 publishes ~1.0–1.1×, i.e. two definitions of one quantity.
+> Training-free; runs from `results_archive/runs/`. Experiments of record only; the superseded
+> `*_oldmask` groups are excluded.
+
+§1.13 asserts "merging starves as shards shrink, **continual forgets as steps accumulate**" and
+supports the second half with a symptom — exchange_rate's test error going 0.220 → 0.362 → 0.531
+— rather than with the quantity that names it. This is that quantity.
+
+**Sign convention, stated twice because it is inverted from the literature.** These are
+loss-shaped. **Positive BWT means later training hurt earlier regimes**, i.e. positive is
+forgetting. `base drift` is the final model's loss on the baseline's own slice ÷ the baseline
+model's; > 1 means the chain moved away from where it started.
+
+| dataset | n | ACC | BWT | sd | base drift | merge cost |
+|---|---|---|---|---|---|---|
+| ETTh1 | 2 | 0.3549 | −0.0821 | 0.0051 | 0.951 | 1.075 |
+| ETTh1 | 3 | 0.3188 | −0.0388 | 0.0071 | 1.110 | — |
+| ETTh1 | 5 | 0.3564 | +0.0332 | 0.0212 | 1.298 | 1.018 |
+| ETTh2 | 2 | 0.3419 | **+0.3180** | 0.1633 | 1.250 | 1.454 |
+| ETTh2 | 3 | 0.2261 | +0.1047 | 0.0481 | 1.146 | 1.736 |
+| ETTh2 | 5 | 0.2099 | +0.0459 | 0.0163 | 1.186 | 2.064 |
+| ETTm2 | 2 | 0.1433 | +0.0999 | 0.0128 | 0.794 | 1.825 |
+| ETTm2 | 3 | 0.1132 | +0.0437 | 0.0221 | 0.886 | 1.493 |
+| ETTm2 | 5 | 0.1615 | +0.1057 | 0.0198 | 1.342 | 1.699 |
+| exchange | 2 | 0.0771 | −0.0117 | 0.0127 | 0.838 | 1.626 |
+| exchange | 3 | 0.1024 | +0.0414 | 0.0197 | 0.846 | — |
+| exchange | 5 | 0.1301 | +0.0810 | 0.0244 | 0.674 | 2.042 |
+| PSM-forecast | 2 | 0.2803 | +0.1087 | 0.0369 | 1.282 | — |
+| PSM-forecast | 3 | 0.4789 | −0.0119 | 0.0061 | 1.287 | — |
+| PSM-forecast | 5 | 0.2994 | +0.1341 | 0.0504 | 1.406 | — |
+
+**19 of 26 chains have positive BWT**, so forgetting is real and common. But the three
+predictions registered for this experiment come out **one confirmed, two refuted**, and the
+refutations matter more than the confirmation.
+
+**P1 — "BWT grows with n on exchange_rate and ETTm2" — half confirmed.** On exchange_rate it is
+monotone and clean: **−0.0117 → +0.0414 → +0.0810**, crossing from *positive* backward transfer
+at n = 2 into forgetting by n = 5. That is the mechanism §1.13 and §1.24 attribute the collapse
+to, now measured rather than inferred. **On ETTm2 it is not monotone** (+0.0999 → +0.0437 →
++0.1057): n = 3 forgets *least*, which no version of "more steps, more forgetting" predicts.
+
+**P2 — "on ETTh2, where sequential wins, BWT is small or negative" — REFUTED.** ETTh2's BWT is
+positive at every n, and **n = 2 carries the largest BWT in the entire table (+0.3180)**. So
+sequential fine-tuning wins on ETTh2 *while forgetting more than anywhere else*. The two are not
+in tension once separated: BWT measures what the chain gives up on **earlier** regimes, and
+§1.26 scores every method on the **final** test block. A method can forget the past heavily and
+still win on the future — which is precisely the situation on the dataset where old data helps
+least. **"Sequential wins because it forgets less" is not supported; on ETTh2 the opposite holds.**
+
+**P3 — "the merge's equivalent is bounded at ~1.0–1.1× and does not grow with n" — REFUTED on
+three of four datasets.** It holds only on ETTh1 (1.075 → 1.018). On **ETTh2 merge cost grows
+monotonically with n, 1.454 → 1.736 → 2.064**, and on exchange_rate 1.626 → 2.042. The
+"merging is free" reading was established on SWaT, PSM, ETTh1 and exchange_rate, where three of
+four sit near 1.0; adding ETTh2 and ETTm2 makes it **three of six**, and on the two
+largest-headroom datasets merging costs 1.5–2.1× a dedicated specialist and gets worse as shards
+multiply. ⚠️ **Wherever this file says merge cost is ~1.0–1.1×, read it as an ETTh1/AD-pair
+property, not a general one.**
+
+**What this does to §1.13's sentence.** "Merging starves as shards shrink, continual forgets as
+steps accumulate" survives as a description of *failure modes*, and the forgetting half is now
+measured. But the implied asymmetry — that merging's cost is bounded while sequential's grows —
+does not: on ETTh2 **both** grow with n, merging faster than the chain forgets.
 
 ## 2. Exact configurations
 
@@ -3539,7 +3987,12 @@ Other: `eval_seed=None`, `seed=42`
 
 ---
 
-## 3. Method notes and gotchas
+> **§2.7 onward are generated, not transcribed.** `scripts/generate_config_sections.py` reads
+> them back from `results_archive/runs/*/config.json`, driven by
+> `analysis_specs/config_sections.csv`. That matters more here than anywhere else in the file:
+> the sweep generators build their commands *from* `config.json` on `$WORK`, so once the scratch
+> filesystem is purged an unwritten configuration is gone for good. Re-run the generator after
+> adding an experiment group rather than editing these tables by hand.
 
 ### 2.5 ETTh2
 
@@ -3654,6 +4107,462 @@ Other: `eval_seed=None`, `seed=42`
 | pipeline | `extra_merge_scales` | `25 values, 0.0–1.2` |
 |  | `merge_scale` | `1.0` |
 |  | `select_merge_scale_on_val` | `True` |
+
+### 2.7 PSM-forecast
+
+`adfc2_psm_merge_n3/85141` · `adfc2_psm_joint/85153` (reference) · model `MaeTx` · dataset `PsmForecastDataset` · task `forecast` · pipeline `IncrementalTaskArithmeticPipeline`
+
+| group | argument | value |
+|---|---|---|
+| model | `decoder_embed_dim` | `64` |
+|  | `decoder_heads` | `4` |
+|  | `decoder_layers` | `2` |
+|  | `encoder_embed_dim` | `128` |
+|  | `encoder_heads` | `4` |
+|  | `encoder_layers` | `3` |
+|  | `instance_norm` | `False` |
+|  | `mask_ratio` | `0.5` |
+|  | `n_eval_passes` | `1` |
+|  | `patch_len` | `4` |
+|  | `patch_norm` | `False` |
+|  | `training_mode` | `causal_mask` |
+| dataset | `baseline_fraction` | `0.5` — reference run uses `1.0` |
+|  | `baseline_use_fraction` | `1.0` |
+|  | `forecast_len` | `24` |
+|  | `n_finetune_segments` | `3` — reference run uses `0` |
+|  | `normalization` | `standard` |
+|  | `series_fraction` | `1.0` |
+|  | `stride` | `1` |
+|  | `test_fraction` | `0.2` |
+|  | `val_fraction` | `0.15` |
+|  | `window_len` | `120` |
+| trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.001` |
+|  | `n_epochs` | `100` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `15` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| finetune_trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.0001` |
+|  | `n_epochs` | `30` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `10` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| loader | `batch_size` | `128` |
+| pipeline | `extra_merge_scales` | `[0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2]` |
+|  | `merge_scale` | `1.0` |
+|  | `select_merge_scale_on_val` | `True` |
+
+### 2.8 SWaT-forecast
+
+`adfc2_swat_merge_n3/85177` · `adfc2_swat_joint/85189` (reference) · model `MaeTx` · dataset `SwatForecastDataset` · task `forecast` · pipeline `IncrementalTaskArithmeticPipeline`
+
+| group | argument | value |
+|---|---|---|
+| model | `decoder_embed_dim` | `64` |
+|  | `decoder_heads` | `4` |
+|  | `decoder_layers` | `2` |
+|  | `encoder_embed_dim` | `128` |
+|  | `encoder_heads` | `4` |
+|  | `encoder_layers` | `3` |
+|  | `instance_norm` | `False` |
+|  | `mask_ratio` | `0.5` |
+|  | `n_eval_passes` | `1` |
+|  | `patch_len` | `4` |
+|  | `patch_norm` | `False` |
+|  | `training_mode` | `causal_mask` |
+| dataset | `baseline_fraction` | `0.5` — reference run uses `1.0` |
+|  | `baseline_use_fraction` | `1.0` |
+|  | `forecast_len` | `24` |
+|  | `n_finetune_segments` | `3` — reference run uses `0` |
+|  | `normalization` | `standard` |
+|  | `series_fraction` | `1.0` |
+|  | `stride` | `1` |
+|  | `test_fraction` | `0.2` |
+|  | `val_fraction` | `0.15` |
+|  | `window_len` | `120` |
+| trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.001` |
+|  | `n_epochs` | `100` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `15` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| finetune_trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.0001` |
+|  | `n_epochs` | `30` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `10` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| loader | `batch_size` | `128` |
+| pipeline | `extra_merge_scales` | `[0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2]` |
+|  | `merge_scale` | `1.0` |
+|  | `select_merge_scale_on_val` | `True` |
+
+### 2.9 OPCM / BECAME ablation
+
+`opcm2_psm_sum_became/85510` · `opcm2_psm_opcm_scale/85507` (reference) · model `MaeTx` · dataset `PsmForecastDataset` · task `forecast` · pipeline `IncrementalTaskArithmeticPipeline`
+
+| group | argument | value |
+|---|---|---|
+| model | `decoder_embed_dim` | `64` |
+|  | `decoder_heads` | `4` |
+|  | `decoder_layers` | `2` |
+|  | `encoder_embed_dim` | `128` |
+|  | `encoder_heads` | `4` |
+|  | `encoder_layers` | `3` |
+|  | `instance_norm` | `False` |
+|  | `mask_ratio` | `0.5` |
+|  | `n_eval_passes` | `1` |
+|  | `patch_len` | `4` |
+|  | `patch_norm` | `False` |
+|  | `training_mode` | `causal_mask` |
+| dataset | `baseline_fraction` | `0.5` |
+|  | `baseline_use_fraction` | `1.0` |
+|  | `forecast_len` | `24` |
+|  | `n_finetune_segments` | `3` |
+|  | `normalization` | `standard` |
+|  | `series_fraction` | `1.0` |
+|  | `stride` | `1` |
+|  | `test_fraction` | `0.2` |
+|  | `val_fraction` | `0.15` |
+|  | `window_len` | `120` |
+| trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.001` |
+|  | `n_epochs` | `100` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `15` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| finetune_trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.0001` |
+|  | `n_epochs` | `30` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `10` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| loader | `batch_size` | `128` |
+| pipeline | `coefficient_source` | `became` — reference run uses `scale` |
+|  | `fisher_batches` | `64` |
+|  | `merge_rule` | `sum` — reference run uses `opcm` |
+|  | `merge_scale` | `1.0` |
+|  | `opcm_threshold` | `0.5` |
+|  | `select_merge_scale_on_val` | `False` — reference run uses `True` |
+
+### 2.10 α-convention re-runs
+
+`selalpha_etth1_n3/84598` · `selalpha_exchange_n3/84601` (reference) · model `MaeTx` · dataset `EtthForecastDataset` · task `forecast` · pipeline `IncrementalTaskArithmeticPipeline`
+
+| group | argument | value |
+|---|---|---|
+| model | `decoder_embed_dim` | `64` |
+|  | `decoder_heads` | `4` |
+|  | `decoder_layers` | `2` |
+|  | `encoder_embed_dim` | `128` |
+|  | `encoder_heads` | `4` |
+|  | `encoder_layers` | `3` |
+|  | `instance_norm` | `False` |
+|  | `mask_ratio` | `0.5` |
+|  | `n_eval_passes` | `1` |
+|  | `patch_len` | `4` |
+|  | `patch_norm` | `False` |
+|  | `training_mode` | `causal_mask` |
+| dataset | `baseline_fraction` | `0.5` |
+|  | `baseline_use_fraction` | `1.0` |
+|  | `forecast_len` | `24` — reference run uses `12` |
+|  | `n_finetune_segments` | `3` |
+|  | `normalization` | `standard` |
+|  | `series_fraction` | `1.0` |
+|  | `stride` | `1` |
+|  | `test_fraction` | `0.2` |
+|  | `val_fraction` | `0.15` — reference run uses `0.25` |
+|  | `window_len` | `120` — reference run uses `48` |
+| trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.001` |
+|  | `n_epochs` | `100` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `15` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| finetune_trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.0001` |
+|  | `n_epochs` | `30` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `10` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| loader | `batch_size` | `128` |
+| pipeline | `extra_merge_scales` | `[0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2]` |
+|  | `merge_scale` | `1.0` |
+|  | `select_merge_scale_on_val` | `True` |
+
+### 2.11 Window retrains
+
+`window_etth1_W3/80452` · `window_exchange_W3/80461` (reference) · model `MaeTx` · dataset `EtthForecastDataset` · task `forecast` · pipeline `IncrementalTaskArithmeticPipeline`
+
+| group | argument | value |
+|---|---|---|
+| model | `decoder_embed_dim` | `64` |
+|  | `decoder_heads` | `4` |
+|  | `decoder_layers` | `2` |
+|  | `encoder_embed_dim` | `128` |
+|  | `encoder_heads` | `4` |
+|  | `encoder_layers` | `3` |
+|  | `instance_norm` | `False` |
+|  | `mask_ratio` | `0.5` |
+|  | `n_eval_passes` | `1` |
+|  | `patch_len` | `4` |
+|  | `patch_norm` | `False` |
+|  | `training_mode` | `causal_mask` |
+| dataset | `baseline_fraction` | `0.7` |
+|  | `baseline_use_fraction` | `0.714286` |
+|  | `forecast_len` | `24` — reference run uses `12` |
+|  | `n_finetune_segments` | `1` |
+|  | `normalization` | `standard` |
+|  | `stride` | `1` |
+|  | `test_fraction` | `0.2` |
+|  | `val_fraction` | `0.15` — reference run uses `0.25` |
+|  | `window_len` | `120` — reference run uses `48` |
+| trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.001` |
+|  | `n_epochs` | `100` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `15` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| finetune_trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.0001` |
+|  | `n_epochs` | `30` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `10` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| loader | `batch_size` | `128` |
+| pipeline | `merge_scale` | `1.0` — reference run uses `0.5` |
+|  | `select_merge_scale_on_val` | `False` |
+
+### 2.12 Rolling origins
+
+`origin_etth1_merge_f075/84470` · `origin_exchange_merge_f075/84470` (reference) · model `MaeTx` · dataset `EtthForecastDataset` · task `forecast` · pipeline `IncrementalTaskArithmeticPipeline`
+
+| group | argument | value |
+|---|---|---|
+| model | `decoder_embed_dim` | `64` |
+|  | `decoder_heads` | `4` |
+|  | `decoder_layers` | `2` |
+|  | `encoder_embed_dim` | `128` |
+|  | `encoder_heads` | `4` |
+|  | `encoder_layers` | `3` |
+|  | `instance_norm` | `False` |
+|  | `mask_ratio` | `0.5` |
+|  | `n_eval_passes` | `1` |
+|  | `patch_len` | `4` |
+|  | `patch_norm` | `False` |
+|  | `training_mode` | `causal_mask` |
+| dataset | `baseline_fraction` | `0.5` |
+|  | `baseline_use_fraction` | `1.0` |
+|  | `forecast_len` | `24` — reference run uses `12` |
+|  | `n_finetune_segments` | `3` |
+|  | `normalization` | `standard` |
+|  | `series_fraction` | `0.75` |
+|  | `stride` | `1` |
+|  | `test_fraction` | `0.2` |
+|  | `val_fraction` | `0.15` — reference run uses `0.25` |
+|  | `window_len` | `120` — reference run uses `48` |
+| trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.001` |
+|  | `n_epochs` | `100` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `15` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| finetune_trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.0001` |
+|  | `n_epochs` | `30` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `10` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| loader | `batch_size` | `128` |
+| pipeline | `merge_scale` | `1.0` — reference run uses `0.5` |
+|  | `select_merge_scale_on_val` | `False` |
+
+### 2.13 Baseline-fraction sweep
+
+`basefrac_ettm2_07/85120` · `basefrac_etth1_07/84470` (reference) · model `MaeTx` · dataset `Ettm2ForecastDataset` · task `forecast` · pipeline `IncrementalTaskArithmeticPipeline`
+
+| group | argument | value |
+|---|---|---|
+| model | `decoder_embed_dim` | `64` |
+|  | `decoder_heads` | `4` |
+|  | `decoder_layers` | `2` |
+|  | `encoder_embed_dim` | `128` |
+|  | `encoder_heads` | `4` |
+|  | `encoder_layers` | `3` |
+|  | `instance_norm` | `False` |
+|  | `mask_ratio` | `0.5` |
+|  | `n_eval_passes` | `1` |
+|  | `patch_len` | `4` |
+|  | `patch_norm` | `False` |
+|  | `training_mode` | `causal_mask` |
+| dataset | `baseline_fraction` | `0.7` |
+|  | `baseline_use_fraction` | `1.0` |
+|  | `forecast_len` | `24` |
+|  | `n_finetune_segments` | `3` |
+|  | `normalization` | `standard` |
+|  | `series_fraction` | `1.0` |
+|  | `stride` | `1` |
+|  | `test_fraction` | `0.2` |
+|  | `val_fraction` | `0.15` |
+|  | `window_len` | `120` |
+| trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.001` |
+|  | `n_epochs` | `100` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `15` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| finetune_trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.0001` |
+|  | `n_epochs` | `30` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `10` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| loader | `batch_size` | `128` |
+| pipeline | `extra_merge_scales` | `[0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2]` — reference run uses `[]` |
+|  | `merge_scale` | `1.0` |
+|  | `select_merge_scale_on_val` | `True` — reference run uses `False` |
+
+### 2.14 n = 1 reference
+
+`n1_exchange/80374` · model `MaeTx` · dataset `ExchangeRateForecastDataset` · task `forecast` · pipeline `IncrementalTaskArithmeticPipeline`
+
+| group | argument | value |
+|---|---|---|
+| model | `decoder_embed_dim` | `64` |
+|  | `decoder_heads` | `4` |
+|  | `decoder_layers` | `2` |
+|  | `encoder_embed_dim` | `128` |
+|  | `encoder_heads` | `4` |
+|  | `encoder_layers` | `3` |
+|  | `instance_norm` | `False` |
+|  | `mask_ratio` | `0.5` |
+|  | `n_eval_passes` | `1` |
+|  | `patch_len` | `4` |
+|  | `patch_norm` | `False` |
+|  | `training_mode` | `causal_mask` |
+| dataset | `baseline_fraction` | `0.5` |
+|  | `baseline_use_fraction` | `1.0` |
+|  | `forecast_len` | `12` |
+|  | `n_finetune_segments` | `1` |
+|  | `normalization` | `standard` |
+|  | `stride` | `1` |
+|  | `test_fraction` | `0.2` |
+|  | `val_fraction` | `0.25` |
+|  | `window_len` | `48` |
+| trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.001` |
+|  | `n_epochs` | `100` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `15` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| finetune_trainer | `checkpoint_interval` | `0` |
+|  | `device` | `auto` |
+|  | `grad_clip` | `1.0` |
+|  | `learning_rate` | `0.0001` |
+|  | `n_epochs` | `30` |
+|  | `optimizer` | `adamw` |
+|  | `patience` | `10` |
+|  | `reg_exclude` | `['norm', 'bias']` |
+|  | `reg_lambda` | `0.0` |
+|  | `scheduler` | `cosine` |
+|  | `warmup_ratio` | `0.1` |
+|  | `weight_decay` | `0.0001` |
+| loader | `batch_size` | `128` |
+| pipeline | `merge_scale` | `0.5` |
+|  | `select_merge_scale_on_val` | `False` |
+
+## 3. Method notes and gotchas
 
 ### 3.0 Known limitations of the setup
 

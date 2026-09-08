@@ -48,6 +48,13 @@ python -m incremental_ad.analysis.scale_report "$RUNS"/noisefloor_{psm,swat}_dia
 # 0.05 rather than 0.1, and pooling grids is what §2.23 had to retract once.
 python -m incremental_ad.analysis.scale_report "$RUNS"/adfc2_psm_merge_n{2,3,5}_diagnostics/* \
     --out "$OUT/scale_psm_forecast"
+# ETTh2/ETTm2 n=2,3 on a 0.05 grid. The 0.1-grid diagnostics silently lost a seed each: two of
+# three selected alpha=0.25, the pipeline appends the selected value, and scale_report then drops
+# the mismatched seed (§0.6). The 0.05 grid contains every selected alpha, so nothing is appended.
+python -m incremental_ad.analysis.scale_report "$RUNS"/{etth2,ettm2}_merge_n{2,3}_diagnostics05/* \
+    --out "$OUT/scale_forecast05" || echo "  scale_forecast05 skipped (no diagnostics05 runs)"
+python -m incremental_ad.analysis.scale_report "$RUNS"/aeft_psm_sum_scale_diagnostics/* \
+    --out "$OUT/scale_aeft" || echo "  scale_aeft skipped"
 
 echo "== routing reports =="
 python -m incremental_ad.analysis.routing_report "$RUNS"/{etth2,ettm2}_merge_n{2,3,5}_diagnostics/* \
@@ -66,6 +73,14 @@ echo "== method comparison (primary metric, then every metric) =="
 python -m incremental_ad.analysis.method_comparison --runs_root "$RUNS" \
     --spec analysis_specs/method_comparison_spec.csv --routing_dir "$OUT/routing_forecast" \
     --floors "$OUT/floors.csv" --run_metrics "$OUT/run_metrics.csv" --out "$OUT/methods"
+# The same comparison with the window budget chosen on validation instead of on test (§1.26b).
+# Kept as a second directory rather than replacing the first: §1.21 needs the oracle-W column and
+# §1.26b needs this one, and collapsing them would silently change what §1.21 quotes.
+python -m incremental_ad.analysis.method_comparison --runs_root "$RUNS" \
+    --spec analysis_specs/method_comparison_spec.csv --routing_dir "$OUT/routing_forecast" \
+    --floors "$OUT/floors.csv" --run_metrics "$OUT/run_metrics.csv" \
+    --window_selection "$OUT/window_selection/window_selection.csv" \
+    --out "$OUT/methods_windowval" || echo "  window_val comparison skipped (no selection csv)"
 cp "$OUT/methods/method_comparison.csv" "$OUT/method_comparison.csv"
 python -m incremental_ad.analysis.method_comparison --runs_root "$RUNS" \
     --spec analysis_specs/method_comparison_spec.csv \
@@ -115,9 +130,34 @@ else
     echo "  skipped (set WITH_GEOMETRY=1 on a compute node to regenerate)"
 fi
 
+echo "== forgetting (ACC / BWT) =="
+# Pure aggregation over `continual_summary/result.json`, which the pipeline has always written.
+# Merge cost is read from routing_report, never recomputed — two definitions of one quantity is
+# the failure CLAUDE.md names, and a first version of this script produced exactly that.
+python -m incremental_ad.analysis.forgetting_report --runs_root "$RUNS" \
+    --routing_dir "$OUT/routing_forecast" --out "$OUT/forgetting"
+
+echo "== window budget selected on a common validation set (checkpoint reader — GPU node) =="
+# `own_val` is invalid: each window_W<k> run has a different baseline_fraction, so its own val
+# tail is a different slice of the series and W=1 wins on recency alone (§1.26b). `common_val`
+# scores every budget on the merged-val union, which needs a forward pass per (dataset, W, seed).
+if [ "${WITH_GEOMETRY:-0}" = "1" ]; then
+    python -m incremental_ad.analysis.window_selection --runs_root "$RUNS" \
+        --spec analysis_specs/method_comparison_spec.csv --mode common_val \
+        --out "$OUT/window_selection"
+else
+    echo "  skipped (set WITH_GEOMETRY=1 on a compute node to regenerate)"
+fi
+
+echo "== standalone HTML report =="
+# Rebuilt with every archive refresh so a stale copy cannot be committed unnoticed: it stamps
+# the archive's own file count, which disagrees with MANIFEST.csv the moment it goes out of date.
+python "$REPO/scripts/build_results_report.py" --archive "$REPO/results_archive" \
+    --out "$REPO/results_report.html" --commit "$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+
 echo "== carrying forward GPU-only outputs (not regenerated here) =="
 for sub in oracle_router concentration novelty_swat selection_probe drift \
-           geometry novelty alignment subblocks mask_span; do
+           geometry novelty alignment subblocks mask_span window_selection remerge; do
     if [ -d "$CARRY/$sub" ] && [ ! -d "$OUT/$sub" ]; then
         cp -r "$CARRY/$sub" "$OUT/$sub"
         echo "  carried $sub from results_archive (regenerate with a GPU job if its runs changed)"

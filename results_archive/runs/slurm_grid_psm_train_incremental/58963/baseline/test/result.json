@@ -1,0 +1,26 @@
+{
+  "step_name": "baseline/test",
+  "started_at": "2026-07-04T20:55:40.698175+00:00",
+  "finished_at": "2026-07-04T20:57:02.160148+00:00",
+  "metrics": {
+    "window_auroc": 0.7903859942685102,
+    "window_auprc": 0.6479622815889543,
+    "window_f1": 0.6534024764525347,
+    "window_precision": 0.536065467016866,
+    "window_recall": 0.8365003556549131,
+    "point_auroc": 0.7930522934504157,
+    "point_auprc": 0.5721354958520575,
+    "point_f1": 0.604987554595407,
+    "point_precision": 0.48917748917748916,
+    "point_recall": 0.7926409057346788,
+    "pa_f1": 0.7976884066517278,
+    "pa_precision": 0.9385025253926846,
+    "pa_recall": 0.6936171958323079,
+    "event_f1": 0.16521739130434784,
+    "event_precision": 0.09208400646203554,
+    "event_recall": 0.8028169014084507,
+    "event_tp": 57.0,
+    "event_fp": 562.0,
+    "event_fn": 14.0
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "source_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/segsweep_swat_merge_n5/79925",
+  "source_run_id": "79925",
+  "source_experiment_name": "segsweep_swat_merge_n5",
+  "source_git_commit": "418cdd5e91df65265da8c7b0dae11d510fe41ad6",
+  "standard_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/slurm_grid_swat_model/58266",
+  "checkpoint_name": "best",
+  "merge_scale": 1.0,
+  "n_finetune_segments": 5,
+  "rows": [
+    "base",
+    "ft_0",
+    "ft_1",
+    "ft_2",
+    "ft_3",
+    "ft_4",
+    "merged",
+    "standard"
+  ],
+  "columns": [
+    {
+      "name": "val_base",
+      "block": "val",
+      "n_windows": 37026
+    },
+    {
+      "name": "val_0",
+      "block": "val",
+      "n_windows": 7326
+    },
+    {
+      "name": "val_1",
+      "block": "val",
+      "n_windows": 7326
+    },
+    {
+      "name": "val_2",
+      "block": "val",
+      "n_windows": 7326
+    },
+    {
+      "name": "val_3",
+      "block": "val",
+      "n_windows": 7326
+    },
+    {
+      "name": "val_4",
+      "block": "val",
+      "n_windows": 7326
+    },
+    {
+      "name": "test",
+      "block": "test",
+      "n_windows": 449820
+    }
+  ]
+}

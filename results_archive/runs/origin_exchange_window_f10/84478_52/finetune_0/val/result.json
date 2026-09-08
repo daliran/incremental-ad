@@ -1,0 +1,10 @@
+{
+  "step_name": "finetune_0/val",
+  "started_at": "2026-08-15T19:10:17.355792+00:00",
+  "finished_at": "2026-08-15T19:10:17.725584+00:00",
+  "metrics": {
+    "forecast/mse": 0.1884882003068924,
+    "forecast/rmse": 0.4341522777861385,
+    "forecast/mae": 0.35677751898765564
+  }
+}

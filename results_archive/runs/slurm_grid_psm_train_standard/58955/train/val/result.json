@@ -1,0 +1,12 @@
+{
+  "step_name": "train/val",
+  "started_at": "2026-07-04T19:48:26.766920+00:00",
+  "finished_at": "2026-07-04T19:48:43.519367+00:00",
+  "metrics": {
+    "reconstruction/score_mean": 0.364681155863233,
+    "reconstruction/score_std": 0.2664943469339836,
+    "reconstruction/score_p50": 0.2825128436088562,
+    "reconstruction/score_p95": 1.0080883026123024,
+    "reconstruction/score_p99": 1.5171461486816407
+  }
+}

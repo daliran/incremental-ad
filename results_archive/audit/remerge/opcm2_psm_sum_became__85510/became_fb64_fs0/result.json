@@ -1,0 +1,20 @@
+{
+  "source_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/opcm2_psm_sum_became/85510",
+  "merge_rule": "sum",
+  "coefficient_source": "became",
+  "alpha": 1.0,
+  "alpha_source": "config.json",
+  "opcm_threshold": 0.5,
+  "fisher_batches": 64,
+  "fisher_seed": 0,
+  "seed": 7,
+  "n_shards": 3,
+  "metrics": {
+    "val/forecast/mse": 0.33563947677612305,
+    "val/forecast/rmse": 0.5793440055581166,
+    "val/forecast/mae": 0.30066439509391785,
+    "test/forecast/mse": 0.39433711767196655,
+    "test/forecast/rmse": 0.6279626721963388,
+    "test/forecast/mae": 0.37635138630867004
+  }
+}

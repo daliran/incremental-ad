@@ -1,0 +1,12 @@
+{
+  "step_name": "merged/val",
+  "started_at": "2026-07-04T20:32:33.861996+00:00",
+  "finished_at": "2026-07-04T20:33:30.129379+00:00",
+  "metrics": {
+    "reconstruction/score_mean": 0.3054032897712438,
+    "reconstruction/score_std": 0.15690951074817672,
+    "reconstruction/score_p50": 0.2906688302755356,
+    "reconstruction/score_p95": 0.55003722012043,
+    "reconstruction/score_p99": 1.155290162563323
+  }
+}

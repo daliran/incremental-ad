@@ -1,0 +1,17 @@
+{
+  "step_name": "baseline",
+  "started_at": "2026-08-06T21:24:06.919461+00:00",
+  "finished_at": "2026-08-06T21:26:50.997066+00:00",
+  "final_train_loss": 0.03430226412979332,
+  "best_train_loss": 0.03430226412979332,
+  "final_val_loss": 0.54905150126433,
+  "best_val_loss": 0.4701135048526339,
+  "best_epoch": 5,
+  "epochs_trained": 20,
+  "checkpoint_path": "baseline/checkpoints/best.pt",
+  "secondary_val_losses": {
+    "inc_0": 0.4910205900669098,
+    "inc_1": 1.4782936811447143,
+    "inc_2": 1.0534816205501556
+  }
+}

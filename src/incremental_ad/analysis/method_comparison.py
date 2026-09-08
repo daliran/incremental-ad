@@ -41,6 +41,7 @@ log = logging.getLogger("method_comparison")
 
 FIELDS = ["dataset", "n", "metric", "floor_pct", "base", "specialists", "joint", "merge",
           "sequential", "window_W1", "window_W2", "window_W3", "window_best", "window_W",
+          "window_val", "window_val_W",
           "routing_headroom_pct", "best", "runner_up", "margin_pct", "margin_abs",
           "sd_best", "sd_runner_up", "threshold", "ratio", "decisive", "boundary"]
 
@@ -118,8 +119,32 @@ def load_sds(run_metrics: Path | None) -> dict:
     return out
 
 
+def load_window_selection(path: Path | None) -> dict:
+    """(dataset, n, metric) -> the honestly-selected window figure.
+
+    Produced by `analysis/window_selection.py --mode common_val`. Absent means the column is
+    simply not emitted — the table then behaves exactly as it did before, rather than silently
+    substituting the oracle for the honest number.
+    """
+    out: dict = {}
+    if path is None or not path.is_file():
+        return out
+    with path.open() as fh:
+        for row in csv.DictReader(fh):
+            try:
+                out[(row["dataset"], row["n"], row["metric"])] = {
+                    "value": float(row["window_val"]),
+                    "sd": float(row["window_val_sd"]),
+                    "W": row.get("selected_W", ""),
+                }
+            except (TypeError, ValueError, KeyError):
+                continue
+    return out
+
+
 def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None = None,
-            floors: dict | None = None, sds: dict | None = None) -> dict | None:
+            floors: dict | None = None, sds: dict | None = None,
+            window_selection: dict | None = None) -> dict | None:
     metric = metric or spec_row["metric"]
     n = int(spec_row["n"])
     # Per (dataset, metric) when a floors.csv is supplied, falling back to the spec's
@@ -159,6 +184,14 @@ def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None =
     window_w = better(windows, key=windows.get) if windows else None
     if window_w is not None:
         entries["window_best"] = windows[window_w]
+    # `window_best` picks W on **test**, which is an oracle over the axis that defines the method
+    # — the only such column in this table. `window_val` picks it on the merged-val union, the
+    # same held-out set merge-scale selection uses, and is therefore the deployable figure.
+    # Both are kept: §1.21's retention argument wants the oracle, §1.26's comparison wants this.
+    selected = window_selection.get((spec_row["dataset"], str(n), metric))
+    if selected is not None:
+        entries["window_val"] = selected["value"]
+        entries.pop("window_best", None)      # only one window entrant competes for `best`
 
     # Oracle router is a ratio-to-base, so convert it onto the same scale as the rest:
     # merged / (1 + headroom_over_merged) is not recoverable, so report it only as a ratio.
@@ -178,12 +211,18 @@ def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None =
 
     # Spread of the two models being compared, not of the base model.
     sds = sds or {}
+    window_selection = window_selection or {}
     where = {"joint": (spec_row.get("joint_experiment"), "train/test"),
              "merge": (spec_row.get("merge_experiment"), "merged/test"),
              "sequential": (spec_row.get("seq_experiment"), f"continual_{n - 1}/test"),
              "window_best": (spec_row.get(f"window_W{window_w}_experiment"),
-                             "finetune_0/test") if window_w else (None, None)}
+                             "finetune_0/test") if window_w else (None, None),
+             "window_val": (None, None)}
     def _sd(name):
+        # window_val's spread comes from the selection report: it is the sd over seeds of the
+        # test value of whichever W each seed picked, which is not any single experiment's sd.
+        if name == "window_val" and selected is not None:
+            return selected["sd"]
         experiment, block = where.get(name, (None, None))
         return sds.get((experiment, block, metric)) if experiment else None
     sd_top, sd_second = _sd(top[0]), _sd(second[0])
@@ -210,8 +249,11 @@ def compare(runs_root: Path, spec_row: dict, routing: dict, metric: str | None =
            "threshold": round(threshold, 6) if threshold is not None else "",
            "ratio": round(ratio, 3) if ratio is not None else "",
            "decisive": decisive, "boundary": boundary}
-    for name in ("base", "joint", "merge", "sequential", "window_best"):
+    for name in ("base", "joint", "merge", "sequential", "window_best", "window_val"):
         row[name] = round(entries[name], 6) if name in entries else ""
+    if selected is not None:
+        row["window_best"] = round(windows[window_w], 6) if window_w in windows else ""
+        row["window_val_W"] = selected["W"]
     for w in (1, 2, 3):
         row[f"window_W{w}"] = round(windows[w], 6) if w in windows else ""
     return row
@@ -234,6 +276,10 @@ def main() -> None:
                              "used for every metric, which is too tight on AUPRC.")
     parser.add_argument("--run_metrics", type=Path,
                         help="run_metrics.csv — per-model sd for the pairwise decision rule")
+    parser.add_argument("--window_selection", type=Path,
+                        help="window_selection.csv from analysis/window_selection.py "
+                             "--mode common_val. When given, the window entrant becomes the "
+                             "val-selected budget instead of the test-best one (§1.26b).")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -259,8 +305,10 @@ def main() -> None:
                 if row.get("role", "floor") == "floor":
                     floors[(row["dataset"], row["metric"])] = row["floor_pct"]
     sds = load_sds(args.run_metrics)
+    window_selection = load_window_selection(args.window_selection)
     rows = [r for s in spec for m in metrics
-            if (r := compare(args.runs_root, s, routing, m, floors, sds)) is not None]
+            if (r := compare(args.runs_root, s, routing, m, floors, sds,
+                             window_selection)) is not None]
 
     # A missing sd silently reverts that cell to the base-model floor — the convention §1.9a
     # corrected. It must be visible, not discovered later in a table that looks uniform.

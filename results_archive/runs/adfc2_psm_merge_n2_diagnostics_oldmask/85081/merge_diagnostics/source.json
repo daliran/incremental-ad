@@ -1,0 +1,40 @@
+{
+  "source_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_psm_merge_n2/84604",
+  "source_run_id": "84604",
+  "source_experiment_name": "adfc2_psm_merge_n2",
+  "source_git_commit": "7f8b554b2e752ff2e8c7082fcf4c0d6e844c1c05",
+  "standard_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_psm_joint/84622",
+  "checkpoint_name": "best",
+  "merge_scale": 0.6,
+  "merge_scale_requested": 1.0,
+  "n_finetune_segments": 2,
+  "rows": [
+    "base",
+    "ft_0",
+    "ft_1",
+    "merged",
+    "standard"
+  ],
+  "columns": [
+    {
+      "name": "val_base",
+      "block": "val",
+      "n_windows": 9817
+    },
+    {
+      "name": "val_0",
+      "block": "val",
+      "n_windows": 4849
+    },
+    {
+      "name": "val_1",
+      "block": "val",
+      "n_windows": 4849
+    },
+    {
+      "name": "test",
+      "block": "test",
+      "n_windows": 56239
+    }
+  ]
+}

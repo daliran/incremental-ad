@@ -1,0 +1,45 @@
+{
+  "source_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/noisefloor_etth/79353",
+  "source_run_id": "79353",
+  "source_experiment_name": "noisefloor_etth",
+  "source_git_commit": "546b45b1e5699b553177a76a781a5548a615c0ef",
+  "standard_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/slurm_grid_etth_forecast_train_standard/59062",
+  "checkpoint_name": "best",
+  "merge_scale": 1.0,
+  "n_finetune_segments": 3,
+  "rows": [
+    "base",
+    "ft_0",
+    "ft_1",
+    "ft_2",
+    "merged",
+    "standard"
+  ],
+  "columns": [
+    {
+      "name": "val_base",
+      "block": "val",
+      "n_windows": 926
+    },
+    {
+      "name": "val_0",
+      "block": "val",
+      "n_windows": 229
+    },
+    {
+      "name": "val_1",
+      "block": "val",
+      "n_windows": 229
+    },
+    {
+      "name": "val_2",
+      "block": "val",
+      "n_windows": 229
+    },
+    {
+      "name": "test",
+      "block": "test",
+      "n_windows": 3365
+    }
+  ]
+}

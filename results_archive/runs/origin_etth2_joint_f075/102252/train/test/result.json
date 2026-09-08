@@ -1,0 +1,10 @@
+{
+  "step_name": "train/test",
+  "started_at": "2026-09-08T21:29:16.592124+00:00",
+  "finished_at": "2026-09-08T21:29:16.889289+00:00",
+  "metrics": {
+    "forecast/mse": 0.7696146368980408,
+    "forecast/rmse": 0.8772768302525952,
+    "forecast/mae": 0.7254881858825684
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "step_name": "baseline/val",
+  "started_at": "2026-08-06T17:41:36.767302+00:00",
+  "finished_at": "2026-08-06T17:41:37.360500+00:00",
+  "metrics": {
+    "forecast/mse": 0.31959816813468933,
+    "forecast/rmse": 0.5653301408333801,
+    "forecast/mae": 0.3954530656337738
+  }
+}

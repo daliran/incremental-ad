@@ -204,6 +204,51 @@ def _metrics(path: Path) -> dict:
         return {}
 
 
+PER_SEED_FIELDS = ["experiment", "run_id", "seed", "dataset", "pipeline", "n_segments",
+                   "block", "metric", "value"]
+
+
+def collect_per_seed(runs_root: Path) -> list[dict]:
+    """One row per (experiment, run_id, seed, block, metric, value) — the un-aggregated form.
+
+    `run_metrics.csv` is mean/sd per (experiment, block, metric), which means **no per-seed value
+    outside the `*_diagnostics` groups had a backing file in the repo** — including §1.31's
+    per-seed lambdas and §1.10's per-seed GRR, both of which are published. This emits the level
+    underneath, so any later analysis can start from the archive rather than from `$WORK`.
+
+    Every block is walked, not the `BLOCKS` whitelist: the whitelist exists so the aggregate has
+    a stable column set, whereas here the point is completeness. `run_metrics.csv` must be
+    derivable from this file, and the checker asserts that it is.
+    """
+    rows: list[dict] = []
+    for cfg_path in sorted(runs_root.glob("*/*/config.json")):
+        try:
+            cfg = json.loads(cfg_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        args = cfg.get("args") or {}
+        seed = args.get("seed")
+        if seed is None:
+            continue
+        run = cfg_path.parent
+        for result in sorted(run.rglob("result.json")):
+            block = result.parent.relative_to(run).as_posix()
+            try:
+                metrics = (json.loads(result.read_text()) or {}).get("metrics") or {}
+            except (json.JSONDecodeError, OSError):
+                continue
+            for metric, value in metrics.items():
+                if not isinstance(value, (int, float)):
+                    continue
+                rows.append({
+                    "experiment": run.parent.name, "run_id": run.name, "seed": seed,
+                    "dataset": cfg.get("dataset"), "pipeline": cfg.get("pipeline"),
+                    "n_segments": args.get("dataset_n_finetune_segments"),
+                    "block": block, "metric": metric, "value": value,
+                })
+    return rows
+
+
 def collect(runs_root: Path) -> dict:
     """(experiment, n_segments) -> {"info": {...}, "blocks": {block: {metric: {seed: value}}}}.
 
@@ -393,7 +438,9 @@ def main() -> None:
                                    load_of_record(args.of_record_spec))
     args.out.mkdir(parents=True, exist_ok=True)
     floor_rows = floors_by_metric(run_rows, args.floor_spec)
-    for name, rows, fields in (("run_metrics.csv", run_rows, RUN_FIELDS),
+    per_seed = collect_per_seed(args.runs_root)
+    for name, rows, fields in (("run_metrics_per_seed.csv", per_seed, PER_SEED_FIELDS),
+                               ("run_metrics.csv", run_rows, RUN_FIELDS),
                                ("derived.csv", derived_rows, DERIVED_FIELDS),
                                ("floors.csv", floor_rows, FLOOR_FIELDS)):
         path = args.out / name

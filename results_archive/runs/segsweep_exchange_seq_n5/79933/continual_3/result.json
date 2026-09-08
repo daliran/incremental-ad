@@ -1,0 +1,13 @@
+{
+  "step_name": "continual_3",
+  "started_at": "2026-08-05T22:40:33.064841+00:00",
+  "finished_at": "2026-08-05T22:41:09.500781+00:00",
+  "final_train_loss": 0.030455194413661957,
+  "best_train_loss": 0.029117579571902752,
+  "final_val_loss": 0.08678197115659714,
+  "best_val_loss": 0.08662481606006622,
+  "best_epoch": 23,
+  "epochs_trained": 30,
+  "checkpoint_path": "continual_3/checkpoints/best.pt",
+  "secondary_val_losses": {}
+}

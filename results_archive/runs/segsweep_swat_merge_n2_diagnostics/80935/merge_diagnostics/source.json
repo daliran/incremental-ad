@@ -1,0 +1,40 @@
+{
+  "source_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/segsweep_swat_merge_n2/80689",
+  "source_run_id": "80689",
+  "source_experiment_name": "segsweep_swat_merge_n2",
+  "source_git_commit": "af0fab78e12e061c52c83e0127c9651a797febfc",
+  "standard_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/noisefloor_std_swat/79440",
+  "checkpoint_name": "best",
+  "merge_scale": 1.0,
+  "merge_scale_requested": 1.0,
+  "n_finetune_segments": 2,
+  "rows": [
+    "base",
+    "ft_0",
+    "ft_1",
+    "merged",
+    "standard"
+  ],
+  "columns": [
+    {
+      "name": "val_base",
+      "block": "val",
+      "n_windows": 37026
+    },
+    {
+      "name": "val_0",
+      "block": "val",
+      "n_windows": 18463
+    },
+    {
+      "name": "val_1",
+      "block": "val",
+      "n_windows": 18463
+    },
+    {
+      "name": "test",
+      "block": "test",
+      "n_windows": 449820
+    }
+  ]
+}

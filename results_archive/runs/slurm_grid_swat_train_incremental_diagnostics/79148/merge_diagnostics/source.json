@@ -1,0 +1,45 @@
+{
+  "source_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/slurm_grid_swat_train_incremental/58941",
+  "source_run_id": "58941",
+  "source_experiment_name": "slurm_grid_swat_train_incremental",
+  "source_git_commit": "ca05a490083d9ab41d0369b9ae34895eb4d20548",
+  "standard_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/slurm_grid_swat_train_standard/58930",
+  "checkpoint_name": "best",
+  "merge_scale": 1.0,
+  "n_finetune_segments": 3,
+  "rows": [
+    "base",
+    "ft_0",
+    "ft_1",
+    "ft_2",
+    "merged",
+    "standard"
+  ],
+  "columns": [
+    {
+      "name": "val_base",
+      "block": "val",
+      "n_windows": 37026
+    },
+    {
+      "name": "val_0",
+      "block": "val",
+      "n_windows": 12276
+    },
+    {
+      "name": "val_1",
+      "block": "val",
+      "n_windows": 12276
+    },
+    {
+      "name": "val_2",
+      "block": "val",
+      "n_windows": 12276
+    },
+    {
+      "name": "test",
+      "block": "test",
+      "n_windows": 449820
+    }
+  ]
+}

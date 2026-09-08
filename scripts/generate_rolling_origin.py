@@ -37,6 +37,12 @@ REFERENCES = {
               "joint": "noisefloor_std_etth", "window": "window_etth1_W3"},
     "exchange": {"merge": "exch_incremental", "sequential": "exch_continual",
                  "joint": "exch_gate_standard", "window": "window_exchange_W3"},
+    # Added for §1.27's extension: the two largest-headroom datasets, where the published
+    # ranking is used most and had never been checked against the choice of cut.
+    "etth2": {"merge": "etth2_merge_n3", "sequential": "etth2_continual_n3",
+              "joint": "etth2_gate_joint", "window": "etth2_window_W3"},
+    "ettm2": {"merge": "ettm2_merge_n3", "sequential": "ettm2_continual_n3",
+              "joint": "ettm2_gate_joint", "window": "ettm2_window_W3"},
 }
 ORIGINS = (0.75, 0.875, 1.0)
 BASELINE_FRACTIONS = (0.3, 0.7)          # 0.5 is the existing published setting

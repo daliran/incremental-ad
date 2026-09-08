@@ -1,0 +1,12 @@
+{
+  "step_name": "finetune_0/val",
+  "started_at": "2026-08-06T23:48:41.181827+00:00",
+  "finished_at": "2026-08-06T23:48:45.602213+00:00",
+  "metrics": {
+    "reconstruction/score_mean": 0.47220592745969026,
+    "reconstruction/score_std": 0.8304922888957771,
+    "reconstruction/score_p50": 0.2753779888153076,
+    "reconstruction/score_p95": 0.7813230276107783,
+    "reconstruction/score_p99": 5.628722934722892
+  }
+}

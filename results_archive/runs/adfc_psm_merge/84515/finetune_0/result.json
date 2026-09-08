@@ -1,0 +1,13 @@
+{
+  "step_name": "finetune_0",
+  "started_at": "2026-08-15T20:52:44.549781+00:00",
+  "finished_at": "2026-08-15T20:53:52.172223+00:00",
+  "final_train_loss": 0.10809893482556082,
+  "best_train_loss": 0.10809893482556082,
+  "final_val_loss": 1.2408925157785415,
+  "best_val_loss": 1.1081289088726043,
+  "best_epoch": 4,
+  "epochs_trained": 14,
+  "checkpoint_path": "finetune_0/checkpoints/best.pt",
+  "secondary_val_losses": {}
+}

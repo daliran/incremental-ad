@@ -1,0 +1,39 @@
+{
+  "source_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/segsweep_psm_merge_n2/79930",
+  "source_run_id": "79930",
+  "source_experiment_name": "segsweep_psm_merge_n2",
+  "source_git_commit": "418cdd5e91df65265da8c7b0dae11d510fe41ad6",
+  "standard_run_dir": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/slurm_grid_psm_model/58337",
+  "checkpoint_name": "best",
+  "merge_scale": 1.0,
+  "n_finetune_segments": 2,
+  "rows": [
+    "base",
+    "ft_0",
+    "ft_1",
+    "merged",
+    "standard"
+  ],
+  "columns": [
+    {
+      "name": "val_base",
+      "block": "val",
+      "n_windows": 9837
+    },
+    {
+      "name": "val_0",
+      "block": "val",
+      "n_windows": 4869
+    },
+    {
+      "name": "val_1",
+      "block": "val",
+      "n_windows": 4869
+    },
+    {
+      "name": "test",
+      "block": "test",
+      "n_windows": 87742
+    }
+  ]
+}

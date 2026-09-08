@@ -1,0 +1,9 @@
+title,experiment,companion
+2.7 PSM-forecast,adfc2_psm_merge_n3,adfc2_psm_joint
+2.8 SWaT-forecast,adfc2_swat_merge_n3,adfc2_swat_joint
+2.9 OPCM / BECAME ablation,opcm2_psm_sum_became,opcm2_psm_opcm_scale
+2.10 α-convention re-runs,selalpha_etth1_n3,selalpha_exchange_n3
+2.11 Window retrains,window_etth1_W3,window_exchange_W3
+2.12 Rolling origins,origin_etth1_merge_f075,origin_exchange_merge_f075
+2.13 Baseline-fraction sweep,basefrac_ettm2_07,basefrac_etth1_07
+2.14 n = 1 reference,n1_exchange,

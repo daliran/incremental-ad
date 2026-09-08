@@ -1,0 +1,5 @@
+dataset,n,metric,floor_pct,joint_experiment,merge_experiment,seq_experiment,window_W1_experiment,window_W2_experiment,window_W3_experiment,diagnostics_group
+etth2-f0.75,3,forecast/mse,6.74,origin_etth2_joint_f075,origin_etth2_merge_f075,origin_etth2_sequential_f075,origin_etth2_window_f075,,origin_etth2_window_f075,
+etth2-f0.875,3,forecast/mse,6.74,origin_etth2_joint_f0875,origin_etth2_merge_f0875,origin_etth2_sequential_f0875,origin_etth2_window_f0875,,origin_etth2_window_f0875,
+ettm2-f0.75,3,forecast/mse,6.74,origin_ettm2_joint_f075,origin_ettm2_merge_f075,origin_ettm2_sequential_f075,origin_ettm2_window_f075,,origin_ettm2_window_f075,
+ettm2-f0.875,3,forecast/mse,6.74,origin_ettm2_joint_f0875,origin_ettm2_merge_f0875,origin_ettm2_sequential_f0875,origin_ettm2_window_f0875,,origin_ettm2_window_f0875,

@@ -54,6 +54,21 @@ The scale is controlled by `--pipeline_merge_scale`. Each fine-tuned model contr
 
 `--pipeline_extra_merge_scales` optionally evaluates the same merge at further scales once training is done, writing `merged/merge_scale_curve.csv`. This is evaluation only — no extra training, no extra checkpoints, and `merged/` still comes from `--pipeline_merge_scale`. Because every point on the curve shares one set of checkpoints, its shape is free of the run-to-run training noise a curve assembled from separate runs carries (see EXPERIMENTS.md §1.8 for the measured per-dataset floors).
 
+Two further flags choose *what* is merged and *how much*, independently of each other — see
+EXPERIMENTS.md §1.31 for the 2×2 they were built for:
+
+| flag | values | meaning |
+|---|---|---|
+| `--pipeline_merge_rule` | `sum` (default), `opcm` | **What** to merge. `sum` is plain task arithmetic. `opcm` keeps only the component of each incoming task vector orthogonal to the span of its predecessors — the exact complement of the ρ that `geometry.py` reports, so the method and the diagnostic share one projection. |
+| `--pipeline_coefficient_source` | `scale` (default), `became` | **How much**. `scale` uses `--pipeline_merge_scale`, optionally selected on validation. `became` derives a per-step λ\* from each shard's diagonal Fisher and needs no sweep. Rejected at construction time if combined with `--pipeline_select_merge_scale_on_val`, since one of the two would be silently ignored. |
+| `--pipeline_opcm_threshold` | float, default `0.5` | Fraction of squared singular values retained when truncating the accumulated subspace. |
+| `--pipeline_fisher_batches` | int, default `64` | Batches per shard used to estimate the diagonal Fisher. ⚠️ At 64 the λ\* estimate is noisy — §1.31 measures an 18.6% vs 129.5% spread across seeds. |
+
+At the defaults (`sum` + `scale`) the merge delegates to the original code path, so a run that
+touches neither flag executes exactly the arithmetic every published merge used, bitwise.
+`scripts/verify_merge_rules.py` asserts that, plus three other semantics properties, and should
+be run before quoting any number from a new rule.
+
 **`MergeDiagnosticsPipeline`** — training-free post-hoc analysis of a finished `IncrementalTaskArithmeticPipeline` run. See [Merge diagnostics](#merge-diagnostics) below.
 
 Fine-tuning optionally supports L2-SP regularization: `--finetune_trainer_reg_lambda` (default `0`, a no-op) penalizes each segment's drift from the baseline weights during fine-tuning, added directly to the loss. `--finetune_trainer_reg_exclude` (default `norm bias`) excludes matching parameter-name substrings from the penalty. See `EXPERIMENTS.md` for findings so far (harmful on ETTh1 at every value/merge_scale tried; no measurable effect on SWaT/PSM).

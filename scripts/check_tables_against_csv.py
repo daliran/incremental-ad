@@ -20,6 +20,7 @@ Run it after any re-audit, and before committing a change to a published number.
 import argparse
 import copy
 import csv
+import hashlib
 import math
 import statistics as st
 import sys
@@ -797,6 +798,18 @@ for _ds in ("ETTh2", "ETTm2"):
                                  "run_metrics.csv", "mean", 0.0001)
 
 
+# §1.26b's base-slice share table. The section's caveat about the exchange n=5 result rests
+# on these four percentages, so they are bound to scale_report's own val_base_weight_pct.
+for _lbl, _grp in ((r"\| ETTh1 n = 2", "segsweep_etth1_merge_n2_diagnostics"),
+                   (r"\| ETTh1 n = 5", "segsweep_etth1_merge_n5_diagnostics"),
+                   (r"\| exchange n = 2", "segsweep_exchange_merge_n2_diagnostics"),
+                   (r"\| exchange n = 5", "segsweep_exchange_merge_n5_diagnostics")):
+    CHECKS += row_checks("§1.26b", _lbl,
+                         {0: (f"{_grp} val_base share", {"group": _grp})},
+                         "scale_forecast/scale_summary.csv", "val_base_weight_pct", 0.05,
+                         cell=r"\*{0,2}[\d.]+%\*{0,2}", cap=r"\*{0,2}([\d.]+)%\*{0,2}")
+
+
 def csv_value(row: dict, column: str) -> float | None:
     """One CSV cell, with a documented unit conversion applied.
 
@@ -1034,6 +1047,38 @@ def check_no_floor_fallback(audit_dir: Path) -> int:
         else:
             print(f"  ok        {name}: {len(rows)}/{len(rows)} cells pairwise")
     return failures
+
+
+def check_report_is_current(archive: Path, report: Path) -> int:
+    """`results_report.html` must have been built from the committed archive. Returns failures.
+
+    The report embeds the SHA-256 of `MANIFEST.csv`, which itself hashes every archived file — so
+    comparing that one value proves the page was generated from this archive rather than an older
+    one. Cheap insurance against the failure the hand-built HTML pages had: they looked current,
+    carried no provenance, and nothing could tell.
+
+    Absent report or absent manifest is a skip, not a failure: the report is a convenience
+    artefact and a checkout without it is still valid.
+    """
+    print("\nREPORT FRESHNESS — results_report.html vs the committed MANIFEST.csv:")
+    manifest = archive / "MANIFEST.csv"
+    if not report.is_file() or not manifest.is_file():
+        print("  skipped — no report or no manifest")
+        return 0
+    expected = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    found = re.search(r"name='archive-manifest-sha256' content='([0-9a-f]{64})'",
+                      report.read_text())
+    if found is None:
+        print(f"  STALE      {report} carries no archive fingerprint — rebuild it with "
+              f"scripts/build_results_report.py")
+        return 1
+    if found.group(1) != expected:
+        print(f"  STALE      {report} was built from archive {found.group(1)[:12]}, but the "
+              f"committed manifest is {expected[:12]} — re-run "
+              f"scripts/build_results_report.py")
+        return 1
+    print(f"  ok        built from archive {expected[:12]} ({manifest.read_text().count(chr(10)) - 1} entries)")
+    return 0
 
 
 def check_generated_config_sections(text: str) -> int:
@@ -1470,6 +1515,11 @@ def main() -> None:
     curves = check_scale_curves(text, args.runs_root, args.matrix_spec) if args.runs_root else 0
     if curves:
         print(f"  -> {curves} merge-scale-curve failure(s)")
+
+    report = check_report_is_current(args.audit_dir.parent, Path("results_report.html"))
+    if report:
+        print(f"  -> results_report.html is stale")
+        drift += report
 
     generated = check_generated_config_sections(text)
     if generated:

@@ -2711,6 +2711,44 @@ entirely on the dataset where §1.24 already established that shard size, not dr
 behaviour — exchange_rate, whose 607-row shards make every method unstable and whose window column
 was the most extreme number in the table.
 
+#### What the merged-val union weights — stated, because a reader will ask
+
+**Yes: the union weights each slice by its window count, and the base slice is the largest
+share.** `get_merged_val_eval_dataset()` returns a `ConcatDataset` over *every* segment's
+held-out slice — the baseline's included — and the evaluator averages over the pooled windows, so
+each slice contributes in proportion to how many windows it has. At a 50% baseline the base slice
+is the biggest single contributor:
+
+| cell | base slice's share of the union |
+|---|---|
+| ETTh1 n = 2 | 53.5% |
+| ETTh1 n = 5 | **67.5%** |
+| exchange n = 2 | 51.7% |
+| exchange n = 5 | **57.8%** |
+
+**So any quantity selected on this union is retention-weighted by construction** — it is chosen
+with a majority of its signal coming from "stay near θ₀". §1.11 already says this of α\*; it
+applies identically to the window budget selected here.
+
+**Read against the exchange_rate n = 5 result honestly.** That is the row where merging becomes
+the decisive winner once W is chosen honestly, and a sceptical reader is entitled to ask whether
+the selection favoured it. Two things are true and both should be said:
+
+- **It cuts toward merging.** A union that is 57.8% base slice rewards a model that has not moved
+  far from θ₀, and a merge at α ≈ 1/n is exactly that. The same signal penalises a 5-period window
+  retrain, which has moved furthest.
+- **But it is applied to both columns identically.** `window_val` is scored on *the same union*
+  (`window_selection.py --mode common_val` calls `get_merged_val_eval_dataset()`), so the window
+  budget and the merge coefficient are chosen by one rule on one held-out set. Before §1.26b the
+  window column was picked on **test** and the merge on this union — that asymmetry favoured the
+  window, and removing it is what moves the row.
+
+The defensible claim is therefore narrow: *under a single retention-weighted selection rule applied
+to every method, merging wins exchange_rate n = 5.* It is **not** a claim that merging wins under
+any selection rule, and a reader who prefers a differently-weighted union should expect a
+different answer — most plausibly one that favours the window again, since that is the method the
+base-slice weighting penalises most.
+
 **Both columns are kept.** `window_best` answers "how good is a window retrain at the best budget?",
 which is what §1.21's retention argument needs; `window_val` answers "how good is it if you have to
 choose?", which is what a method comparison needs. Reporting only the first is what created the

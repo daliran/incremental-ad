@@ -22,6 +22,7 @@ archive's own file count so a stale copy is visible on sight.
 
 import argparse
 import csv
+import hashlib
 import html
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,6 +60,23 @@ footer { margin-top:3rem; padding-top:1rem; border-top:1px solid var(--line);
 """
 
 
+def manifest_fingerprint(archive: Path) -> tuple[str, int]:
+    """SHA-256 of `MANIFEST.csv` itself, plus its entry count.
+
+    The manifest already hashes every archived file, so hashing the manifest is a hash of the
+    whole archive at one remove — cheap, and it changes whenever any evidence changes. Embedding
+    it lets the checker prove this page was built from the committed archive rather than from an
+    older one, which is the failure the old hand-built HTML pages had: they looked current and
+    were not.
+    """
+    path = archive / "MANIFEST.csv"
+    if not path.is_file():
+        return "absent", 0
+    raw = path.read_bytes()
+    entries = max(raw.count(b"\n") - 1, 0)
+    return hashlib.sha256(raw).hexdigest(), entries
+
+
 def read(path: Path) -> list[dict]:
     if not path.is_file():
         return []
@@ -94,6 +112,7 @@ def main() -> None:
     audit = args.archive / "audit"
     stamp = args.generated_at or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     n_files = sum(1 for p in args.archive.rglob("*") if p.is_file())
+    fingerprint, n_entries = manifest_fingerprint(args.archive)
 
     methods = read(audit / "method_comparison.csv")
     floors = [r for r in read(audit / "floors.csv") if r.get("role") == "floor"]
@@ -103,6 +122,25 @@ def main() -> None:
         read(audit / "routing_psm_forecast/routing_summary.csv")
     subblocks = read(audit / "subblocks/subblock_summary.csv")
     concentration = read(audit / "concentration/error_concentration_ETTh1.csv")
+    # Geometry, including the AEFT rows: §1.33's refutation of QOMM's premise is a geometry
+    # result, so the one figure showing it belongs in the report and not only in the markdown.
+    geometry = read(audit / "geometry/geometry_by_dataset.csv")
+    aeft = read(audit / "geometry_aeft/geometry_summary.csv")
+    aeft_rows = []
+    if aeft:
+        import statistics as st
+        grouped: dict[str, list[dict]] = {}
+        for row in aeft:
+            grouped.setdefault(row["experiment_name"], []).append(row)
+        label = {"opcm2_psm_sum_scale": "PSM-forecast — full fine-tuning",
+                 "aeft_psm_sum_scale": "PSM-forecast — attention-only (AEFT)"}
+        for name, rows_ in sorted(grouped.items()):
+            out = {"configuration": label.get(name, name), "n_seeds": len(rows_)}
+            for column in ("mean_offdiag_cosine", "mean_sequential_overlap",
+                           "cosine_at_distance_1", "effective_rank", "mean_tau_norm"):
+                values = [float(r[column]) for r in rows_ if r.get(column) not in ("", None)]
+                out[column] = round(st.mean(values), 4) if values else ""
+            aeft_rows.append(out)
 
     sections = [
         ("All strategies on one footing",
@@ -131,6 +169,20 @@ def main() -> None:
          "Isolates test-block position from training size.",
          table(subblocks, ["dataset", "n_segments", "method", "subblock", "n_seeds", "mean",
                            "sd", "rank"], limit=60)),
+        ("Task-vector geometry",
+         "ρ is the share of an incoming task vector already spanned by its predecessors; the "
+         "cosine is the mean off-diagonal pairwise cosine. Lower means the shards edit more "
+         "independent directions.",
+         table(geometry, ["dataset", "n_seeds", "mean_sequential_overlap", "mean_offdiag_cosine",
+                          "effective_rank", "mean_tau_over_base"])),
+        ("QOMM's premise, tested",
+         "Attention-exclusive fine-tuning was predicted to make task vectors <em>more</em> "
+         "orthogonal. It does the opposite — the cosine rises 35% and ρ nearly doubles — which "
+         "is why it makes OPCM worse and α* smaller (EXPERIMENTS.md §1.33). This is the figure "
+         "behind that refutation.",
+         table(aeft_rows, ["configuration", "n_seeds", "mean_offdiag_cosine",
+                           "mean_sequential_overlap", "cosine_at_distance_1", "effective_rank",
+                           "mean_tau_norm"])),
         ("Where the forecasting floor comes from",
          "Heavy tail and seed-divergence both refuted: trimming the worst windows does not move "
          "the floor, and seeds agree on which windows are hard.",
@@ -145,9 +197,16 @@ def main() -> None:
         "<title>Incremental learning by model merging — archived results</title>",
         f"<style>{STYLE}</style></head><body><div class='wrap'>",
         "<h1>Incremental learning by model merging</h1>",
+        # The fingerprint is what `check_tables_against_csv.py` compares against the committed
+        # MANIFEST.csv. A meta tag rather than visible text: it is machine-readable provenance,
+        # not something a reader needs.
+        f"<meta name='archive-manifest-sha256' content='{fingerprint}'>",
+        f"<meta name='archive-manifest-entries' content='{n_entries}'>",
         f"<div class='meta'><span>commit {html.escape(args.commit)}</span>"
         f"<span>generated {html.escape(stamp)}</span>"
-        f"<span>{n_files} archived files</span></div>",
+        f"<span>{n_entries} archived files</span>"
+        f"<span title='SHA-256 of MANIFEST.csv'>archive {html.escape(fingerprint[:12])}</span>"
+        f"</div>",
         "<p class='note'>Generated from <code>results_archive/</code>. Every value is read from "
         "a CSV in the archive — none is transcribed — so this page cannot disagree with the "
         "evidence. <code>EXPERIMENTS.md</code> remains the source of record and carries the "
@@ -157,8 +216,11 @@ def main() -> None:
         parts += [f"<h2>{html.escape(title)}</h2>", f"<p class='note'>{note}</p>", body]
     parts += [
         "<footer>Rebuilt by <code>scripts/build_results_report.py</code> as part of "
-        "<code>scripts/regenerate_analysis.sh</code>. If the file count above disagrees with "
-        "<code>results_archive/MANIFEST.csv</code>, this copy is stale.</footer>",
+        "<code>scripts/regenerate_analysis.sh</code>. The archive fingerprint above is the "
+        "SHA-256 of <code>results_archive/MANIFEST.csv</code>, which itself hashes every "
+        "archived file; <code>check_tables_against_csv.py</code> compares it against the "
+        "committed manifest, so a stale copy of this page fails the checker rather than "
+        "looking current.</footer>",
         "</div></body></html>",
     ]
     args.out.write_text("\n".join(parts))

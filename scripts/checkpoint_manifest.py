@@ -9,10 +9,18 @@ That is the right call for the *evidence*, but it means no post-hoc analysis tha
 The checkpoints therefore have to leave the cluster, and this writes the record that makes the
 copy checkable afterwards: what to copy, how large it is, and a SHA-256 per file.
 
-Scope is `analysis_specs/experiment_of_record.csv` — the experiments the documents actually read
-— plus the groups added since it was written (`opcm2_`, `window_`, `origin_`, `basefrac_`,
-`selalpha_`, `n1_`). Everything else under `$RUNS_ROOT` is either superseded, a diagnostics run
-whose CSVs are already archived, or a sweep trial.
+**Scope is derived, not listed.** Every experiment named by *any* file in `analysis_specs/`,
+plus every experiment `regenerate_analysis.sh` globs by name, plus the `EXTRA_PREFIXES` families.
+Anything else under `$RUNS_ROOT` is superseded, a sweep trial, or a diagnostics run whose CSVs are
+already archived and which owns no checkpoints of its own.
+
+⚠️ **The earlier version scoped on `experiment_of_record.csv` plus prefixes, and missed ten
+groups holding 0.45 GB.** Three separate causes, none visible from the prefix list:
+`etth2_window_W3` does not start with `window_` (the ETT groups put the dataset first);
+`etth2_gate_base` is named only in `floor_spec.csv`; and `exch_incremental` / `noisefloor_etth`
+*were* experiments of record until §1.29 replaced them with the `selalpha_*` re-runs — so editing
+that one spec silently narrowed the backup. Deriving the scope from every spec removes all three
+failure modes at once, and means adding a spec entry cannot leave its checkpoints unbacked.
 
 The hashing dominates the runtime (it reads every byte), which is why this is a separate,
 sbatch-ed step rather than part of `archive_results.py`.
@@ -22,6 +30,7 @@ import argparse
 import csv
 import hashlib
 import logging
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -29,6 +38,39 @@ log = logging.getLogger("checkpoint_manifest")
 
 EXTRA_PREFIXES = ("opcm2_", "window_", "origin_", "basefrac_", "selalpha_", "n1_",
                   "aeft_", "adfc2_")
+
+
+def referenced_experiments(spec_dir: Path, regenerate_script: Path) -> set[str]:
+    """Every experiment name any spec or the regeneration script refers to.
+
+    Reading the specs rather than one hand-kept list is what makes the backup follow the
+    documents automatically: a spec entry added tomorrow brings its checkpoints into scope
+    without anyone remembering to widen a prefix.
+    """
+    names: set[str] = set()
+    for path in sorted(spec_dir.glob("*.csv")):
+        with path.open() as fh:
+            for row in csv.DictReader(fh):
+                for key, value in row.items():
+                    if not value or "experiment" not in key:
+                        continue
+                    if not value.replace(".", "").isdigit():
+                        names.add(value)
+    if regenerate_script.is_file():
+        # Brace expansions like `{etth2,ettm2}_merge_n{2,3,5}_diagnostics` are expanded here so
+        # the script's own globs count as references.
+        text = regenerate_script.read_text()
+        for match in re.findall(r'\$RUNS"?/([A-Za-z0-9_{},]+)', text):
+            stack = [match]
+            while stack:
+                item = stack.pop()
+                if "{" not in item:
+                    names.add(item)
+                    continue
+                head, rest = item.split("{", 1)
+                options, tail = rest.split("}", 1)
+                stack.extend(f"{head}{o}{tail}" for o in options.split(","))
+    return names
 
 
 def sha256(path: Path) -> str:
@@ -42,8 +84,11 @@ def sha256(path: Path) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--runs_root", type=Path, required=True)
-    parser.add_argument("--spec", type=Path,
-                        default=Path("analysis_specs/experiment_of_record.csv"))
+    parser.add_argument("--spec_dir", type=Path, default=Path("analysis_specs"),
+                        help="every CSV here is scanned for experiment names, so the backup "
+                             "follows the documents rather than a hand-kept list")
+    parser.add_argument("--regenerate_script", type=Path,
+                        default=Path("scripts/regenerate_analysis.sh"))
     parser.add_argument("--out", type=Path, default=Path("results_archive/CHECKPOINTS.md"))
     parser.add_argument("--no_hash", action="store_true",
                         help="list sizes only. Faster, but the result cannot verify a copy — "
@@ -51,11 +96,13 @@ def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    with args.spec.open() as fh:
-        of_record = {r["experiment"] for r in csv.DictReader(fh)}
+    referenced = referenced_experiments(args.spec_dir, args.regenerate_script)
     groups = sorted(
         d.name for d in args.runs_root.iterdir()
-        if d.is_dir() and (d.name in of_record or d.name.startswith(EXTRA_PREFIXES))
+        if d.is_dir() and (d.name in referenced or d.name.startswith(EXTRA_PREFIXES))
+        # Diagnostics runs hold no checkpoints of their own — they read the source run's — and
+        # their CSVs are already in results_archive/run_diagnostics.
+        and any(d.rglob("*.pt"))
     )
 
     rows: list[tuple[str, str, int, str]] = []
@@ -81,10 +128,12 @@ def main() -> None:
             "resampling need the weights, and `$WORK` is scratch. This is the record that "
             "makes an off-cluster copy verifiable.\n\n"
         )
-        fh.write(f"**Scope.** {len(groups)} experiment groups — the "
-                 f"{len(of_record)} in `analysis_specs/experiment_of_record.csv` plus the "
-                 f"`opcm2_`/`window_`/`origin_`/`basefrac_`/`selalpha_`/`n1_` groups added "
-                 f"since. **{len(rows)} files, {total / 1e9:.1f} GB.**\n\n")
+        fh.write(f"**Scope.** {len(groups)} experiment groups that own checkpoints — every "
+                 f"experiment named by any file in `analysis_specs/` or globbed by "
+                 f"`regenerate_analysis.sh`, plus the `opcm2_`/`window_`/`origin_`/`basefrac_`/"
+                 f"`selalpha_`/`n1_`/`aeft_`/`adfc2_` families. Derived, not listed, so a new "
+                 f"spec entry cannot leave its checkpoints unbacked. "
+                 f"**{len(rows)} files, {total / 1e9:.1f} GB.**\n\n")
         fh.write("## Copying\n\n```bash\n")
         fh.write(f"# from the cluster, one group per line so a partial copy is resumable\n")
         fh.write(f"rsync -av --info=progress2 \\\n")

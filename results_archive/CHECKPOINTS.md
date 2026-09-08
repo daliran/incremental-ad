@@ -2,7 +2,7 @@
 
 `results_archive/` holds the *evidence* (CSVs, `config.json`, every `result.json`) and deliberately excludes `*.pt`: they are gigabytes and reproducible from the configs. But re-merging, geometry, Fisher and any BECAME resampling need the weights, and `$WORK` is scratch. This is the record that makes an off-cluster copy verifiable.
 
-**Scope.** 181 experiment groups — the 56 in `analysis_specs/experiment_of_record.csv` plus the `opcm2_`/`window_`/`origin_`/`basefrac_`/`selalpha_`/`n1_` groups added since. **3765 files, 12.0 GB.**
+**Scope.** 181 experiment groups that own checkpoints — every experiment named by any file in `analysis_specs/` or globbed by `regenerate_analysis.sh`, plus the `opcm2_`/`window_`/`origin_`/`basefrac_`/`selalpha_`/`n1_`/`aeft_`/`adfc2_` families. Derived, not listed, so a new spec entry cannot leave its checkpoints unbacked. **3921 files, 12.5 GB.**
 
 ## Copying
 
@@ -42,19 +42,10 @@ EOF
 | `adfc2_psm_joint` | 6 | 0.02 GB |
 | `adfc2_psm_joint_oldmask` | 6 | 0.02 GB |
 | `adfc2_psm_merge_n2` | 21 | 0.06 GB |
-| `adfc2_psm_merge_n2_diagnostics` | 0 | 0.00 GB |
-| `adfc2_psm_merge_n2_diagnostics_coarse_oldmask` | 0 | 0.00 GB |
-| `adfc2_psm_merge_n2_diagnostics_oldmask` | 0 | 0.00 GB |
 | `adfc2_psm_merge_n2_oldmask` | 21 | 0.06 GB |
 | `adfc2_psm_merge_n3` | 27 | 0.08 GB |
-| `adfc2_psm_merge_n3_diagnostics` | 0 | 0.00 GB |
-| `adfc2_psm_merge_n3_diagnostics_coarse_oldmask` | 0 | 0.00 GB |
-| `adfc2_psm_merge_n3_diagnostics_oldmask` | 0 | 0.00 GB |
 | `adfc2_psm_merge_n3_oldmask` | 27 | 0.08 GB |
 | `adfc2_psm_merge_n5` | 39 | 0.11 GB |
-| `adfc2_psm_merge_n5_diagnostics` | 0 | 0.00 GB |
-| `adfc2_psm_merge_n5_diagnostics_coarse_oldmask` | 0 | 0.00 GB |
-| `adfc2_psm_merge_n5_diagnostics_oldmask` | 0 | 0.00 GB |
 | `adfc2_psm_merge_n5_oldmask` | 39 | 0.11 GB |
 | `adfc2_psm_merge_tf06` | 27 | 0.08 GB |
 | `adfc2_psm_merge_tf06_oldmask` | 27 | 0.08 GB |
@@ -99,7 +90,6 @@ EOF
 | `aeft_psm_opcm_scale` | 27 | 0.08 GB |
 | `aeft_psm_sum_became` | 27 | 0.08 GB |
 | `aeft_psm_sum_scale` | 27 | 0.08 GB |
-| `aeft_psm_sum_scale_diagnostics` | 0 | 0.00 GB |
 | `basefrac_etth1_03` | 27 | 0.08 GB |
 | `basefrac_etth1_07` | 27 | 0.08 GB |
 | `basefrac_ettm2_03` | 27 | 0.08 GB |
@@ -112,23 +102,33 @@ EOF
 | `etth2_continual_n2` | 18 | 0.05 GB |
 | `etth2_continual_n3` | 24 | 0.07 GB |
 | `etth2_continual_n5` | 36 | 0.10 GB |
+| `etth2_gate_base` | 6 | 0.02 GB |
 | `etth2_gate_joint` | 6 | 0.02 GB |
 | `etth2_merge_n2` | 21 | 0.06 GB |
 | `etth2_merge_n3` | 27 | 0.08 GB |
 | `etth2_merge_n5` | 39 | 0.11 GB |
+| `etth2_window_W1` | 15 | 0.04 GB |
+| `etth2_window_W2` | 15 | 0.04 GB |
+| `etth2_window_W3` | 15 | 0.04 GB |
 | `ettm2_continual_n2` | 18 | 0.05 GB |
 | `ettm2_continual_n3` | 24 | 0.07 GB |
 | `ettm2_continual_n5` | 36 | 0.10 GB |
+| `ettm2_gate_base` | 6 | 0.02 GB |
 | `ettm2_gate_joint` | 6 | 0.02 GB |
 | `ettm2_merge_n2` | 21 | 0.06 GB |
 | `ettm2_merge_n3` | 27 | 0.08 GB |
 | `ettm2_merge_n5` | 39 | 0.11 GB |
+| `ettm2_window_W1` | 15 | 0.04 GB |
+| `ettm2_window_W2` | 15 | 0.04 GB |
+| `ettm2_window_W3` | 15 | 0.04 GB |
 | `exch_continual` | 24 | 0.07 GB |
 | `exch_gate_standard` | 6 | 0.02 GB |
+| `exch_incremental` | 27 | 0.08 GB |
 | `n1_etth1` | 15 | 0.04 GB |
 | `n1_exchange` | 15 | 0.04 GB |
 | `n1_psm` | 15 | 0.04 GB |
 | `n1_swat` | 15 | 0.12 GB |
+| `noisefloor_etth` | 27 | 0.08 GB |
 | `noisefloor_psm` | 27 | 0.07 GB |
 | `noisefloor_std_etth` | 6 | 0.02 GB |
 | `noisefloor_std_psm` | 6 | 0.02 GB |
@@ -221,4 +221,4 @@ EOF
 | `window_swat_W2` | 15 | 0.12 GB |
 | `window_swat_W3` | 15 | 0.12 GB |
 
-Per-file sizes and SHA-256 are in `results_archive/checkpoints.csv` (3765 rows) — kept as CSV rather than inlined here because a 3765-row table in Markdown is not readable and not greppable.
+Per-file sizes and SHA-256 are in `results_archive/checkpoints.csv` (3921 rows) — kept as CSV rather than inlined here because a 3921-row table in Markdown is not readable and not greppable.

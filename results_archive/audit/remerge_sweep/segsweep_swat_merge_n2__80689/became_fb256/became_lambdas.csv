@@ -1,0 +1,3 @@
+step,lambda_star,one_over_t,weight,one_over_n,max_dev_from_uniform,fisher_batches,fisher_seed,seed
+0,1.0,1.0,0.4025165326220215,0.5,0.19496693475595706,256,0,7
+1,0.5974834673779785,0.5,0.5974834673779785,0.5,0.19496693475595706,256,0,7

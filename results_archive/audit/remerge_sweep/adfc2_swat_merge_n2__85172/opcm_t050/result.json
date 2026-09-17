@@ -1,0 +1,20 @@
+{
+  "source_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_swat_merge_n2/85172",
+  "merge_rule": "opcm",
+  "coefficient_source": "scale",
+  "alpha": 0.5,
+  "alpha_source": "merge_scale/selected",
+  "opcm_threshold": 0.5,
+  "fisher_batches": null,
+  "fisher_seed": null,
+  "seed": 42,
+  "n_shards": 2,
+  "metrics": {
+    "val/forecast/mse": 0.021155409514904022,
+    "val/forecast/rmse": 0.1454489928287715,
+    "val/forecast/mae": 0.04393583908677101,
+    "test/forecast/mse": 6.164633274078369,
+    "test/forecast/rmse": 2.4828679534116125,
+    "test/forecast/mae": 1.051547884941101
+  }
+}

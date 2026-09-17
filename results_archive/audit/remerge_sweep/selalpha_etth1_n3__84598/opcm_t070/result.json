@@ -1,0 +1,20 @@
+{
+  "source_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/selalpha_etth1_n3/84598",
+  "merge_rule": "opcm",
+  "coefficient_source": "scale",
+  "alpha": 0.3,
+  "alpha_source": "merge_scale/selected",
+  "opcm_threshold": 0.7,
+  "fisher_batches": null,
+  "fisher_seed": null,
+  "seed": 7,
+  "n_shards": 3,
+  "metrics": {
+    "val/forecast/mse": 0.31812378764152527,
+    "val/forecast/rmse": 0.5640246338960074,
+    "val/forecast/mae": 0.400968998670578,
+    "test/forecast/mse": 0.48548343777656555,
+    "test/forecast/rmse": 0.6967664155056309,
+    "test/forecast/mae": 0.48270902037620544
+  }
+}

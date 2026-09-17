@@ -1599,6 +1599,51 @@ them to 0.80 / 0.75 / 0.75. The document was right; the regenerated CSV had degr
 **This is the third time the appended-selected-α trap has cost something** (§2.23, §1.30's PSM
 diagnostics, and now these four cells). Any new diagnostics grid must be 0.05-stepped.
 
+### 2.42 OPCM and BECAME everywhere ✅ — the ρ mechanism does not predict the cost
+
+EXPERIMENTS.md §1.35. 162 training-free re-merges over every dataset with checkpoints, at the
+strength each source run committed to. Authoritative runs from
+`analysis_specs/method_comparison_spec.csv`, never from name patterns. Checkpoint hashes verified
+against the source for the first time: **3,921/3,921**, zero missing, zero mismatched.
+
+**P1 — "OPCM's cost grows with ρ" — REFUTED.** Pearson **−0.128**, Spearman **−0.071** over eight
+datasets; **−0.021 / +0.143** excluding the saturated AD pair, so saturation does not rescue it.
+The extremes: **SWaT at ρ = 0.601 costs +0.18%**, **ETTh2 at ρ = 0.071 costs +22.9%**. OPCM does
+remove exactly the ρ fraction — `verify_merge_rules.py` asserts that — but how much the removal
+*costs* is not governed by how much is removed.
+
+**The genuinely new result: OPCM *helps* on exchange_rate**, decisively, at n = 2 (−10.9%) and
+n = 3 (−14.2%), at all three thresholds, against a 5.73% floor. §1.31 concluded from one dataset
+that OPCM always hurts; it does not. Coherent with §1.24: exchange is the one dataset where old
+data actively hurts (joint is the *worst* method there), and OPCM discards the component of each
+new vector that re-edits directions the older shards already claimed. **OPCM is behaving as a
+recency filter, and it pays where recency pays.** It reverses at n = 5, where 607-row shards make
+each vector's unique component too poorly estimated to stand alone.
+
+**P2 — "BECAME is pinned at α·n = 1.0 on AD" — CONFIRMED, exactly.** `implied_alpha_times_n` =
+**1.000 on all six AD cells**, as the convex fold requires, and BECAME is decisively worse than
+plain summation on every one (+0.47% to +1.09%, against floors of 0.07–0.09%). The explanation is
+magnitude, not weighting: the detecting strength on AD is α·n = **2.40** (PSM) and **4.50** (SWaT),
+and `accumulated = (1−λ)·accumulated + λ·τ` fixes the total at 1.0 whatever the Fishers say.
+A variant that kept BECAME's relative weights and rescaled the total would test the weighting on
+its own — not what the paper specifies, and not run.
+
+**Two of my own bugs, both caught by checking rather than by the pipeline:**
+
+- **ρ was aliased by dataset name.** PSM-forecast inherited PSM's ρ (0.216) when its own is
+  **0.034** — different *tasks* on the same raw series. That put the correlation's most
+  informative point at the wrong x-coordinate. ρ is now keyed per **experiment**, and the four
+  datasets that had none were measured (`geometry_gap`).
+- **exchange was silently dropped** from the whole analysis: `floors.csv` keys it `exchange_rate`
+  while the spec says `exchange`, so the floor lookup missed and the row was filtered out — and
+  exchange is the dataset where OPCM *helps*, i.e. the single most interesting row. Now falls back
+  to the spec's own `floor_pct`, as `method_comparison.py` already did.
+
+**Scope.** This keeps the *published* OPCM operator (projection against previous task vectors,
+flattened), not the paper's (dominant singular directions of the accumulated merged matrix, with
+its own norm-stabilising λ). Implementing that is a separate job; mixing it in would make these
+rows incomparable with §1.31's.
+
 ### 3.15 One SLURM job per run — the run_id footgun ⬜
 
 `Experiment.run` builds `run_id` from `SLURM_JOB_ID`, which assumes **one run per job** — how

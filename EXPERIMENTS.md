@@ -3712,6 +3712,145 @@ model where attention dominates might behave differently, and QOMM was proposed 
 transformers rather than a small time-series MAE. The claim here is that the premise fails
 *in this setting*, not that it is false in general.
 
+### 1.35 OPCM and BECAME on every dataset — does the cost scale with overlap?
+
+> **Provenance.** `scripts/generate_remerge_sweep.py` → `analysis/remerge.py` →
+> `analysis/remerge_report.py` → `results_archive/audit/remerge_sweep/remerge_sweep.csv`.
+> **Training-free**: every re-merge recombines checkpoints that already exist, at **the strength
+> the source run committed to** (`merge_scale/selected` first, `config.json` second). Nothing is
+> tuned. Which runs are authoritative comes from `analysis_specs/method_comparison_spec.csv`,
+> never from experiment-name patterns — the naming is inconsistent (`window_etth1_W3` against
+> `etth2_window_W3`) and a prefix rule has already cost this project ten unbacked groups.
+> `remerge.py` rebuilds each source run's own merge **bitwise** before emitting any number.
+
+§1.31 measured OPCM and BECAME on PSM-forecast n = 3 alone, because its **1.16%** floor is the
+only one small enough to resolve a ~3% effect. That was the right call for a published result and
+a poor reason not to look elsewhere: both methods are training-free, so the rest of the datasets
+cost an evaluation pass each.
+
+**The mechanism makes a quantitative prediction.** OPCM removes from each incoming task vector the
+component already spanned by its predecessors — exactly the ρ that `geometry.py` reports. So its
+cost should **grow with ρ**:
+
+| dataset | ρ | OPCM cost |
+|---|---|---|
+| PSM-forecast | 0.034 | +3.0% (the only point measured) |
+| ETTh1 | 0.070 | ? |
+| exchange | 0.128 | ? |
+| PSM | 0.216 | ? |
+| **SWaT** | **0.601** | ? — removes more than half of each update |
+
+⚠️ **Predictions, registered before the sweep:**
+
+- **P1 — OPCM's cost grows with ρ across datasets.** A cost that *scales with the overlap* is a
+  far stronger result than the single point in §1.31, because it ties the damage to the quantity
+  that mechanically causes it. On SWaT the effect could clear even a large floor.
+- **P2 — BECAME lands near the plain average on AD and recovers little of the available gain,
+  because its total strength is structurally fixed at α·n = 1.0.** The fold is convex —
+  `accumulated = (1 − λ)·accumulated + λ·τ` — so the per-period weights sum to **exactly 1**
+  whatever the Fishers say. The strength that actually *detects* on AD is the test-optimal
+  α·n = **2.40** on PSM and **4.50** on SWaT (`alpha_oracle × n`, §1.12's blindness in units that
+  bite). BECAME cannot reach those, **not because its weighting is wrong but because its
+  magnitude is fixed**. `implied_alpha_times_n` is emitted per run so this is checkable rather
+  than asserted — **if it ever comes out ≠ 1.0 the structural claim is wrong, and that is the
+  headline finding.**
+
+**Scope, stated so the result is not over-read.** This keeps the *published* OPCM operator —
+projection against previous task vectors flattened — not the paper's, which projects against the
+dominant singular directions of the accumulated merged matrix and carries its own norm-stabilising
+λ. Implementing that is a separate job; mixing it in here would make these rows incomparable with
+§1.31's.
+
+#### Results — 162 re-merges, 54 comparisons, 23 of them ties
+
+**Checkpoint integrity verified first**, for the first time against the source rather than a copy:
+**3,921/3,921**, zero missing, zero mismatched
+(`scripts/verify_checkpoints.py` → `results_archive/audit/checkpoint_verification.csv`). Every
+`remerge.py` self-check passed — each source run's own merge rebuilt bitwise before any new number.
+
+#### P1 — "OPCM's cost grows with ρ" — REFUTED
+
+| dataset | ρ | plain | OPCM | cost | floor | verdict |
+|---|---|---|---|---|---|---|
+| PSM-forecast | 0.0343 | 0.3925 | 0.4028 | +2.63% | 1.16% | worse |
+| ETTm2 | 0.0498 | 0.1121 | 0.1186 | +5.73% | 14.11% | tie |
+| ETTh1 | 0.0679 | 0.4964 | 0.4914 | −1.00% | 8.76% | tie |
+| ETTh2 | 0.0713 | 0.2153 | 0.2646 | **+22.92%** | 6.74% | worse |
+| **exchange** | 0.1293 | 0.3626 | **0.3112** | **−14.18%** | 5.73% | **better** |
+| PSM | 0.2155 | 0.8005 | 0.8003 | +0.01% | 0.07% | tie |
+| SWaT-forecast | 0.3221 | 4.7604 | 5.1155 | +7.46% | 84.23% | tie |
+| **SWaT** | **0.6007** | 0.8037 | 0.8023 | **+0.18%** | 0.09% | worse |
+
+**Pearson r(ρ, cost) = −0.128, Spearman −0.071** across all eight; excluding the saturated AD pair
+it is **−0.021 / +0.143**. There is no relationship, and the sign is if anything the wrong way.
+
+The two extremes make the point without statistics. **SWaT has ρ = 0.601 — seventeen times
+PSM-forecast's, so OPCM discards more than half of every incoming update — and it costs
++0.18%.** **ETTh2, at ρ = 0.071, costs +22.92%.** The mechanism that predicts the ordering is
+real (OPCM does remove exactly the ρ fraction; `verify_merge_rules.py` asserts it), but **how much
+that removal costs is not governed by how much is removed.**
+
+⚠️ **The saturated-AD objection does not rescue the prediction.** SWaT and PSM are compressed near
+0.80 AUROC with the base already within 1.1% of joint (§1.17), so little can move there whatever
+the rule. But dropping both leaves Pearson −0.021 on the six forecasting datasets, which is no
+better. The prediction fails on its own terrain.
+
+**What ρ apparently does predict is nothing about cost, only about quantity removed.** The natural
+next question — what *does* govern the cost — this sweep does not answer. The one visible pattern
+is that the two largest costs (ETTh2 +22.9%, ETTm2 +5.7%) are the two datasets with the most
+base-to-joint headroom (83.8%, 86.6%, §0.1b), which would say OPCM hurts most where there is most
+to lose rather than where it discards most. That is a hypothesis from six points, not a finding.
+
+#### The genuinely new result: OPCM *helps* on exchange_rate
+
+| n | threshold 0.3 | 0.5 | 0.7 |
+|---|---|---|---|
+| 2 | −10.88% | −10.88% | −10.88% |
+| 3 | −14.18% | −14.18% | −14.14% |
+| 5 | +4.58% (tie) | +7.70% | +15.75% |
+
+**Decisively better at n = 2 and n = 3, at every threshold, against a 5.73% floor.** §1.31
+concluded from one dataset that OPCM always hurts; it does not.
+
+The mechanism is coherent with §1.24. exchange_rate is **the one dataset where old data actively
+hurts** — joint training is the *worst* of the five methods there (0.3957 against merging's
+0.3626), and a 3-period window beats using all history by 26%. OPCM removes from each incoming
+task vector the component already spanned by its predecessors, i.e. the part that re-edits
+directions the *older* shards already claimed. Where those older directions are stale, discarding
+them is a gain rather than a loss. **OPCM is not a merge improvement; it is a recency filter, and
+it pays exactly where recency pays.** The reversal at n = 5 fits: at 607-row shards (§1.24) each
+task vector is estimated from too little for its unique component to survive on its own.
+
+#### P2 — "BECAME is pinned at α·n = 1.0 and recovers little on AD" — CONFIRMED
+
+| dataset | n | plain | BECAME | delta | floor | implied α·n |
+|---|---|---|---|---|---|---|
+| PSM | 2 | 0.8041 | 0.7970 | +0.89% | 0.07% | **1.000** |
+| PSM | 3 | 0.8005 | 0.7924 | +1.00% | 0.07% | **1.000** |
+| PSM | 5 | 0.7944 | 0.7857 | +1.09% | 0.07% | **1.000** |
+| SWaT | 2 | 0.8044 | 0.8006 | +0.47% | 0.09% | **1.000** |
+| SWaT | 3 | 0.8037 | 0.7997 | +0.50% | 0.09% | **1.000** |
+| SWaT | 5 | 0.8049 | 0.7992 | +0.70% | 0.09% | **1.000** |
+
+**α·n = 1.000 on all six, exactly**, as the convex fold requires — the structural claim holds and
+is now verified per run rather than asserted. BECAME is **decisively worse than plain summation on
+every AD cell**, by 5–15× the floor.
+
+**And the explanation is the magnitude, not the weighting.** The strength that actually detects on
+AD is the test-optimal **α·n = 2.40 on PSM and 4.50 on SWaT** (`alpha_oracle × n`). BECAME cannot
+reach either: `accumulated = (1 − λ)·accumulated + λ·τ` makes the per-period weights sum to 1
+whatever the Fishers say, so its total strength is fixed at 1.0 — a factor of 2.4 to 4.5 short.
+Its *distribution* of weight across periods may well be sensible; it never gets to express it,
+because the convex form has already decided how far the merged model may travel.
+
+⚠️ **This is a limitation of the coefficient as implemented, not evidence that Fisher weighting is
+wrong.** A variant that kept BECAME's relative weights and rescaled them to a chosen α·n would
+test the weighting on its own; that is not what the paper specifies and is not what was run here.
+
+**Consistency note.** Validation-selected α·n on AD is 1.3 (PSM) and 0.7 (SWaT) — so BECAME's
+structural 1.0 sits *near the validation choice* and far from the detecting optimum. It fails in
+the same direction as §1.12's blindness, for an unrelated reason.
+
 ### 1.34 Forgetting, measured — ACC and BWT from the sequential chains
 
 > **Provenance.** `analysis/forgetting_report.py` over `continual_summary/result.json`, which

@@ -149,6 +149,18 @@ else
     echo "  skipped (set WITH_GEOMETRY=1 on a compute node to regenerate)"
 fi
 
+echo "== OPCM / BECAME re-merge sweep (§1.35) =="
+# Pure aggregation over remerge.py outputs, which are GPU-produced and carried forward like the
+# other checkpoint readers. rho is passed per experiment: PSM-forecast and PSM share raw data but
+# are different tasks with rho 0.034 vs 0.216, and a dataset-level alias put the correlation's
+# most informative point at the wrong x-coordinate.
+python -m incremental_ad.analysis.remerge_report --runs_root "$RUNS" \
+    --remerge_dir "$OUT/remerge_sweep" --floors "$OUT/floors.csv" \
+    --geometry results_archive/audit/geometry/geometry_by_dataset.csv \
+    --geometry_summary results_archive/audit/geometry/geometry_summary.csv \
+                       "$OUT/geometry_gap/geometry_summary.csv" \
+    --out "$OUT/remerge_sweep_report" || echo "  remerge report skipped (no sweep outputs)"
+
 echo "== standalone HTML report =="
 # Rebuilt with every archive refresh so a stale copy cannot be committed unnoticed: it stamps
 # the archive's own file count, which disagrees with MANIFEST.csv the moment it goes out of date.
@@ -157,7 +169,8 @@ python "$REPO/scripts/build_results_report.py" --archive "$REPO/results_archive"
 
 echo "== carrying forward GPU-only outputs (not regenerated here) =="
 for sub in oracle_router concentration novelty_swat selection_probe drift \
-           geometry novelty alignment subblocks mask_span window_selection remerge; do
+           geometry novelty alignment subblocks mask_span window_selection remerge \
+           remerge_sweep geometry_gap geometry_aeft; do
     if [ -d "$CARRY/$sub" ] && [ ! -d "$OUT/$sub" ]; then
         cp -r "$CARRY/$sub" "$OUT/$sub"
         echo "  carried $sub from results_archive (regenerate with a GPU job if its runs changed)"

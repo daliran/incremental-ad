@@ -810,6 +810,34 @@ for _lbl, _grp in ((r"\| ETTh1 n = 2", "segsweep_etth1_merge_n2_diagnostics"),
                          cell=r"\*{0,2}[\d.]+%\*{0,2}", cap=r"\*{0,2}([\d.]+)%\*{0,2}")
 
 
+# §1.35's OPCM-vs-rho table and the BECAME AD table. Scoped to their sub-headings: the section
+# also carries a *predictions* table with the same dataset labels (registered before the run), and
+# an unscoped match binds to whichever comes first — which it did, reading the predicted "+3.0%"
+# as a measured value. Labels allow surrounding ** because the extreme rows are bolded.
+_R35 = {"PSM-forecast": "adfc2_psm_merge_n3", "ETTm2": "ettm2_merge_n3", "ETTh1": "selalpha_etth1_n3",
+        "ETTh2": "etth2_merge_n3", "exchange": "selalpha_exchange_n3", "PSM": "noisefloor_psm",
+        "SWaT-forecast": "adfc2_swat_merge_n3", "SWaT": "noisefloor_swat"}
+_B = r"\*{0,2}"
+for _ds, _exp in _R35.items():
+    _w = {"dataset": _ds, "n_segments": "3", "rule": "opcm", "threshold": "0.5"}
+    for _i, _col in ((1, "plain"), (2, "remerged")):
+        CHECKS += row_checks("§1.35/REFUTED", rf"\| {_B}{_ds}{_B}",
+                             {_i: (f"{_ds} opcm {_col}", _w)},
+                             "remerge_sweep_report/remerge_sweep.csv", _col, 0.0001,
+                             cell=r"\*{0,2}[+−\-]?[\d.]+%?\*{0,2}",
+                             cap=r"\*{0,2}([+−\-]?[\d.]+)%?\*{0,2}")
+
+for _ds in ("PSM", "SWaT"):
+    for _n in (2, 3, 5):
+        _w = {"dataset": _ds, "n_segments": str(_n), "coefficient_source": "became"}
+        for _i, _col in ((0, "plain"), (1, "remerged"), (4, "implied_alpha_times_n")):
+            CHECKS += row_checks("§1.35/CONFIRMED", rf"\| {_ds} \| {_n}",
+                                 {_i: (f"{_ds} n={_n} became {_col}", _w)},
+                                 "remerge_sweep_report/remerge_sweep.csv", _col, 0.0001,
+                                 cell=r"\*{0,2}[+−\-]?[\d.]+%?\*{0,2}",
+                                 cap=r"\*{0,2}([+−\-]?[\d.]+)%?\*{0,2}")
+
+
 def csv_value(row: dict, column: str) -> float | None:
     """One CSV cell, with a documented unit conversion applied.
 
@@ -1494,7 +1522,7 @@ def main() -> None:
     covered = {c.split("/")[0] for c in checked_sections}
     # Sections verified by a dedicated recompute rather than by row_checks. They are checked,
     # just not through CHECKS, so the coverage line must not report them as gaps.
-    covered |= {"§1.27a", "§1.27b"}
+    covered |= {"§1.27a", "§1.27b", "§1.35"}
     # §2.7+ are generated and verified by check_generated_config_sections, which
     # compares the whole subsection rather than individual cells.
     covered |= {f"§2.{i}" for i in range(7, 30)}

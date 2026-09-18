@@ -187,16 +187,24 @@ CLAIMS: list[tuple] = [
      "§1.18. Same class of finding as C21: the method chooses a magnitude, and on these datasets "
      "it is not the one that wins. Whether that is WHY it loses is C34, and untested."),
     # ---- design and measurement scope ------------------------------------------------------
-    ("C34", "The paper's OPCM loses because of its fixed magnitude, not its projection",
-     "1.36, 1.37", "SWaT,PSM", 2, "yes", "mechanism", "yes", "refuted",
+    ("C34", "The paper's OPCM loses because of its fixed magnitude, not its projection "
+              "(AD: refuted; forecasting: refuted)",
+     "1.36, 1.37, 1.38", "SWaT,PSM,ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast,SWaT-forecast",
+     8, "yes", "mechanism", "yes", "refuted",
      "§1.37's P4 ran the isolating test - the paper's projection held bit-for-bit fixed "
      "(collinear to 3.7e-15) and rescaled to each run's committed alpha - and refuted it: 0 "
      "better, 10 ties, 62 worse over 72 cells. The decisive cells are SWaT and PSM, where the "
      "committed alpha is already 1.0 so the correction is a near no-op (distance ratio "
      "0.96-1.15) and the loss is UNCHANGED to within 0.17pp while still 7-25x its floor. "
-     "Magnitude is not the cause; the projection is. The forecasting cells are confounded - "
-     "coefficient-matching is not distance-matching once a transform shrinks the vectors, so "
-     "those merges travel only 0.18-0.66x as far - and are excluded from the evidence."),
+     "Magnitude is not the cause on AD; the projection is. FORECASTING, settled separately by "
+     "§1.38's P5 after §1.37's coefficient-matched cells proved confounded (those merges "
+     "travelled only 0.18-0.66x the intended distance): re-run distance-matched, every cell "
+     "improved - median -16.1pp, up to -69.7pp - so the confound was real and material, yet the "
+     "verdict is unchanged. 2 better, 10 ties, 42 worse over 54 cells; ETTh1, ETTm2 and "
+     "PSM-forecast lose decisively at every threshold; 9 of the 10 ties are SWaT-forecast, whose "
+     "84.23% floor ties everything. Refuted on BOTH task families: magnitude is part of the story "
+     "on forecasting and not the cause of it. The only genuine wins in the sweep are exchange_rate "
+     "at alpha=0.3, n=2 and n=3 - the one dataset where old data actively hurts (§1.24)."),
     ("C27", "The base model's 50% history fraction is a free parameter, not a tuned choice",
      "1.28", "ETTm2", 1, "yes", "scope", "no", "supported",
      "§1.28 varied it for the first time and found the training-size term alone is large. Stated "

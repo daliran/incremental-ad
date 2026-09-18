@@ -135,11 +135,15 @@ settled claim is not a result, and the chapter is closed: 34 claims, 23 settled,
 refuted, with `scripts/build_claims_register.py` as the script of record (`--self-test` proves its
 downgrade rule can fire).
 
-**No merging experiment is open, and none should be added.** The two that were are closed: `C22`
-by §1.36's P2 (with magnitude held fixed, Fisher weighting contributes nothing and at larger n it
-costs) and `C34` by §1.37's P4 (the paper's OPCM loses because of its **projection**, not its norm
-rule — on SWaT and PSM, where the committed alpha is already 1.0 so the rescale is a near no-op,
-the loss is unchanged to within 0.17pp while still 7-25x its floor). Three register rows remain
+**No merging experiment is open, and none should be added.** The three that were are closed:
+`C22` by §1.36's P2 (with magnitude held fixed, Fisher weighting contributes nothing and at larger
+n it costs), and `C34` in two halves — on AD by §1.37's P4 (where the committed alpha is already
+1.0, so the rescale is a near no-op and the loss is unchanged to within 0.17pp while still 7-25x
+its floor) and on forecasting by §1.38's P5, run because P4's control was *wrong* on that half.
+**Three independent magnitude controls now agree**: the paper's own norm rule, coefficient-matched
+and distance-matched. Projecting each incoming task vector out of its predecessors' span removes
+something this backbone needs, at any strength. The sole exception is exchange_rate at a threshold
+below the paper's recommended one — the one dataset where old data actively hurts (§1.24). Three register rows remain
 `hypothesis` — `C03`, `C23`, `C31` — but **no further merging run can settle them**: `C23`'s
 falsification test has already been run and came back inconclusive, and `C03`/`C31` need
 measurements of a different kind, not another merge. Treat the chapter as finished.
@@ -148,12 +152,16 @@ The paper's OPCM is implemented in full (`framework/merging/opcm.py`) and kept s
 from the simplified `opcm_residual`; `C26` forbids conflating them, and the same discipline names
 the §1.37 variant "the paper's projection at a chosen strength", never the paper's method.
 
-⚠️ **One methodological trap §1.37 hit, worth not repeating.** Rescaling a merge so the per-vector
-*coefficients* sum to a target alpha*n is only equivalent to matching the *distance travelled*
-when the rule leaves the task vectors intact. BECAME does, so P2's rescale was clean; OPCM's
-projection shrinks them, so the same rescale left those merges at 0.18-0.66x the intended
-distance and confounded every forecasting cell. Only the cells where the correction was a no-op
-carried the result. Match distance, not coefficients, whenever a transform is in the loop.
+⚠️ **One methodological trap §1.37 hit, worth not repeating — and it was worth the re-run.**
+Rescaling a merge so the per-vector *coefficients* sum to a target alpha*n is equivalent to
+matching the *distance travelled* only when the rule leaves the task vectors intact. BECAME does,
+so P2's rescale was clean; OPCM's projection shrinks them, so the same rescale left those merges
+at 0.18-0.66x the intended distance. §1.38 re-ran them distance-matched and **every cell improved,
+median -16.1pp and up to -69.7pp** — the confound was real and material, and quoting P4's
+forecasting numbers as evidence would have overstated the damage about twofold. The verdict did
+not change, but that could not be known in advance. **Match distance, not coefficients, whenever a
+transform is in the loop**, and re-run rather than reason about which way a confound would have
+pushed.
 
 The register exists because the checker can only catch a wrong *number*. Every documentation error
 in this project's audits was a **correct number carrying a claim wider than its evidence** — "under

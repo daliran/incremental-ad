@@ -428,8 +428,49 @@ def check_opcm_committed_scale() -> int:
             if abs(info_a["norm_ratio"] - 1.0) < 1e-12 and abs(factor - 1.0) > 1e-9:
                 print(f"  FAIL  alpha={alpha}: norm_ratio still 1.0 — the rescale was not applied")
                 failures += 1
-    print(f"  {'ok' if not failures else 'FAILED'}  scale_to_alpha is collinear with the paper's "
-          f"merge to {worst_seen[0]:.1e} relative (projection untouched) and hits alpha*n exactly")
+    # --- distance matching (§1.38, P5) ---------------------------------------------------------
+    # The third magnitude rule. Same collinearity requirement -- the projection must be untouched
+    # -- plus its own identity: the merge must travel EXACTLY as far as plain summation at alpha.
+    # That identity is the whole control, so an approximate version of it is worthless.
+    from incremental_ad.framework.merging import apply_task_vectors
+    for threshold in (0.3, 0.5, 0.7):
+        for alpha in (0.2, 0.5, 1.0):
+            paper, info = merge_opcm_paper(base, taus, threshold)
+            matched, info_d = merge_opcm_paper(base, taus, threshold,
+                                               match_distance_at_alpha=alpha)
+            keys = [k for k, v in base.items() if v.is_floating_point()]
+
+            def distance(state):
+                return float(torch.sqrt(sum(((state[k] - base[k]) ** 2).sum() for k in keys)))
+
+            plain = apply_task_vectors(base, taus, alpha)
+            got, want = distance(matched), distance(plain)
+            if abs(got - want) > 1e-9 * max(want, 1.0):
+                print(f"  FAIL  alpha={alpha} thr={threshold}: distance {got:.9f} != plain "
+                      f"summation's {want:.9f}")
+                failures += 1
+            if abs(info_d["distance_ratio"] - 1.0) > 1e-9:
+                print(f"  FAIL  reported distance_ratio {info_d['distance_ratio']:.12f} != 1.0")
+                failures += 1
+            if abs(info_d["implied_alpha_times_n"] - alpha * len(taus)) > 1e-9:
+                print(f"  FAIL  implied alpha*n {info_d['implied_alpha_times_n']} != "
+                      f"{alpha * len(taus)}")
+                failures += 1
+            # Still only a rescale of the paper's merge: same direction, different length.
+            factor = distance(matched) / distance(paper)
+            worst = 0.0
+            for key in keys:
+                expected = factor * (paper[key] - base[key])
+                scale = max(expected.abs().max().item(), 1e-12)
+                worst = max(worst, (matched[key] - base[key] - expected).abs().max().item() / scale)
+            if worst > 1e-12:
+                print(f"  FAIL  alpha={alpha} thr={threshold}: distance-matched merge is NOT "
+                      f"collinear with the paper's (rel {worst:.3e})")
+                failures += 1
+            worst_seen[0] = max(worst_seen[0], worst)
+
+    print(f"  {'ok' if not failures else 'FAILED'}  both magnitude rules stay collinear with the "
+          f"paper's merge to {worst_seen[0]:.1e} relative; alpha*n and distance_ratio are exact")
     return failures
 
 

@@ -110,6 +110,7 @@ def merge_opcm_paper(
     task_vectors_list: Sequence[StateDict],
     threshold: float = 0.5,
     scale_to_alpha: float | None = None,
+    match_distance_at_alpha: float | None = None,
 ) -> tuple[StateDict, dict[str, float]]:
     """Merge task vectors with the paper's OPCM. Returns ``(merged_state, diagnostics)``.
 
@@ -140,8 +141,23 @@ def merge_opcm_paper(
     "the paper's projection at a chosen strength", exactly as rescaled BECAME is "BECAME's
     weighting at a chosen strength".
 
-    Default ``None`` keeps Algorithm 1 exactly, so §1.36's numbers are unaffected.
+    ``match_distance_at_alpha`` is the *other* way to hold magnitude fixed, and the correct one
+    when a transform is in the loop (§1.38, P5). It scales the projected sum so
+    ``||theta_merged - theta_0||_2`` equals the distance plain summation travels at that alpha:
+    ``c = alpha * ||sum tau_i|| / ||sum P(tau_i)||``. Coefficient-matching and distance-matching
+    coincide only when the task vectors are untouched; the projection shrinks them, so
+    ``scale_to_alpha`` left §1.37's forecasting merges at 0.18-0.66x the intended distance. Use
+    this one to compare *direction* against plain summation with magnitude genuinely equal.
+
+    The two are mutually exclusive, and both are "the paper's projection at a chosen strength",
+    never the paper's method (`C26`).
+
+    Default ``None`` for both keeps Algorithm 1 exactly, so §1.36's numbers are unaffected.
     """
+    assert scale_to_alpha is None or match_distance_at_alpha is None, (
+        "scale_to_alpha and match_distance_at_alpha are two ways to fix the magnitude; passing "
+        "both would silently apply only one"
+    )
     assert task_vectors_list, "no task vectors to merge"
     assert 0.0 < threshold <= 1.0, f"projection threshold must be in (0, 1], got {threshold}"
     keys = float_keys(base_state)
@@ -176,22 +192,42 @@ def merge_opcm_paper(
         mean_norm = (step - 1) / step * mean_norm + norm(incoming) / step   # line 13
         lambda_t = norm(accumulated) / mean_norm                            # line 14
 
-    # The ONLY line that differs between the paper's rule and the matched-magnitude variant.
-    coefficient = (1.0 / lambda_t) if scale_to_alpha is None else scale_to_alpha
+    # plain_sum_norm is an input to the distance rule, so it is computed before the coefficient.
+    total = {k: sum(tau[k] for tau in task_vectors_list) for k in keys}
+    plain_sum_norm = norm(total)
+    accumulated_norm = norm(accumulated)
+
+    # The ONLY line that differs between the three magnitude rules.
+    if match_distance_at_alpha is not None:
+        if accumulated_norm <= 0:
+            raise ValueError("projected sum has zero norm — cannot match distance")
+        coefficient = match_distance_at_alpha * plain_sum_norm / accumulated_norm
+    elif scale_to_alpha is not None:
+        coefficient = scale_to_alpha
+    else:
+        coefficient = 1.0 / lambda_t
     merged = {
         key: (value + coefficient * accumulated[key] if key in accumulated else value.clone())
         for key, value in base_state.items()
     }
-    merged_norm = norm(accumulated) * coefficient
-    total = {k: sum(tau[k] for tau in task_vectors_list) for k in keys}
-    plain_sum_norm = norm(total)
+    merged_norm = accumulated_norm * coefficient
     # With an explicit alpha the implied total strength is the coefficient sum, alpha * n, by
     # construction -- an exact identity the caller asserts. Under the paper's rule there is no
     # such coefficient, so the only comparable quantity is the norm ratio against plain summation.
+    # Under distance matching merged_norm == alpha * plain_sum_norm by construction, so the
+    # norm-based expression already returns alpha*n exactly -- the same identity coefficient
+    # matching gets from its coefficients. Both are asserted by the caller.
     implied = (len(task_vectors_list) * scale_to_alpha if scale_to_alpha is not None
                else (len(task_vectors_list) * merged_norm / plain_sum_norm
                      if plain_sum_norm else float("nan")))
+    # 1.0 by construction under distance matching. Under the other two rules it reports how far
+    # the merge actually travelled relative to plain summation at that alpha -- the quantity
+    # §1.37 found sitting at 0.18-0.66 on forecasting, which is why P5 exists.
+    reference_alpha = match_distance_at_alpha or scale_to_alpha
+    distance_ratio = (merged_norm / (reference_alpha * plain_sum_norm)
+                      if reference_alpha and plain_sum_norm else float("nan"))
     return merged, {
+        "distance_ratio": distance_ratio,
         "scale_to_alpha": float("nan") if scale_to_alpha is None else scale_to_alpha,
         "lambda_final": lambda_t,
         "mean_task_vector_norm": mean_norm,

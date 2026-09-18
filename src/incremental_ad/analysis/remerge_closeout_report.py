@@ -55,7 +55,7 @@ FIELDS = ["test", "dataset", "n_segments", "metric", "n_seeds", "floor_pct",
           "baseline_label", "baseline", "baseline_sd",
           "variant_label", "variant", "variant_sd", "delta_pct", "verdict",
           "committed_alpha", "target_alpha_times_n", "implied_alpha_times_n",
-          "opcm_norm_ratio", "alpha_n_ok", "n_seeds_expected", "complete",
+          "opcm_norm_ratio", "distance_ratio", "alpha_n_ok", "n_seeds_expected", "complete",
           "source_experiment"]
 
 
@@ -149,7 +149,7 @@ def summarise(test: str, entry: dict, floor, pairs: list[tuple],
         "variant_sd": round(st.stdev(variants), 6) if len(variants) > 1 else 0.0,
         "delta_pct": round(delta, 3), "verdict": verdict,
         "committed_alpha": "", "target_alpha_times_n": "", "implied_alpha_times_n": "",
-        "opcm_norm_ratio": "", "alpha_n_ok": "",
+        "opcm_norm_ratio": "", "distance_ratio": "", "alpha_n_ok": "",
         # Carried IN THE FILE, not only in stdout. A CSV is read long after the run that made it,
         # and "3 rows built from fewer seeds" printed to a terminal does not survive into the
         # archive. Without this, a row averaged over 1 seed is indistinguishable from one averaged
@@ -308,6 +308,42 @@ def main() -> None:
                                      else int(abs(float(implied) - float(target)) < 1e-6))
                 rows.append(row)
 
+        # --- P5 (§1.38): the paper's projection at matched DISTANCE, forecasting only -------
+        #
+        # Same baseline as P4 -- the stored plain-sum merge at the committed alpha -- but now the
+        # variant travels exactly as far from theta_0, so the two differ only in DIRECTION. P4's
+        # coefficient rescale left these merges at 0.18-0.66x that distance, which is the confound
+        # this replaces. AD is absent by design: C34 is already settled there.
+        for threshold in args.paper_thresholds:
+            tag = f"opcm_distance_t{int(threshold * 100):03d}"
+            pairs, extra = [], []
+            for run in runs:
+                variant, payload = read_tag(args.remerge_dir, experiment, run.name, tag,
+                                            entry["metric"])
+                plain = stored_merge(run, entry["metric"])
+                if variant is None or plain is None:
+                    continue
+                pairs.append((plain, variant))
+                alpha = payload.get("alpha")
+                extra.append({
+                    "committed_alpha": alpha,
+                    "target_alpha_times_n": (alpha * payload.get("n_shards", 0)
+                                             if alpha is not None else None),
+                    "implied_alpha_times_n": payload.get("implied_alpha_times_n"),
+                    "distance_ratio": payload.get("opcm_distance_ratio"),
+                })
+            if pairs:
+                attempted["P5_opcm_distance"] += 1
+            row = summarise("P5_opcm_distance", entry, floor, pairs,
+                            "plain sum at committed alpha",
+                            f"paper projection at matched distance, thr={threshold}", extra)
+            if row:
+                ratio = row.get("distance_ratio", "")
+                # The identity is the control. A row that missed it is not evidence.
+                row["alpha_n_ok"] = ("" if ratio in ("", None)
+                                     else int(abs(float(ratio) - 1.0) < 1e-6))
+                rows.append(row)
+
         # --- P2: BECAME's weighting at a chosen strength, against 1/n at the same strength --
         pairs, extra = [], []
         for run in runs:
@@ -394,8 +430,8 @@ def main() -> None:
 
     # Per-test completeness, so a partially-collected sweep cannot be read as a finished one.
     log.info("")
-    for test in ("P1_paper_opcm", "P4_opcm_committed", "P2_became_rescaled",
-                 "P3_order_reversal"):
+    for test in ("P1_paper_opcm", "P4_opcm_committed", "P5_opcm_distance",
+                 "P2_became_rescaled", "P3_order_reversal"):
         subset = [r for r in rows if r["test"] == test]
         want = attempted.get(test, 0)
         if subset or want:
@@ -405,8 +441,8 @@ def main() -> None:
                      test, len(subset), want, done,
                      "" if finished else "  <-- INCOMPLETE, do not publish as final")
 
-    for test in ("P1_paper_opcm", "P4_opcm_committed", "P2_became_rescaled",
-                 "P3_order_reversal"):
+    for test in ("P1_paper_opcm", "P4_opcm_committed", "P5_opcm_distance",
+                 "P2_became_rescaled", "P3_order_reversal"):
         subset = [r for r in rows if r["test"] == test]
         if not subset:
             continue

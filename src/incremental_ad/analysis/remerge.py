@@ -57,7 +57,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--run_dir", type=Path, required=True)
     parser.add_argument("--merge_rule",
-                        choices=["sum", "opcm", "opcm_paper", "opcm_paper_committed"],
+                        choices=["sum", "opcm", "opcm_paper", "opcm_paper_committed",
+                                 "opcm_paper_distance"],
                         default="sum",
                         help="'opcm' is the SIMPLIFIED operator of §1.31/§1.35 (residual against "
                              "the flattened predecessors); 'opcm_paper' is Tang et al. 2025 "
@@ -67,7 +68,11 @@ def main() -> None:
                              "'opcm_paper_committed' is the paper's PROJECTION with its Thm-5.2 "
                              "rescale replaced by the run's committed alpha (§1.37, C34) — not "
                              "the paper's method either, and labelled 'the paper's projection at "
-                             "a chosen strength'.")
+                             "a chosen strength'. 'opcm_paper_distance' is the same projection "
+                             "scaled so the merge travels EXACTLY as far from the base as plain "
+                             "summation at the committed alpha (§1.38, P5) — the control that "
+                             "coefficient-matching only approximates once a transform shrinks "
+                             "the task vectors.")
     parser.add_argument("--coefficient_source",
                         choices=["scale", "became", "became_rescaled"], default="scale")
     parser.add_argument("--reverse_order", action="store_true",
@@ -235,8 +240,10 @@ def main() -> None:
         # §1.37: the matched-magnitude variant merges at the strength the run committed to,
         # so its comparison against plain summation at that same alpha isolates the projection.
         committed = alpha if args.merge_rule == "opcm_paper_committed" else None
+        at_distance = alpha if args.merge_rule == "opcm_paper_distance" else None
         merged, opcm_info = merge_opcm_paper(base_state, taus, args.opcm_threshold,
-                                             scale_to_alpha=committed)
+                                             scale_to_alpha=committed,
+                                             match_distance_at_alpha=at_distance)
         log.info("[opcm_paper] alpha_threshold=%.2f  lambda^(T)=%.4f  mean||tau||=%.4f  "
                  "||merged-base||=%.4f  norm_ratio=%.6f  implied alpha*n=%.4f  "
                  "(%d matrices projected, %d tensors passed through)",
@@ -244,7 +251,23 @@ def main() -> None:
                  opcm_info["mean_task_vector_norm"], opcm_info["merged_norm"],
                  opcm_info["norm_ratio"], opcm_info["implied_alpha_times_n"],
                  int(opcm_info["projected_matrices"]), int(opcm_info["passthrough_tensors"]))
-        if committed is None:
+        if at_distance is not None:
+            # The control IS the identity: if the merge did not travel exactly as far as plain
+            # summation at this alpha, the cell compares direction AND magnitude, and P5 cannot
+            # separate them. Abort rather than write a row that looks like evidence.
+            if abs(opcm_info["distance_ratio"] - 1.0) > 1e-6:
+                raise SystemExit(f"distance_ratio {opcm_info['distance_ratio']:.9f} != 1.0 — the "
+                                 f"merge is not distance-matched to plain summation")
+            target = at_distance * len(taus)
+            if abs(opcm_info["implied_alpha_times_n"] - target) > 1e-6:
+                raise SystemExit(f"implied alpha*n {opcm_info['implied_alpha_times_n']} != "
+                                 f"{target}")
+            log.info("[opcm_distance] distance-matched to plain sum at alpha=%.4f: "
+                     "||merged-base||=%.4f, ratio %.9f, alpha*n %.4f; the paper's own rule would "
+                     "have travelled %.4f", at_distance, opcm_info["merged_norm"],
+                     opcm_info["distance_ratio"], target,
+                     opcm_info["mean_task_vector_norm"])
+        elif committed is None:
             # Theorem 5.2 is the paper's guarantee and must hold on every real merge.
             if abs(opcm_info["norm_ratio"] - 1.0) > 1e-6:
                 raise SystemExit(f"OPCM norm_ratio {opcm_info['norm_ratio']:.9f} != 1.0 — Theorem "

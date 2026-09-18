@@ -548,7 +548,7 @@ by someone repeating it.
 | `C24` | lambda* is unstable because the Fisher estimate is noisy | 1.32 | §1.32 ran the falsification test and the estimate saturates at the full pass - the instability is not sampling noise. |
 | `C25` | Attention-exclusive fine-tuning (the testable half of QOMM) helps | 1.33 | Measured and did not clear the floor. |
 | `C26` | The simplified OPCM operator (§1.31, §1.35) is the paper's OPCM | 1.31, 1.35, 1.36 | Never claimed and must never be: `opcm_residual` projects out the span of the flattened predecessors; the paper's operator (Tang et al., NeurIPS 2025, Algorithm 1) projects out the top-alpha singular subspace of the ACCUMULATED MERGED matrix, on both sides, drops the i==j diagonal, and carries a norm-stabilising lambda. |
-| `C34` | The paper's OPCM loses because of its fixed magnitude, not its projection | 1.36, 1.37 | §1.37's P4 ran the isolating test - the paper's projection held bit-for-bit fixed (collinear to 3.7e-15) and rescaled to each run's committed alpha - and refuted it: 0 better, 10 ties, 62 worse over 72 cells. |
+| `C34` | The paper's OPCM loses because of its fixed magnitude, not its projection (AD: refuted; forecasting: refuted) | 1.36, 1.37, 1.38 | §1.37's P4 ran the isolating test - the paper's projection held bit-for-bit fixed (collinear to 3.7e-15) and rescaled to each run's committed alpha - and refuted it: 0 better, 10 ties, 62 worse over 72 cells. |
 | `C28` | The winner survives moving the train/test cut (rolling origin) | 1.27, 1.27a | It does not: the ranking is unstable across origins. |
 
 #### The method list — what was implemented, and what it found
@@ -575,8 +575,9 @@ called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** ca
 
 **No merging experiment is added after 2026-09-18 unless it maps to a row in
 `claims_register.csv` whose status is not `supported`** — i.e. unless there is a stated open
-question it answers. Recorded in CLAUDE.md. **The merging chapter is now closed.** `C22` was answered by §1.36's P2 and `C34` refuted by
-§1.37's P4 — the last permitted merging experiment. What remains open (`C03`, `C23`, `C31`) are
+question it answers. Recorded in CLAUDE.md. **The merging chapter is now closed.** `C22` was answered by §1.36's P2, and `C34` refuted on AD
+by §1.37's P4 and on forecasting by §1.38's P5 — the latter run because P4's own control was wrong
+on the forecasting half, which §1.37 recorded rather than hid. What remains open (`C03`, `C23`, `C31`) are
 rows no *further merging run* can settle: `C03`'s geometry and `C03`/`C31`'s mechanisms need
 different measurements entirely, and `C23`'s falsification test has already been run and came back
 inconclusive. **No further merging experiments.**
@@ -4396,6 +4397,138 @@ signal.
 **A cleaner P4 would have matched distance, not coefficients** — rescale so ‖θ_merged − θ₀‖₂
 equals that of plain summation at α. That experiment is not run: `C34` is closed by the AD half,
 which the confound does not touch, and the merging chapter is frozen.
+
+
+### 1.38 P5 — the paper projection at matched *distance*, on forecasting
+
+> **Provenance.** `scripts/generate_p5_sweep.py` → `analysis/remerge.py --merge_rule
+> opcm_paper_distance` → `analysis/remerge_closeout_report.py` →
+> `results_archive/audit/remerge_closeout/` (`test = P5_opcm_distance`). Training-free; runs of
+> record from `analysis_specs/method_comparison_spec.csv`; every re-merge rebuilds its source
+> run's own merge bitwise first.
+
+**This section exists because §1.37 got its own control wrong on half the sweep, and said so.**
+P4 matched the *per-vector coefficients* to the committed α·n — the treatment P2 gave BECAME. That
+is only equivalent to matching the merge's **distance from θ₀** when the rule leaves the task
+vectors intact. BECAME does; OPCM's projection **shrinks** them, so P4's forecasting merges landed
+at **0.18–0.66×** the distance of plain summation at the same α and were undershooting, not
+magnitude-matched. Those twelve cells could not separate "the projection is harmful" from "the
+merge travelled too little", and §1.37 excluded them from its evidence rather than lean on them.
+
+`C34` was therefore closed on the **AD pair only**, where the committed α is already 1.0 and the
+rescale was a near no-op (distance ratio 0.96–1.15). On forecasting it was never settled. P5
+settles it, with the control the question actually needs.
+
+**The change, and it is the only one.** The projection stays bit-identical — same accumulated-matrix
+SVD, same two-sided cut at r_α, same dropped diagonal, same order. Only the final coefficient
+moves, from "whatever makes the coefficients sum to α·n" to "whatever makes the distance equal":
+
+    c = alpha * || sum_i tau_i ||_2  /  || sum_i P_alpha^(i-1)(tau_i) ||_2
+
+so ‖θ_merged − θ₀‖₂ equals the plain-sum merge's distance at the committed α **exactly**. Against
+plain summation at that α, the merged models now sit the same distance from the base and differ
+only in *direction* — which is the projection, and nothing else. `distance_ratio` is emitted per
+run and the run **aborts** rather than write a cell if it is not 1.0 ± 1e-6.
+
+⚠️ **This is not the paper's method and is never called it** (`C26`). It is *"the paper's
+projection at matched distance"*.
+
+⚠️ **Prediction P5, registered before the sweep (2026-09-18):**
+
+> At matched distance the paper's projection **ties plain summation inside the floor on ETTh1,
+> ETTm2 and PSM-forecast, still loses on ETTh2, and keeps the exchange_rate win at n ≤ 3.**
+
+**Either outcome closes the forecasting half:**
+
+- **Ties** → `C34` is **supported on forecasting**: the norm rule was the cause there, and §1.37's
+  forecasting losses were an artefact of undershoot rather than evidence about the projection.
+  `C34` then carries a **two-part status** — refuted on AD, supported on forecasting — which would
+  be a more interesting result than either half alone, because it would say the projection is
+  survivable exactly where the task vectors are least redundant.
+- **Broad losses** → `C34` is **refuted on both tasks**: the projection is harmful across the
+  board, the distance confound was never load-bearing, and §1.37's conclusion widens rather than
+  narrows.
+
+#### Results — P5 REFUTED; the confound was real, and correcting it does not rescue the projection
+
+**54/54 cells at full seed count**, 828/828 results provenance-stamped, and `distance_ratio` was
+**1.0 to within 1e-6 on every row** — the run aborts rather than emit a cell that is not
+distance-matched.
+
+**Two findings, and they point in opposite directions. Both are reported.**
+
+**1. The confound was real and material — §1.37 was right to exclude those cells.** Correcting
+coefficient-matching to distance-matching improved *every single cell*, median **−16.1 pp**, range
+−3.8 to **−69.7 pp**. ETTh2 n = 3 falls from +144.48% to +76.59%; ETTm2 n = 3 from +147.18% to
++92.67%; exchange n = 3 from +29.57% to −3.00%. So P4's forecasting numbers were substantially an
+artefact of undershoot, exactly as §1.38's registration argued, and quoting them as evidence about
+the projection would have overstated the damage by roughly a factor of two.
+
+**2. It still is not enough. P5 is refuted.** At matched distance: **2 better, 10 ties, 42 worse**
+across 54 cells (thr 0.3: 2/3/13, thr 0.5: 0/4/14, thr 0.7: 0/3/15). P5 predicted ties on ETTh1,
+ETTm2 and PSM-forecast; **all three lose decisively at every threshold.**
+
+| dataset | n | P4 (coefficient-matched) | P5 (distance-matched) | change | floor | verdict |
+|---|---|---|---|---|---|---|
+| ETTh1 | 2 | +21.48% | +17.73% | -3.8 pp | 8.76% | worse |
+| ETTh1 | 3 | +37.43% | +32.53% | -4.9 pp | 8.76% | worse |
+| ETTh1 | 5 | +42.49% | +31.74% | -10.8 pp | 8.76% | worse |
+| ETTh2 | 2 | +79.95% | +60.25% | -19.7 pp | 6.74% | worse |
+| ETTh2 | 3 | +144.48% | +76.59% | -67.9 pp | 6.74% | worse |
+| ETTh2 | 5 | +160.80% | +96.41% | -64.4 pp | 6.74% | worse |
+| ETTm2 | 2 | +78.49% | +58.96% | -19.5 pp | 14.11% | worse |
+| ETTm2 | 3 | +147.18% | +92.67% | -54.5 pp | 14.11% | worse |
+| ETTm2 | 5 | +161.16% | +91.42% | -69.7 pp | 14.11% | worse |
+| exchange | 2 | +57.86% | +25.17% | -32.7 pp | 5.73% | worse |
+| exchange | 3 | +29.57% | -3.00% | -32.6 pp | 5.73% | tie (inside floor) |
+| exchange | 5 | +85.91% | +54.24% | -31.7 pp | 5.73% | worse |
+| PSM-forecast | 2 | +10.43% | +3.90% | -6.5 pp | 1.16% | worse |
+| PSM-forecast | 3 | +17.61% | +12.02% | -5.6 pp | 1.16% | worse |
+| PSM-forecast | 5 | +15.84% | +10.09% | -5.8 pp | 1.16% | worse |
+| SWaT-forecast | 2 | +12.32% | +6.70% | -5.6 pp | 84.23% | tie (inside floor) |
+| SWaT-forecast | 3 | +17.69% | +4.98% | -12.7 pp | 84.23% | tie (inside floor) |
+| SWaT-forecast | 5 | +17.31% | +6.93% | -10.4 pp | 84.23% | tie (inside floor) |
+
+The ten ties are not evidence of compatibility: nine are SWaT-forecast, whose **84.23% floor makes
+every comparison a tie**, and the tenth is exchange n = 3 at −3.00%, inside its floor.
+
+#### exchange_rate is the one real exception, and only at a low threshold
+
+| n | threshold | delta | verdict |
+|---|---|---|---|
+| 2 | thr=0.3 | -7.70% | better |
+| 2 | thr=0.5 | +25.17% | worse |
+| 2 | thr=0.7 | +59.92% | worse |
+| 3 | thr=0.3 | -24.97% | better |
+| 3 | thr=0.5 | -3.00% | tie (inside floor) |
+| 3 | thr=0.7 | +17.65% | worse |
+| 5 | thr=0.3 | +31.98% | worse |
+| 5 | thr=0.5 | +54.24% | worse |
+| 5 | thr=0.7 | +70.21% | worse |
+
+**The only two genuine wins in the whole sweep are exchange_rate at α = 0.3**, n = 2 (−7.70%) and
+n = 3 (−24.97%), both clearing the 5.73% floor. At the paper's own recommended α ≈ 0.5 neither
+survives. This matches §1.35 and §1.36: exchange_rate is where discarding what predecessors
+already span is a *gain*, because its old data actively hurts (§1.24) — and it is the only dataset
+of six where that holds.
+
+#### What this settles — `C34` refuted on both tasks
+
+| task | verdict | evidence |
+|---|---|---|
+| **AD** (SWaT, PSM) | **refuted** | §1.37: the rescale was a no-op (distance ratio 0.96–1.15) and the loss was unchanged to within 0.17 pp |
+| **forecasting** (6 datasets) | **refuted** | this section: magnitude fully corrected, losses roughly halved, still 4 of 6 datasets decisively worse at every threshold |
+
+**Magnitude was a real part of the story on forecasting and not the cause of it.** Removing it
+halves the damage and changes no verdict except exchange n = 3, which moves from a loss to a tie.
+The projection is what fails, on both task families.
+
+§1.36's "leading suspect" sentence stays struck. What replaces it is stronger and now rests on
+three independent controls — the paper's own norm rule (P1), coefficient-matched (P4) and
+distance-matched (P5): **projecting each incoming task vector out of the span of its predecessors
+removes something this backbone needs, at any strength.** The one exception is the dataset where
+the predecessors' directions are genuinely stale, and there it helps only below the paper's
+recommended threshold.
 
 
 ## 2. Exact configurations

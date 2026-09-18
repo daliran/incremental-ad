@@ -1376,6 +1376,88 @@ def check_no_floor_fallback(audit_dir: Path) -> int:
     return failures
 
 
+# Dataset names as they are written in EXPERIMENTS.md. Two of these need care, and both are the
+# reason a wrong row survived several audits:
+#   * exchange_rate is written both ways, so the register's canonical name must match either.
+#   * "PSM" is a prefix of "PSM-forecast". A naive substring test lets a row claiming PSM pass on
+#     a section that only ever discusses PSM-forecast — which is exactly the shape of C25's error
+#     (it claimed ETTh1/exchange_rate for §1.33, a PSM-forecast section).
+DATASET_PATTERNS = {
+    "ETTh1": r"\bETTh1\b",
+    "ETTh2": r"\bETTh2\b",
+    "ETTm2": r"\bETTm2\b",
+    "exchange_rate": r"\b[Ee]xchange(_rate)?\b",
+    "PSM": r"\bPSM\b(?!-forecast)",
+    "SWaT": r"\bSWaT\b(?!-forecast)",
+    "PSM-forecast": r"\bPSM-forecast\b",
+    "SWaT-forecast": r"\bSWaT-forecast\b",
+}
+
+
+def check_register_datasets(text: str, audit: Path) -> int:
+    """Every dataset a claim names must appear in a section that claim cites. Returns failures.
+
+    The register's status rule counts `n_datasets`, and §0.7 prints the dataset list beside each
+    open claim — but nothing tied either to the *section* the row points at. `C25` cited §1.33
+    with datasets "ETTh1,exchange_rate" while §1.33 is PSM-forecast n=3 throughout, and it
+    survived several audits because every other check was satisfied: the count matched the list,
+    the section existed, the status derived correctly. Only the mapping was wrong — the failure
+    mode CLAUDE.md names as "a number that reproduces is not thereby correct".
+
+    Deliberately **one-directional**. A dataset named by the row but absent from its sections is
+    an error. The reverse is not: sections routinely mention other datasets for contrast, so
+    requiring the row to list every dataset its section names would flag almost everything.
+
+    Rows citing only TL;DR are skipped — `section_slice` falls back to the whole document for a
+    non-numeric reference, which would make the check pass vacuously.
+    """
+    print("\nREGISTER DATASETS — each claim's datasets must appear in the sections it cites:")
+    path = audit / "claims_register.csv"
+    if not path.is_file():
+        print("  skipped — no claims_register.csv")
+        return 0
+    with path.open() as fh:
+        rows = list(csv.DictReader(fh))
+
+    failures, checked, unverifiable = 0, 0, []
+    for row in rows:
+        datasets = [d.strip() for d in row["datasets"].split(",") if d.strip()]
+        refs = [s.strip() for s in row["section"].split(",")
+                if re.match(r"^\d+\.\d+[a-z]?$", s.strip())]
+        if not datasets or not refs:
+            continue
+        body = "\n".join(section_slice(text, f"§{ref}") for ref in refs)
+        # A section that names NO dataset cannot contradict the row — several state their scope as
+        # "four datasets" or point at a spec file instead of listing names. Failing those would
+        # report a documentation gap as a register error and bury the real thing. They are counted
+        # and reported separately so the gap is still visible.
+        named = {d for d, pattern in DATASET_PATTERNS.items() if re.search(pattern, body)}
+        if not named:
+            unverifiable.append((row["id"], ", ".join(f"§{r}" for r in refs)))
+            continue
+        for dataset in datasets:
+            pattern = DATASET_PATTERNS.get(dataset)
+            if pattern is None:
+                print(f"  FAIL      {row['id']}: unknown dataset name {dataset!r} — add it to "
+                      f"DATASET_PATTERNS or fix the register")
+                failures += 1
+                continue
+            checked += 1
+            if dataset not in named:
+                print(f"  FAIL      {row['id']} claims {dataset}, but §{', §'.join(refs)} names "
+                      f"only {{{', '.join(sorted(named))}}} — the row is bound to the wrong "
+                      f"experiment")
+                failures += 1
+    if not failures:
+        print(f"  ok        {checked} (claim, dataset) pair(s) resolve to a section that names "
+              f"that dataset")
+    if unverifiable:
+        print(f"  note      {len(unverifiable)} row(s) cite sections that name no dataset at all, "
+              f"so the binding cannot be checked: "
+              f"{', '.join(f'{i} ({s})' for i, s in unverifiable)}")
+    return failures
+
+
 def check_claims_register(text: str, audit: Path) -> int:
     """§0.7 must agree with `claims_register.csv`, in both directions. Returns failures.
 
@@ -1916,6 +1998,11 @@ def main() -> None:
     if curves:
         print(f"  -> {curves} merge-scale-curve failure(s)")
 
+    bindings = check_register_datasets(text, args.audit_dir)
+    if bindings:
+        print(f"  -> {bindings} claim(s) bound to a section that does not use that dataset")
+        drift += bindings
+
     register = check_claims_register(text, args.audit_dir)
     if register:
         print(f"  -> {register} claims-register disagreement(s) with §0.7")
@@ -1983,6 +2070,31 @@ def main() -> None:
                 failures += 1
         # The cross-section checks are not table cells, so the loop above cannot reach them.
         # Each gets an explicit corruption of the thing it is supposed to notice.
+        # The dataset-binding check gets its own corruption, restaging the real defect it was
+        # built from: C25 cited §1.33 (PSM-forecast n=3) with datasets "ETTh1,exchange_rate".
+        # That row passed every other check for months -- the count matched the list, the section
+        # existed, the status derived correctly. Only the mapping was wrong.
+        print("\n  register-dataset binding — restaging C25's real defect:")
+        import tempfile as _tf, csv as _csv, shutil as _sh
+        with _tf.TemporaryDirectory() as _d:
+            _dir = Path(_d)
+            _sh.copytree(args.audit_dir, _dir / "audit")
+            _path = _dir / "audit" / "claims_register.csv"
+            with _path.open() as _fh:
+                _rows = list(_csv.DictReader(_fh))
+                _cols = list(_rows[0].keys())
+            for _r in _rows:
+                if _r["id"] == "C25":
+                    _r["datasets"], _r["n_datasets"] = "ETTh1,exchange_rate", "2"
+            with _path.open("w", newline="") as _fh:
+                _w = _csv.DictWriter(_fh, fieldnames=_cols)
+                _w.writeheader(); _w.writerows(_rows)
+            if check_register_datasets(text, _dir / "audit") > 0:
+                print("  ok    register-dataset binding: C25's original defect is detected")
+            else:
+                print("  LEAK  register-dataset binding: C25's original defect still passes")
+                failures += 1
+
         print("\n  cross-section checks — corrupting §0.7 three different ways:")
         for label, corrupt in (
             ("claim counts", lambda s: re.sub(r"\*\*(\d+) claims: (\d+) supported",

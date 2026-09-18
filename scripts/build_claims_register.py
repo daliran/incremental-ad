@@ -92,17 +92,19 @@ CLAIMS: list[tuple] = [
      "1 of 16 excluding the trivial last regime. A counting result over four datasets; no "
      "falsification test exists because there is no mechanism claimed."),
     ("C10", "Accumulated merges generalise forward to unseen regimes",
-     "TL;DR, 1.19", "ETTh1,ETTh2,ETTm2,exchange_rate", 4, "mixed", "measurement", "no",
+     "TL;DR, 1.19", "ETTh1,exchange_rate", 2, "mixed", "measurement", "no",
      "supported",
-     "Beats base in 7 of 8 cases with no decay as vectors accumulate. Bounded wording; 1 of 8 "
-     "cases is a counterexample and is reported."),
+     "Beats base in 7 of 8 cases with no decay as vectors accumulate - and the 8 are TWO "
+     "datasets x four prefix points, not four datasets: `prefix_merges.csv` is written only by "
+     "the prefix_etth1/prefix_exchange runs. 1 of 8 is a counterexample (exchange_rate at k=2, "
+     "1.050) and is reported. (The datasets field read four until 2026-09-19.)"),
     ("C11", "Validation cannot select alpha for unsupervised anomaly detection",
      "TL;DR, 1.12", "SWaT,PSM", 2, "yes", "measurement", "yes", "supported",
      "Costs 25-98% of achievable GRR on AD against 1-8% on forecasting. §1.12's own early-stopping "
      "probe came back under 1%, which narrowed the claim to alpha specifically rather than "
      "indicting validation selection generally - a falsification test that bounded it."),
     ("C12", "The reproducibility floor is dataset-specific, not a universal 2%",
-     "TL;DR, 1.9", "SWaT,PSM,ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast,SWaT-forecast", 8,
+     "TL;DR, 1.9, 1.30", "SWaT,PSM,ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast,SWaT-forecast", 8,
      "n/a", "measurement", "yes", "supported",
      "Floors span 0.07% to 69.75%. §1.9a tests the variance convention itself and reports which "
      "verdicts depend on it."),
@@ -111,7 +113,7 @@ CLAIMS: list[tuple] = [
      "The alpha sweep is the falsification test: at alpha* the damage disappears on every dataset "
      "where the alpha=1.0 'forgetting' had been reported."),
     ("C14", "No cheap regime predictor separates merge-favouring from sequential-favouring configs",
-     "1.14", "SWaT,PSM,ETTh1,exchange_rate", 4, "n/a", "measurement", "yes", "supported",
+     "1.13, 1.14", "SWaT,PSM,ETTh1,exchange_rate", 4, "n/a", "measurement", "yes", "supported",
      "Nine decisive configurations, 5/4 split, no signal beyond chance. Reported with the "
      "diagnosis that the question was mis-posed without segment count as an input."),
     ("C15", "Task vectors shrink and de-align as segments multiply",

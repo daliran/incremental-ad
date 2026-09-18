@@ -118,6 +118,37 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
 ```
 (`git ls-files 'src/**/*.py'` can return stale index paths after `git mv` — use `find` for compile globs.) Full end-to-end runs need HuggingFace dataset downloads (`thuml/Time-Series-Library`) / GPU, so they aren't run locally by default.
 
+- **Never edit a module while jobs are queued against it.** SLURM jobs run from the live repo
+  checkout, not a snapshot, so a broken intermediate state kills whichever jobs happen to *start*
+  during it — 82 of 90 re-merges died on one ImportError that existed for about ten minutes, while
+  the jobs submitted before and after it were fine. The failure is invisible in `squeue` and the
+  submitter reports nothing. Either finish edits before submitting, or resubmit by *absence* of
+  output (`sweeps/missing_only.py` filters a command file down to the runs with no `result.json`)
+  rather than re-running the whole file. A smoke job of one command per sweep, waited on, catches
+  this before it costs 82: `py_compile` does **not**, because these imports happen inside `main()`.
+
+## Merging experiments are frozen (2026-09-18)
+
+**No merging experiment is added unless it maps to a row in
+`results_archive/audit/claims_register.csv` whose `status` is not `supported`.** Re-measuring a
+settled claim is not a result, and the chapter is closed: 34 claims, 23 settled, 5 open, 6
+refuted, with `scripts/build_claims_register.py` as the script of record (`--self-test` proves its
+downgrade rule can fire). The open merging questions are `C23` (is OPCM's exchange_rate win a
+recency effect — §1.36's reversal test came back **inconclusive**, not supporting), `C31`, and
+`C34` (does the paper's OPCM lose because of its fixed magnitude rather than its projection).
+`C22` is closed: with magnitude held fixed, Fisher weighting contributes nothing, and at larger n
+it costs. The paper's OPCM is now implemented in full (`framework/merging/opcm.py`) and is kept
+strictly separate from the simplified `opcm_residual`, which `C26` forbids conflating with it.
+
+The register exists because the checker can only catch a wrong *number*. Every documentation error
+in this project's audits was a **correct number carrying a claim wider than its evidence** — "under
+drift, X" that was really "on small shards, X"; "merging never wins" that was true of 18 cells and
+false across 48. So a claim's status is *derived* from its evidence
+(`mechanism ∧ (datasets < 3 ∨ never falsification-tested) → hypothesis`), not declared, and
+`build_claims_register.py` also writes `unscoped_universals.csv` — every sentence in EXPERIMENTS.md
+asserting a never/always/every-dataset without naming its scope. Adding a claim to the prose without
+a register row is how the thing silently stops covering the document.
+
 ## Working-style notes
 
 - **Report what you found, not the tidier story.** Twice in this project the result contradicted

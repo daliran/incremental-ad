@@ -34,7 +34,14 @@ import statistics as st
 from collections import defaultdict
 from pathlib import Path
 
+from incremental_ad.analysis.remerge_provenance import (
+    load_result, report_exclusions,
+)
+
 log = logging.getLogger("remerge_report")
+
+EXCLUSIONS: dict[str, int] = defaultdict(int)
+SCANNED = [0]
 
 FIELDS = ["dataset", "n_segments", "metric", "rule", "coefficient_source", "threshold",
           "n_seeds", "floor_pct", "rho",
@@ -163,16 +170,19 @@ def main() -> None:
             if not out_dir.is_dir():
                 continue
             for tag_dir in sorted(p for p in out_dir.iterdir() if p.is_dir()):
-                result = tag_dir / "result.json"
-                if not result.is_file():
+                # Same provenance gate as the closeout collector. `require_schema=False`
+                # because this sweep predates stamping and its integrity rests on
+                # `results_archive/MANIFEST.csv` instead — but a result carrying a WRONG schema is
+                # still rejected, and every rejection is counted and printed rather than skipped.
+                payload, reason = load_result(tag_dir / "result.json",
+                                              require_metric=f"test/{metric}",
+                                              require_schema=False)
+                if payload is None:
+                    if reason != "absent":
+                        EXCLUSIONS[f"{reason}  [{tag_dir.name}]"] += 1
                     continue
-                try:
-                    payload = json.loads(result.read_text())
-                except (json.JSONDecodeError, OSError):
-                    continue
-                value = (payload.get("metrics") or {}).get(f"test/{metric}")
-                if value is None:
-                    continue
+                SCANNED[0] += 1
+                value = payload["metrics"][f"test/{metric}"]
                 alpha_n = ""
                 lambdas = tag_dir / "became_lambdas.csv"
                 if lambdas.is_file():
@@ -227,8 +237,10 @@ def main() -> None:
                 "source_experiment": experiment,
             })
 
+    excluded = report_exclusions(log, EXCLUSIONS, SCANNED[0])
     if not rows:
-        raise SystemExit("no re-merge outputs found — check --remerge_dir")
+        raise SystemExit(f"no usable re-merge outputs: {SCANNED[0]} scanned, {excluded} excluded"
+                         if SCANNED[0] else "no re-merge outputs found — check --remerge_dir")
 
     log.info("%-15s %-3s %-9s %-7s %10s %10s %9s  %s", "dataset", "n", "rule", "thr",
              "plain", "remerged", "delta", "verdict")

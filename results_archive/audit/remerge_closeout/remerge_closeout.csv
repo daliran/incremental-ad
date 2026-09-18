@@ -1,0 +1,116 @@
+test,dataset,n_segments,metric,n_seeds,floor_pct,baseline_label,baseline,baseline_sd,variant_label,variant,variant_sd,delta_pct,verdict,committed_alpha,target_alpha_times_n,implied_alpha_times_n,opcm_norm_ratio,alpha_n_ok,n_seeds_expected,complete,source_experiment
+P1_paper_opcm,ETTh1,2,forecast/mse,3,8.759,plain sum at committed alpha,0.459709,0.01414,paper OPCM alpha=0.3,0.501316,0.019423,9.051,worse,0.5,,1.213713,1.0,1,3,1,segsweep_etth1_merge_n2
+P1_paper_opcm,ETTh1,2,forecast/mse,3,8.759,plain sum at committed alpha,0.459709,0.01414,paper OPCM alpha=0.5,0.533921,0.018758,16.143,worse,0.5,,1.213713,1.0,1,3,1,segsweep_etth1_merge_n2
+P1_paper_opcm,ETTh1,2,forecast/mse,3,8.759,plain sum at committed alpha,0.459709,0.01414,paper OPCM alpha=0.7,0.556947,0.025092,21.152,worse,0.5,,1.213713,1.0,1,3,1,segsweep_etth1_merge_n2
+P1_paper_opcm,ETTh1,2,forecast/mse,3,8.759,plain sum at committed alpha,0.459709,0.01414,simplified OPCM (1.35),0.455843,0.015598,-0.841,tie (inside floor),0.5,,,,,3,1,segsweep_etth1_merge_n2
+P3_order_reversal,ETTh1,2,forecast/mse,3,8.759,OPCM forward (opcm_t050),0.455843,0.015598,OPCM reversed (opcm_t050_rev),0.509143,0.031063,11.693,worse,,,,,,3,1,segsweep_etth1_merge_n2
+P1_paper_opcm,ETTh1,3,forecast/mse,3,8.759,plain sum at committed alpha,0.496383,0.010514,paper OPCM alpha=0.3,0.571838,0.006357,15.201,worse,0.316667,,1.381261,1.0,1,3,1,selalpha_etth1_n3
+P1_paper_opcm,ETTh1,3,forecast/mse,3,8.759,plain sum at committed alpha,0.496383,0.010514,paper OPCM alpha=0.5,0.653745,0.019155,31.702,worse,0.316667,,1.381261,1.0,1,3,1,selalpha_etth1_n3
+P1_paper_opcm,ETTh1,3,forecast/mse,3,8.759,plain sum at committed alpha,0.496383,0.010514,paper OPCM alpha=0.7,0.690613,0.035525,39.129,worse,0.316667,,1.381261,1.0,1,3,1,selalpha_etth1_n3
+P1_paper_opcm,ETTh1,3,forecast/mse,3,8.759,plain sum at committed alpha,0.496383,0.010514,simplified OPCM (1.35),0.491435,0.009329,-0.997,tie (inside floor),0.316667,,,,,3,1,selalpha_etth1_n3
+P3_order_reversal,ETTh1,3,forecast/mse,3,8.759,OPCM forward (opcm_t050),0.491435,0.009329,OPCM reversed (opcm_t050_rev),0.560991,0.026474,14.154,worse,,,,,,3,1,selalpha_etth1_n3
+P1_paper_opcm,ETTh1,5,forecast/mse,3,8.759,plain sum at committed alpha,0.451689,0.022118,paper OPCM alpha=0.3,0.495481,0.042495,9.695,worse,0.2,,1.579513,1.0,1,3,1,segsweep_etth1_merge_n5
+P1_paper_opcm,ETTh1,5,forecast/mse,3,8.759,plain sum at committed alpha,0.451689,0.022118,paper OPCM alpha=0.5,0.563695,0.071044,24.797,worse,0.2,,1.579513,1.0,1,3,1,segsweep_etth1_merge_n5
+P1_paper_opcm,ETTh1,5,forecast/mse,3,8.759,plain sum at committed alpha,0.451689,0.022118,paper OPCM alpha=0.7,0.598548,0.08241,32.513,worse,0.2,,1.579513,1.0,1,3,1,segsweep_etth1_merge_n5
+P1_paper_opcm,ETTh1,5,forecast/mse,3,8.759,plain sum at committed alpha,0.451689,0.022118,simplified OPCM (1.35),0.461242,0.021127,2.115,tie (inside floor),0.2,,,,,3,1,segsweep_etth1_merge_n5
+P3_order_reversal,ETTh1,5,forecast/mse,3,8.759,OPCM forward (opcm_t050),0.461242,0.021127,OPCM reversed (opcm_t050_rev),0.512954,0.035402,11.211,worse,,,,,,3,1,segsweep_etth1_merge_n5
+P1_paper_opcm,ETTh2,2,forecast/mse,3,6.741,plain sum at committed alpha,0.261224,0.045197,paper OPCM alpha=0.3,0.398296,0.215638,52.473,worse,0.483333,,1.181778,1.0,1,3,1,etth2_merge_n2
+P1_paper_opcm,ETTh2,2,forecast/mse,3,6.741,plain sum at committed alpha,0.261224,0.045197,paper OPCM alpha=0.5,0.403668,0.215758,54.53,worse,0.483333,,1.181778,1.0,1,3,1,etth2_merge_n2
+P1_paper_opcm,ETTh2,2,forecast/mse,3,6.741,plain sum at committed alpha,0.261224,0.045197,paper OPCM alpha=0.7,0.410493,0.213725,57.142,worse,0.483333,,1.181778,1.0,1,3,1,etth2_merge_n2
+P1_paper_opcm,ETTh2,2,forecast/mse,3,6.741,plain sum at committed alpha,0.261224,0.045197,simplified OPCM (1.35),0.291946,0.073943,11.761,worse,0.483333,,,,,3,1,etth2_merge_n2
+P3_order_reversal,ETTh2,2,forecast/mse,3,6.741,OPCM forward (opcm_t050),0.291946,0.073943,OPCM reversed (opcm_t050_rev),0.286464,0.055034,-1.878,tie (inside floor),,,,,,3,1,etth2_merge_n2
+P1_paper_opcm,ETTh2,3,forecast/mse,3,6.741,plain sum at committed alpha,0.215281,0.018391,paper OPCM alpha=0.3,0.237559,0.009982,10.348,worse,0.266667,,1.421727,1.0,1,3,1,etth2_merge_n3
+P1_paper_opcm,ETTh2,3,forecast/mse,3,6.741,plain sum at committed alpha,0.215281,0.018391,paper OPCM alpha=0.5,0.25049,0.013365,16.355,worse,0.266667,,1.421727,1.0,1,3,1,etth2_merge_n3
+P1_paper_opcm,ETTh2,3,forecast/mse,3,6.741,plain sum at committed alpha,0.215281,0.018391,paper OPCM alpha=0.7,0.263722,0.012175,22.501,worse,0.266667,,1.421727,1.0,1,3,1,etth2_merge_n3
+P1_paper_opcm,ETTh2,3,forecast/mse,3,6.741,plain sum at committed alpha,0.215281,0.018391,simplified OPCM (1.35),0.264626,0.061627,22.921,worse,0.266667,,,,,3,1,etth2_merge_n3
+P3_order_reversal,ETTh2,3,forecast/mse,3,6.741,OPCM forward (opcm_t050),0.264626,0.061627,OPCM reversed (opcm_t050_rev),0.322861,0.045386,22.007,worse,,,,,,3,1,etth2_merge_n3
+P1_paper_opcm,ETTh2,5,forecast/mse,3,6.741,plain sum at committed alpha,0.26692,0.030245,paper OPCM alpha=0.3,0.308519,0.040349,15.585,worse,0.15,,1.559817,1.0,1,3,1,etth2_merge_n5
+P1_paper_opcm,ETTh2,5,forecast/mse,3,6.741,plain sum at committed alpha,0.26692,0.030245,paper OPCM alpha=0.5,0.309094,0.025544,15.8,worse,0.15,,1.559817,1.0,1,3,1,etth2_merge_n5
+P1_paper_opcm,ETTh2,5,forecast/mse,3,6.741,plain sum at committed alpha,0.26692,0.030245,paper OPCM alpha=0.7,0.300509,0.005659,12.584,worse,0.15,,1.559817,1.0,1,3,1,etth2_merge_n5
+P1_paper_opcm,ETTh2,5,forecast/mse,3,6.741,plain sum at committed alpha,0.26692,0.030245,simplified OPCM (1.35),0.440017,0.14225,64.85,worse,0.15,,,,,3,1,etth2_merge_n5
+P3_order_reversal,ETTh2,5,forecast/mse,3,6.741,OPCM forward (opcm_t050),0.440017,0.14225,OPCM reversed (opcm_t050_rev),0.419165,0.025727,-4.739,tie (inside floor),,,,,,3,1,etth2_merge_n5
+P1_paper_opcm,ETTm2,2,forecast/mse,3,14.107,plain sum at committed alpha,0.123973,0.007642,paper OPCM alpha=0.3,0.138915,0.008901,12.053,tie (inside floor),0.383333,,1.247121,1.0,1,3,1,ettm2_merge_n2
+P1_paper_opcm,ETTm2,2,forecast/mse,3,14.107,plain sum at committed alpha,0.123973,0.007642,paper OPCM alpha=0.5,0.144706,0.007988,16.724,worse,0.383333,,1.247121,1.0,1,3,1,ettm2_merge_n2
+P1_paper_opcm,ETTm2,2,forecast/mse,3,14.107,plain sum at committed alpha,0.123973,0.007642,paper OPCM alpha=0.7,0.147969,0.000835,19.356,worse,0.383333,,1.247121,1.0,1,3,1,ettm2_merge_n2
+P1_paper_opcm,ETTm2,2,forecast/mse,3,14.107,plain sum at committed alpha,0.123973,0.007642,simplified OPCM (1.35),0.126923,0.007468,2.38,tie (inside floor),0.383333,,,,,3,1,ettm2_merge_n2
+P3_order_reversal,ETTm2,2,forecast/mse,3,14.107,OPCM forward (opcm_t050),0.126923,0.007468,OPCM reversed (opcm_t050_rev),0.175748,0.011532,38.468,worse,,,,,,3,1,ettm2_merge_n2
+P1_paper_opcm,ETTm2,3,forecast/mse,3,14.107,plain sum at committed alpha,0.112149,0.013002,paper OPCM alpha=0.3,0.155547,0.002899,38.696,worse,0.266667,,1.464387,1.0,1,3,1,ettm2_merge_n3
+P1_paper_opcm,ETTm2,3,forecast/mse,3,14.107,plain sum at committed alpha,0.112149,0.013002,paper OPCM alpha=0.5,0.15029,0.005895,34.008,worse,0.266667,,1.464387,1.0,1,3,1,ettm2_merge_n3
+P1_paper_opcm,ETTm2,3,forecast/mse,3,14.107,plain sum at committed alpha,0.112149,0.013002,paper OPCM alpha=0.7,0.150367,0.010149,34.077,worse,0.266667,,1.464387,1.0,1,3,1,ettm2_merge_n3
+P1_paper_opcm,ETTm2,3,forecast/mse,3,14.107,plain sum at committed alpha,0.112149,0.013002,simplified OPCM (1.35),0.118573,0.018187,5.728,tie (inside floor),0.266667,,,,,3,1,ettm2_merge_n3
+P3_order_reversal,ETTm2,3,forecast/mse,3,14.107,OPCM forward (opcm_t050),0.118573,0.018187,OPCM reversed (opcm_t050_rev),0.182963,0.03954,54.304,worse,,,,,,3,1,ettm2_merge_n3
+P1_paper_opcm,ETTm2,5,forecast/mse,3,14.107,plain sum at committed alpha,0.138523,0.008026,paper OPCM alpha=0.3,0.210706,0.017749,52.109,worse,0.15,,1.68052,1.0,1,3,1,ettm2_merge_n5
+P1_paper_opcm,ETTm2,5,forecast/mse,3,14.107,plain sum at committed alpha,0.138523,0.008026,paper OPCM alpha=0.5,0.221413,0.017596,59.838,worse,0.15,,1.68052,1.0,1,3,1,ettm2_merge_n5
+P1_paper_opcm,ETTm2,5,forecast/mse,3,14.107,plain sum at committed alpha,0.138523,0.008026,paper OPCM alpha=0.7,0.226191,0.016884,63.287,worse,0.15,,1.68052,1.0,1,3,1,ettm2_merge_n5
+P1_paper_opcm,ETTm2,5,forecast/mse,3,14.107,plain sum at committed alpha,0.138523,0.008026,simplified OPCM (1.35),0.154607,0.005676,11.611,tie (inside floor),0.15,,,,,3,1,ettm2_merge_n5
+P3_order_reversal,ETTm2,5,forecast/mse,3,14.107,OPCM forward (opcm_t050),0.154607,0.005676,OPCM reversed (opcm_t050_rev),0.230887,0.016588,49.338,worse,,,,,,3,1,ettm2_merge_n5
+P1_paper_opcm,exchange,2,forecast/mse,3,5.73,plain sum at committed alpha,0.255416,0.020567,paper OPCM alpha=0.3,0.248646,0.032635,-2.651,tie (inside floor),0.7,,1.254936,1.0,1,3,1,segsweep_exchange_merge_n2
+P1_paper_opcm,exchange,2,forecast/mse,3,5.73,plain sum at committed alpha,0.255416,0.020567,paper OPCM alpha=0.5,0.332583,0.042549,30.212,worse,0.7,,1.254936,1.0,1,3,1,segsweep_exchange_merge_n2
+P1_paper_opcm,exchange,2,forecast/mse,3,5.73,plain sum at committed alpha,0.255416,0.020567,paper OPCM alpha=0.7,0.424595,0.026581,66.236,worse,0.7,,1.254936,1.0,1,3,1,segsweep_exchange_merge_n2
+P1_paper_opcm,exchange,2,forecast/mse,3,5.73,plain sum at committed alpha,0.255416,0.020567,simplified OPCM (1.35),0.227614,0.013079,-10.885,better,0.7,,,,,3,1,segsweep_exchange_merge_n2
+P3_order_reversal,exchange,2,forecast/mse,3,5.73,OPCM forward (opcm_t050),0.227614,0.013079,OPCM reversed (opcm_t050_rev),0.257774,0.022407,13.251,worse,,,,,,3,1,segsweep_exchange_merge_n2
+P1_paper_opcm,exchange,3,forecast/mse,3,5.73,plain sum at committed alpha,0.362579,0.065738,paper OPCM alpha=0.3,0.306954,0.031534,-15.341,better,0.55,,1.376939,1.0,1,3,1,selalpha_exchange_n3
+P1_paper_opcm,exchange,3,forecast/mse,3,5.73,plain sum at committed alpha,0.362579,0.065738,paper OPCM alpha=0.5,0.387988,0.019745,7.008,worse,0.55,,1.376939,1.0,1,3,1,selalpha_exchange_n3
+P1_paper_opcm,exchange,3,forecast/mse,3,5.73,plain sum at committed alpha,0.362579,0.065738,paper OPCM alpha=0.7,0.454042,0.011228,25.226,worse,0.55,,1.376939,1.0,1,3,1,selalpha_exchange_n3
+P1_paper_opcm,exchange,3,forecast/mse,3,5.73,plain sum at committed alpha,0.362579,0.065738,simplified OPCM (1.35),0.311154,0.052565,-14.183,better,0.55,,,,,3,1,selalpha_exchange_n3
+P3_order_reversal,exchange,3,forecast/mse,3,5.73,OPCM forward (opcm_t050),0.311154,0.052565,OPCM reversed (opcm_t050_rev),0.34123,0.05877,9.666,worse,,,,,,3,1,selalpha_exchange_n3
+P1_paper_opcm,exchange,5,forecast/mse,3,5.73,plain sum at committed alpha,0.327055,0.028188,paper OPCM alpha=0.3,0.423281,0.019211,29.422,worse,0.3,,1.562515,1.0,1,3,1,segsweep_exchange_merge_n5
+P1_paper_opcm,exchange,5,forecast/mse,3,5.73,plain sum at committed alpha,0.327055,0.028188,paper OPCM alpha=0.5,0.49773,0.016919,52.186,worse,0.3,,1.562515,1.0,1,3,1,segsweep_exchange_merge_n5
+P1_paper_opcm,exchange,5,forecast/mse,3,5.73,plain sum at committed alpha,0.327055,0.028188,paper OPCM alpha=0.7,0.55177,0.009026,68.709,worse,0.3,,1.562515,1.0,1,3,1,segsweep_exchange_merge_n5
+P1_paper_opcm,exchange,5,forecast/mse,3,5.73,plain sum at committed alpha,0.327055,0.028188,simplified OPCM (1.35),0.352235,0.021954,7.699,worse,0.3,,,,,3,1,segsweep_exchange_merge_n5
+P3_order_reversal,exchange,5,forecast/mse,3,5.73,OPCM forward (opcm_t050),0.352235,0.021954,OPCM reversed (opcm_t050_rev),0.365068,0.021103,3.643,tie (inside floor),,,,,,3,1,segsweep_exchange_merge_n5
+P1_paper_opcm,SWaT,2,window_auroc,3,0.087,plain sum at committed alpha,0.8044,0.000985,paper OPCM alpha=0.3,0.799202,0.001589,0.646,worse,1.0,,1.062605,1.0,1,3,1,segsweep_swat_merge_n2
+P1_paper_opcm,SWaT,2,window_auroc,3,0.087,plain sum at committed alpha,0.8044,0.000985,paper OPCM alpha=0.5,0.799167,0.001516,0.651,worse,1.0,,1.062605,1.0,1,3,1,segsweep_swat_merge_n2
+P1_paper_opcm,SWaT,2,window_auroc,3,0.087,plain sum at committed alpha,0.8044,0.000985,paper OPCM alpha=0.7,0.799195,0.001465,0.647,worse,1.0,,1.062605,1.0,1,3,1,segsweep_swat_merge_n2
+P1_paper_opcm,SWaT,2,window_auroc,3,0.087,plain sum at committed alpha,0.8044,0.000985,simplified OPCM (1.35),0.802587,0.001108,0.225,worse,1.0,,,,,3,1,segsweep_swat_merge_n2
+P2_became_rescaled,SWaT,2,window_auroc,3,0.087,uniform 1/n at same alpha*n,0.804404,0.000975,BECAME weighting at same alpha*n,0.804478,0.000956,-0.009,tie (inside floor),1.0,2.0,2.0,,1,3,1,segsweep_swat_merge_n2
+P1_paper_opcm,SWaT,3,window_auroc,3,0.087,plain sum at committed alpha,0.803736,0.001344,paper OPCM alpha=0.3,0.798365,0.000813,0.668,worse,1.0,,1.099868,1.0,1,3,1,noisefloor_swat
+P1_paper_opcm,SWaT,3,window_auroc,3,0.087,plain sum at committed alpha,0.803736,0.001344,paper OPCM alpha=0.5,0.79801,0.000778,0.712,worse,1.0,,1.099868,1.0,1,3,1,noisefloor_swat
+P1_paper_opcm,SWaT,3,window_auroc,3,0.087,plain sum at committed alpha,0.803736,0.001344,paper OPCM alpha=0.7,0.797932,0.000659,0.722,worse,1.0,,1.099868,1.0,1,3,1,noisefloor_swat
+P1_paper_opcm,SWaT,3,window_auroc,3,0.087,plain sum at committed alpha,0.803736,0.001344,simplified OPCM (1.35),0.802302,0.000824,0.178,worse,1.0,,,,,3,1,noisefloor_swat
+P2_became_rescaled,SWaT,3,window_auroc,3,0.087,uniform 1/n at same alpha*n,0.803733,0.001341,BECAME weighting at same alpha*n,0.803887,0.001366,-0.019,tie (inside floor),1.0,3.0,3.0,,1,3,1,noisefloor_swat
+P1_paper_opcm,SWaT,5,window_auroc,3,0.087,plain sum at committed alpha,0.804853,0.001889,paper OPCM alpha=0.3,0.798025,0.001552,0.848,worse,1.0,,1.133858,1.0,1,3,1,segsweep_swat_merge_n5
+P1_paper_opcm,SWaT,5,window_auroc,3,0.087,plain sum at committed alpha,0.804853,0.001889,paper OPCM alpha=0.5,0.797661,0.001334,0.894,worse,1.0,,1.133858,1.0,1,3,1,segsweep_swat_merge_n5
+P1_paper_opcm,SWaT,5,window_auroc,3,0.087,plain sum at committed alpha,0.804853,0.001889,paper OPCM alpha=0.7,0.797547,0.001249,0.908,worse,1.0,,1.133858,1.0,1,3,1,segsweep_swat_merge_n5
+P1_paper_opcm,SWaT,5,window_auroc,3,0.087,plain sum at committed alpha,0.804853,0.001889,simplified OPCM (1.35),0.803202,0.00214,0.205,worse,1.0,,,,,3,1,segsweep_swat_merge_n5
+P2_became_rescaled,SWaT,5,window_auroc,3,0.087,uniform 1/n at same alpha*n,0.804853,0.001883,BECAME weighting at same alpha*n,0.805172,0.001744,-0.04,tie (inside floor),1.0,5.0,5.0,,1,3,1,segsweep_swat_merge_n5
+P1_paper_opcm,PSM,2,window_auroc,3,0.068,plain sum at committed alpha,0.804109,0.000691,paper OPCM alpha=0.3,0.794556,9.3e-05,1.188,worse,1.0,,1.202683,1.0,1,3,1,segsweep_psm_merge_n2
+P1_paper_opcm,PSM,2,window_auroc,3,0.068,plain sum at committed alpha,0.804109,0.000691,paper OPCM alpha=0.5,0.795408,0.000529,1.082,worse,1.0,,1.202683,1.0,1,3,1,segsweep_psm_merge_n2
+P1_paper_opcm,PSM,2,window_auroc,3,0.068,plain sum at committed alpha,0.804109,0.000691,paper OPCM alpha=0.7,0.794423,0.000266,1.205,worse,1.0,,1.202683,1.0,1,3,1,segsweep_psm_merge_n2
+P1_paper_opcm,PSM,2,window_auroc,3,0.068,plain sum at committed alpha,0.804109,0.000691,simplified OPCM (1.35),0.803068,0.000962,0.129,worse,1.0,,,,,3,1,segsweep_psm_merge_n2
+P2_became_rescaled,PSM,2,window_auroc,3,0.068,uniform 1/n at same alpha*n,0.804125,0.000697,BECAME weighting at same alpha*n,0.803963,0.000346,0.02,tie (inside floor),1.0,2.0,2.0,,1,3,1,segsweep_psm_merge_n2
+P1_paper_opcm,PSM,3,window_auroc,3,0.068,plain sum at committed alpha,0.80046,0.002054,paper OPCM alpha=0.3,0.788038,0.002675,1.552,worse,1.0,,1.289136,1.0,1,3,1,noisefloor_psm
+P1_paper_opcm,PSM,3,window_auroc,3,0.068,plain sum at committed alpha,0.80046,0.002054,paper OPCM alpha=0.5,0.787195,0.001827,1.657,worse,1.0,,1.289136,1.0,1,3,1,noisefloor_psm
+P1_paper_opcm,PSM,3,window_auroc,3,0.068,plain sum at committed alpha,0.80046,0.002054,paper OPCM alpha=0.7,0.785741,0.002264,1.839,worse,1.0,,1.289136,1.0,1,3,1,noisefloor_psm
+P1_paper_opcm,PSM,3,window_auroc,3,0.068,plain sum at committed alpha,0.80046,0.002054,simplified OPCM (1.35),0.800346,0.003116,0.014,tie (inside floor),1.0,,,,,3,1,noisefloor_psm
+P2_became_rescaled,PSM,3,window_auroc,3,0.068,uniform 1/n at same alpha*n,0.800452,0.001946,BECAME weighting at same alpha*n,0.799541,0.00293,0.114,worse,1.0,3.0,3.0,,1,3,1,noisefloor_psm
+P1_paper_opcm,PSM,5,window_auroc,3,0.068,plain sum at committed alpha,0.794416,0.004909,paper OPCM alpha=0.3,0.783111,0.004236,1.423,worse,1.0,,1.399143,1.0,1,3,1,segsweep_psm_merge_n5
+P1_paper_opcm,PSM,5,window_auroc,3,0.068,plain sum at committed alpha,0.794416,0.004909,paper OPCM alpha=0.5,0.780043,0.005188,1.809,worse,1.0,,1.399143,1.0,1,3,1,segsweep_psm_merge_n5
+P1_paper_opcm,PSM,5,window_auroc,3,0.068,plain sum at committed alpha,0.794416,0.004909,paper OPCM alpha=0.7,0.776349,0.004766,2.274,worse,1.0,,1.399143,1.0,1,3,1,segsweep_psm_merge_n5
+P1_paper_opcm,PSM,5,window_auroc,3,0.068,plain sum at committed alpha,0.794416,0.004909,simplified OPCM (1.35),0.798294,0.004403,-0.488,better,1.0,,,,,3,1,segsweep_psm_merge_n5
+P2_became_rescaled,PSM,5,window_auroc,3,0.068,uniform 1/n at same alpha*n,0.794371,0.004819,BECAME weighting at same alpha*n,0.783578,0.001938,1.359,worse,1.0,5.0,5.0,,1,3,1,segsweep_psm_merge_n5
+P1_paper_opcm,PSM-forecast,2,forecast/mse,3,1.157,plain sum at committed alpha,0.362958,0.039069,paper OPCM alpha=0.3,0.360808,0.046757,-0.592,tie (inside floor),0.533333,,1.247397,1.0,1,3,1,adfc2_psm_merge_n2
+P1_paper_opcm,PSM-forecast,2,forecast/mse,3,1.157,plain sum at committed alpha,0.362958,0.039069,paper OPCM alpha=0.5,0.369009,0.043016,1.667,worse,0.533333,,1.247397,1.0,1,3,1,adfc2_psm_merge_n2
+P1_paper_opcm,PSM-forecast,2,forecast/mse,3,1.157,plain sum at committed alpha,0.362958,0.039069,paper OPCM alpha=0.7,0.367243,0.047997,1.181,worse,0.533333,,1.247397,1.0,1,3,1,adfc2_psm_merge_n2
+P1_paper_opcm,PSM-forecast,2,forecast/mse,3,1.157,plain sum at committed alpha,0.362958,0.039069,simplified OPCM (1.35),0.374695,0.029741,3.234,worse,0.533333,,,,,3,1,adfc2_psm_merge_n2
+P1_paper_opcm,PSM-forecast,3,forecast/mse,3,1.157,plain sum at committed alpha,0.392485,0.010808,paper OPCM alpha=0.3,0.411533,0.017221,4.853,worse,0.316667,,1.404292,1.0,1,3,1,adfc2_psm_merge_n3
+P1_paper_opcm,PSM-forecast,3,forecast/mse,3,1.157,plain sum at committed alpha,0.392485,0.010808,paper OPCM alpha=0.5,0.439553,0.010078,11.992,worse,0.316667,,1.404292,1.0,1,3,1,adfc2_psm_merge_n3
+P1_paper_opcm,PSM-forecast,3,forecast/mse,3,1.157,plain sum at committed alpha,0.392485,0.010808,paper OPCM alpha=0.7,0.457723,0.00497,16.622,worse,0.316667,,1.404292,1.0,1,3,1,adfc2_psm_merge_n3
+P1_paper_opcm,PSM-forecast,3,forecast/mse,3,1.157,plain sum at committed alpha,0.392485,0.010808,simplified OPCM (1.35),0.402825,0.011344,2.634,worse,0.316667,,,,,3,1,adfc2_psm_merge_n3
+P2_became_rescaled,PSM-forecast,3,forecast/mse,3,1.157,uniform 1/n at same alpha*n,0.392485,0.010808,BECAME weighting at same alpha*n,0.389134,0.011078,-0.854,tie (inside floor),0.316667,0.95,0.95,,1,3,1,adfc2_psm_merge_n3
+P1_paper_opcm,PSM-forecast,5,forecast/mse,3,1.157,plain sum at committed alpha,0.40356,0.005596,paper OPCM alpha=0.3,0.394209,0.002709,-2.317,better,0.2,,1.695733,1.0,1,3,1,adfc2_psm_merge_n5
+P1_paper_opcm,PSM-forecast,5,forecast/mse,3,1.157,plain sum at committed alpha,0.40356,0.005596,paper OPCM alpha=0.5,0.438351,0.010399,8.621,worse,0.2,,1.695733,1.0,1,3,1,adfc2_psm_merge_n5
+P1_paper_opcm,PSM-forecast,5,forecast/mse,3,1.157,plain sum at committed alpha,0.40356,0.005596,paper OPCM alpha=0.7,0.478388,0.014816,18.542,worse,0.2,,1.695733,1.0,1,3,1,adfc2_psm_merge_n5
+P1_paper_opcm,PSM-forecast,5,forecast/mse,3,1.157,plain sum at committed alpha,0.40356,0.005596,simplified OPCM (1.35),0.407445,0.00136,0.963,tie (inside floor),0.2,,,,,3,1,adfc2_psm_merge_n5
+P1_paper_opcm,SWaT-forecast,2,forecast/mse,3,84.232,plain sum at committed alpha,14.858959,18.067498,paper OPCM alpha=0.3,14.415136,16.762513,-2.987,tie (inside floor),0.516667,,1.146807,1.0,1,3,1,adfc2_swat_merge_n2
+P1_paper_opcm,SWaT-forecast,2,forecast/mse,3,84.232,plain sum at committed alpha,14.858959,18.067498,paper OPCM alpha=0.5,15.149729,17.513803,1.957,tie (inside floor),0.516667,,1.146807,1.0,1,3,1,adfc2_swat_merge_n2
+P1_paper_opcm,SWaT-forecast,2,forecast/mse,3,84.232,plain sum at committed alpha,14.858959,18.067498,paper OPCM alpha=0.7,15.471611,17.912523,4.123,tie (inside floor),0.516667,,1.146807,1.0,1,3,1,adfc2_swat_merge_n2
+P1_paper_opcm,SWaT-forecast,2,forecast/mse,3,84.232,plain sum at committed alpha,14.858959,18.067498,simplified OPCM (1.35),15.406826,18.974468,3.687,tie (inside floor),0.516667,,,,,3,1,adfc2_swat_merge_n2
+P1_paper_opcm,SWaT-forecast,3,forecast/mse,3,84.232,plain sum at committed alpha,4.760369,3.226638,paper OPCM alpha=0.3,4.507078,2.72829,-5.321,tie (inside floor),0.283333,,1.216443,1.0,1,3,1,adfc2_swat_merge_n3
+P1_paper_opcm,SWaT-forecast,3,forecast/mse,3,84.232,plain sum at committed alpha,4.760369,3.226638,paper OPCM alpha=0.5,4.562753,2.661522,-4.151,tie (inside floor),0.283333,,1.216443,1.0,1,3,1,adfc2_swat_merge_n3
+P1_paper_opcm,SWaT-forecast,3,forecast/mse,3,84.232,plain sum at committed alpha,4.760369,3.226638,paper OPCM alpha=0.7,4.888508,3.030326,2.692,tie (inside floor),0.283333,,1.216443,1.0,1,3,1,adfc2_swat_merge_n3
+P1_paper_opcm,SWaT-forecast,3,forecast/mse,3,84.232,plain sum at committed alpha,4.760369,3.226638,simplified OPCM (1.35),5.115484,3.757167,7.46,tie (inside floor),0.283333,,,,,3,1,adfc2_swat_merge_n3
+P1_paper_opcm,SWaT-forecast,5,forecast/mse,3,84.232,plain sum at committed alpha,5.244547,3.553435,paper OPCM alpha=0.3,4.946907,3.095775,-5.675,tie (inside floor),0.166667,,1.354034,1.0,1,3,1,adfc2_swat_merge_n5
+P1_paper_opcm,SWaT-forecast,5,forecast/mse,3,84.232,plain sum at committed alpha,5.244547,3.553435,paper OPCM alpha=0.5,5.075281,3.126857,-3.227,tie (inside floor),0.166667,,1.354034,1.0,1,3,1,adfc2_swat_merge_n5
+P1_paper_opcm,SWaT-forecast,5,forecast/mse,3,84.232,plain sum at committed alpha,5.244547,3.553435,paper OPCM alpha=0.7,5.624086,3.817295,7.237,tie (inside floor),0.166667,,1.354034,1.0,1,3,1,adfc2_swat_merge_n5
+P1_paper_opcm,SWaT-forecast,5,forecast/mse,3,84.232,plain sum at committed alpha,5.244547,3.553435,simplified OPCM (1.35),5.604225,4.105597,6.858,tie (inside floor),0.166667,,,,,3,1,adfc2_swat_merge_n5

@@ -546,6 +546,149 @@ for _i, _met in ((0, "forecast/mse"), (1, "forecast/mae")):
                                 "metric": _met})},
                          "run_metrics.csv", "mean", 0.0001, cell=_PM_CELL, cap=_PM_CAP)
 
+# §1.36's P1 table, scoped to the paper's own recommended threshold (alpha=0.5), which is
+# what the section publishes. `variant_label` is part of the key: without it the same
+# (dataset, n) matches four rows and the check would bind to whichever the CSV lists first.
+CHECKS += [
+    ('§1.36/P1 ETTh1 n=2 delta', '\\| ETTh1 \\| 2 \\| 0.4597 \\| 0.5339 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'ETTh1', 'n_segments': '2', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 ETTh1 n=3 delta', '\\| ETTh1 \\| 3 \\| 0.4964 \\| 0.6537 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'ETTh1', 'n_segments': '3', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 ETTh1 n=5 delta', '\\| ETTh1 \\| 5 \\| 0.4517 \\| 0.5637 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'ETTh1', 'n_segments': '5', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 ETTh2 n=2 delta', '\\| ETTh2 \\| 2 \\| 0.2612 \\| 0.4037 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'ETTh2', 'n_segments': '2', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 ETTh2 n=3 delta', '\\| ETTh2 \\| 3 \\| 0.2153 \\| 0.2505 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'ETTh2', 'n_segments': '3', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 ETTh2 n=5 delta', '\\| ETTh2 \\| 5 \\| 0.2669 \\| 0.3091 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'ETTh2', 'n_segments': '5', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 ETTm2 n=2 delta', '\\| ETTm2 \\| 2 \\| 0.1240 \\| 0.1447 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'ETTm2', 'n_segments': '2', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 ETTm2 n=3 delta', '\\| ETTm2 \\| 3 \\| 0.1121 \\| 0.1503 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'ETTm2', 'n_segments': '3', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 ETTm2 n=5 delta', '\\| ETTm2 \\| 5 \\| 0.1385 \\| 0.2214 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'ETTm2', 'n_segments': '5', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 exchange n=2 delta', '\\| exchange \\| 2 \\| 0.2554 \\| 0.3326 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'exchange', 'n_segments': '2', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 exchange n=3 delta', '\\| exchange \\| 3 \\| 0.3626 \\| 0.3880 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'exchange', 'n_segments': '3', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 exchange n=5 delta', '\\| exchange \\| 5 \\| 0.3271 \\| 0.4977 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'exchange', 'n_segments': '5', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 SWaT n=2 delta', '\\| SWaT \\| 2 \\| 0.8044 \\| 0.7992 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'SWaT', 'n_segments': '2', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 SWaT n=3 delta', '\\| SWaT \\| 3 \\| 0.8037 \\| 0.7980 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'SWaT', 'n_segments': '3', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 SWaT n=5 delta', '\\| SWaT \\| 5 \\| 0.8049 \\| 0.7977 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'SWaT', 'n_segments': '5', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 PSM n=2 delta', '\\| PSM \\| 2 \\| 0.8041 \\| 0.7954 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'PSM', 'n_segments': '2', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 PSM n=3 delta', '\\| PSM \\| 3 \\| 0.8005 \\| 0.7872 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'PSM', 'n_segments': '3', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 PSM n=5 delta', '\\| PSM \\| 5 \\| 0.7944 \\| 0.7800 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'PSM', 'n_segments': '5', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 PSM-forecast n=2 delta', '\\| PSM-forecast \\| 2 \\| 0.3630 \\| 0.3690 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'PSM-forecast', 'n_segments': '2', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 PSM-forecast n=3 delta', '\\| PSM-forecast \\| 3 \\| 0.3925 \\| 0.4396 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'PSM-forecast', 'n_segments': '3', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 PSM-forecast n=5 delta', '\\| PSM-forecast \\| 5 \\| 0.4036 \\| 0.4384 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'PSM-forecast', 'n_segments': '5', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 SWaT-forecast n=2 delta', '\\| SWaT-forecast \\| 2 \\| 14.8590 \\| 15.1497 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'SWaT-forecast', 'n_segments': '2', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 SWaT-forecast n=3 delta', '\\| SWaT-forecast \\| 3 \\| 4.7604 \\| 4.5628 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'SWaT-forecast', 'n_segments': '3', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+    ('§1.36/P1 SWaT-forecast n=5 delta', '\\| SWaT-forecast \\| 5 \\| 5.2445 \\| 5.0753 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P1_paper_opcm', 'dataset': 'SWaT-forecast', 'n_segments': '5', 'variant_label': 'paper OPCM alpha=0.5'},
+     "delta_pct", 0.02),
+]
+
+# §1.36's P2 and P3 tables. Every published cell is bound to its (test, dataset, n) row
+# in remerge_closeout.csv, and the regex anchors on the dataset, n AND both values before
+# capturing the delta -- §1.21's W-columns looked right under the wrong block, so matching
+# a lone number somewhere in the table is not enough. P1 is deliberately absent: it is
+# still running, and its rows carry complete=0 in the CSV.
+CHECKS += [
+    ('§1.36/P3 ETTh1 n=2 delta', '\\| ETTh1 \\| 2 \\| 0.4558 \\| 0.5091 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'ETTh1', 'n_segments': '2'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 ETTh1 n=3 delta', '\\| ETTh1 \\| 3 \\| 0.4914 \\| 0.5610 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'ETTh1', 'n_segments': '3'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 ETTh1 n=5 delta', '\\| ETTh1 \\| 5 \\| 0.4612 \\| 0.5130 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'ETTh1', 'n_segments': '5'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 ETTh2 n=2 delta', '\\| ETTh2 \\| 2 \\| 0.2919 \\| 0.2865 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'ETTh2', 'n_segments': '2'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 ETTh2 n=3 delta', '\\| ETTh2 \\| 3 \\| 0.2646 \\| 0.3229 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'ETTh2', 'n_segments': '3'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 ETTh2 n=5 delta', '\\| ETTh2 \\| 5 \\| 0.4400 \\| 0.4192 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'ETTh2', 'n_segments': '5'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 ETTm2 n=2 delta', '\\| ETTm2 \\| 2 \\| 0.1269 \\| 0.1757 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'ETTm2', 'n_segments': '2'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 ETTm2 n=3 delta', '\\| ETTm2 \\| 3 \\| 0.1186 \\| 0.1830 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'ETTm2', 'n_segments': '3'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 ETTm2 n=5 delta', '\\| ETTm2 \\| 5 \\| 0.1546 \\| 0.2309 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'ETTm2', 'n_segments': '5'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 exchange n=2 delta', '\\| exchange \\| 2 \\| 0.2276 \\| 0.2578 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'exchange', 'n_segments': '2'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 exchange n=3 delta', '\\| exchange \\| 3 \\| 0.3112 \\| 0.3412 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'exchange', 'n_segments': '3'},
+     "delta_pct", 0.02),
+    ('§1.36/P3 exchange n=5 delta', '\\| exchange \\| 5 \\| 0.3522 \\| 0.3651 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P3_order_reversal', 'dataset': 'exchange', 'n_segments': '5'},
+     "delta_pct", 0.02),
+    ('§1.36/P2 SWaT n=2 delta', '\\| SWaT \\| 2 \\| 0.8044 \\| 0.8045 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P2_became_rescaled', 'dataset': 'SWaT', 'n_segments': '2'},
+     "delta_pct", 0.02),
+    ('§1.36/P2 SWaT n=3 delta', '\\| SWaT \\| 3 \\| 0.8037 \\| 0.8039 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P2_became_rescaled', 'dataset': 'SWaT', 'n_segments': '3'},
+     "delta_pct", 0.02),
+    ('§1.36/P2 SWaT n=5 delta', '\\| SWaT \\| 5 \\| 0.8049 \\| 0.8052 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P2_became_rescaled', 'dataset': 'SWaT', 'n_segments': '5'},
+     "delta_pct", 0.02),
+    ('§1.36/P2 PSM n=2 delta', '\\| PSM \\| 2 \\| 0.8041 \\| 0.8040 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P2_became_rescaled', 'dataset': 'PSM', 'n_segments': '2'},
+     "delta_pct", 0.02),
+    ('§1.36/P2 PSM n=3 delta', '\\| PSM \\| 3 \\| 0.8005 \\| 0.7995 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P2_became_rescaled', 'dataset': 'PSM', 'n_segments': '3'},
+     "delta_pct", 0.02),
+    ('§1.36/P2 PSM n=5 delta', '\\| PSM \\| 5 \\| 0.7944 \\| 0.7836 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P2_became_rescaled', 'dataset': 'PSM', 'n_segments': '5'},
+     "delta_pct", 0.02),
+    ('§1.36/P2 PSM-forecast n=3 delta', '\\| PSM-forecast \\| 3 \\| 0.3925 \\| 0.3891 \\| ([+-][\\d.]+)%',
+     "remerge_closeout/remerge_closeout.csv", {'test': 'P2_became_rescaled', 'dataset': 'PSM-forecast', 'n_segments': '3'},
+     "delta_pct", 0.02),
+]
+
 # SWaT-forecast: one column, and the floor is the finding — check the floor itself, not just
 # the mean, because "69.75%" is the number every SWaT claim in this file rests on.
 CHECKS += row_checks("§1.30/SWaT-forecast", r"\| base", {0: ("SWaT-forecast base MSE",
@@ -1077,6 +1220,74 @@ def check_no_floor_fallback(audit_dir: Path) -> int:
     return failures
 
 
+def check_claims_register(text: str, audit: Path) -> int:
+    """§0.7 must agree with `claims_register.csv`, in both directions. Returns failures.
+
+    Two distinct ways §0.7 can go wrong, and they need different checks:
+
+    - **The counts drift.** The prose states "N claims: A supported, B hypothesis, C refuted". Add
+      a claim to the CSV and hand-edit nothing, and the sentence is silently wrong. Checked
+      against the CSV.
+    - **A claim exists in only one of the two.** A claim written into the prose tables without a
+      register row escapes the downgrade rule entirely, which is the exact failure the register
+      was built to prevent; a register row that no table mentions is dead weight. Checked both
+      ways over the claim ids.
+
+    Also asserts that every id cited anywhere in EXPERIMENTS.md (`C07`, `C23`, ...) resolves to a
+    register row — a dangling id in a scoped sentence is worse than no id, because it looks like
+    the sentence has been audited.
+    """
+    print("\nCLAIMS REGISTER (§0.7) — document must agree with claims_register.csv:")
+    path = audit / "claims_register.csv"
+    if not path.is_file():
+        print("  skipped — no claims_register.csv")
+        return 0
+    with path.open() as fh:
+        rows = list(csv.DictReader(fh))
+    failures = 0
+
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row["status"]] = counts.get(row["status"], 0) + 1
+    found = re.search(r"\*\*(\d+) claims: (\d+) supported, (\d+) hypothesis, (\d+) refuted",
+                      text)
+    if found is None:
+        print("  FAIL      §0.7 states no claim counts — the sentence the CSV backs is gone")
+        failures += 1
+    else:
+        stated = [int(found.group(i)) for i in range(1, 5)]
+        actual = [len(rows), counts.get("supported", 0), counts.get("hypothesis", 0),
+                  counts.get("refuted", 0)]
+        if stated != actual:
+            print(f"  FAIL      §0.7 says {stated} (total, supported, hypothesis, refuted) but "
+                  f"the register holds {actual}")
+            failures += 1
+        else:
+            print(f"  ok        {actual[0]} claims: {actual[1]} supported, {actual[2]} "
+                  f"hypothesis, {actual[3]} refuted")
+
+    # Every non-supported claim must appear in one of §0.7's two tables, and vice versa.
+    tabled = set(re.findall(r"^\| `(C\d+)` \|", text, re.M))
+    expected = {r["id"] for r in rows if r["status"] in ("hypothesis", "refuted")}
+    for missing in sorted(expected - tabled):
+        print(f"  FAIL      {missing} is {dict((r['id'], r['status']) for r in rows)[missing]} in "
+              f"the register but appears in no §0.7 table")
+        failures += 1
+    for extra in sorted(tabled - expected):
+        print(f"  FAIL      {extra} is tabled in §0.7 but is not a hypothesis/refuted register row")
+        failures += 1
+
+    known = {r["id"] for r in rows}
+    for cited in sorted(set(re.findall(r"`(C\d+)`", text))):
+        if cited not in known:
+            print(f"  FAIL      {cited} is cited in the document but has no register row")
+            failures += 1
+    if not failures:
+        print(f"  ok        {len(expected)} open/refuted claim(s) tabled, "
+              f"{len(set(re.findall(r'`(C[0-9]+)`', text)))} citation(s) all resolve")
+    return failures
+
+
 def check_report_is_current(archive: Path, report: Path) -> int:
     """`results_report.html` must have been built from the committed archive. Returns failures.
 
@@ -1523,6 +1734,11 @@ def main() -> None:
     # Sections verified by a dedicated recompute rather than by row_checks. They are checked,
     # just not through CHECKS, so the coverage line must not report them as gaps.
     covered |= {"§1.27a", "§1.27b", "§1.35"}
+    # §0.7's tables hold claims, not measurements, so there is no numeric cell to bind — but the
+    # section is fully verified against claims_register.csv by check_claims_register (counts, both
+    # directions of table membership, and every cited id). Listing it as a gap would say the
+    # opposite of what is true.
+    covered |= {"§0.7"}
     # §2.7+ are generated and verified by check_generated_config_sections, which
     # compares the whole subsection rather than individual cells.
     covered |= {f"§2.{i}" for i in range(7, 30)}
@@ -1543,6 +1759,11 @@ def main() -> None:
     curves = check_scale_curves(text, args.runs_root, args.matrix_spec) if args.runs_root else 0
     if curves:
         print(f"  -> {curves} merge-scale-curve failure(s)")
+
+    register = check_claims_register(text, args.audit_dir)
+    if register:
+        print(f"  -> {register} claims-register disagreement(s) with §0.7")
+        drift += register
 
     report = check_report_is_current(args.audit_dir.parent, Path("results_report.html"))
     if report:
@@ -1603,6 +1824,21 @@ def main() -> None:
                 print(f"  ok    {label}: corruption detected")
             else:
                 print(f"  LEAK  {label}: corrupted value still passes — check is vacuous")
+                failures += 1
+        # The cross-section checks are not table cells, so the loop above cannot reach them.
+        # Each gets an explicit corruption of the thing it is supposed to notice.
+        print("\n  cross-section checks — corrupting §0.7 three different ways:")
+        for label, corrupt in (
+            ("claim counts", lambda s: re.sub(r"\*\*(\d+) claims: (\d+) supported",
+                                              lambda m: f"**{int(m.group(1)) + 1} claims: "
+                                                        f"{int(m.group(2)) + 1} supported", s)),
+            ("untabled open claim", lambda s: s.replace("| `C31` |", "| `X31` |")),
+            ("dangling claim id", lambda s: s.replace("`C07`", "`C99`")),
+        ):
+            if check_claims_register(corrupt(text), args.audit_dir) > 0:
+                print(f"  ok    claims register / {label}: corruption detected")
+            else:
+                print(f"  LEAK  claims register / {label}: corrupted document still passes")
                 failures += 1
         print(f"self-test: {failures} problem(s)")
         if args.strict and failures:

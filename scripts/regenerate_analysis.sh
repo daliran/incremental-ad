@@ -31,6 +31,13 @@ RUNS="${2:-${RUNS_ROOT:?set RUNS_ROOT or pass it as the second argument}}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CARRY="$REPO/results_archive/audit"
 
+# GPU-produced trees are carried forward from the archive near the END of this script, but two
+# reports CONSUME them. Reading "$OUT/<sub>" before that copy happens finds nothing and the report
+# skips -- silently, because the skip is an `|| echo`. That is how §1.35's table stopped being
+# regenerated without anyone noticing. Resolve through the archive whenever the fresh run has not
+# produced the directory itself.
+carried() { if [ -d "$OUT/$1" ]; then echo "$OUT/$1"; else echo "$CARRY/$1"; fi; }
+
 cd "$REPO"
 mkdir -p "$OUT"
 
@@ -149,17 +156,43 @@ else
     echo "  skipped (set WITH_GEOMETRY=1 on a compute node to regenerate)"
 fi
 
+echo "== re-merge provenance gate (self-test) =="
+# Both collectors below read results by globbing a directory, which is truthful only while every
+# file there came from a completed run of the current code. The gate enforces that; this proves
+# the gate can still fail. A provenance check that has never been seen to reject is no check.
+python -m incremental_ad.analysis.remerge_provenance
+
 echo "== OPCM / BECAME re-merge sweep (§1.35) =="
 # Pure aggregation over remerge.py outputs, which are GPU-produced and carried forward like the
 # other checkpoint readers. rho is passed per experiment: PSM-forecast and PSM share raw data but
 # are different tasks with rho 0.034 vs 0.216, and a dataset-level alias put the correlation's
 # most informative point at the wrong x-coordinate.
 python -m incremental_ad.analysis.remerge_report --runs_root "$RUNS" \
-    --remerge_dir "$OUT/remerge_sweep" --floors "$OUT/floors.csv" \
+    --remerge_dir "$(carried remerge_sweep)" --floors "$OUT/floors.csv" \
     --geometry results_archive/audit/geometry/geometry_by_dataset.csv \
     --geometry_summary results_archive/audit/geometry/geometry_summary.csv \
                        "$OUT/geometry_gap/geometry_summary.csv" \
     --out "$OUT/remerge_sweep_report" || echo "  remerge report skipped (no sweep outputs)"
+
+echo "== closeout: BECAME rescaled + order reversal (§1.36) =="
+# P2 compares against `control_uniform` (1/n at the SAME alpha*n through the same evaluation
+# path), not against the run's stored merge -- holding magnitude fixed is the whole point, so the
+# baseline has to share it. P3's forward-order OPCM baseline comes from the §1.35 sweep
+# directory. Exits non-zero if the order-reversal null check is inexact: plain summation is
+# order-inert, so an inexact row means the reversal moved something other than the order and every
+# P3 number is void.
+python -m incremental_ad.analysis.remerge_closeout_report --runs_root "$RUNS" \
+    --remerge_dir "$(carried remerge_closeout)" --forward_dir "$(carried remerge_sweep)" \
+    --floors "$OUT/floors.csv" \
+    --out "$OUT/remerge_closeout_report" || echo "  closeout report skipped (no sweep outputs)"
+
+echo "== claims register =="
+# Not an aggregation over runs: the register is what binds each *claim* to the evidence it rests
+# on, and its status column is derived by a rule rather than declared. Regenerated here so it
+# cannot drift from EXPERIMENTS.md -- the builder fails if a claim cites a section that no longer
+# exists or a dataset that is not in floors.csv.
+python "$REPO/scripts/build_claims_register.py" --self-test
+python "$REPO/scripts/build_claims_register.py" --out "$OUT"
 
 echo "== standalone HTML report =="
 # Rebuilt with every archive refresh so a stale copy cannot be committed unnoticed: it stamps
@@ -170,7 +203,7 @@ python "$REPO/scripts/build_results_report.py" --archive "$REPO/results_archive"
 echo "== carrying forward GPU-only outputs (not regenerated here) =="
 for sub in oracle_router concentration novelty_swat selection_probe drift \
            geometry novelty alignment subblocks mask_span window_selection remerge \
-           remerge_sweep geometry_gap geometry_aeft; do
+           remerge_sweep remerge_closeout geometry_gap geometry_aeft; do
     if [ -d "$CARRY/$sub" ] && [ ! -d "$OUT/$sub" ]; then
         cp -r "$CARRY/$sub" "$OUT/$sub"
         echo "  carried $sub from results_archive (regenerate with a GPU job if its runs changed)"

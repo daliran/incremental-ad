@@ -1,0 +1,41 @@
+document,line,text
+EXPERIMENTS.md,339,"call substantially more cells decisive, so sd keeps the conservative reading the floor always"
+EXPERIMENTS.md,344,"- **Percentages.** ""A beats B by p%"" is **always** p = (B − A) / B for an error metric — a"
+EXPERIMENTS.md,510,"dataset with the same drift was run; §1.26's *""merging never wins a decisive forecasting"
+EXPERIMENTS.md,556,"name is the single most damaging thing this file could contain, so `opcm_residual` is **never**"
+EXPERIMENTS.md,557,"called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** called BECAME."
+EXPERIMENTS.md,1152,"\* **Every dataset has a floor for every metric it reports** — the source experiment differs, not"
+EXPERIMENTS.md,1267,"decisive. Using sd preserves the conservative reading the floor always had, and is a choice"
+EXPERIMENTS.md,1278,"⚠️ **""Merging never wins"" is true of §1.26 and false of the wider table.** Across §1.5b's 48"
+EXPERIMENTS.md,1282,PSM's point-AUROC* — not that it never wins. The two tables disagree because they read different
+EXPERIMENTS.md,1430,"**What this costs the α\*·n claim.** It holds as *""order 1 on every dataset measured""* — every"
+EXPERIMENTS.md,1818,**Merging beats always-using-the-newest-specialist on all four forecasting datasets** — so if
+EXPERIMENTS.md,1941,"It also sharpens [THEORY.md §6.6](THEORY.md): if the optimal merge is always k·mean(τ), then at large n"
+EXPERIMENTS.md,2024,diagnostics always evaluates. At n=3 and n=5 on both ETTh2 and ETTm2 that extra point is
+EXPERIMENTS.md,2097,"four-dataset fix). Both mixed within- and between-dataset variation, so the value moved whenever"
+EXPERIMENTS.md,2159,"and 1.5 against floors of 8.2% and 5.3%. The limit was resolution and identifiability, never"
+EXPERIMENTS.md,2203,"If the newest data were always the most relevant, the newest specialist would win every regime"
+EXPERIMENTS.md,2242,**How the split is made.** The base model θ₀ always trains on the first 50% of the training
+EXPERIMENTS.md,2257,"variable. Test set, **3 seeds on every dataset**."
+EXPERIMENTS.md,2415,"Base 0.8415, joint 0.1362 — **83.8% headroom**, the largest of any dataset here, against a 6.7%"
+EXPERIMENTS.md,2528,widest of any dataset here; differences below that are not resolvable. Three seeds throughout.
+EXPERIMENTS.md,2587,"**GRR 0.927, specialisation 0.694** — the highest specialisation of any dataset measured, and"
+EXPERIMENTS.md,2620,That is false whenever α is **selected**: the selection scores the pooled validation union
+EXPERIMENTS.md,2729,"- **Merging never wins a decisive forecasting configuration** — 0 of 18 **in this table**, with"
+EXPERIMENTS.md,2793,"⚠️ **""Merging never wins a decisive forecasting configuration"" no longer holds.** That claim —"
+EXPERIMENTS.md,2858,deployment-realistic split — you always predict the future — but it gives no error bar for the
+EXPERIMENTS.md,2984,"conditions being pooled, pool the *ranks* or the *normalised* values, never the raw means. The"
+EXPERIMENTS.md,3127,published number uses 0.5 consistently — but the setting is a free parameter that was never
+EXPERIMENTS.md,3272,"**α\* ≈ 1/n replicates, on a dataset that was never used to derive it.**"
+EXPERIMENTS.md,3360,"little: its within-series drift is 0.112, the lowest of any dataset here (§0.1b), because it is a"
+EXPERIMENTS.md,3538,"in **all six** comparisons (+0.91% to +6.21%), so the sign never reverses. But only the two n = 3"
+EXPERIMENTS.md,3588,its weights always sum to 1 and the quantity is identically 1/n for *every* λ sequence —
+EXPERIMENTS.md,3904,concluded from one dataset that OPCM always hurts; it does not.
+EXPERIMENTS.md,4038,- **P1 — the paper's OPCM does not beat plain summation outside the floor on any dataset except
+EXPERIMENTS.md,4054,ETTh2's loss shrinks.** OPCM is order-dependent by construction: the first vector is never
+EXPERIMENTS.md,4098,"strength""* and never *""BECAME""* — the published method is the convex fold, and a variant that"
+EXPERIMENTS.md,4099,"changes its total strength is not it. Likewise `opcm_residual` (§1.31, §1.35) is never called the"
+EXPERIMENTS.md,4160,"**At the threshold the paper recommends, it loses on every dataset and every segment count: 0"
+EXPERIMENTS.md,4186,"At **n = 2 the paper's operator never wins** — its best threshold only ties, while the simplified"
+EXPERIMENTS.md,4260,distinctive**. A test that punishes every dataset cannot attribute exchange_rate's loss to
+EXPERIMENTS.md,5109,"normalisation — and the test split is transformed with the training scaler, never fit on. But"

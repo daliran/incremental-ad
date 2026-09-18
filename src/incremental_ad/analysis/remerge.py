@@ -35,6 +35,8 @@ import json
 import logging
 from pathlib import Path
 
+from incremental_ad.analysis.remerge_provenance import write_result
+
 log = logging.getLogger("remerge")
 
 
@@ -54,8 +56,20 @@ def committed_alpha(run: Path, args: dict) -> tuple[float, str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--run_dir", type=Path, required=True)
-    parser.add_argument("--merge_rule", choices=["sum", "opcm"], default="sum")
-    parser.add_argument("--coefficient_source", choices=["scale", "became"], default="scale")
+    parser.add_argument("--merge_rule", choices=["sum", "opcm", "opcm_paper"], default="sum",
+                        help="'opcm' is the SIMPLIFIED operator of §1.31/§1.35 (residual against "
+                             "the flattened predecessors); 'opcm_paper' is Tang et al. 2025 "
+                             "Algorithm 1 — two-sided projection out of the top-alpha singular "
+                             "subspace of the accumulated merged matrix, plus the norm-stabilising "
+                             "lambda. They are different rules and are never reported as one.")
+    parser.add_argument("--coefficient_source",
+                        choices=["scale", "became", "became_rescaled"], default="scale")
+    parser.add_argument("--reverse_order", action="store_true",
+                        help="feed the periods NEWEST-FIRST. Order is inert for plain summation "
+                             "and decisive for OPCM, which projects each incoming vector out of "
+                             "its predecessors' span: reversed, the newest shard is never "
+                             "projected and the oldest is projected most. This is the "
+                             "falsification test for the recency-filter hypothesis (§1.36).")
     parser.add_argument("--merge_scale", type=float, default=None,
                         help="for --coefficient_source scale; defaults to the run's committed α")
     parser.add_argument("--opcm_threshold", type=float, default=0.5)
@@ -151,8 +165,22 @@ def main() -> None:
 
     # --- the requested merge -------------------------------------------------------------------
     lambdas: list[float] = []
+    from incremental_ad.framework.merging.opcm import merge_opcm_paper
+
     transform = opcm_residual(args.opcm_threshold) if args.merge_rule == "opcm" else None
-    if args.coefficient_source == "became":
+    if args.merge_rule == "opcm_paper" and args.coefficient_source != "scale":
+        raise SystemExit("--merge_rule opcm_paper sets its own coefficients (Algorithm 1 line 14); "
+                         "it cannot be combined with a coefficient source")
+
+    # Order reversal happens here, *after* the self-check has validated the forward-order
+    # reconstruction, so a reversed run still proves it can rebuild the original merge first.
+    if args.reverse_order:
+        taus = list(reversed(taus))
+        ft_states = list(reversed(ft_states))
+        log.info("[remerge] periods reversed — newest first, so the newest shard is never "
+                 "projected and the oldest is projected most")
+
+    if args.coefficient_source in ("became", "became_rescaled"):
         segments = dataset.get_incremental_segments()
         if len(segments) != len(ft_states):
             raise SystemExit(f"{len(segments)} segments but {len(ft_states)} finetunes — the "
@@ -169,10 +197,49 @@ def main() -> None:
                                            max_batches=args.fisher_batches))
         model.load_state_dict(saved)
         weights, lambdas = became_weights(base_state, taus, fishers)
+        if args.coefficient_source == "became_rescaled":
+            # BECAME's *relative* weighting, at a chosen total strength.
+            #
+            # The convex fold pins the per-period weights to sum to 1, i.e. alpha*n = 1.0, whatever
+            # the Fishers say (§1.35). That conflates two questions: is the Fisher *weighting*
+            # useful, and is the *magnitude* right? This separates them — keep the ratios, rescale
+            # the total to the source run's committed alpha*n — and must be labelled
+            # "BECAME's weighting at a chosen strength", never "BECAME".
+            per_vector = became_weights_per_vector(lambdas)
+            total = sum(per_vector)
+            target = alpha * len(taus)
+            if total <= 0:
+                raise SystemExit("BECAME weights sum to zero — cannot rescale")
+            scaled = [w * target / total for w in per_vector]
+            # decay 1 with explicit per-vector coefficients: the fold then lands on
+            # theta_0 + sum(scaled_i * tau_i) rather than on a convex combination.
+            weights = [(1.0, w) for w in scaled]
+            log.info("[remerge] became_rescaled — relative weights %s rescaled to alpha*n=%.4f "
+                     "(committed alpha %.4f x %d shards)",
+                     [round(w / total, 4) for w in per_vector], target, alpha, len(taus))
     else:
         weights = [(1.0, alpha)] * len(taus)
 
-    merged = merge_sequential(base_state, taus, weights, transform=transform)
+    _uses_fisher = args.coefficient_source in ("became", "became_rescaled")
+    if args.merge_rule == "opcm_paper":
+        # The paper's OPCM sets its own magnitude (lambda^(t) pins the merged model at the mean
+        # task-vector norm from the base), so no merge scale applies to it. The committed alpha is
+        # still read and self-checked above — that is what the PLAIN-SUM comparison runs at — but
+        # it does not enter this merge, and pretending otherwise would not be the paper's method.
+        merged, opcm_info = merge_opcm_paper(base_state, taus, args.opcm_threshold)
+        log.info("[opcm_paper] alpha_threshold=%.2f  lambda^(T)=%.4f  mean||tau||=%.4f  "
+                 "||merged-base||=%.4f  norm_ratio=%.6f  implied alpha*n=%.4f  "
+                 "(%d matrices projected, %d tensors passed through)",
+                 args.opcm_threshold, opcm_info["lambda_final"],
+                 opcm_info["mean_task_vector_norm"], opcm_info["merged_norm"],
+                 opcm_info["norm_ratio"], opcm_info["implied_alpha_times_n"],
+                 int(opcm_info["projected_matrices"]), int(opcm_info["passthrough_tensors"]))
+        if abs(opcm_info["norm_ratio"] - 1.0) > 1e-6:
+            raise SystemExit(f"OPCM norm_ratio {opcm_info['norm_ratio']:.9f} != 1.0 — Theorem "
+                             f"5.2's rescaling did not hold, so this is not the paper's operator")
+    else:
+        opcm_info = {}
+        merged = merge_sequential(base_state, taus, weights, transform=transform)
     model.load_state_dict(merged)
 
     # --- evaluate ------------------------------------------------------------------------------
@@ -195,16 +262,23 @@ def main() -> None:
     payload = {
         "source_run": str(run), "merge_rule": args.merge_rule,
         "coefficient_source": args.coefficient_source,
+        "reverse_order": args.reverse_order,
         "alpha": alpha, "alpha_source": alpha_source,
         "opcm_threshold": args.opcm_threshold,
-        "fisher_batches": args.fisher_batches if args.coefficient_source == "became" else None,
-        "fisher_seed": args.fisher_seed if args.coefficient_source == "became" else None,
+        "fisher_batches": args.fisher_batches if _uses_fisher else None,
+        "fisher_seed": args.fisher_seed if _uses_fisher else None,
+        "implied_alpha_times_n": (round(opcm_info["implied_alpha_times_n"], 6) if opcm_info
+                                  else round(sum(c for _d, c in weights), 6)),
+        **{f"opcm_{k}": round(v, 6) for k, v in opcm_info.items()},
         "seed": run_args.get("seed"), "n_shards": len(taus), "metrics": metrics,
     }
-    (out_dir / "result.json").write_text(json.dumps(payload, indent=2))
-
     if lambdas:
-        per_vector = became_weights_per_vector(lambdas)
+        # For a rescaled run the realised per-vector weights are the fold's coefficients, not the
+        # convex ones — recording the convex values would make implied_alpha_times_n read 1.0 and
+        # hide the very thing this mode changes.
+        per_vector = ([coefficient for _decay, coefficient in weights]
+                      if args.coefficient_source == "became_rescaled"
+                      else became_weights_per_vector(lambdas))
         deviation = became_uniformity(lambdas)
         with (out_dir / "became_lambdas.csv").open("w", newline="") as fh:
             writer = csv.writer(fh)
@@ -219,7 +293,9 @@ def main() -> None:
                  100 * deviation)
     log.info("[remerge] %s", {k: round(v, 6) for k, v in metrics.items()
                               if isinstance(v, float)})
-    log.info("wrote %s", out_dir / "result.json")
+    # Written LAST and atomically: `result.json` is this run's commit marker, so a job killed at
+    # any earlier point leaves no file rather than a file a collector would happily read.
+    log.info("wrote %s", write_result(out_dir, payload))
 
 
 if __name__ == "__main__":

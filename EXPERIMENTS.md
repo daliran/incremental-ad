@@ -35,9 +35,12 @@ merge variant, the sequential variant and the joint-training reference. The AD d
 seed until the 16-point merge-scale reruns landed (§1.11).
 ## TL;DR
 
-- **Merging is essentially free once the scale is right.** One merged model performs within
-  ~1.0–1.1× of keeping a separate specialist per regime, on SWaT, PSM and ETTh1 — and this
-  holds at **every segment count tested** (§1.11). exchange_rate is the outlier at 1.6–2.1×.
+- **Merging is free on three of six datasets, and costs 1.5–2.1× on two of the others.** One
+  merged model performs within ~1.0–1.1× of a separate specialist per regime on **SWaT, PSM and
+  ETTh1**, at every segment count tested (§1.11). On **ETTh2 the cost grows with n** — 1.454 →
+  1.736 → 2.064 at n = 2/3/5 — and on **exchange_rate** 1.626 → 2.042 (§1.35). ⚠️ **"Merging is
+  essentially free" is an ETTh1/AD-pair property, not a general one**, and the two datasets with
+  the largest base-to-joint headroom are the two where it fails. `C01`.
 - **Start from the mean of the task vectors.** In the deployment parameterisation — fixed base
   model, n shards tiling the data that arrived after it — α\*·n stays order 1 on SWaT, PSM, ETTh1, ETTh2 and ETTm2, and
   ≈ 1.5 on exchange_rate. **This is an empirical regularity, not a law.** It does not survive a
@@ -493,6 +496,88 @@ its own three seeds, and the floor recomputes to **8.76%** against the published
 in §1.9 and §0.1b. SWaT's likewise moves from 0.13% to **0.09%** on three seeds. **No
 inside/outside-the-floor verdict anywhere in this file changes** — all thirteen margins compared
 against a floor keep their classification under the new values.
+
+
+### 0.7 The claims register — what each claim actually rests on
+
+> **Provenance.** `scripts/build_claims_register.py` →
+> `results_archive/audit/claims_register.csv`, `methods_register.csv`,
+> `unscoped_universals.csv`. `--self-test` proves the downgrade rule can fire.
+
+The checker verifies that numbers match their CSVs. Nothing verified that a **correct number was
+carrying a claim wider than it supports**, and that is where this project's real errors have been:
+§1.23 and §1.24 both started as *"under drift, X"* and became *"on small shards, X"* once a second
+dataset with the same drift was run; §1.26's *"merging never wins a decisive forecasting
+configuration"* was true of 18 cells and false across 48. Every cell involved reproduced.
+
+So each claim is recorded with the evidence it rests on, and **the status is derived, not
+asserted**:
+
+```
+kind == "mechanism" and (n_datasets < 3 or not falsification_tested)  ->  hypothesis
+```
+
+*Mechanism* claims say **why** something happens — those are the ones that outgrow their evidence
+if nobody stops them. *Measurement* claims are bounded by their own wording. *Scope* claims state
+a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
+allows; where they differ, **the prose is wrong** and `prose_action` says so.
+
+**34 claims: 23 supported, 5 hypothesis, 6 refuted.** The rule downgraded
+**1** claim the prose declared as a finding: `C23`, §1.35's recency-filter
+explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
+until §1.36's P3. That paragraph is now marked as a hypothesis in place.
+
+#### Claims that are not findings
+
+| id | claim | § | datasets | why it is not settled |
+|---|---|---|---|---|
+| `C03` | alpha*.n rises with n on PSM because the task vectors de-align | 1.18 | PSM | Already reported as mechanistically uncorroborated in §1.18: ETTh1 de-aligns fastest and has the flattest product, so the geometry points the other way. |
+| `C22` | Fisher weighting itself contributes nothing beyond setting the merge magnitude | 1.36 | SWaT,PSM,PSM-forecast | Registered as §1.36 P2 before the runs. |
+| `C23` | OPCM helps on exchange_rate at n<=3 because it acts as a recency filter | 1.35, 1.36 | exchange_rate | §1.35 asserts it as a finding - 'OPCM is not a merge improvement; it is a recency filter, and it pays exactly where recency pays' - on ONE dataset with no test that could have broken it. |
+| `C31` | OPCM hurts most where there is most base-to-joint headroom | 1.35 | ETTh2,ETTm2 | §1.35 already labels it 'a hypothesis from six points, not a finding'. Recorded so it is not later quoted as one. |
+| `C34` | The paper's OPCM loses because of its fixed magnitude, not its projection | 1.36 | — | All 72 paper-OPCM cells land at implied alpha*n 1.063-1.696, above 1.0 on every one, because Thm 5.2 pins the merge to the mean task-vector norm while §1.18 puts alpha*.n at order 1 - so the operator starts 1.1-1.7x overshot before the projection acts. |
+
+#### Claims this file records as refuted
+
+Kept rather than deleted, because each is quoted somewhere and a deleted claim cannot be found
+by someone repeating it.
+
+| id | claim | § | what happened |
+|---|---|---|---|
+| `C19` | Merging never wins a decisive forecasting configuration | 1.26 | Withdrawn in-place at §1.26: true of that table's 18 cells, false across §1.5b's 48. |
+| `C20` | OPCM's cost grows with the accumulated-subspace overlap rho | 1.35 | Registered as P1 before the sweep and refuted by it: the cost does not order by rho. |
+| `C24` | lambda* is unstable because the Fisher estimate is noisy | 1.32 | §1.32 ran the falsification test and the estimate saturates at the full pass - the instability is not sampling noise. |
+| `C25` | Attention-exclusive fine-tuning (the testable half of QOMM) helps | 1.33 | Measured and did not clear the floor. |
+| `C26` | The simplified OPCM operator (§1.31, §1.35) is the paper's OPCM | 1.31, 1.35, 1.36 | Never claimed and must never be: `opcm_residual` projects out the span of the flattened predecessors; the paper's operator (Tang et al., NeurIPS 2025, Algorithm 1) projects out the top-alpha singular subspace of the ACCUMULATED MERGED matrix, on both sides, drops the i==j diagonal, and carries a norm-stabilising lambda. |
+| `C28` | The winner survives moving the train/test cut (rolling origin) | 1.27, 1.27a | It does not: the ranking is unstable across origins. |
+
+#### The method list — what was implemented, and what it found
+
+"Partial" is the load-bearing row type. A partial implementation reported under the full method's
+name is the single most damaging thing this file could contain, so `opcm_residual` is **never**
+called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** called BECAME.
+
+| method | implemented | why | what was found |
+|---|---|---|---|
+| Task arithmetic (plain sum at alpha) | **full** | The project's baseline throughout; merge is bitwise reproducible from checkpoints (412/412). | alpha* ~ 1/n in the deployment parameterisation; merging within 1.0-1.1x of specialists on SWaT/PSM/ETTh1 but 1.5-2.1x on ETTh2/exchange_rate (C01). |
+| OPCM - residual against flattened predecessors | **partial** | Implemented and run everywhere, but this is a SIMPLIFICATION of the published operator, labelled as such in every section that uses it (C26). | Cost does not scale with rho (C20, refuted). Helps on exchange_rate at n<=3; mechanism under test as C23. |
+| OPCM - paper operator (Tang et al., NeurIPS 2025, Algorithm 1) | **full** | Implemented from the paper once it was supplied: full SVD of the accumulated merged task matrix, two-sided projection out of the top-alpha singular subspace, i==j dropped, norm-stabilising lambda, 1-D tensors passed through. Eq. 8 and Thm 5.2 are asserted as unit checks rather than assumed (`verify_merge_rules.py`). | Takes no merge scale - it fixes its own magnitude at the mean task-vector norm (C33). On ETTh1 that lands at alpha*n = 1.60 against the 1.00 validation selected, and the merge is decisively worse than plain summation at every threshold, worsening monotonically as the threshold rises (§1.36 P1). |
+| BECAME - Fisher-weighted convex fold | **full** | Implemented with diagonal Fishers per shard and lambda* solved per step. | Its total strength is pinned at alpha.n = 1.0 by the convex fold, verified per run (C21). lambda* instability is not Fisher sampling noise (C24, refuted). |
+| BECAME's weighting at a chosen strength (rescaled) | **full** | Added in §1.36 to separate weighting from magnitude. NOT BECAME, and never labelled as it. | Pending - registered as P2 (C22). |
+| QOMM | **partial** | Only the attention-exclusive fine-tuning half is testable with this backbone; the quadratic-form outer-product machinery is not implemented. | The testable half does not clear the floor (C25, refuted). |
+| AEFT (attention-exclusive fine-tuning) | **full** | Run on ETTh1 and exchange_rate with its own geometry report. | No effect above the floor (C25). |
+| Fisher-weighted averaging (non-sequential) | **not run** | Subsumed by BECAME, which is the sequential Fisher method and was the one asked for. | - |
+| Sequential / continual fine-tuning with L2-SP | **full** | Opt-in in StandardTrainer; the early-stopping confound was found and fixed 2026-08-06. | The recorded rejection of L2-SP is WITHDRAWN, not confirmed - cross-lambda comparison was confounded and must be re-tested before any claim is made (§3.1). |
+| Window retraining (W periods of retained history) | **full** | W = 1/2/3 on four forecasting datasets, plus honest validation-based budget selection. | Merging is worth 2-4 periods of history, dataset-dependent (C04). |
+| Routing / regime indicator | **partial** | A per-window ORACLE router only; no buildable router exists, and it cannot be computed on AD from these runs at all (C17). | Routing's advantage is real in the weakest possible sense - as an upper bound (C16). |
+
+#### The freeze
+
+**No merging experiment is added after 2026-09-18 unless it maps to a row in
+`claims_register.csv` whose status is not `supported`** — i.e. unless there is a stated open
+question it answers. Recorded in CLAUDE.md. The advanced-merging chapter has three such rows
+(`C23`, `C31`, `C34`) — `C22` was closed by §1.36's P2. Everything else is settled or refuted,
+and re-measuring a settled claim is not a result.
 
 
 ## 1. Current results — complete snapshot (2026-08-06)
@@ -1796,9 +1881,11 @@ column against §1.26 so the two cannot drift again.
 | a 3-period window retrain | 7 / 12 | 3 periods of raw data |
 | joint training | 5 / 12 | the entire series |
 
-**Routing's advantage over merging is real and universal — and that is the weakest possible
-reading of it.** A perfect router beats the merged model in every one of the twelve
-configurations, which is what §1.16's headroom already implied. But it beats a plain 3-period
+**Routing's advantage over merging holds in all twelve configurations measured — and that is
+the weakest possible reading of it.** *Twelve* means ETTh1, ETTh2, ETTm2 and exchange_rate at
+n = 2/3/5; **it is not a statement about anomaly detection, where a per-regime router cannot be
+computed from these runs at all (§1.16).** Within that scope a perfect router beats the merged
+model in every one of the twelve configurations, which is what §1.16's headroom already implied. But it beats a plain 3-period
 window retrain in only 7, and that window keeps **no models at all** while routing keeps n of
 them plus selection logic. Against joint training it wins 5 of 12.
 
@@ -2512,9 +2599,14 @@ mechanism is visible in the numbers and it is not a dataset property: **continua
 the merge is roughly flat (0.1121 → 0.1385). Merging wins there because its competitor
 collapses, which is the same mechanism recorded on exchange_rate (0.220 → 0.362 → 0.531).
 
-**This is a property of continual fine-tuning, not of any dataset**, and it is the one
-genuinely general finding in the merge-versus-continual comparison: *the more update steps you
-chain, the worse continual fine-tuning gets, while merging holds.*
+**This looks like a property of continual fine-tuning rather than of a particular dataset** —
+*the more update steps you chain, the worse continual fine-tuning gets, while merging holds* — and
+it is the most general finding in the merge-versus-continual comparison. ⚠️ **Scope: two
+datasets.** It is measured on ETTm2 (0.0920 → 0.1839 from n = 3 to n = 5, against a 14.11% floor)
+and exchange_rate (0.220 → 0.362 → 0.531, 5.73% floor). **ETTh2 is the counterexample to the
+stronger reading**: sequential beats merging at all three segment counts there (§1.23), so
+"continual degrades" is not the same as "continual loses". Registered as `C07` in
+`results_archive/audit/claims_register.csv`.
 ---
 
 ### 1.25 What merging actually retains, and what a pre-declared α costs
@@ -2641,7 +2733,7 @@ allowed the most data. The table's value is in the exceptions and the magnitudes
   chosen on validation, and merging then wins exchange_rate n = 5 decisively. Read this bullet as
   scoped to the table above. Its two wins are PSM (detection) at 0.1%
   margins, on a dataset whose base is already within 3.4% of joint.
-- **Sequential never wins one either** — 0 of 24. Yet §1.13 has sequential beating merging **8–3**
+- **Sequential wins none of them either** — 0 of 24 **in this table**, same scope and same caveat as the bullet above. Yet §1.13 has sequential beating merging **8–3**
   on decisive forecasting configurations. Both statements are true: the two are competing for
   third place behind joint and window, and §1.13 is a comparison *among the also-rans*. That
   context is missing wherever merge-vs-sequential is quoted alone.
@@ -3817,9 +3909,18 @@ hurts** — joint training is the *worst* of the five methods there (0.3957 agai
 0.3626), and a 3-period window beats using all history by 26%. OPCM removes from each incoming
 task vector the component already spanned by its predecessors, i.e. the part that re-edits
 directions the *older* shards already claimed. Where those older directions are stale, discarding
-them is a gain rather than a loss. **OPCM is not a merge improvement; it is a recency filter, and
-it pays exactly where recency pays.** The reversal at n = 5 fits: at 607-row shards (§1.24) each
-task vector is estimated from too little for its unique component to survive on its own.
+them is a gain rather than a loss. On that reading **OPCM is not a merge improvement but a recency
+filter, paying where recency pays** — and the reversal at n = 5 fits, because at 607-row shards
+(§1.24) each task vector is estimated from too little for its unique component to survive on its
+own.
+
+⚠️ **That mechanism is a hypothesis, not a finding — one dataset, and no test that could have
+broken it** (`C23` in `results_archive/audit/claims_register.csv`). It is stated here as the
+coherent reading of the numbers, not as something measured. **§1.36's P3 is the test**: a recency
+filter must depend on the order the periods arrive in, so feeding them newest-first should destroy
+the gain. **If the gain survives reversal, this paragraph is refuted and must be deleted**,
+leaving only what does not depend on it — *OPCM beats plain summation on exchange_rate at n = 2
+and n = 3, at all three thresholds, against a 5.73% floor; mechanism unexplained* (`C32`).
 
 #### P2 — "BECAME is pinned at α·n = 1.0 and recovers little on AD" — CONFIRMED
 
@@ -3918,6 +4019,261 @@ property, not a general one.**
 steps accumulate" survives as a description of *failure modes*, and the forgetting half is now
 measured. But the implied asymmetry — that merging's cost is bounded while sequential's grows —
 does not: on ETTh2 **both** grow with n, merging faster than the chain forgets.
+
+### 1.36 Closing the advanced-merging chapter — three falsification tests
+
+> **Provenance.** `scripts/generate_remerge_closeout.py` → `analysis/remerge.py` →
+> `analysis/remerge_report.py` → `results_archive/audit/remerge_closeout/`.
+> **Training-free throughout**: every row recombines checkpoints that already exist, at the
+> strength the source run committed to. Nothing here is tuned; no model is retrained. Authoritative
+> runs come from `analysis_specs/method_comparison_spec.csv`, not from name prefixes, and
+> `remerge.py` rebuilds each source run's own merge **bitwise** before emitting any new number.
+
+§1.35 left three questions open, each of which can be *settled* rather than explored, because each
+is a re-combination of existing weights. All three predictions below are registered **before the
+runs**, and the section is written so that the uncomfortable outcome of each is the one that gets
+reported.
+
+⚠️ **Predictions, registered before the sweep (2026-09-18):**
+
+- **P1 — the paper's OPCM does not beat plain summation outside the floor on any dataset except
+  exchange_rate at n ≤ 3.** §1.35's operator is the simplified one (residual against *flattened*
+  predecessors); the paper's projects against the top-k singular subspace of the **accumulated
+  merged matrix**, on both sides, with a norm-stabilising λ. If the full operator wins somewhere
+  the simplified one does not, *that is the headline* and the simplification was the problem. If
+  it loses on exchange_rate where the simplified one wins, then **the exchange win belongs to the
+  simplified variant** and must be reported under that name, not as "OPCM helps".
+- **P2 — BECAME's weighting at the source run's α·n ties plain summation at the same α·n.**
+  §1.35 found BECAME's total strength structurally pinned at α·n = 1.0 by its convex fold. That
+  confounds *weighting* with *magnitude*: it cannot say whether Fisher weights help, only that the
+  package lands at the wrong strength. Rescaling the relative weights to the committed α·n
+  separates them. A tie means **magnitude was the whole story and Fisher weighting is inert here**;
+  a win means the weighting was doing work that the strength mismatch was hiding. The 1/n control
+  at the *same* α·n is run through the same code path and reported as its own column, so the
+  comparison is not against a differently-computed number.
+- **P3 — under reversed period order the exchange_rate OPCM gain disappears or becomes a loss, and
+  ETTh2's loss shrinks.** OPCM is order-dependent by construction: the first vector is never
+  projected and the last is projected most. The recency-filter reading of §1.35 — that OPCM helps
+  on exchange_rate because it preserves what the newest shard adds — predicts that feeding periods
+  newest-first destroys the gain. **If the gain survives reversal, the recency-filter explanation
+  is refuted**, must be removed from the findings, and what remains is the bare measurement:
+  "OPCM helps on exchange_rate at n ≤ 3; mechanism unexplained."
+
+#### The paper's operator, as implemented
+
+> Tang, Yang, Shen, Luo, Hu, Zhang, Du, Tao. *Merging on the Fly Without Retraining: A Sequential
+> Approach to Scalable Continual Model Merging.* NeurIPS 2025.
+> Implemented in `framework/merging/opcm.py` (`merge_opcm_paper`) **after** P1 was registered
+> above, and kept in its own module so it cannot be reached by editing `opcm_residual`.
+
+Algorithm 1, with the lines that matter here:
+
+| paper | what it does | this project |
+|---|---|---|
+| line 1 | θ_merged⁽¹⁾ = θ⁽¹⁾, λ⁽¹⁾ = 1 — the first expert enters whole, unprojected | at n = 1 the merge **is** `finetune_0` |
+| line 6, §4 | P_α(ΔW) = Σ_{i,j ≥ r_α, i≠j} ⟨ΔW, uᵢvⱼᵀ⟩_F uᵢvⱼᵀ over the **full SVD of the accumulated merged matrix** ΔW_merged⁽ᵗ⁻¹⁾ | two-sided cut at r_α, plus the i = j diagonal |
+| line 13 | n⁽ᵗ⁾ = mean of ‖Δθ⁽ⁱ⁾‖₂ | — |
+| line 14 | λ⁽ᵗ⁾ = ‖λ⁽ᵗ⁻¹⁾Δθ_merged⁽ᵗ⁻¹⁾ + Δθ_proj⁽ᵗ⁾‖₂ ⁄ n⁽ᵗ⁾ | — |
+| Eq. 8 (Thm 5.1) | ⟨P_α(ΔW⁽ᵗ⁾), ΔW_merged⁽ᵗ⁻¹⁾⟩_F = 0 | asserted per matrix in `verify_merge_rules.py` |
+| Thm 5.2 | the merged model's distance from θ₀ stays bounded | asserted as an **equality**: ‖θ_merged − θ₀‖₂ = mean‖Δθ⁽ⁱ⁾‖₂ |
+
+Two things are worth stating before any number arrives, because they are structural rather than
+empirical.
+
+**The orthogonality is not what the threshold buys.** Eq. 8 follows from excluding i = j alone —
+⟨uᵢvⱼᵀ, UΣVᵀ⟩_F = σᵢδ_{ij} — so r_α is a knowledge-retention knob, not the thing that makes the
+projection orthogonal. Both are checked separately, and the projection is asserted non-zero so
+neither check can pass vacuously.
+
+**⚠️ OPCM takes no merge scale, and that is the interesting part.** λ⁽ᵗ⁾ pins ‖θ_merged − θ₀‖₂ to
+the *mean task-vector norm*, exactly. So the paper's method **chooses its own magnitude**, and no
+validation procedure in this project can move it — the same structural situation as BECAME's
+convex fold (§1.35, `C21`), reached by a different route. Recorded as `C33`. The comparison here
+is therefore "the paper's rule at the magnitude it fixes" against "plain summation at the
+magnitude the run committed to", and every row carries `implied_alpha_times_n` so a loss cannot be
+read as a projection effect when it is a magnitude effect. On the first run measured — ETTh1
+n = 5 — OPCM lands at **α·n = 1.60** where that run's validation selected **1.00**, which is the
+region §1.18 says is already past the optimum on this dataset.
+
+**Naming discipline.** The rescaled-BECAME rows are labelled *"BECAME's weighting at a chosen
+strength"* and never *"BECAME"* — the published method is the convex fold, and a variant that
+changes its total strength is not it. Likewise `opcm_residual` (§1.31, §1.35) is never called the
+paper's method anywhere in this file.
+
+#### Results — status of the three tests
+
+> **Status, 2026-09-18. Complete: 342 of 342 re-merges, all three tests at full seed count**
+> (P1 96/96 cells, P2 7/7, P3 12/12; 450/450 results carry the provenance stamp). The CSV carries
+> `n_seeds_expected` and `complete` per row, and the collector counts cells *attempted* against
+> cells *emitted*, because a per-row flag cannot report a row that is missing altogether — P1 read
+> as "72/72 complete" while a quarter of its cells did not exist.
+
+**Provenance.** 365/365 collected results carry the schema stamp, atomic-commit marker and code
+fingerprint (`analysis/remerge_provenance.py`, negative-tested seven ways). Each run rebuilt its
+source merge bitwise before emitting anything.
+
+#### The null check — plain summation under reversal, which gates the reversal test
+
+Plain summation is order-inert, so `sum --reverse_order` must reproduce each run's stored merge.
+**12 of 12 agree to within 1e-6 relative, worst case 1.15e-7.**
+
+That tolerance is derived, not fitted: summing *n* float32 terms carries relative error ~*n*·ε with
+ε ≈ 1.2e-7, and `apply_task_vectors` sums the task vectors before scaling, so reversing the list
+reorders the additions. 1e-6 sits an order above that, **four orders below the smallest floor**
+here (PSM, 0.07%) and **five below the order effect OPCM actually produces** (1.2e-3 in
+`verify_merge_rules.py`). An earlier version demanded bitwise equality and flagged five cells that
+differed by ~1.5e-8 — the check was wrong, not the code.
+
+#### P1 — the paper's OPCM — CONFIRMED, and more strongly than predicted
+
+**All 96 cells present at full seed count.** Baseline is the run's stored plain-sum merge at the
+strength it committed to; positive = OPCM is worse. Below is the paper's **own recommended
+threshold, α ≈ 0.5** (its Figure 6b optimum is a flat 0.4–0.6). The full 96-cell sweep across
+0.3/0.5/0.7 is in `remerge_closeout.csv`.
+
+| dataset | n | plain sum | paper OPCM α=0.5 | delta | floor | verdict |
+|---|---|---|---|---|---|---|
+| ETTh1 | 2 | 0.4597 | 0.5339 | +16.14% | 8.76% | worse |
+| ETTh1 | 3 | 0.4964 | 0.6537 | +31.70% | 8.76% | worse |
+| ETTh1 | 5 | 0.4517 | 0.5637 | +24.80% | 8.76% | worse |
+| ETTh2 | 2 | 0.2612 | 0.4037 | +54.53% | 6.74% | worse |
+| ETTh2 | 3 | 0.2153 | 0.2505 | +16.36% | 6.74% | worse |
+| ETTh2 | 5 | 0.2669 | 0.3091 | +15.80% | 6.74% | worse |
+| ETTm2 | 2 | 0.1240 | 0.1447 | +16.72% | 14.11% | worse |
+| ETTm2 | 3 | 0.1121 | 0.1503 | +34.01% | 14.11% | worse |
+| ETTm2 | 5 | 0.1385 | 0.2214 | +59.84% | 14.11% | worse |
+| exchange | 2 | 0.2554 | 0.3326 | +30.21% | 5.73% | worse |
+| exchange | 3 | 0.3626 | 0.3880 | +7.01% | 5.73% | worse |
+| exchange | 5 | 0.3271 | 0.4977 | +52.19% | 5.73% | worse |
+| SWaT | 2 | 0.8044 | 0.7992 | +0.65% | 0.09% | worse |
+| SWaT | 3 | 0.8037 | 0.7980 | +0.71% | 0.09% | worse |
+| SWaT | 5 | 0.8049 | 0.7977 | +0.89% | 0.09% | worse |
+| PSM | 2 | 0.8041 | 0.7954 | +1.08% | 0.07% | worse |
+| PSM | 3 | 0.8005 | 0.7872 | +1.66% | 0.07% | worse |
+| PSM | 5 | 0.7944 | 0.7800 | +1.81% | 0.07% | worse |
+| PSM-forecast | 2 | 0.3630 | 0.3690 | +1.67% | 1.16% | worse |
+| PSM-forecast | 3 | 0.3925 | 0.4396 | +11.99% | 1.16% | worse |
+| PSM-forecast | 5 | 0.4036 | 0.4384 | +8.62% | 1.16% | worse |
+| SWaT-forecast | 2 | 14.8590 | 15.1497 | +1.96% | 84.23% | tie (inside floor) |
+| SWaT-forecast | 3 | 4.7604 | 4.5628 | -4.15% | 84.23% | tie (inside floor) |
+| SWaT-forecast | 5 | 5.2445 | 5.0753 | -3.23% | 84.23% | tie (inside floor) |
+
+**At the threshold the paper recommends, it loses on every dataset and every segment count: 0
+better, 3 ties, 21 worse.** Widening to all three thresholds, 72 cells give **2 better, 12 ties,
+58 worse**, and the two wins are exchange_rate n = 3 (−15.34%) and PSM-forecast n = 5 (−2.32%),
+both only at α = 0.3.
+
+P1 predicted "no win outside the floor except exchange_rate at n ≤ 3". That holds, with one
+qualification in the project's favour and one against: the exchange win appears only at n = 3, not
+n ≤ 3, and one unforeseen win turns up on PSM-forecast at n = 5.
+
+#### The exchange_rate win belongs to the simplified variant, and P1 said to report that
+
+| n | rule | MSE | delta vs plain | verdict |
+|---|---|---|---|---|
+| 2 | paper OPCM alpha=0.3 | 0.2486 | -2.65% | tie (inside floor) |
+| 2 | paper OPCM alpha=0.5 | 0.3326 | +30.21% | worse |
+| 2 | paper OPCM alpha=0.7 | 0.4246 | +66.24% | worse |
+| 2 | simplified OPCM (1.35) | 0.2276 | -10.88% | better |
+| 3 | paper OPCM alpha=0.3 | 0.3070 | -15.34% | better |
+| 3 | paper OPCM alpha=0.5 | 0.3880 | +7.01% | worse |
+| 3 | paper OPCM alpha=0.7 | 0.4540 | +25.23% | worse |
+| 3 | simplified OPCM (1.35) | 0.3112 | -14.18% | better |
+| 5 | paper OPCM alpha=0.3 | 0.4233 | +29.42% | worse |
+| 5 | paper OPCM alpha=0.5 | 0.4977 | +52.19% | worse |
+| 5 | paper OPCM alpha=0.7 | 0.5518 | +68.71% | worse |
+| 5 | simplified OPCM (1.35) | 0.3522 | +7.70% | worse |
+
+At **n = 2 the paper's operator never wins** — its best threshold only ties, while the simplified
+residual is decisively better (−10.88%). At n = 3 both win, the simplified one at the threshold
+actually used throughout §1.35. So §1.35's exchange_rate result is a property of
+**`opcm_residual`, the simplified operator**, not of the published method, exactly as P1 required
+it be reported if this came out.
+
+#### ⚠️ The likely cause is magnitude, not projection — and it is untested
+
+`implied_alpha_times_n` across all 72 paper-OPCM cells: **min 1.063, median 1.322, max 1.696 —
+above 1.0 on every single one.** That is forced: Theorem 5.2 pins ‖θ_merged − θ₀‖₂ to the *mean*
+task-vector norm, which is the same magnitude as α·n = 1 only when the task vectors are mutually
+orthogonal. §1.18 puts this project's α\*·n at **order 1**, so **OPCM starts every merge
+overshooting by 1.1–1.7× before its projection does anything at all.** `norm_ratio = 1.000000` on
+all 252 merges, so this is structural, not drift.
+
+**This is the third method in this file whose update rule fixes its own strength** — BECAME at
+α·n = 1.0 exactly (`C21`), BECAME's weighting once rescaled (`C22`), and now OPCM at 1.06–1.70
+(`C33`). On these datasets that is what decides the outcome, not the clever part of the rule.
+
+**It is a hypothesis, not a finding.** Separating the two needs the same treatment P2 gave BECAME:
+re-run the paper's projection while rescaling to the committed α·n, and see whether the loss
+survives. That experiment maps to an open register row, so the freeze permits it. Until it is run,
+the honest statement is *"the paper's OPCM loses here, and its fixed magnitude is the leading
+suspect."*
+
+#### P2 — "Fisher weighting adds nothing once magnitude is controlled" — CONFIRMED
+
+Baseline is uniform 1/n at the **same** α·n, run through the same evaluation path. Positive = the
+Fisher weighting is worse.
+
+| dataset | n | uniform 1/n | BECAME weighting | delta | floor | verdict |
+|---|---|---|---|---|---|---|
+| SWaT | 2 | 0.8044 | 0.8045 | -0.01% | 0.09% | tie (inside floor) |
+| SWaT | 3 | 0.8037 | 0.8039 | -0.02% | 0.09% | tie (inside floor) |
+| SWaT | 5 | 0.8049 | 0.8052 | -0.04% | 0.09% | tie (inside floor) |
+| PSM | 2 | 0.8041 | 0.8040 | +0.02% | 0.07% | tie (inside floor) |
+| PSM | 3 | 0.8005 | 0.7995 | +0.11% | 0.07% | worse |
+| PSM | 5 | 0.7944 | 0.7836 | +1.36% | 0.07% | worse |
+| PSM-forecast | 3 | 0.3925 | 0.3891 | -0.85% | 1.16% | tie (inside floor) |
+
+**Five of seven are ties, and neither exception favours Fisher weighting.** PSM n = 5 is
+**+1.36% against a 0.07% floor — 19× the floor** — decisively worse. `implied_alpha_times_n`
+equalled the committed α·n on every row, so the rescale did what it claims and the comparison is
+at matched magnitude.
+
+This closes the question §1.35 could not: BECAME's convex fold conflates *weighting* with
+*magnitude*, and once magnitude is held fixed **the weighting contributes nothing, and at larger
+n it costs**. `C22`.
+
+#### P3 — order reversal — the exchange half holds, but the test does not isolate what it was run to isolate
+
+Baseline is forward-order OPCM at the same threshold. Positive = reversed is worse.
+
+| dataset | n | OPCM forward | OPCM reversed | delta | floor | verdict |
+|---|---|---|---|---|---|---|
+| ETTh1 | 2 | 0.4558 | 0.5091 | +11.69% | 8.76% | worse |
+| ETTh1 | 3 | 0.4914 | 0.5610 | +14.15% | 8.76% | worse |
+| ETTh1 | 5 | 0.4612 | 0.5130 | +11.21% | 8.76% | worse |
+| ETTh2 | 2 | 0.2919 | 0.2865 | -1.88% | 6.74% | tie (inside floor) |
+| ETTh2 | 3 | 0.2646 | 0.3229 | +22.01% | 6.74% | worse |
+| ETTh2 | 5 | 0.4400 | 0.4192 | -4.74% | 6.74% | tie (inside floor) |
+| ETTm2 | 2 | 0.1269 | 0.1757 | +38.47% | 14.11% | worse |
+| ETTm2 | 3 | 0.1186 | 0.1830 | +54.30% | 14.11% | worse |
+| ETTm2 | 5 | 0.1546 | 0.2309 | +49.34% | 14.11% | worse |
+| exchange | 2 | 0.2276 | 0.2578 | +13.25% | 5.73% | worse |
+| exchange | 3 | 0.3112 | 0.3412 | +9.67% | 5.73% | worse |
+| exchange | 5 | 0.3522 | 0.3651 | +3.64% | 5.73% | tie (inside floor) |
+
+**On its face the prediction lands:** reversing the periods destroys the exchange_rate win at
+n = 2 (+13.25%) and n = 3 (+9.67%) against a 5.73% floor.
+
+⚠️ **But it cannot be read as support for the recency-filter mechanism, and §1.35's paragraph
+stays a hypothesis.** Reversal is decisively worse on *every* dataset — ETTm2 +38% to +54%, ETTh1
++11% to +14%, ETTh2 +22% at n = 3 — and exchange_rate's penalty is **mid-range, not
+distinctive**. A test that punishes every dataset cannot attribute exchange_rate's loss to
+recency rather than to the general cost of reversing. This is §1.27's failure repeated: the design
+moves more than the variable it was meant to isolate.
+
+**The second half of P3 is refuted outright.** It predicted ETTh2's loss would *shrink* under
+reversal. It grew — +22.01% on top of the +22.92% §1.35 already reports at n = 3.
+
+**And the mechanism as written does not fit the direction of the effect.** Under reversal the
+*newest* shard enters unprojected and the *older* ones are stripped against it. On exchange_rate,
+the one dataset where §1.24 shows old data actively hurts, stripping the old shards should have
+*helped*. It did not. Whatever OPCM is doing on exchange_rate, "discarding stale directions" is
+not a sufficient account of it.
+
+So `C23` stays `hypothesis`: the falsification test ran and came back **inconclusive**, not
+supporting. What survives unchanged is the measurement (`C32`) — OPCM beats plain summation on
+exchange_rate at n = 2 and n = 3, at all three thresholds, mechanism unexplained.
 
 ## 2. Exact configurations
 

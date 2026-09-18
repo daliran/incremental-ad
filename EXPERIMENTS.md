@@ -522,7 +522,7 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**34 claims: 23 supported, 4 hypothesis, 7 refuted.** The rule downgraded
+**34 claims: 24 supported, 3 hypothesis, 7 refuted.** The rule downgraded
 **1** claim the prose declared as a finding: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3. That paragraph is now marked as a hypothesis in place.
@@ -532,7 +532,6 @@ until §1.36's P3. That paragraph is now marked as a hypothesis in place.
 | id | claim | § | datasets | why it is not settled |
 |---|---|---|---|---|
 | `C03` | alpha*.n rises with n on PSM because the task vectors de-align | 1.18 | PSM | Already reported as mechanistically uncorroborated in §1.18: ETTh1 de-aligns fastest and has the flattest product, so the geometry points the other way. |
-| `C22` | Fisher weighting itself contributes nothing beyond setting the merge magnitude | 1.36 | SWaT,PSM,PSM-forecast | Registered as §1.36 P2 before the runs. |
 | `C23` | OPCM helps on exchange_rate at n<=3 because it acts as a recency filter | 1.35, 1.36 | exchange_rate | §1.35 asserts it as a finding - 'OPCM is not a merge improvement; it is a recency filter, and it pays exactly where recency pays' - on ONE dataset with no test that could have broken it. |
 | `C31` | OPCM hurts most where there is most base-to-joint headroom | 1.35 | ETTh2,ETTm2 | §1.35 already labels it 'a hypothesis from six points, not a finding'. Recorded so it is not later quoted as one. |
 

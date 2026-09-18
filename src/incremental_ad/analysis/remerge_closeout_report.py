@@ -27,6 +27,7 @@ import argparse
 import csv
 import json
 import logging
+import re
 import statistics as st
 from collections import defaultdict
 from pathlib import Path
@@ -55,7 +56,8 @@ FIELDS = ["test", "dataset", "n_segments", "metric", "n_seeds", "floor_pct",
           "baseline_label", "baseline", "baseline_sd",
           "variant_label", "variant", "variant_sd", "delta_pct", "verdict",
           "committed_alpha", "target_alpha_times_n", "implied_alpha_times_n",
-          "opcm_norm_ratio", "distance_ratio", "alpha_n_ok", "n_seeds_expected", "complete",
+          "threshold", "opcm_norm_ratio", "distance_ratio", "alpha_n_ok",
+          "n_seeds_expected", "complete",
           "source_experiment"]
 
 
@@ -68,6 +70,16 @@ REVERSAL_DATASETS = {"exchange", "ETTh2", "ETTh1", "ETTm2"}
 def in_p2_scope(entry: dict) -> bool:
     return ((entry["dataset"], None) in BECAME_SCOPE
             or (entry["dataset"], entry["n"]) in BECAME_SCOPE)
+
+
+def threshold_of(tag: str) -> float | str:
+    """The projection threshold encoded in a tag like ``opcm_paper_t050`` -> 0.5.
+
+    Tags carry it as three digits of hundredths. Returning "" for a tag that has none keeps the
+    column blank for the rules that have no threshold (BECAME) rather than inventing a value.
+    """
+    match = re.search(r"_t(\d{3})$", tag)
+    return round(int(match.group(1)) / 100, 2) if match else ""
 
 
 def higher_is_better(metric: str) -> bool:
@@ -149,7 +161,7 @@ def summarise(test: str, entry: dict, floor, pairs: list[tuple],
         "variant_sd": round(st.stdev(variants), 6) if len(variants) > 1 else 0.0,
         "delta_pct": round(delta, 3), "verdict": verdict,
         "committed_alpha": "", "target_alpha_times_n": "", "implied_alpha_times_n": "",
-        "opcm_norm_ratio": "", "distance_ratio": "", "alpha_n_ok": "",
+        "threshold": "", "opcm_norm_ratio": "", "distance_ratio": "", "alpha_n_ok": "",
         # Carried IN THE FILE, not only in stdout. A CSV is read long after the run that made it,
         # and "3 rows built from fewer seeds" printed to a terminal does not survive into the
         # archive. Without this, a row averaged over 1 seed is indistinguishable from one averaged
@@ -269,6 +281,7 @@ def main() -> None:
             row = summarise("P1_paper_opcm", entry, floor, pairs,
                             "plain sum at committed alpha", label, extra)
             if row:
+                row["threshold"] = "" if tag == args.forward_tag else threshold_of(tag)
                 # Thm 5.2 must hold on every real merge, not only on the fixture. A row where it
                 # does not is not the paper's operator and is void rather than surprising.
                 ratio = row.get("opcm_norm_ratio", "")
@@ -299,10 +312,12 @@ def main() -> None:
                     "implied_alpha_times_n": payload.get("implied_alpha_times_n"),
                 })
             attempted["P4_opcm_committed"] += 1
+            row_threshold = threshold
             row = summarise("P4_opcm_committed", entry, floor, pairs,
                             "plain sum at committed alpha",
                             f"paper projection at committed alpha, thr={threshold}", extra)
             if row:
+                row["threshold"] = row_threshold
                 target, implied = row["target_alpha_times_n"], row["implied_alpha_times_n"]
                 row["alpha_n_ok"] = ("" if "" in (target, implied)
                                      else int(abs(float(implied) - float(target)) < 1e-6))
@@ -334,10 +349,12 @@ def main() -> None:
                 })
             if pairs:
                 attempted["P5_opcm_distance"] += 1
+            row_threshold = threshold
             row = summarise("P5_opcm_distance", entry, floor, pairs,
                             "plain sum at committed alpha",
                             f"paper projection at matched distance, thr={threshold}", extra)
             if row:
+                row["threshold"] = row_threshold
                 ratio = row.get("distance_ratio", "")
                 # The identity is the control. A row that missed it is not evidence.
                 row["alpha_n_ok"] = ("" if ratio in ("", None)

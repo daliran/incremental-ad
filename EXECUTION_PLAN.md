@@ -1644,6 +1644,94 @@ flattened), not the paper's (dominant singular directions of the accumulated mer
 its own norm-stabilising λ). Implementing that is a separate job; mixing it in would make these
 rows incomparable with §1.31's.
 
+### 2.43 The advanced-merging chapter, closed ✅ — five pre-registered predictions
+
+EXPERIMENTS.md §1.36 (P1/P2/P3), §1.37 (P4), §1.38 (P5). **All training-free**: 720 re-merges over
+existing checkpoints, every one rebuilding its source run's own merge bitwise first. Backing data
+in `results_archive/audit/remerge_closeout/remerge_closeout.csv` — 241 rows, five tests, every row
+`complete=1`. Each prediction was written into EXPERIMENTS.md **before** its runs.
+
+⚠️ **These summaries are prose. The checker covers EXPERIMENTS.md only** (§3.x records why) — if a
+number below disagrees with §1.36–§1.38, the section wins.
+
+**P1 — the paper's OPCM — CONFIRMED.** The operator is now implemented in full
+(`framework/merging/opcm.py`), from the paper, separate from the simplified `opcm_residual` that
+§1.31/§1.35 use. At the paper's own recommended threshold α ≈ 0.5 it loses on **every dataset and
+every n: 0 better, 3 ties, 21 worse**. Its Theorem 5.2 norm rule held on all 252 merges
+(`norm_ratio = 1.000000`) and put every cell at α·n 1.06–1.70, above the order-1 α\*·n of §1.18.
+
+**P2 — Fisher weighting at matched magnitude — CONFIRMED. `C22` closed.** BECAME's relative
+weights rescaled to the committed α·n, against uniform 1/n at that same α·n through the same
+evaluation path: **5 of 7 ties**, and neither exception favours the weighting (PSM n=5 **+1.36%**
+against a 0.07% floor). Magnitude was the whole story; the weighting contributes nothing.
+
+**P3 — order reversal — INCONCLUSIVE, and reported as such.** Feeding periods newest-first does
+destroy exchange_rate's win (+13.25% at n=2, +9.67% at n=3 against a 5.73% floor) — but reversal
+is decisively worse on *every* dataset (ETTm2 +38% to +54%), so exchange is mid-range and the test
+cannot attribute. The ETTh2 half was refuted outright. `C23` stays a hypothesis; what stands is the
+measurement (`C32`), not the mechanism.
+
+**P4/P5 — `C34` refuted on both task families.** §1.36 named OPCM's fixed magnitude as the suspect
+for P1's losses. It is not the cause.
+
+- **AD (§1.37).** Committed α is already 1.0 there, so the rescale is a near no-op (distance ratio
+  0.96–1.15) and the loss is **unchanged to within 0.17 pp**, still 7–25× floor.
+- **Forecasting (§1.38).** P4's control was *wrong* on this half — see 3.16 — so it was re-run
+  distance-matched. **Every cell improved, median −16.1 pp, up to −69.7 pp**, and the verdict still
+  held: 2 better, 10 ties, 42 worse over 54 cells, with ETTh1/ETTm2/PSM-forecast all losing where
+  P5 predicted ties. Nine of the ten ties are SWaT-forecast, whose 84.23% floor ties everything.
+
+**Three independent magnitude controls now agree** — the paper's norm rule, coefficient-matched,
+distance-matched. Projecting each incoming task vector out of its predecessors' span removes
+something this backbone needs, **at any strength**. The sole exception is **exchange_rate at
+α = 0.3** (−7.70% at n=2, −24.97% at n=3), below the paper's recommended threshold, on the one
+dataset where old data actively hurts (§1.24). Written up in THEORY.md as *"the overlap is not a
+nuisance term — it is the signal"*.
+
+**The chapter is frozen.** CLAUDE.md carries the rule: no merging experiment without an open
+`claims_register.csv` row, and none is open. `C03`, `C23`, `C31` remain `hypothesis` and **no
+further merging run can settle them**.
+
+### 3.16 Match distance, not coefficients, when a transform is in the loop ✅
+
+The trap §1.37 fell into, and the reason §1.38 exists. Rescaling a merge so the per-vector
+**coefficients** sum to a target α·n equals matching the **distance travelled** only when the rule
+leaves the task vectors intact. BECAME does — so P2's rescale was clean. OPCM's projection
+*shrinks* them, so the identical rescale left those merges at **0.18–0.66×** the intended distance:
+they were undershooting, not magnitude-matched, and could not separate "the projection is harmful"
+from "the merge travelled too little".
+
+§1.37 recorded the flaw and excluded those cells rather than lean on them; §1.38 re-ran them
+properly. **The confound was real and material** — correcting it improved every cell, up to 70
+percentage points, so quoting P4's forecasting numbers would have overstated the damage about
+twofold. The verdict did not change, **but that could not be known in advance**. Re-run rather than
+reason about which way a confound would have pushed.
+
+`analysis/remerge.py` now has all three magnitude rules, and `verify_merge_rules.py` asserts every
+variant stays collinear with the paper's merge to **3.7e-15** — i.e. the projection is provably
+untouched and only the scale moves. The fixture is float64 on purpose: in float32 the check
+reconstructs a ~0.1 delta from two ~1.0 numbers and catastrophic cancellation inflates the
+apparent error to ~1e-6, which would have hidden a real divergence of that size behind a widened
+bound.
+
+### 3.17 Provenance stamping on re-merge outputs ✅
+
+Collectors read results by globbing a directory, which is truthful only while every file there came
+from a completed run of the current code. A crashed job, a job whose evaluation failed, and a job
+from older code are indistinguishable once you are looking at `result.json` alone.
+`analysis/remerge_provenance.py` closes that: `result.json` is written **last** and **atomically**
+(so its presence certifies the sidecars), carries `schema` + `code_fingerprint` + `completed_at`,
+and every rejection is **counted and printed** rather than skipped. Negative-tested seven ways;
+run by `regenerate_analysis.sh`.
+
+The archived §1.35 sweep predates it and loads with `require_schema=False` — its integrity rests on
+`MANIFEST.csv` instead, a different mechanism rather than an absent one, and its unversioned count
+is printed every run.
+
+**Related:** the closeout CSV carries `complete`, `n_seeds_expected` **and** attempted-vs-emitted
+cell counts, because a per-row flag cannot describe a row that is *missing*. P1 once reported
+"72/72 complete" while a quarter of its cells did not exist.
+
 ### 3.15 One SLURM job per run — the run_id footgun ⬜
 
 `Experiment.run` builds `run_id` from `SLURM_JOB_ID`, which assumes **one run per job** — how

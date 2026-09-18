@@ -146,14 +146,27 @@ CLAIMS: list[tuple] = [
      "remerge.py and equals 1.0 on every BECAME row. §1.36 P2 is the falsification test - "
      "rescaling the weights to the committed alpha.n separates weighting from magnitude."),
     ("C22", "Fisher weighting itself contributes nothing beyond setting the merge magnitude",
-     "1.36", "SWaT,PSM,PSM-forecast", 3, "pending", "mechanism", "pending", "hypothesis",
-     "Registered as §1.36 P2 before the runs. Status stays hypothesis until the rescaled-BECAME "
-     "sweep lands."),
+     "1.36", "SWaT,PSM,PSM-forecast", 3, "yes", "mechanism", "yes", "supported",
+     "§1.36's P2 ran the isolating test - BECAME's relative weights rescaled so their sum equals "
+     "the source run's committed alpha*n, against uniform 1/n at that same alpha*n through the "
+     "same evaluation path - and confirmed it: 5 of 7 cells are ties inside the floor, and "
+     "NEITHER exception favours the weighting (PSM n=3 +0.11%, PSM n=5 +1.36% against a 0.07% "
+     "floor, i.e. 19x the floor). implied_alpha_times_n equalled the target on every row, so the "
+     "comparison really was at matched magnitude. Once magnitude is held fixed the Fisher "
+     "weighting contributes nothing, and at larger n it costs."),
     ("C23", "OPCM helps on exchange_rate at n<=3 because it acts as a recency filter",
      "1.35, 1.36", "exchange_rate", 1, "yes", "mechanism", "pending", "supported",
      "§1.35 asserts it as a finding - 'OPCM is not a merge improvement; it is a recency filter, "
      "and it pays exactly where recency pays' - on ONE dataset with no test that could have "
-     "broken it. §1.36 P3's order reversal is that test and has not reported."),
+     "broken it. §1.36's P3 ran that test and came back INCONCLUSIVE, not supporting: feeding "
+     "the periods newest-first does destroy the exchange_rate win (+13.25% at n=2, +9.67% at "
+     "n=3 against a 5.73% floor), but reversal is decisively worse on EVERY dataset - ETTm2 +38% "
+     "to +54%, ETTh1 +11% to +14% - so exchange_rate's penalty is mid-range and the test cannot "
+     "separate a recency effect from the general cost of reversing. The ETTh2 half of P3 was "
+     "refuted outright (its loss grew rather than shrank). The direction does not fit the "
+     "stale-directions story either: under reversal the OLDER shards are stripped, which should "
+     "have helped on the one dataset where old data hurts, and did not. No further merging run "
+     "can settle this; what stands is the measurement C32, not the mechanism."),
     ("C31", "OPCM hurts most where there is most base-to-joint headroom",
      "1.35", "ETTh2,ETTm2", 2, "mixed", "mechanism", "no", "hypothesis",
      "§1.35 already labels it 'a hypothesis from six points, not a finding'. Recorded so it is "

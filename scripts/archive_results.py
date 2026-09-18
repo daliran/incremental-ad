@@ -63,7 +63,12 @@ EXCLUDED_SUFFIXES = (".pt", ".pth", ".ckpt", ".safetensors")
 EXCLUDED_DIRS = ("wandb", "debug", "checkpoints", "__pycache__")
 # A cap that catches "someone pointed this at the checkpoints directory" rather than a real
 # limit; the archive is expected to land around 4 MB.
-SIZE_WARN_MB = 50
+SIZE_WARN_MB = 80
+# Raised from 10 once `results_archive/runs/` joined the archive. The old threshold described an
+# archive of CSVs only (~4 MB); the raw per-run artefacts are ~41 MB on their own, so it fired on
+# every single run and taught the reader to ignore it — which is worse than no warning at all. 80
+# leaves ~50% headroom over today's 54 MB and would still catch a checkpoint tree landing here by
+# accident, which is the failure it exists for.
 
 
 def _sha256(path: Path) -> str:
@@ -228,8 +233,9 @@ def main() -> None:
               f"(e.g. per-run geometry when --geometry_root holds only the summaries), and "
               f"WRONG if their source runs changed — re-archive with the full inputs if so.")
     if total / 1e6 > SIZE_WARN_MB:
-        print(f"\n⚠️  {total / 1e6:.0f} MB is far above the expected ~4 MB — check the inputs "
-              f"before committing this.")
+        print(f"\n⚠️  {total / 1e6:.0f} MB exceeds the {SIZE_WARN_MB} MB guard — the archive is "
+              f"CSVs plus per-run artefacts (~54 MB as of 2026-09); anything far above that "
+              f"usually means checkpoints or wandb/ were pulled in. Check before committing.")
 
 
 if __name__ == "__main__":

@@ -118,6 +118,38 @@ shrink in step, so ‖Στᵢ‖ stays nearly constant.
 Everything previously written up as *interference* and *forgetting* on these datasets was this
 scale error. The residual interference at α\* is small.
 
+### The overlap is not a nuisance term — it is the signal
+
+The section above treats non-orthogonality as something to *correct for*: a scale factor you
+divide out. A published method now lets that reading be tested directly, because it does the
+opposite — it treats the overlap as interference and **removes** it.
+
+OPCM ([Tang et al., NeurIPS 2025](https://github.com/tanganke/opcm/)) projects each incoming task
+vector out of the subspace its predecessors already span, then rescales to keep the merged model a
+stable distance from θ₀. On 20 CLIP-ViT classification tasks it gains 5–8% over task arithmetic,
+and the reason is visible in its own Figure 4: those task vectors are **near-orthogonal**, cosine
+0.01–0.05. There is almost no overlap, so removing it costs almost nothing and the projection buys
+a cleaner accumulation.
+
+Here the shards are **successive windows of one series**, and ρ runs 0.03 to 0.60. Removing the
+overlap removes most of each update. **It loses on every dataset measured, at every strength**
+(EXPERIMENTS.md §1.36–§1.38): under the paper's own norm rule, under coefficient-matched rescaling,
+and under distance-matched rescaling — three independent magnitude controls, so the loss cannot be
+attributed to merging at the wrong strength. Correcting the magnitude *halves* the damage on
+forecasting (median −16 pp) and changes no verdict.
+
+So the theory's central quantity behaves the opposite way from the image-classification intuition.
+There, overlap is redundancy you can discard. Here it is the shared temporal structure the
+consecutive windows have in common, and it is most of what a merge is carrying. **Non-orthogonality
+sets the scale, and it also *is* the content** — which is why the correct response is averaging,
+not projecting.
+
+The one exception proves the rule's shape rather than breaking it: on **exchange_rate**, OPCM does
+win at a low projection threshold (−7.7% at n = 2, −25.0% at n = 3). That is the single dataset
+where old data actively *hurts* (§1.24 — a 3-period window beats using all history by 26%), so
+there the predecessors' directions are genuinely stale and discarding them is a gain. Where the
+past is still informative, it is not.
+
 ### The practical consequence
 
 For time series you cannot inherit the *scaling behaviour* of the image-classification setting,

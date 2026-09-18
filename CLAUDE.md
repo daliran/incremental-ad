@@ -131,7 +131,7 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
 
 **No merging experiment is added unless it maps to a row in
 `results_archive/audit/claims_register.csv` whose `status` is not `supported`.** Re-measuring a
-settled claim is not a result, and the chapter is closed: 34 claims, 23 settled, 4 hypothesis, 7
+settled claim is not a result, and the chapter is closed: 34 claims, 24 settled, 3 hypothesis, 7
 refuted, with `scripts/build_claims_register.py` as the script of record (`--self-test` proves its
 downgrade rule can fire).
 

@@ -522,7 +522,7 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**34 claims: 23 supported, 5 hypothesis, 6 refuted.** The rule downgraded
+**34 claims: 23 supported, 4 hypothesis, 7 refuted.** The rule downgraded
 **1** claim the prose declared as a finding: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3. That paragraph is now marked as a hypothesis in place.
@@ -535,7 +535,6 @@ until §1.36's P3. That paragraph is now marked as a hypothesis in place.
 | `C22` | Fisher weighting itself contributes nothing beyond setting the merge magnitude | 1.36 | SWaT,PSM,PSM-forecast | Registered as §1.36 P2 before the runs. |
 | `C23` | OPCM helps on exchange_rate at n<=3 because it acts as a recency filter | 1.35, 1.36 | exchange_rate | §1.35 asserts it as a finding - 'OPCM is not a merge improvement; it is a recency filter, and it pays exactly where recency pays' - on ONE dataset with no test that could have broken it. |
 | `C31` | OPCM hurts most where there is most base-to-joint headroom | 1.35 | ETTh2,ETTm2 | §1.35 already labels it 'a hypothesis from six points, not a finding'. Recorded so it is not later quoted as one. |
-| `C34` | The paper's OPCM loses because of its fixed magnitude, not its projection | 1.36 | — | All 72 paper-OPCM cells land at implied alpha*n 1.063-1.696, above 1.0 on every one, because Thm 5.2 pins the merge to the mean task-vector norm while §1.18 puts alpha*.n at order 1 - so the operator starts 1.1-1.7x overshot before the projection acts. |
 
 #### Claims this file records as refuted
 
@@ -549,6 +548,7 @@ by someone repeating it.
 | `C24` | lambda* is unstable because the Fisher estimate is noisy | 1.32 | §1.32 ran the falsification test and the estimate saturates at the full pass - the instability is not sampling noise. |
 | `C25` | Attention-exclusive fine-tuning (the testable half of QOMM) helps | 1.33 | Measured and did not clear the floor. |
 | `C26` | The simplified OPCM operator (§1.31, §1.35) is the paper's OPCM | 1.31, 1.35, 1.36 | Never claimed and must never be: `opcm_residual` projects out the span of the flattened predecessors; the paper's operator (Tang et al., NeurIPS 2025, Algorithm 1) projects out the top-alpha singular subspace of the ACCUMULATED MERGED matrix, on both sides, drops the i==j diagonal, and carries a norm-stabilising lambda. |
+| `C34` | The paper's OPCM loses because of its fixed magnitude, not its projection | 1.36, 1.37 | §1.37's P4 ran the isolating test - the paper's projection held bit-for-bit fixed (collinear to 3.7e-15) and rescaled to each run's committed alpha - and refuted it: 0 better, 10 ties, 62 worse over 72 cells. |
 | `C28` | The winner survives moving the train/test cut (rolling origin) | 1.27, 1.27a | It does not: the ranking is unstable across origins. |
 
 #### The method list — what was implemented, and what it found
@@ -561,7 +561,7 @@ called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** ca
 |---|---|---|---|
 | Task arithmetic (plain sum at alpha) | **full** | The project's baseline throughout; merge is bitwise reproducible from checkpoints (412/412). | alpha* ~ 1/n in the deployment parameterisation; merging within 1.0-1.1x of specialists on SWaT/PSM/ETTh1 but 1.5-2.1x on ETTh2/exchange_rate (C01). |
 | OPCM - residual against flattened predecessors | **partial** | Implemented and run everywhere, but this is a SIMPLIFICATION of the published operator, labelled as such in every section that uses it (C26). | Cost does not scale with rho (C20, refuted). Helps on exchange_rate at n<=3; mechanism under test as C23. |
-| OPCM - paper operator (Tang et al., NeurIPS 2025, Algorithm 1) | **full** | Implemented from the paper once it was supplied: full SVD of the accumulated merged task matrix, two-sided projection out of the top-alpha singular subspace, i==j dropped, norm-stabilising lambda, 1-D tensors passed through. Eq. 8 and Thm 5.2 are asserted as unit checks rather than assumed (`verify_merge_rules.py`). | Takes no merge scale - it fixes its own magnitude at the mean task-vector norm (C33). On ETTh1 that lands at alpha*n = 1.60 against the 1.00 validation selected, and the merge is decisively worse than plain summation at every threshold, worsening monotonically as the threshold rises (§1.36 P1). |
+| OPCM - paper operator (Tang et al., NeurIPS 2025, Algorithm 1) | **full** | Implemented from the paper once it was supplied: full SVD of the accumulated merged task matrix, two-sided projection out of the top-alpha singular subspace, i==j dropped, norm-stabilising lambda, 1-D tensors passed through. Eq. 8 and Thm 5.2 are asserted as unit checks rather than assumed (`verify_merge_rules.py`). | Takes no merge scale - it fixes its own magnitude at the mean task-vector norm (C33). On ETTh1 that lands at alpha*n = 1.60 against the 1.00 validation selected, and the merge is decisively worse than plain summation at every threshold, worsening monotonically as the threshold rises (§1.36 P1). §1.37 isolated the cause: with its norm rule replaced by the committed strength the loss is unchanged on the cells where magnitude needed no correction, so the PROJECTION is what fails on this backbone, not the norm rule (C34 refuted). |
 | BECAME - Fisher-weighted convex fold | **full** | Implemented with diagonal Fishers per shard and lambda* solved per step. | Its total strength is pinned at alpha.n = 1.0 by the convex fold, verified per run (C21). lambda* instability is not Fisher sampling noise (C24, refuted). |
 | BECAME's weighting at a chosen strength (rescaled) | **full** | Added in §1.36 to separate weighting from magnitude. NOT BECAME, and never labelled as it. | Pending - registered as P2 (C22). |
 | QOMM | **partial** | Only the attention-exclusive fine-tuning half is testable with this backbone; the quadratic-form outer-product machinery is not implemented. | The testable half does not clear the floor (C25, refuted). |
@@ -575,9 +575,11 @@ called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** ca
 
 **No merging experiment is added after 2026-09-18 unless it maps to a row in
 `claims_register.csv` whose status is not `supported`** — i.e. unless there is a stated open
-question it answers. Recorded in CLAUDE.md. The advanced-merging chapter has three such rows
-(`C23`, `C31`, `C34`) — `C22` was closed by §1.36's P2. Everything else is settled or refuted,
-and re-measuring a settled claim is not a result.
+question it answers. Recorded in CLAUDE.md. **The merging chapter is now closed.** `C22` was answered by §1.36's P2 and `C34` refuted by
+§1.37's P4 — the last permitted merging experiment. What remains open (`C03`, `C23`, `C31`) are
+rows no *further merging run* can settle: `C03`'s geometry and `C03`/`C31`'s mechanisms need
+different measurements entirely, and `C23`'s falsification test has already been run and came back
+inconclusive. **No further merging experiments.**
 
 
 ## 1. Current results — complete snapshot (2026-08-06)
@@ -4274,6 +4276,127 @@ not a sufficient account of it.
 So `C23` stays `hypothesis`: the falsification test ran and came back **inconclusive**, not
 supporting. What survives unchanged is the measurement (`C32`) — OPCM beats plain summation on
 exchange_rate at n = 2 and n = 3, at all three thresholds, mechanism unexplained.
+
+### 1.37 C34 — is it the projection or the norm rule? The last merging experiment
+
+> **Provenance.** `scripts/generate_c34_sweep.py` → `analysis/remerge.py --merge_rule
+> opcm_paper_committed` → `analysis/remerge_closeout_report.py` →
+> `results_archive/audit/remerge_closeout/`. Training-free; authoritative runs from
+> `analysis_specs/method_comparison_spec.csv`; every re-merge rebuilds its source run's own merge
+> bitwise before emitting a number.
+
+§1.36's P1 found the paper's OPCM losing on every dataset at its own recommended threshold, and
+left one suspect: **it never merges at the strength this project's data wants.** Theorem 5.2 pins
+‖θ_merged − θ₀‖₂ to the *mean* task-vector norm, which put all 72 cells at α·n between **1.063 and
+1.696** against the order-1 α\*·n of §1.18. So the operator arrived 1.1–1.7× overshot before its
+projection did anything, and P1 cannot tell which of the two lost the comparison. That is `C34`,
+and it is the only thing standing between the advanced-merging chapter and being closed.
+
+**The isolating change, which is exactly what P2 did to BECAME.** Keep the projection **bit-for-bit
+unchanged** — same full SVD of the accumulated merged matrix, same two-sided cut at r_α, same
+dropped diagonal, same accumulation order — and replace *only* the final rescale. Eq. 7 gives
+
+    theta_merged = theta_0 + (1 / lambda^(T)) * sum_i P_alpha^(i-1)(tau_i)
+
+so every projected vector enters with the same coefficient 1/λ⁽ᵀ⁾. Setting that coefficient to the
+run's committed α makes the per-vector weights sum to **α·n exactly**, and the merge becomes plain
+task arithmetic *on the projected task vectors*. Against plain task arithmetic on the raw ones at
+the same α, the **only** remaining difference is the projection. λ is scale-invariant for the
+projection itself — the SVD basis of `A/λ` is the basis of `A` — so nothing upstream moves.
+
+⚠️ **This is not the paper's method and is never called it** (`C26`). It is *"the paper's
+projection at a chosen strength"*, the same naming discipline §1.36 applies to rescaled BECAME.
+
+⚠️ **Prediction P4, registered before the sweep (2026-09-18):**
+
+> At matched magnitude the paper's projection **ties plain summation inside the floor on the
+> forecasting datasets where the simplified operator ties — ETTh1, ETTm2, PSM-forecast — still
+> loses on ETTh2, and keeps the exchange_rate win at n ≤ 3.**
+
+**Both outcomes are decisive, which is why this closes the row either way:**
+
+- **If it ties**, `C34` is **supported**: OPCM's *norm rule* is what fails on this model, not its
+  projection, and the thesis says so — a projection-based continual merge is compatible with this
+  setting once it is allowed to merge at the strength the data selects.
+- **If it still loses broadly at matched magnitude**, `C34` is **refuted**: the projection itself
+  is harmful here, the norm rule was never the problem, and §1.36's "leading suspect" sentence
+  must be struck rather than softened.
+
+#### Results — P4 REFUTED, and `C34` with it
+
+**72/72 cells at full seed count**, 666/666 results provenance-stamped, and
+`implied_alpha_times_n` equalled its target on **every** row (the run aborts rather than emit a
+cell at the wrong magnitude).
+
+**At matched magnitude the paper's projection is worse, not better: 0 better, 10 ties, 62 worse
+across 72 cells** (thr 0.3: 0/4/20, thr 0.5: 0/3/21, thr 0.7: 0/3/21). P4 predicted ties on
+ETTh1, ETTm2 and PSM-forecast, a loss on ETTh2, and the exchange win surviving at n ≤ 3. **None of
+that happened.** Every one of those datasets loses decisively, and the exchange win is gone at
+every threshold. The only ties are SWaT-forecast, whose 84.23% floor makes every comparison a tie.
+
+#### ⚠️ Read the two halves separately — they are not equally clean
+
+**Coefficient-matching is not distance-matching, and for a rule with a transform the two come
+apart.** P2's rescale was safe because BECAME leaves the task vectors intact, so weight sum and
+travelled distance move together. OPCM's projection *shrinks* each vector, so
+θ₀ + α·Σ P(τᵢ) sits closer to θ₀ than θ₀ + α·Στᵢ does. Measured: the matched merge travels
+**0.18–0.66×** the paper's distance on the forecasting datasets, and **0.96–1.15×** on the AD pair
+(where the committed α is already 1.0). **This is a design flaw in P4 as I specified it**, and it
+means the forecasting cells conflate "the projection is harmful" with "the merge now undershoots".
+
+**The AD pair is the clean test, and it is decisive.** There the correction was a near no-op —
+magnitude barely moved — so if magnitude were the cause, these cells should be unchanged, and if
+the projection were the cause, they should still lose. They still lose, by *the same amount*:
+
+| dataset | n | P1, paper's norm rule | P4, matched | change | floor | verdict |
+|---|---|---|---|---|---|---|
+| SWaT | 2 | +0.65% | +0.62% | -0.03 pp | 0.09% | worse |
+| SWaT | 3 | +0.71% | +0.72% | +0.00 pp | 0.09% | worse |
+| SWaT | 5 | +0.89% | +0.90% | +0.01 pp | 0.09% | worse |
+| PSM | 2 | +1.08% | +0.91% | -0.17 pp | 0.07% | worse |
+| PSM | 3 | +1.66% | +1.60% | -0.05 pp | 0.07% | worse |
+| PSM | 5 | +1.81% | +1.76% | -0.05 pp | 0.07% | worse |
+
+**Identical to within 0.17 percentage points**, every cell still 7–25× its floor. The projection
+loses on its own, with the norm rule corrected out of the picture.
+
+The forecasting cells, reported for completeness and **not** as evidence:
+
+| dataset | n | P1, paper's norm rule | P4, matched | change | floor | verdict |
+|---|---|---|---|---|---|---|
+| ETTh1 | 2 | +16.14% | +21.48% | +5.34 pp | 8.76% | worse |
+| ETTh1 | 3 | +31.70% | +37.43% | +5.72 pp | 8.76% | worse |
+| ETTh1 | 5 | +24.80% | +42.49% | +17.70 pp | 8.76% | worse |
+| ETTh2 | 2 | +54.53% | +79.95% | +25.42 pp | 6.74% | worse |
+| ETTh2 | 3 | +16.36% | +144.48% | +128.12 pp | 6.74% | worse |
+| ETTh2 | 5 | +15.80% | +160.80% | +145.00 pp | 6.74% | worse |
+| ETTm2 | 2 | +16.72% | +78.49% | +61.77 pp | 14.11% | worse |
+| ETTm2 | 3 | +34.01% | +147.18% | +113.17 pp | 14.11% | worse |
+| ETTm2 | 5 | +59.84% | +161.16% | +101.32 pp | 14.11% | worse |
+| exchange | 2 | +30.21% | +57.86% | +27.65 pp | 5.73% | worse |
+| exchange | 3 | +7.01% | +29.57% | +22.56 pp | 5.73% | worse |
+| exchange | 5 | +52.19% | +85.91% | +33.72 pp | 5.73% | worse |
+
+#### What this settles
+
+**`C34` is REFUTED.** §1.36 named the fixed magnitude as the leading suspect for P1's losses; it is
+not the cause. On the cells where magnitude needed no correction the loss is unchanged, and
+nowhere does correcting it help. **§1.36's "leading suspect" sentence is struck, not softened** —
+the operator's *projection* is what fails on this backbone.
+
+That is a more useful result than the one P4 was written to find. It says the incompatibility is
+structural rather than a tuning mismatch: discarding the component of each incoming task vector
+that its predecessors already span removes something these models need, on a 0.7M-parameter MAE
+over time series, whatever strength the merge is then performed at. OPCM's reported 5–8% gains are
+on 20 CLIP-ViT classification tasks with near-orthogonal task vectors (its Figure 4 shows cosine
+similarities of 0.01–0.05); the shards here are **successive time windows of one series**, whose
+task vectors overlap by construction — ρ = 0.03 to 0.60 (§1.35). Removing the overlap removes the
+signal.
+
+**A cleaner P4 would have matched distance, not coefficients** — rescale so ‖θ_merged − θ₀‖₂
+equals that of plain summation at α. That experiment is not run: `C34` is closed by the AD half,
+which the confound does not touch, and the merging chapter is frozen.
+
 
 ## 2. Exact configurations
 

@@ -188,12 +188,15 @@ CLAIMS: list[tuple] = [
      "it is not the one that wins. Whether that is WHY it loses is C34, and untested."),
     # ---- design and measurement scope ------------------------------------------------------
     ("C34", "The paper's OPCM loses because of its fixed magnitude, not its projection",
-     "1.36", "", 0, "pending", "mechanism", "no", "hypothesis",
-     "All 72 paper-OPCM cells land at implied alpha*n 1.063-1.696, above 1.0 on every one, "
-     "because Thm 5.2 pins the merge to the mean task-vector norm while §1.18 puts alpha*.n at "
-     "order 1 - so the operator starts 1.1-1.7x overshot before the projection acts. Untested: "
-     "separating the two needs the P2 treatment, re-running the projection rescaled to the "
-     "committed alpha*n. This is the open row the freeze rule points further merging work at."),
+     "1.36, 1.37", "SWaT,PSM", 2, "yes", "mechanism", "yes", "refuted",
+     "§1.37's P4 ran the isolating test - the paper's projection held bit-for-bit fixed "
+     "(collinear to 3.7e-15) and rescaled to each run's committed alpha - and refuted it: 0 "
+     "better, 10 ties, 62 worse over 72 cells. The decisive cells are SWaT and PSM, where the "
+     "committed alpha is already 1.0 so the correction is a near no-op (distance ratio "
+     "0.96-1.15) and the loss is UNCHANGED to within 0.17pp while still 7-25x its floor. "
+     "Magnitude is not the cause; the projection is. The forecasting cells are confounded - "
+     "coefficient-matching is not distance-matching once a transform shrinks the vectors, so "
+     "those merges travel only 0.18-0.66x as far - and are excluded from the evidence."),
     ("C27", "The base model's 50% history fraction is a free parameter, not a tuned choice",
      "1.28", "ETTm2", 1, "yes", "scope", "no", "supported",
      "§1.28 varied it for the first time and found the training-size term alone is large. Stated "
@@ -229,7 +232,9 @@ METHODS: list[tuple] = [
      "Takes no merge scale - it fixes its own magnitude at the mean task-vector norm (C33). On "
      "ETTh1 that lands at alpha*n = 1.60 against the 1.00 validation selected, and the merge is "
      "decisively worse than plain summation at every threshold, worsening monotonically as the "
-     "threshold rises (§1.36 P1)."),
+     "threshold rises (§1.36 P1). §1.37 isolated the cause: with its norm rule replaced by the "
+     "committed strength the loss is unchanged on the cells where magnitude needed no correction, "
+     "so the PROJECTION is what fails on this backbone, not the norm rule (C34 refuted)."),
     ("BECAME - Fisher-weighted convex fold", "full",
      "Implemented with diagonal Fishers per shard and lambda* solved per step.",
      "Its total strength is pinned at alpha.n = 1.0 by the convex fold, verified per run (C21). "

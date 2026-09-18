@@ -56,12 +56,18 @@ def committed_alpha(run: Path, args: dict) -> tuple[float, str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--run_dir", type=Path, required=True)
-    parser.add_argument("--merge_rule", choices=["sum", "opcm", "opcm_paper"], default="sum",
+    parser.add_argument("--merge_rule",
+                        choices=["sum", "opcm", "opcm_paper", "opcm_paper_committed"],
+                        default="sum",
                         help="'opcm' is the SIMPLIFIED operator of §1.31/§1.35 (residual against "
                              "the flattened predecessors); 'opcm_paper' is Tang et al. 2025 "
                              "Algorithm 1 — two-sided projection out of the top-alpha singular "
                              "subspace of the accumulated merged matrix, plus the norm-stabilising "
-                             "lambda. They are different rules and are never reported as one.")
+                             "lambda. They are different rules and are never reported as one. "
+                             "'opcm_paper_committed' is the paper's PROJECTION with its Thm-5.2 "
+                             "rescale replaced by the run's committed alpha (§1.37, C34) — not "
+                             "the paper's method either, and labelled 'the paper's projection at "
+                             "a chosen strength'.")
     parser.add_argument("--coefficient_source",
                         choices=["scale", "became", "became_rescaled"], default="scale")
     parser.add_argument("--reverse_order", action="store_true",
@@ -168,7 +174,7 @@ def main() -> None:
     from incremental_ad.framework.merging.opcm import merge_opcm_paper
 
     transform = opcm_residual(args.opcm_threshold) if args.merge_rule == "opcm" else None
-    if args.merge_rule == "opcm_paper" and args.coefficient_source != "scale":
+    if args.merge_rule.startswith("opcm_paper") and args.coefficient_source != "scale":
         raise SystemExit("--merge_rule opcm_paper sets its own coefficients (Algorithm 1 line 14); "
                          "it cannot be combined with a coefficient source")
 
@@ -221,12 +227,16 @@ def main() -> None:
         weights = [(1.0, alpha)] * len(taus)
 
     _uses_fisher = args.coefficient_source in ("became", "became_rescaled")
-    if args.merge_rule == "opcm_paper":
+    if args.merge_rule.startswith("opcm_paper"):
         # The paper's OPCM sets its own magnitude (lambda^(t) pins the merged model at the mean
         # task-vector norm from the base), so no merge scale applies to it. The committed alpha is
         # still read and self-checked above — that is what the PLAIN-SUM comparison runs at — but
         # it does not enter this merge, and pretending otherwise would not be the paper's method.
-        merged, opcm_info = merge_opcm_paper(base_state, taus, args.opcm_threshold)
+        # §1.37: the matched-magnitude variant merges at the strength the run committed to,
+        # so its comparison against plain summation at that same alpha isolates the projection.
+        committed = alpha if args.merge_rule == "opcm_paper_committed" else None
+        merged, opcm_info = merge_opcm_paper(base_state, taus, args.opcm_threshold,
+                                             scale_to_alpha=committed)
         log.info("[opcm_paper] alpha_threshold=%.2f  lambda^(T)=%.4f  mean||tau||=%.4f  "
                  "||merged-base||=%.4f  norm_ratio=%.6f  implied alpha*n=%.4f  "
                  "(%d matrices projected, %d tensors passed through)",
@@ -234,9 +244,27 @@ def main() -> None:
                  opcm_info["mean_task_vector_norm"], opcm_info["merged_norm"],
                  opcm_info["norm_ratio"], opcm_info["implied_alpha_times_n"],
                  int(opcm_info["projected_matrices"]), int(opcm_info["passthrough_tensors"]))
-        if abs(opcm_info["norm_ratio"] - 1.0) > 1e-6:
-            raise SystemExit(f"OPCM norm_ratio {opcm_info['norm_ratio']:.9f} != 1.0 — Theorem "
-                             f"5.2's rescaling did not hold, so this is not the paper's operator")
+        if committed is None:
+            # Theorem 5.2 is the paper's guarantee and must hold on every real merge.
+            if abs(opcm_info["norm_ratio"] - 1.0) > 1e-6:
+                raise SystemExit(f"OPCM norm_ratio {opcm_info['norm_ratio']:.9f} != 1.0 — Theorem "
+                                 f"5.2's rescaling did not hold, so this is not the paper's "
+                                 f"operator")
+        else:
+            # Under the matched-magnitude rule alpha*n is an identity, not an estimate: every
+            # projected vector enters with coefficient alpha. If it is not hit exactly the
+            # comparison is no longer at matched magnitude and the row cannot close C34.
+            target = committed * len(taus)
+            if abs(opcm_info["implied_alpha_times_n"] - target) > 1e-9:
+                raise SystemExit(f"implied alpha*n {opcm_info['implied_alpha_times_n']} != "
+                                 f"target {target} — the merge is not at the committed magnitude")
+            # The paper's rule enters every projected vector at 1/lambda^(T), so its own
+            # alpha*n would have been n/lambda. Logging both makes the overshoot §1.36 measured
+            # visible per run rather than only in the aggregate.
+            log.info("[opcm_committed] merged at committed alpha=%.4f x %d shards -> alpha*n "
+                     "%.4f; the paper's rule would have used %.4f",
+                     committed, len(taus), target,
+                     len(taus) / opcm_info["lambda_final"])
     else:
         opcm_info = {}
         merged = merge_sequential(base_state, taus, weights, transform=transform)

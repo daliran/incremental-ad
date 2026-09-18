@@ -109,6 +109,7 @@ def merge_opcm_paper(
     base_state: StateDict,
     task_vectors_list: Sequence[StateDict],
     threshold: float = 0.5,
+    scale_to_alpha: float | None = None,
 ) -> tuple[StateDict, dict[str, float]]:
     """Merge task vectors with the paper's OPCM. Returns ``(merged_state, diagnostics)``.
 
@@ -120,12 +121,26 @@ def merge_opcm_paper(
       ``lambda_final``          the paper's lambda^(T).
       ``mean_task_vector_norm`` n^(T) = Avg(||dtheta^(i)||_2).
       ``merged_norm``           ||theta_merged - theta^(0)||_2, which **must** equal n^(T).
-      ``norm_ratio``            merged_norm / n^(T); 1.0 by construction (Theorem 5.2's point).
+      ``norm_ratio``            merged_norm / n^(T); 1.0 by construction under the paper's rule
+                                (Theorem 5.2's point), and deliberately NOT 1.0 once
+                                ``scale_to_alpha`` replaces it.
       ``implied_alpha_times_n`` n * merged_norm / ||sum_i dtheta^(i)||_2 — the uniform alpha.n that
                                 plain summation would need to travel the same distance. This is the
                                 only scalar here comparable with a committed merge scale.
       ``projected_matrices``    how many tensors took the SVD path.
       ``passthrough_tensors``   how many did not (1-D and anything not exactly 2-D).
+
+    ``scale_to_alpha`` replaces the paper's final rescale and **nothing else** (EXPERIMENTS.md
+    §1.37, `C34`). Eq. 7 enters every projected vector with the same coefficient ``1 / lambda^(T)``;
+    passing alpha sets that coefficient to alpha instead, so the per-vector weights sum to
+    ``alpha * n`` exactly and the merge becomes plain task arithmetic *on the projected task
+    vectors*. The projection is untouched — it is computed from the accumulator, whose SVD basis
+    is invariant to positive scaling, so no step upstream of the final line moves. With it set,
+    the result is **not the paper's method** and must never be reported as such (`C26`); it is
+    "the paper's projection at a chosen strength", exactly as rescaled BECAME is "BECAME's
+    weighting at a chosen strength".
+
+    Default ``None`` keeps Algorithm 1 exactly, so §1.36's numbers are unaffected.
     """
     assert task_vectors_list, "no task vectors to merge"
     assert 0.0 < threshold <= 1.0, f"projection threshold must be in (0, 1], got {threshold}"
@@ -161,20 +176,28 @@ def merge_opcm_paper(
         mean_norm = (step - 1) / step * mean_norm + norm(incoming) / step   # line 13
         lambda_t = norm(accumulated) / mean_norm                            # line 14
 
+    # The ONLY line that differs between the paper's rule and the matched-magnitude variant.
+    coefficient = (1.0 / lambda_t) if scale_to_alpha is None else scale_to_alpha
     merged = {
-        key: (value + accumulated[key] / lambda_t if key in accumulated else value.clone())
+        key: (value + coefficient * accumulated[key] if key in accumulated else value.clone())
         for key, value in base_state.items()
     }
-    merged_norm = norm(accumulated) / lambda_t
+    merged_norm = norm(accumulated) * coefficient
     total = {k: sum(tau[k] for tau in task_vectors_list) for k in keys}
     plain_sum_norm = norm(total)
+    # With an explicit alpha the implied total strength is the coefficient sum, alpha * n, by
+    # construction -- an exact identity the caller asserts. Under the paper's rule there is no
+    # such coefficient, so the only comparable quantity is the norm ratio against plain summation.
+    implied = (len(task_vectors_list) * scale_to_alpha if scale_to_alpha is not None
+               else (len(task_vectors_list) * merged_norm / plain_sum_norm
+                     if plain_sum_norm else float("nan")))
     return merged, {
+        "scale_to_alpha": float("nan") if scale_to_alpha is None else scale_to_alpha,
         "lambda_final": lambda_t,
         "mean_task_vector_norm": mean_norm,
         "merged_norm": merged_norm,
         "norm_ratio": merged_norm / mean_norm if mean_norm else float("nan"),
-        "implied_alpha_times_n": (len(task_vectors_list) * merged_norm / plain_sum_norm
-                                  if plain_sum_norm else float("nan")),
+        "implied_alpha_times_n": implied,
         "projected_matrices": float(projected),
         "passthrough_tensors": float(passthrough),
     }

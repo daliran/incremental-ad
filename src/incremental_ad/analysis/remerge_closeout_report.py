@@ -276,6 +276,38 @@ def main() -> None:
                                      else int(abs(float(ratio) - 1.0) < 1e-6))
                 rows.append(row)
 
+        # --- P4 (§1.37): the paper's PROJECTION at the run's committed magnitude ------------
+        #
+        # Baseline is the stored plain-sum merge at that same committed alpha, so the two differ
+        # only by the projection -- which is the whole point: P1 could not separate the projection
+        # from the Thm-5.2 norm rule, and this can.
+        for threshold in args.paper_thresholds:
+            tag = f"opcm_committed_t{int(threshold * 100):03d}"
+            pairs, extra = [], []
+            for run in runs:
+                variant, payload = read_tag(args.remerge_dir, experiment, run.name, tag,
+                                            entry["metric"])
+                plain = stored_merge(run, entry["metric"])
+                if variant is None or plain is None:
+                    continue
+                pairs.append((plain, variant))
+                alpha = payload.get("alpha")
+                extra.append({
+                    "committed_alpha": alpha,
+                    "target_alpha_times_n": (alpha * payload.get("n_shards", 0)
+                                             if alpha is not None else None),
+                    "implied_alpha_times_n": payload.get("implied_alpha_times_n"),
+                })
+            attempted["P4_opcm_committed"] += 1
+            row = summarise("P4_opcm_committed", entry, floor, pairs,
+                            "plain sum at committed alpha",
+                            f"paper projection at committed alpha, thr={threshold}", extra)
+            if row:
+                target, implied = row["target_alpha_times_n"], row["implied_alpha_times_n"]
+                row["alpha_n_ok"] = ("" if "" in (target, implied)
+                                     else int(abs(float(implied) - float(target)) < 1e-6))
+                rows.append(row)
+
         # --- P2: BECAME's weighting at a chosen strength, against 1/n at the same strength --
         pairs, extra = [], []
         for run in runs:
@@ -362,7 +394,8 @@ def main() -> None:
 
     # Per-test completeness, so a partially-collected sweep cannot be read as a finished one.
     log.info("")
-    for test in ("P1_paper_opcm", "P2_became_rescaled", "P3_order_reversal"):
+    for test in ("P1_paper_opcm", "P4_opcm_committed", "P2_became_rescaled",
+                 "P3_order_reversal"):
         subset = [r for r in rows if r["test"] == test]
         want = attempted.get(test, 0)
         if subset or want:
@@ -372,7 +405,8 @@ def main() -> None:
                      test, len(subset), want, done,
                      "" if finished else "  <-- INCOMPLETE, do not publish as final")
 
-    for test in ("P1_paper_opcm", "P2_became_rescaled", "P3_order_reversal"):
+    for test in ("P1_paper_opcm", "P4_opcm_committed", "P2_became_rescaled",
+                 "P3_order_reversal"):
         subset = [r for r in rows if r["test"] == test]
         if not subset:
             continue

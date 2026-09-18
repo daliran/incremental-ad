@@ -374,12 +374,71 @@ def check_opcm_paper() -> int:
     return failures
 
 
+def check_opcm_committed_scale() -> int:
+    """`scale_to_alpha` must change the magnitude and NOTHING else. Returns failures.
+
+    The whole value of §1.37 rests on this: if the matched-magnitude variant differed from the
+    paper's operator anywhere but the final coefficient, its comparison against plain summation
+    would no longer isolate the projection, and C34 could not be closed either way. So assert the
+    strong form — the two merges are exactly collinear in weight space.
+
+    Under Eq. 7 the paper divides the accumulator by lambda^(T) and this divides by 1/alpha, so
+    ``merged_alpha - theta_0 == alpha * lambda^(T) * (merged_paper - theta_0)`` tensor by tensor.
+    """
+    import torch
+    from incremental_ad.framework.merging import merge_opcm_paper
+
+    failures = 0
+    worst_seen = [0.0]
+    # float64 fixture. The identity is checked on `merged - base`, and in float32 that subtraction
+    # reconstructs a ~0.1-sized delta from two ~1-sized numbers -- catastrophic cancellation, which
+    # inflates the apparent relative error to ~1e-6 and has nothing to do with the merges. Widening
+    # the bound to accommodate it would have hidden a real divergence of the same size; carrying
+    # the fixture in float64 removes the artifact and lets the test assert near-exact equality.
+    base, taus = fake_states(4)
+    base = {k: (v.double() if v.is_floating_point() else v) for k, v in base.items()}
+    taus = [{k: v.double() for k, v in tau.items()} for tau in taus]
+    for threshold in (0.3, 0.5, 0.7):
+        for alpha in (0.2, 0.5, 1.0):
+            paper, info = merge_opcm_paper(base, taus, threshold)
+            scaled, info_a = merge_opcm_paper(base, taus, threshold, scale_to_alpha=alpha)
+            factor = alpha * info["lambda_final"]
+            # Relative, and in float64 the identity should hold to ~1e-15. The 1e-12 bound
+            # leaves room for the SVD's own conditioning without admitting anything that could
+            # be a real difference in the projection.
+            worst = 0.0
+            for key, value in base.items():
+                if not value.is_floating_point():
+                    continue
+                expected = factor * (paper[key] - value)
+                scale = max(expected.abs().max().item(), 1e-12)
+                worst = max(worst, (scaled[key] - value - expected).abs().max().item() / scale)
+            if worst > 1e-12:
+                print(f"  FAIL  alpha={alpha} thr={threshold}: the two merges are NOT collinear "
+                      f"(rel {worst:.3e}) — something other than the scale changed")
+                failures += 1
+            worst_seen[0] = max(worst_seen[0], worst)
+            # alpha*n is an identity here, not an estimate.
+            if abs(info_a["implied_alpha_times_n"] - alpha * len(taus)) > 1e-12:
+                print(f"  FAIL  implied alpha*n {info_a['implied_alpha_times_n']} != "
+                      f"{alpha * len(taus)}")
+                failures += 1
+            # ...and the paper's own norm guarantee must NOT hold once it has been replaced,
+            # or the flag did nothing.
+            if abs(info_a["norm_ratio"] - 1.0) < 1e-12 and abs(factor - 1.0) > 1e-9:
+                print(f"  FAIL  alpha={alpha}: norm_ratio still 1.0 — the rescale was not applied")
+                failures += 1
+    print(f"  {'ok' if not failures else 'FAILED'}  scale_to_alpha is collinear with the paper's "
+          f"merge to {worst_seen[0]:.1e} relative (projection untouched) and hits alpha*n exactly")
+    return failures
+
+
 def main() -> None:
     print("MERGE RULE SELF-CHECKS")
     total = (check_baseline_equivalence() + check_became_algebra()
              + check_opcm_residual() + check_became_reduces_to_one_over_n()
              + check_rescaled_became_algebra() + check_order_reversal_semantics()
-             + check_opcm_paper())
+             + check_opcm_paper() + check_opcm_committed_scale())
     print(f"\n{total} failure(s)")
     raise SystemExit(1 if total else 0)
 

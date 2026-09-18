@@ -131,14 +131,29 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
 
 **No merging experiment is added unless it maps to a row in
 `results_archive/audit/claims_register.csv` whose `status` is not `supported`.** Re-measuring a
-settled claim is not a result, and the chapter is closed: 34 claims, 23 settled, 5 open, 6
+settled claim is not a result, and the chapter is closed: 34 claims, 23 settled, 4 hypothesis, 7
 refuted, with `scripts/build_claims_register.py` as the script of record (`--self-test` proves its
-downgrade rule can fire). The open merging questions are `C23` (is OPCM's exchange_rate win a
-recency effect — §1.36's reversal test came back **inconclusive**, not supporting), `C31`, and
-`C34` (does the paper's OPCM lose because of its fixed magnitude rather than its projection).
-`C22` is closed: with magnitude held fixed, Fisher weighting contributes nothing, and at larger n
-it costs. The paper's OPCM is now implemented in full (`framework/merging/opcm.py`) and is kept
-strictly separate from the simplified `opcm_residual`, which `C26` forbids conflating with it.
+downgrade rule can fire).
+
+**No merging experiment is open, and none should be added.** The two that were are closed: `C22`
+by §1.36's P2 (with magnitude held fixed, Fisher weighting contributes nothing and at larger n it
+costs) and `C34` by §1.37's P4 (the paper's OPCM loses because of its **projection**, not its norm
+rule — on SWaT and PSM, where the committed alpha is already 1.0 so the rescale is a near no-op,
+the loss is unchanged to within 0.17pp while still 7-25x its floor). Three register rows remain
+`hypothesis` — `C03`, `C23`, `C31` — but **no further merging run can settle them**: `C23`'s
+falsification test has already been run and came back inconclusive, and `C03`/`C31` need
+measurements of a different kind, not another merge. Treat the chapter as finished.
+
+The paper's OPCM is implemented in full (`framework/merging/opcm.py`) and kept strictly separate
+from the simplified `opcm_residual`; `C26` forbids conflating them, and the same discipline names
+the §1.37 variant "the paper's projection at a chosen strength", never the paper's method.
+
+⚠️ **One methodological trap §1.37 hit, worth not repeating.** Rescaling a merge so the per-vector
+*coefficients* sum to a target alpha*n is only equivalent to matching the *distance travelled*
+when the rule leaves the task vectors intact. BECAME does, so P2's rescale was clean; OPCM's
+projection shrinks them, so the same rescale left those merges at 0.18-0.66x the intended
+distance and confounded every forecasting cell. Only the cells where the correction was a no-op
+carried the result. Match distance, not coefficients, whenever a transform is in the loop.
 
 The register exists because the checker can only catch a wrong *number*. Every documentation error
 in this project's audits was a **correct number carrying a claim wider than its evidence** — "under

@@ -56,7 +56,7 @@ FIELDS = ["test", "dataset", "n_segments", "metric", "n_seeds", "floor_pct",
           "baseline_label", "baseline", "baseline_sd",
           "variant_label", "variant", "variant_sd", "delta_pct", "verdict",
           "committed_alpha", "target_alpha_times_n", "implied_alpha_times_n",
-          "threshold", "opcm_norm_ratio", "distance_ratio", "alpha_n_ok",
+          "threshold", "opcm_norm_ratio", "distance_ratio", "confounded", "alpha_n_ok",
           "n_seeds_expected", "complete",
           "source_experiment"]
 
@@ -70,6 +70,36 @@ REVERSAL_DATASETS = {"exchange", "ETTh2", "ETTh1", "ETTm2"}
 def in_p2_scope(entry: dict) -> bool:
     return ((entry["dataset"], None) in BECAME_SCOPE
             or (entry["dataset"], entry["n"]) in BECAME_SCOPE)
+
+
+# P4 (coefficient-matched) is interpretable only where the rescale barely moved the merge. The
+# projection SHRINKS the task vectors, so matching per-vector coefficients to alpha*n does NOT
+# match the distance travelled, and a row whose distance moved a lot is comparing direction AND
+# magnitude at once (EXPERIMENTS.md §1.37, and §1.38's P5 is the repair).
+#
+# The flag is DERIVED from the measurement, not from a dataset list: `opcm_norm_ratio` is the
+# merge's distance relative to the paper's own norm-stabilised one, which is the exact quantity
+# §1.37 quotes as 0.96-1.15 on the clean cells and 0.18-0.66 on the confounded ones. A row inside
+# the band below is a near no-op and is interpretable; outside it, the row is flagged.
+#
+# In the event the two populations separate on their own -- seed-averaged ratios run 0.195-0.819
+# on forecasting and 0.935-1.469 on the AD pair -- so the band is not doing delicate work and the
+# flag reproduces §1.37's reading exactly. It also flags two AD rows at threshold 0.3, correctly:
+# their rescale moved the merge ~47%, which is not the no-op the other AD cells are. The ratio is
+# carried in the same row so a reader can check every call.
+NO_OP_BAND = (0.90, 1.20)
+
+
+def confounded_flag(test: str, norm_ratio) -> str:
+    """"coefficient_not_distance_matched" for an uninterpretable P4 row, else "".
+
+    Empty for every other test: P5 is distance-matched by construction, P1 uses the paper's own
+    norm rule (so there is no rescale to confound), and P2/P3 apply no transform at all.
+    """
+    if test != "P4_opcm_committed" or norm_ratio in ("", None):
+        return ""
+    low, high = NO_OP_BAND
+    return "" if low <= float(norm_ratio) <= high else "coefficient_not_distance_matched"
 
 
 def threshold_of(tag: str) -> float | str:
@@ -161,7 +191,8 @@ def summarise(test: str, entry: dict, floor, pairs: list[tuple],
         "variant_sd": round(st.stdev(variants), 6) if len(variants) > 1 else 0.0,
         "delta_pct": round(delta, 3), "verdict": verdict,
         "committed_alpha": "", "target_alpha_times_n": "", "implied_alpha_times_n": "",
-        "threshold": "", "opcm_norm_ratio": "", "distance_ratio": "", "alpha_n_ok": "",
+        "threshold": "", "opcm_norm_ratio": "", "distance_ratio": "", "confounded": "",
+        "alpha_n_ok": "",
         # Carried IN THE FILE, not only in stdout. A CSV is read long after the run that made it,
         # and "3 rows built from fewer seeds" printed to a terminal does not survive into the
         # archive. Without this, a row averaged over 1 seed is indistinguishable from one averaged
@@ -310,6 +341,8 @@ def main() -> None:
                     "target_alpha_times_n": (alpha * payload.get("n_shards", 0)
                                              if alpha is not None else None),
                     "implied_alpha_times_n": payload.get("implied_alpha_times_n"),
+                    # Needed to derive `confounded`; see NO_OP_BAND.
+                    "opcm_norm_ratio": payload.get("opcm_norm_ratio"),
                 })
             attempted["P4_opcm_committed"] += 1
             row_threshold = threshold
@@ -424,6 +457,7 @@ def main() -> None:
     # what it looks like either. §1.9's floors are defined on three seeds, so a two-seed cell is
     # compared against a threshold derived from a different n and nothing in the row says so.
     for row in rows:
+        row["confounded"] = confounded_flag(row["test"], row.get("opcm_norm_ratio", ""))
         expected = expected_seeds.get(row["source_experiment"], 0)
         row["n_seeds_expected"] = expected
         row["complete"] = int(expected > 0 and row["n_seeds"] >= expected)

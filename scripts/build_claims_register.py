@@ -181,8 +181,12 @@ CLAIMS: list[tuple] = [
      "§1.32 ran the falsification test and the estimate saturates at the full pass - the "
      "instability is not sampling noise."),
     ("C25", "Attention-exclusive fine-tuning (the testable half of QOMM) helps",
-     "1.33", "ETTh1,exchange_rate", 2, "no", "measurement", "yes", "refuted",
-     "Measured and did not clear the floor. Reported as a negative result."),
+     "1.33", "PSM-forecast", 1, "no", "measurement", "yes", "refuted",
+     "Measured on PSM-forecast n=3, three seeds, and did not clear the floor - reported as a "
+     "negative result. §1.33 also refutes QOMM's stated PREMISE: attention-only fine-tuning was "
+     "predicted to make task vectors more orthogonal and does the opposite, raising the "
+     "off-diagonal cosine ~35% and nearly doubling rho. (The datasets field read "
+     "'ETTh1,exchange_rate' until 2026-09-19; §1.33 never used those.)"),
     ("C26", "The simplified OPCM operator (§1.31, §1.35) is the paper's OPCM",
      "1.31, 1.35, 1.36", "", 0, "n/a", "scope", "n/a", "refuted",
      "Never claimed and must never be: `opcm_residual` projects out the span of the flattened "
@@ -243,8 +247,9 @@ METHODS: list[tuple] = [
     ("OPCM - residual against flattened predecessors", "partial",
      "Implemented and run everywhere, but this is a SIMPLIFICATION of the published operator, "
      "labelled as such in every section that uses it (C26).",
-     "Cost does not scale with rho (C20, refuted). Helps on exchange_rate at n<=3; mechanism "
-     "under test as C23."),
+     "Cost does not scale with rho (C20, refuted). Helps on exchange_rate at n<=3; the "
+     "recency-filter mechanism was tested by §1.36's P3 and came back INCONCLUSIVE, so C23 "
+     "stays a hypothesis and only the measurement (C32) stands."),
     ("OPCM - paper operator (Tang et al., NeurIPS 2025, Algorithm 1)", "full",
      "Implemented from the paper once it was supplied: full SVD of the accumulated merged task "
      "matrix, two-sided projection out of the top-alpha singular subspace, i==j dropped, "
@@ -262,13 +267,16 @@ METHODS: list[tuple] = [
      "lambda* instability is not Fisher sampling noise (C24, refuted)."),
     ("BECAME's weighting at a chosen strength (rescaled)", "full",
      "Added in §1.36 to separate weighting from magnitude. NOT BECAME, and never labelled as it.",
-     "Pending - registered as P2 (C22)."),
+     "Confirmed by §1.36's P2, which closed C22: at matched alpha*n the Fisher weighting is "
+     "inert - 5 of 7 ties, and neither exception favours it (PSM n=5 +1.36% against a 0.07% "
+     "floor). Magnitude was the whole story."),
     ("QOMM", "partial",
      "Only the attention-exclusive fine-tuning half is testable with this backbone; the "
      "quadratic-form outer-product machinery is not implemented.",
      "The testable half does not clear the floor (C25, refuted)."),
     ("AEFT (attention-exclusive fine-tuning)", "full",
-     "Run on ETTh1 and exchange_rate with its own geometry report.",
+     "Run on PSM-forecast n=3, three seeds, with its own geometry report (`geometry_aeft/`). "
+     "NOT ETTh1/exchange_rate - that pairing was a bookkeeping error corrected 2026-09-19.",
      "No effect above the floor (C25)."),
     ("Fisher-weighted averaging (non-sequential)", "not run",
      "Subsumed by BECAME, which is the sequential Fisher method and was the one asked for.",

@@ -1818,8 +1818,15 @@ be made without labels. On low-drift forecasting (ETTh1) a perfect router recove
 does not justify storing n models plus selection logic that can itself be wrong. On strongly
 drifting forecasting it recovers 66–107%, which does.
 
-**Merging beats always-using-the-newest-specialist on all four forecasting datasets** — so if
-you keep one model, the merge is the right one, not the most recent.
+**Merging sits closer to the routing ceiling than always-using-the-newest-specialist in 8 of the
+10 forecasting configurations** — so if you keep one model, the merge is usually the right one,
+but not always. ⚠️ **Two counterexamples, and they are in the CSV**
+(`routing_forecast/routing_summary.csv`, `merged_vs_oracle_pct` against `newest_vs_oracle_pct`):
+ETTh1 n = 2, where the newest specialist *is* the per-regime optimum (0.0% against merging's
+5.6%), and ETTh2 n = 5 (54.8% against 81.0%). A third, ETTh2 n = 3, is a coin flip — 108.30
+against 108.60, a 0.3 pp margin — so a reader counting conservatively would say 7 of 10 rather
+than 8; the sentence is a count either way and never "all four datasets", which is what it said
+until 2026-09-19. Per dataset the split is ETTm2 3/3, exchange_rate 2/2, ETTh2 2/3, ETTh1 1/2.
 
 > **Method note.** The first run of this analysis reported merged at +573% on SWaT. The AD
 > segment-sweep runs inherit `merge_scale=1.0` from the `noisefloor_*` configs, so at n = 5 that

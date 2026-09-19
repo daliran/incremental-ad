@@ -232,9 +232,16 @@ CLAIMS: list[tuple] = [
      "1.27, 1.27a", "exchange_rate", 1, "no", "measurement", "yes", "refuted",
      "It does not: the ranking is unstable across origins. §1.27b isolates the test block and "
      "§1.27a pools ranks rather than raw means because the MSE scale spans 0.20-2.05."),
-    ("C29", "Merging beats always-using-the-newest-specialist on all four forecasting datasets",
-     "1.16b", "ETTh1,ETTh2,ETTm2,exchange_rate", 4, "yes", "measurement", "no", "supported",
-     "Bounded to the four datasets named in the sentence."),
+    ("C29", "Merging sits closer to the routing ceiling than the newest specialist in 8 of 10 "
+              "forecasting configurations",
+     "1.16", "ETTh1,ETTh2,ETTm2,exchange_rate", 4, "mixed", "measurement", "yes", "supported",
+     "Restated 2026-09-19 as a COUNT. It previously read 'on all four forecasting datasets', "
+     "which routing_summary.csv contradicts: merging is closer to the ceiling in 8 of 10 groups, "
+     "and the newest specialist is closer on ETTh1 n=2 (0.0% vs 5.6% - there the newest model IS "
+     "the per-regime optimum) and ETTh2 n=5 (54.8% vs 81.0%). ETTh2 n=3 is a coin flip at 108.30 "
+     "vs 108.60, so a conservative count reads 7 of 10. Per dataset: ETTm2 3/3, exchange_rate "
+     "2/2, ETTh2 2/3, ETTh1 1/2 - so it does not hold on all four datasets under any reading. "
+     "The section field also pointed at 1.16b while the sentence lives in 1.16."),
     ("C30", "Continual fine-tuning forgets, measured as BWT",
      "1.34", "ETTh1,ETTh2,ETTm2,exchange_rate", 4, "mixed", "measurement", "no", "supported",
      "ACC/BWT read off the sequential chains that already existed; no new training."),

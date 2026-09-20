@@ -137,6 +137,59 @@ def check_pullback_algebra() -> int:
     return failures
 
 
+def check_step_matches_lambda() -> int:
+    """Gate 6 — the step taken must equal lambda x d_norm. Returns failures.
+
+    ``theta*_t - theta*_{t-1} = lambda_t (theta_hat_t - theta*_{t-1})`` is an identity of the
+    update, so ``||step|| == lambda * ||d||`` exactly. It pins three things at once: that
+    `d_norm` measures the displacement it names, that the lambda written to the CSV is the one
+    actually applied, and that the interpolation is not inverted.
+
+    It exists because gates 1-5 all passed while two distance columns in the pipeline were
+    wrong — both read off the model AFTER the merge, so they reported the merged distance twice.
+    P4 divides one by the other, so it would have come out **1.000 on every row**: exactly the
+    "pinned" shape C21 reports for the merging frame, and indistinguishable from a real finding.
+    A wrong number that looks like a known result is the worst failure mode this project has.
+
+    Mirrors the runtime assert in `_pullback`; this one runs on CPU with no training, so it
+    fails in CI rather than three hours into a sweep.
+    """
+    failures = 0
+    torch.manual_seed(5)
+    keys = ["w", "b"]
+    accumulator = {k: torch.randn(32, 16) if k == "w" else torch.randn(32) for k in keys}
+    unconstrained = {k: torch.randn(32, 16) if k == "w" else torch.randn(32) for k in keys}
+
+    def norm(state):
+        return float(torch.sqrt(sum((v.double() ** 2).sum() for v in state.values())))
+
+    displacement = {k: unconstrained[k].double() - accumulator[k].double() for k in keys}
+    d_norm = norm(displacement)
+
+    for lam in (0.0, 0.1, 0.5, 0.75, 1.0):
+        merged = {k: ((1.0 - lam) * accumulator[k].double()
+                      + lam * unconstrained[k].double()).to(accumulator[k].dtype) for k in keys}
+        step_norm = norm({k: merged[k].double() - accumulator[k].double() for k in keys})
+        expected = lam * d_norm
+        if abs(step_norm - expected) > 1e-6 * max(expected, 1.0):
+            print(f"  FAIL  lambda={lam}: ||step|| = {step_norm:.9f}, lambda*d_norm = "
+                  f"{expected:.9f}")
+            failures += 1
+
+    # Negative test: the identity must FAIL if the distances are read after the merge, which is
+    # precisely the bug this gate was written for.
+    merged = {k: (0.5 * accumulator[k].double() + 0.5 * unconstrained[k].double()).to(
+        accumulator[k].dtype) for k in keys}
+    wrong = norm({k: merged[k].double() - accumulator[k].double() for k in keys})
+    if abs(wrong - 0.5 * wrong) <= 1e-9:
+        print("  LEAK  the identity cannot distinguish a post-merge reading — gate is vacuous")
+        failures += 1
+
+    print(f"  {'ok' if not failures else 'FAILED'}  ||theta*_t - theta*_(t-1)|| == lambda x "
+          f"d_norm at every lambda")
+    return failures
+
+
 def check_cpu_determinism() -> int:
     """Gate 5 — N optimizer steps on CPU at a fixed seed must hash to a committed value.
 
@@ -173,7 +226,8 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     print("ADAPTIVE-LAMBDA GATES  (BECAME's coefficient, chain frame — NOT BECAME)")
     total = (check_equal_fishers_give_one_over_t() + check_accumulator_equivalence()
-             + check_precision_monotone() + check_pullback_algebra() + check_cpu_determinism())
+             + check_precision_monotone() + check_pullback_algebra()
+             + check_step_matches_lambda() + check_cpu_determinism())
     print(f"\n{total} failure(s)")
     print("\nStill to run on the cluster: gate 1 (lambda=1 reproduces the plain chain bitwise, "
           "both configs in ONE job) and gate 3 (lambda in [0,1] on real steps, asserted inside "

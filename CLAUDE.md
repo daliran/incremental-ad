@@ -131,9 +131,11 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
 
 **No merging experiment is added unless it maps to a row in
 `results_archive/audit/claims_register.csv` whose `status` is not `supported`.** Re-measuring a
-settled claim is not a result, and the chapter is closed: 34 claims, 24 settled, 3 hypothesis, 7
-refuted, with `scripts/build_claims_register.py` as the script of record (`--self-test` proves its
-downgrade rule can fire).
+settled claim is not a result, and the chapter is closed: 34 merging claims, 24 settled, 3
+hypothesis, 7 refuted, with `scripts/build_claims_register.py` as the script of record
+(`--self-test` proves its downgrade rule can fire). The register file itself now holds **37**
+rows — `C35`–`C37` are strategy 6 (§1.39), which is not a merging experiment and does not move
+this tally; the register counts what the *document* claims, not what the chapter contains.
 
 **No merging experiment is open, and none should be added.** The three that were are closed:
 `C22` by §1.36's P2 (with magnitude held fixed, Fisher weighting contributes nothing and at larger
@@ -171,6 +173,27 @@ false across 48. So a claim's status is *derived* from its evidence
 `build_claims_register.py` also writes `unscoped_universals.csv` — every sentence in EXPERIMENTS.md
 asserting a never/always/every-dataset without naming its scope. Adding a claim to the prose without
 a register row is how the thing silently stops covering the document.
+
+## Scope note — adaptive-λ sequential fine-tuning (2026-09-20)
+
+The merging freeze above stands. **This is not a merging experiment**: it is a sixth update
+strategy in the sequential family — no task vectors, no shared frame, evaluated on test error
+like the chain. The task-arithmetic chapter is unchanged and stays closed.
+
+**Why it is added.** The supervisor's method list includes BECAME. What exists so far is
+BECAME's *coefficient inside the merging frame*, which measures a frame mismatch rather than the
+method. BECAME is a continual-learning method whose merge interpolates two endpoints of one
+training trajectory; testing it in the frame it was written for is the only honest answer to that
+list item.
+
+**Boundaries.** The merging-frame results (`C21`, `C22`, `C24`) are **rescoped, not withdrawn** —
+each now says it concerns the coefficient in the merging frame, and points here. The new strategy
+adds one column to the five-strategy comparison and one section. It does not reopen the chapter.
+
+**Naming, same discipline as `C26`:** `adaptive_lambda` in code, **"adaptive-λ sequential
+fine-tuning"** in prose. Never "BECAME" — the published method includes a gradient-projection
+stage that is not implemented. Registered in EXPERIMENTS.md §1.39;
+`scripts/verify_adaptive_lambda.py` holds the six gates.
 
 ## Working-style notes
 

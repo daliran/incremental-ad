@@ -142,12 +142,14 @@ CLAIMS: list[tuple] = [
      "mechanism", "yes", "refuted",
      "Registered as P1 before the sweep and refuted by it: the cost does not order by rho. The "
      "prediction and its refutation are both published."),
-    ("C21", "BECAME cannot reach the strength AD needs because its convex fold pins alpha.n = 1.0",
+    ("C21", "In the MERGING frame, BECAME's coefficient cannot reach the strength AD needs "
+              "because its convex fold pins alpha.n = 1.0",
      "1.31, 1.35", "SWaT,PSM,PSM-forecast", 3, "yes", "mechanism", "yes", "supported",
      "Structural, and verified per run rather than argued: implied_alpha_times_n is emitted by "
      "remerge.py and equals 1.0 on every BECAME row. §1.36 P2 is the falsification test - "
-     "rescaling the weights to the committed alpha.n separates weighting from magnitude."),
-    ("C22", "Fisher weighting itself contributes nothing beyond setting the merge magnitude",
+     "rescaling the weights to the committed alpha.n separates weighting from magnitude. SCOPE (2026-09-20): this concerns BECAME's COEFFICIENT applied inside this project's merging frame, where every shard is fine-tuned from the frozen theta_0. It is not a verdict on BECAME, which is a continual-learning method whose merge interpolates two endpoints of ONE training trajectory. The method is tested in its own frame as strategy 6, adaptive-lambda sequential fine-tuning (§1.39); this row is the evidence for why that was worth doing, not a result about it."),
+    ("C22", "In the MERGING frame, Fisher weighting contributes nothing beyond setting the "
+              "merge magnitude",
      "1.36", "SWaT,PSM,PSM-forecast", 3, "yes", "mechanism", "yes", "supported",
      "§1.36's P2 ran the isolating test - BECAME's relative weights rescaled so their sum equals "
      "the source run's committed alpha*n, against uniform 1/n at that same alpha*n through the "
@@ -155,7 +157,7 @@ CLAIMS: list[tuple] = [
      "NEITHER exception favours the weighting (PSM n=3 +0.11%, PSM n=5 +1.36% against a 0.07% "
      "floor, i.e. 19x the floor). implied_alpha_times_n equalled the target on every row, so the "
      "comparison really was at matched magnitude. Once magnitude is held fixed the Fisher "
-     "weighting contributes nothing, and at larger n it costs."),
+     "weighting contributes nothing, and at larger n it costs. SCOPE (2026-09-20): this concerns BECAME's COEFFICIENT applied inside this project's merging frame, where every shard is fine-tuned from the frozen theta_0. It is not a verdict on BECAME, which is a continual-learning method whose merge interpolates two endpoints of ONE training trajectory. The method is tested in its own frame as strategy 6, adaptive-lambda sequential fine-tuning (§1.39); this row is the evidence for why that was worth doing, not a result about it."),
     ("C23", "OPCM helps on exchange_rate at n<=3 because it acts as a recency filter",
      "1.35, 1.36", "exchange_rate", 1, "yes", "mechanism", "pending", "supported",
      "§1.35 asserts it as a finding - 'OPCM is not a merge improvement; it is a recency filter, "
@@ -178,10 +180,19 @@ CLAIMS: list[tuple] = [
      "1.35", "exchange_rate", 1, "yes", "measurement", "n/a", "supported",
      "-10.88% and -14.18% against a 5.73% floor, three thresholds each. This is what remains if "
      "C23's mechanism is refuted."),
-    ("C24", "lambda* is unstable because the Fisher estimate is noisy",
+    ("C24", "In the MERGING frame, lambda* is unstable because the Fisher estimate is noisy",
      "1.32", "PSM-forecast", 1, "no", "mechanism", "yes", "refuted",
      "§1.32 ran the falsification test and the estimate saturates at the full pass - the "
-     "instability is not sampling noise."),
+     "instability is not sampling noise. STILL REFUTED, but the test was insensitive to the "
+     "defect that does exist (2026-09-20): §1.39b shows diagonal_fisher squares the gradient of "
+     "a batch-MEAN loss, so E[F_hat] = g^2 + sigma^2/B - a function of the BATCH SIZE B, not of "
+     "the sample count K. §1.32 saturated K, which is exactly the variable the expectation does "
+     "not contain, so it could not have detected this however it came out. The defect is a bias, "
+     "not noise, so C24's wording is refuted on its own terms; what is withdrawn is the strength "
+     "of the evidence, not the verdict. In the merging frame the bias also cancels: "
+     "_shard_fishers evaluates every Fisher at its own specialist, all minima, so sigma^2/B is "
+     "common to numerator and denominator - the same algebra as the t=1 control in §1.39b. "
+     "SCOPE (2026-09-20): this concerns BECAME's COEFFICIENT applied inside this project's merging frame, where every shard is fine-tuned from the frozen theta_0. It is not a verdict on BECAME, which is a continual-learning method whose merge interpolates two endpoints of ONE training trajectory. The method is tested in its own frame as strategy 6, adaptive-lambda sequential fine-tuning (§1.39); this row is the evidence for why that was worth doing, not a result about it."),
     ("C25", "Attention-exclusive fine-tuning (the testable half of QOMM) helps",
      "1.33", "PSM-forecast", 1, "no", "measurement", "yes", "refuted",
      "Measured on PSM-forecast n=3, three seeds, and did not clear the floor - reported as a "
@@ -245,6 +256,44 @@ CLAIMS: list[tuple] = [
     ("C30", "Continual fine-tuning forgets, measured as BWT",
      "1.34", "ETTh1,ETTh2,ETTm2,exchange_rate", 4, "mixed", "measurement", "no", "supported",
      "ACC/BWT read off the sequential chains that already existed; no new training."),
+    # ---- strategy 6: adaptive-lambda sequential fine-tuning ---------------------------------
+    # NOT merging claims. The freeze tally quoted in CLAUDE.md is a statement about the merging
+    # chapter and stays at 34; these are counted separately in §0.7.
+    ("C35", "Adaptive-lambda sequential fine-tuning loses to the plain chain on forecasting",
+     "1.39", "ETTh1,ETTh2,ETTm2,exchange_rate", 4, "yes", "measurement", "yes", "supported",
+     "P1 registered before the runs and refuted by them: 16 worse, 0 ties, 0 better over 8 "
+     "configurations x 2 estimator settings, each paired against the chain that supplied its own "
+     "theta_0. The falsification test WAS run - the Fisher estimator was identified as defective "
+     "and the whole sweep re-run at the corrected setting, which could have overturned the "
+     "verdict and did not: every cell improved and none changed verdict. ETTh1 n=3 is the one "
+     "borderline cell (1.43x its floor, inside the <1.5x band) and is flagged as such rather "
+     "than pooled with cells at 10-30x. AD (PSM, SWaT) is NOT covered: its ACC has no floor for "
+     "reconstruction/score_mean and it was not re-run at the corrected estimator."),
+    ("C36", "diagonal_fisher's batch-mean gradient suppresses lambda* by 6-24x at every step "
+     "past the first",
+     "1.39b", "ETTm2", 1, "n/a", "mechanism", "yes", "supported",
+     "The algebra is exact - E[F_hat] = g^2 + sigma^2/B, so a form at a minimum scales as B^-1 "
+     "and one away from a minimum saturates - and the differential exponent is measured: "
+     "numerator B^-0.90, Lambda B^-0.29, with t=1 as a built-in negative control where Lambda is "
+     "Lambda_0 alone, both forms sit at minima, and lambda is B-invariant across a 128x range. "
+     "The scaling share derived from those exponents (42.6% at t=2, 38.2% at t=3, falling with t "
+     "in all three seeds) is a second prediction the fit was not tuned to produce. BUT the "
+     "exponent fit is ONE dataset (ETTm2 n=3, 3 seeds): the B-sweep was not repeated elsewhere, "
+     "so the rule downgrades this and it is right to. The CONSEQUENCE is broader - all eight "
+     "forecasting configurations were re-run at B=1 and every one improved - but the mechanism "
+     "itself rests on one dataset."),
+    ("C37", "The residual suppression left after correcting the estimator is Eq. 20's "
+     "at-a-minimum asymmetry",
+     "1.39b", "ETTh1,ETTh2,ETTm2,exchange_rate", 4, "n/a", "mechanism", "no", "supported",
+     "d^T F_t(theta_hat_t) d / d^T F_t(theta*_t) d is below 1 in all 78 cells - the Fisher is "
+     "always larger at the merged point - and regressing log(Lambda/F / t) on log(1/asymmetry) "
+     "over the 54 cells at t>1 gives slope +0.972, i.e. correctly SCALED. But r = 0.585, so "
+     "r^2 = 0.342 and two thirds of the per-cell variation is unaccounted for: the asymmetry "
+     "accounts for the residual in magnitude, not cell by cell. No test has been run that could "
+     "have overturned it, which is why the rule holds it at hypothesis. A near miss is on the "
+     "record: measured at the PUBLISHED batch size the asymmetry reads ~90x instead of ~5-8x, "
+     "because F(theta_hat) is itself suppressed by sigma^2/B - quoting that would have confirmed "
+     "the mechanism at fifteen times its size."),
 ]
 
 # The professor's method list: what was asked for, and what actually exists.
@@ -270,8 +319,13 @@ METHODS: list[tuple] = [
      "threshold rises (§1.36 P1). §1.37 isolated the cause: with its norm rule replaced by the "
      "committed strength the loss is unchanged on the cells where magnitude needed no correction, "
      "so the PROJECTION is what fails on this backbone, not the norm rule (C34 refuted)."),
-    ("BECAME - Fisher-weighted convex fold", "full",
-     "Implemented with diagonal Fishers per shard and lambda* solved per step.",
+    ("BECAME (Li et al., ICML 2025)", "full",
+     "Implemented as a CONTINUAL-LEARNING strategy in the paper's own frame, without gradient "
+     "projection, per the paper's Appendix C.3 configuration - see strategy 6, adaptive-lambda "
+     "sequential fine-tuning (§1.39). It was first tried as a coefficient inside the MERGING "
+     "frame (C21, C22, C24), which measures a frame mismatch rather than the method: BECAME's "
+     "merge interpolates two endpoints of one training trajectory, and the merging frame has no "
+     "trajectory. That result is the reason it was then implemented properly, not a verdict.",
      "Its total strength is pinned at alpha.n = 1.0 by the convex fold, verified per run (C21). "
      "lambda* instability is not Fisher sampling noise (C24, refuted)."),
     ("BECAME's weighting at a chosen strength (rescaled)", "full",
@@ -301,6 +355,7 @@ METHODS: list[tuple] = [
      "A per-window ORACLE router only; no buildable router exists, and it cannot be computed on "
      "AD from these runs at all (C17).",
      "Routing's advantage is real in the weakest possible sense - as an upper bound (C16)."),
+
 ]
 
 

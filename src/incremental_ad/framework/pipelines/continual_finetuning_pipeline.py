@@ -77,6 +77,7 @@ class ContinualFineTuningPipeline(Pipeline):
         fixed_lambda: float = 1.0,
         one_over_t_counts_base: bool = True,
         fisher_batches: int = 64,
+        fisher_batch_size: int | None = None,
         lambda_seed_from_base: bool = True,
         lambda_fisher_weighting: str = "unweighted",
         baseline_checkpoint: str | None = None,
@@ -91,6 +92,7 @@ class ContinualFineTuningPipeline(Pipeline):
         self.fixed_lambda = fixed_lambda
         self.one_over_t_counts_base = one_over_t_counts_base
         self.fisher_batches = fisher_batches
+        self.fisher_batch_size = fisher_batch_size
         self.lambda_seed_from_base = lambda_seed_from_base
         self.lambda_fisher_weighting = lambda_fisher_weighting
         self.baseline_checkpoint = baseline_checkpoint
@@ -142,6 +144,16 @@ class ContinualFineTuningPipeline(Pipeline):
             help="batches per diagonal-Fisher estimate; matches the merging pipeline.",
         )
         parser.add_argument(
+            f"--{p}_fisher_batch_size", type=int, default=None,
+            help="batch size for Fisher estimation only; None keeps the training batch size, "
+            "which is today's behaviour and what every published number used. Set 1 for the "
+            "empirical Fisher: `diagonal_fisher` squares the gradient of a BATCH-MEAN loss, "
+            "which at a converged minimum is minibatch noise scaling as 1/sqrt(B), so lambda's "
+            "numerator is suppressed by a dataloader property rather than by the model. Note "
+            "that --fisher_batches counts BATCHES, so lowering this lowers the sample count "
+            "unless you raise that too.",
+        )
+        parser.add_argument(
             f"--{p}_lambda_seed_from_base", type=_str_to_bool, default=True,
             help="seed Lambda_0 with the base model's own Fisher. Algorithm 1 line 2 sets "
             "Lambda_1 = F_1(theta*_1) before the loop, and our base model plays that role. "
@@ -177,6 +189,7 @@ class ContinualFineTuningPipeline(Pipeline):
             fixed_lambda=getattr(cfg, f"{p}_fixed_lambda"),
             one_over_t_counts_base=getattr(cfg, f"{p}_one_over_t_counts_base"),
             fisher_batches=getattr(cfg, f"{p}_fisher_batches"),
+            fisher_batch_size=getattr(cfg, f"{p}_fisher_batch_size"),
             lambda_seed_from_base=getattr(cfg, f"{p}_lambda_seed_from_base"),
             lambda_fisher_weighting=getattr(cfg, f"{p}_lambda_fisher_weighting"),
             baseline_checkpoint=getattr(cfg, f"{p}_baseline_checkpoint"),
@@ -246,14 +259,15 @@ class ContinualFineTuningPipeline(Pipeline):
 
         task_index = step + 1 if self.one_over_t_counts_base else step
         one_over_t = 1.0 / task_index
-        numerator = denominator = float("nan")
+        numerator = denominator = star_numerator = float("nan")
 
         if self.lambda_source == "fixed":
             lam = self.fixed_lambda
         elif self.lambda_source == "one_over_t":
             lam = one_over_t
         else:
-            loader = self.runner.loader_config.make_loader(segment.train, shuffle=True)
+            loader = self.runner.loader_config.make_loader(
+                segment.train, shuffle=True, batch_size=self.fisher_batch_size)
             fisher_hat = diagonal_fisher(model, loader, self.runner.device,
                                          max_batches=self.fisher_batches)
             # Eq. 20 with Lambda_{t-1} passed as a one-element list; identical arithmetic to
@@ -274,10 +288,18 @@ class ContinualFineTuningPipeline(Pipeline):
         # at the MERGED point — not the one used for lambda, which is taken at theta_hat_t.
         # Using one pass for both would be a different algorithm.
         if self.lambda_source == "became":
-            loader = self.runner.loader_config.make_loader(segment.train, shuffle=True)
+            loader = self.runner.loader_config.make_loader(
+                segment.train, shuffle=True, batch_size=self.fisher_batch_size)
             fisher_star = diagonal_fisher(model, loader, self.runner.device,
                                           max_batches=self.fisher_batches)
             weight = float(len(segment.train)) if self.lambda_fisher_weighting == "data" else 1.0
+            # d^T F_t(theta*_t) d, the SAME quadratic form the numerator uses, on the same task,
+            # the same data and the same d -- only the evaluation point differs. Its ratio to
+            # `fisher_num` isolates at-a-minimum vs not-at-a-minimum with everything else held
+            # constant, which is the candidate mechanism for the part of lambda's suppression
+            # the batch-size artifact does not explain. Free: `fisher_star` is already computed
+            # for Algorithm 1 line 9, so this adds a dot product and no forward pass.
+            star_numerator, _ = _quadratic_forms(displacement, fisher_star, None)
             precision = accumulate_precision(precision, fisher_star, weight)
 
         log.info("[adaptive] period %d: lambda*=%.6f (1/t would be %.6f, t=%d)",
@@ -285,13 +307,33 @@ class ContinualFineTuningPipeline(Pipeline):
         # Every distance is measured where it is DEFINED, not wherever `model` happens to point
         # afterwards: `model` holds theta*_t by the time this returns, so reading the
         # unconstrained distance from it later would silently report the merged one.
+        # ── Gate 6 ────────────────────────────────────────────────────────────────────────
+        # theta*_t - theta*_{t-1} = lambda_t * (theta_hat_t - theta*_{t-1}) by construction, so
+        # ||step|| must equal lambda_t * d_norm exactly. One identity that pins THREE things at
+        # once: that d_norm measures the displacement it claims to, that the lambda written to
+        # the CSV is the lambda actually applied, and that the interpolation runs in the right
+        # direction. Gates 1-5 all passed while two distance columns were wrong in a way that
+        # would have made P4 read 1.000 on every row — a pinned result indistinguishable from a
+        # real finding. This is the check that catches that class.
+        d_norm = _norm(displacement)
+        step_norm = _distance(merged, accumulator)
+        expected = lam * d_norm
+        tolerance = 1e-6 * max(expected, 1.0)
+        assert abs(step_norm - expected) <= tolerance, (
+            f"period {step}: ||theta*_t - theta*_(t-1)|| = {step_norm:.9f} but lambda * d_norm = "
+            f"{expected:.9f} (lambda={lam:.6f}, d_norm={d_norm:.9f}). The step taken is not the "
+            f"step lambda describes — d_norm, the applied lambda or the interpolation direction "
+            f"is wrong."
+        )
         diagnostics = {
             "step": step,
             "lambda_star": lam,
             "one_over_t": one_over_t,
-            "d_norm": _norm(displacement),
+            "d_norm": d_norm,
+            "step_norm": step_norm,
             "fisher_num": numerator,
             "fisher_den": denominator,
+            "fisher_star_num": star_numerator,
             "merged_dist_from_base": _distance(merged, self._theta_zero),
             "unconstrained_dist_from_base": _distance(unconstrained, self._theta_zero),
         }
@@ -408,7 +450,8 @@ class ContinualFineTuningPipeline(Pipeline):
                 accumulate_precision, diagonal_fisher,
             )
             base_segment = dataset.get_baseline()
-            loader = self.runner.loader_config.make_loader(base_segment.train, shuffle=True)
+            loader = self.runner.loader_config.make_loader(
+                base_segment.train, shuffle=True, batch_size=self.fisher_batch_size)
             log.info("[adaptive] seeding Lambda_0 from the base model's Fisher")
             weight = (float(len(base_segment.train))
                       if self.lambda_fisher_weighting == "data" else 1.0)
@@ -542,8 +585,12 @@ class ContinualFineTuningPipeline(Pipeline):
                         if value is not None:
                             writer.writerow([step, f"continual_{step - 1}", column, metric, value])
 
-        fields = ["step", "lambda_star", "one_over_t", "d_norm", "fisher_num", "fisher_den",
-                  "merged_dist_from_base", "unconstrained_dist_from_base"]
+        # `fisher_star_num` is appended, never inserted: readers of this file index by name,
+        # but a column added in the middle changes every diff of it for no reason.
+        fields = ["step", "lambda_star", "one_over_t", "d_norm", "step_norm",
+                  "fisher_num", "fisher_den",
+                  "merged_dist_from_base", "unconstrained_dist_from_base",
+                  "fisher_star_num"]
         path = step_dir / "adaptive_lambdas.csv"
         with path.open("w", newline="", encoding="utf-8") as fh:
             writer = csv.DictWriter(fh, fieldnames=fields)

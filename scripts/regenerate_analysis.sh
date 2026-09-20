@@ -86,7 +86,7 @@ python -m incremental_ad.analysis.method_comparison --runs_root "$RUNS" \
 python -m incremental_ad.analysis.method_comparison --runs_root "$RUNS" \
     --spec analysis_specs/method_comparison_spec.csv --routing_dir "$OUT/routing_forecast" \
     --floors "$OUT/floors.csv" --run_metrics "$OUT/run_metrics.csv" \
-    --window_selection "$OUT/window_selection/window_selection.csv" \
+    --window_selection "$(carried window_selection)/window_selection.csv" \
     --out "$OUT/methods_windowval" || echo "  window_val comparison skipped (no selection csv)"
 cp "$OUT/methods/method_comparison.csv" "$OUT/method_comparison.csv"
 python -m incremental_ad.analysis.method_comparison --runs_root "$RUNS" \
@@ -171,7 +171,7 @@ python -m incremental_ad.analysis.remerge_report --runs_root "$RUNS" \
     --remerge_dir "$(carried remerge_sweep)" --floors "$OUT/floors.csv" \
     --geometry results_archive/audit/geometry/geometry_by_dataset.csv \
     --geometry_summary results_archive/audit/geometry/geometry_summary.csv \
-                       "$OUT/geometry_gap/geometry_summary.csv" \
+                       "$(carried geometry_gap)/geometry_summary.csv" \
     --out "$OUT/remerge_sweep_report" || echo "  remerge report skipped (no sweep outputs)"
 
 echo "== closeout: BECAME rescaled + order reversal (§1.36) =="
@@ -185,6 +185,22 @@ python -m incremental_ad.analysis.remerge_closeout_report --runs_root "$RUNS" \
     --remerge_dir "$(carried remerge_closeout)" --forward_dir "$(carried remerge_sweep)" \
     --floors "$OUT/floors.csv" \
     --out "$OUT/remerge_closeout_report" || echo "  closeout report skipped (no sweep outputs)"
+
+echo "== adaptive-lambda sequential fine-tuning (§1.39) =="
+# Strategy 6, not a merging experiment (CLAUDE.md scope note). Pure aggregation over finished
+# runs. Cells are keyed on the Fisher estimator's batch size as well as the configuration, so a
+# B = 128 run and a B = 1 re-run of the same chain can never pool into one number.
+python -m incremental_ad.analysis.adaptive_lambda_report --self-test
+python -m incremental_ad.analysis.adaptive_lambda_report --runs_root "$RUNS" \
+    --floors "$OUT/floors.csv" --metrics forecast/mse reconstruction/score_mean \
+    --out "$OUT/adaptive_lambda"
+# The B-sweep recomputes Fishers from checkpoints, so it is a GPU job
+# (`scripts/diagnose_fisher_batch_scaling.py`) and is NOT run here; its per-seed CSVs are
+# carried from the archive and this step only aggregates them.
+python -m incremental_ad.analysis.fisher_scaling_report --self-test
+python -m incremental_ad.analysis.fisher_scaling_report \
+    --scaling_root "$(carried fisher_scaling_sweep)" --out "$OUT/fisher_scaling" \
+    || echo "  fisher_scaling skipped (no B-sweep outputs)"
 
 echo "== claims register =="
 # Not an aggregation over runs: the register is what binds each *claim* to the evidence it rests
@@ -203,7 +219,8 @@ python "$REPO/scripts/build_results_report.py" --archive "$REPO/results_archive"
 echo "== carrying forward GPU-only outputs (not regenerated here) =="
 for sub in oracle_router concentration novelty_swat selection_probe drift \
            geometry novelty alignment subblocks mask_span window_selection remerge \
-           remerge_sweep remerge_closeout geometry_gap geometry_aeft; do
+           remerge_sweep remerge_closeout geometry_gap geometry_aeft \
+           fisher_scaling_sweep; do
     if [ -d "$CARRY/$sub" ] && [ ! -d "$OUT/$sub" ]; then
         cp -r "$CARRY/$sub" "$OUT/$sub"
         echo "  carried $sub from results_archive (regenerate with a GPU job if its runs changed)"

@@ -522,10 +522,16 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**34 claims: 24 supported, 3 hypothesis, 7 refuted.** The rule downgraded
-**1** claim the prose declared as a finding: `C23`, §1.35's recency-filter
+**37 claims: 25 supported, 5 hypothesis, 7 refuted.** The rule downgraded
+**3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
-until §1.36's P3. That paragraph is now marked as a hypothesis in place.
+until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
+now marked as a hypothesis in place.
+
+⚠️ **34 of the 37 are merging claims; `C35`–`C37` are not.** The merging chapter's tally — the
+one CLAUDE.md's freeze quotes — is **unchanged at 34: 24 supported, 3 hypothesis, 7 refuted**.
+Strategy 6 (§1.39) is a sequential method, and its rows are counted here because this register
+covers the *document*, not because the freeze moved.
 
 #### Claims that are not findings
 
@@ -534,6 +540,8 @@ until §1.36's P3. That paragraph is now marked as a hypothesis in place.
 | `C03` | alpha*.n rises with n on PSM because the task vectors de-align | 1.18 | PSM | Already reported as mechanistically uncorroborated in §1.18: ETTh1 de-aligns fastest and has the flattest product, so the geometry points the other way. |
 | `C23` | OPCM helps on exchange_rate at n<=3 because it acts as a recency filter | 1.35, 1.36 | exchange_rate | §1.35 asserts it as a finding - 'OPCM is not a merge improvement; it is a recency filter, and it pays exactly where recency pays' - on ONE dataset with no test that could have broken it. |
 | `C31` | OPCM hurts most where there is most base-to-joint headroom | 1.35 | ETTh2,ETTm2 | §1.35 already labels it 'a hypothesis from six points, not a finding'. Recorded so it is not later quoted as one. |
+| `C36` | `diagonal_fisher`'s batch-mean gradient suppresses λ\* by 6–24× at every step past the first | 1.39b | ETTm2 | The algebra is exact and the differential exponent is measured with a negative control, but the B-sweep was run on **one** dataset. The *consequence* is broader — all eight forecasting configurations were re-run at B = 1 and every one improved — yet the mechanism itself rests on ETTm2 n = 3. |
+| `C37` | The residual left after correcting the estimator is Eq. 20's at-a-minimum asymmetry | 1.39b | ETTh1,ETTh2,ETTm2,exchange_rate | Slope +0.972 says it is correctly *scaled*, but r² = 0.342 leaves two thirds of the per-cell variation unexplained, and **no test has been run that could have overturned it**. |
 
 #### Claims this file records as refuted
 
@@ -561,7 +569,7 @@ called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** ca
 | Task arithmetic (plain sum at alpha) | **full** | The project's baseline throughout; merge is bitwise reproducible from checkpoints (412/412). | alpha* ~ 1/n in the deployment parameterisation; merging within 1.0-1.1x of specialists on SWaT/PSM/ETTh1 but 1.5-2.1x on ETTh2/exchange_rate (C01). |
 | OPCM - residual against flattened predecessors | **partial** | Implemented and run everywhere, but this is a SIMPLIFICATION of the published operator, labelled as such in every section that uses it (C26). | Cost does not scale with rho (C20, refuted). Helps on exchange_rate at n<=3; the recency-filter mechanism was tested by §1.36's P3 and came back INCONCLUSIVE, so C23 stays a hypothesis and only the measurement (C32) stands. |
 | OPCM - paper operator (Tang et al., NeurIPS 2025, Algorithm 1) | **full** | Implemented from the paper once it was supplied: full SVD of the accumulated merged task matrix, two-sided projection out of the top-alpha singular subspace, i==j dropped, norm-stabilising lambda, 1-D tensors passed through. Eq. 8 and Thm 5.2 are asserted as unit checks rather than assumed (`verify_merge_rules.py`). | Takes no merge scale - it fixes its own magnitude at the mean task-vector norm (C33). On ETTh1 that lands at alpha*n = 1.60 against the 1.00 validation selected, and the merge is decisively worse than plain summation at every threshold, worsening monotonically as the threshold rises (§1.36 P1). §1.37 isolated the cause: with its norm rule replaced by the committed strength the loss is unchanged on the cells where magnitude needed no correction, so the PROJECTION is what fails on this backbone, not the norm rule (C34 refuted). |
-| BECAME - Fisher-weighted convex fold | **full** | Implemented with diagonal Fishers per shard and lambda* solved per step. | Its total strength is pinned at alpha.n = 1.0 by the convex fold, verified per run (C21). lambda* instability is not Fisher sampling noise (C24, refuted). |
+| BECAME (Li et al., ICML 2025) | **full** | Implemented as a CONTINUAL-LEARNING strategy in the paper's own frame, without gradient projection, per the paper's Appendix C.3 configuration - see strategy 6, adaptive-lambda sequential fine-tuning (§1.39). It was first tried as a coefficient inside the MERGING frame (C21, C22, C24), which measures a frame mismatch rather than the method: BECAME's merge interpolates two endpoints of one training trajectory, and the merging frame has no trajectory. That result is the reason it was then implemented properly, not a verdict. | Its total strength is pinned at alpha.n = 1.0 by the convex fold, verified per run (C21). lambda* instability is not Fisher sampling noise (C24, refuted). |
 | BECAME's weighting at a chosen strength (rescaled) | **full** | Added in §1.36 to separate weighting from magnitude. NOT BECAME, and never labelled as it. | Confirmed by §1.36's P2, which closed C22: at matched alpha*n the Fisher weighting is inert - 5 of 7 ties, and neither exception favours it (PSM n=5 +1.36% against a 0.07% floor). Magnitude was the whole story. |
 | QOMM | **partial** | Only the attention-exclusive fine-tuning half is testable with this backbone; the quadratic-form outer-product machinery is not implemented. | The testable half does not clear the floor (C25, refuted). |
 | AEFT (attention-exclusive fine-tuning) | **full** | Run on PSM-forecast n=3, three seeds, with its own geometry report (`geometry_aeft/`). NOT ETTh1/exchange_rate - that pairing was a bookkeeping error corrected 2026-09-19. | No effect above the floor (C25). |
@@ -4537,7 +4545,7 @@ the predecessors' directions are genuinely stale, and there it helps only below 
 recommended threshold.
 
 
-### 1.39 Adaptive-λ sequential fine-tuning (BECAME's coefficient) — registration
+### 1.39 Adaptive-λ sequential fine-tuning — strategy 6, registration
 
 > **Provenance.** `ContinualFineTuningPipeline --continual_lambda_source became` →
 > `continual_summary/adaptive_lambdas.csv` + `backward_transfer_unconstrained.csv`. Gates in
@@ -4547,8 +4555,13 @@ recommended threshold.
 ⚠️ **This is not BECAME, and must never be called that.** The published method (Li et al.,
 *BECAME*, ICML 2025) is two-stage: train with gradient projection to θ^GP, continue
 unconstrained to θ̂, then merge. Only the **coefficient** is used here — Eq. 20's closed form —
-inside this project's sequential chain. Call it **"adaptive-λ sequential fine-tuning (BECAME's
-coefficient)"**, the discipline `C26` applies to the OPCM variants. Gradient projection is a
+inside this project's sequential chain. Call it **"adaptive-λ sequential fine-tuning"**, the discipline `C26`
+applies to the OPCM variants.
+
+**It is a sixth update strategy, not a subsection of the merging work** (scope note in
+CLAUDE.md, 2026-09-20). It adds one column to §1.26's five-strategy comparison. The
+merging-frame rows `C21`/`C22`/`C24` are rescoped, not withdrawn: they concern the coefficient
+in the merging frame and are the reason this was implemented in the paper's own frame. Gradient projection is a
 separate, later question (`P5`), gated on a measurement rather than assumed.
 
 **The paper supports the no-projection variant; it is not a simplification invented here.**
@@ -4592,10 +4605,188 @@ t = 1…6, which is what makes that reasoning checkable rather than asserted.
   period 3. If so, θ^GP ≈ θ\*_{t−1}, the full method collapses into this one, and **not building
   it is the finding.**
 
-**Results**
+#### Results — P1, P2 and P4 all REFUTED; the interesting finding is methodological
 
-_Pending. ⚠️ The runs are **blocked** on a scope decision recorded in CLAUDE.md — see the
-freeze note there. Code, gates and predictions are complete; nothing has been run._
+> **Provenance of the numbers below.** `scripts/generate_adaptive_lambda_sweep.py --tier 1`
+> (30 runs, B = 128) and `--tier 3` (24 runs, forecasting, B = 1) →
+> `analysis/adaptive_lambda_report.py` → `adaptive_lambda_{acc,per_seed,steps,distance}.csv`.
+> The B-sweep is `scripts/diagnose_fisher_batch_scaling.py` → `analysis/fisher_scaling_report.py`
+> → `fisher_scaling_{exponents,decomposition}.csv`. 54 runs, 0 failures.
+
+⚠️ **Read the two columns as different things.** The **corrected** column (B = 1) is the
+result. The **published** column (B = 128) is *the estimator defect, measured* — it is the
+evidence for §1.39b and is **not** a second set of results. Quoting a B = 128 cell as a finding
+about the method is the error this labelling exists to prevent, the same discipline the
+withdrawn-claims rows carry.
+
+**P1 — REFUTED.** ACC (loss-shaped, lower is better) against the paired plain chain — paired by
+the source run's own `pipeline_baseline_checkpoint`, so the only difference is the pullback.
+
+| dataset | n | *defect: B = 128* | **corrected: B = 1** | floor | ratio | verdict |
+|---|---|---|---|---|---|---|
+| ETTh1 | 3 | +49.09% | **+12.51%** | 8.76% | 1.43× | worse **(borderline)** |
+| ETTh2 | 2 | +100.69% | +86.04% | 6.74% | 12.76× | worse |
+| ETTh2 | 3 | +278.04% | +206.85% | 6.74% | 30.69× | worse |
+| ETTh2 | 5 | +142.35% | +120.18% | 6.74% | 17.83× | worse |
+| ETTm2 | 2 | +180.56% | +154.20% | 14.11% | 10.93× | worse |
+| ETTm2 | 3 | +246.66% | +219.78% | 14.11% | 15.58× | worse |
+| ETTm2 | 5 | +224.24% | +154.40% | 14.11% | 10.94× | worse |
+| exchange_rate | 3 | +171.02% | +112.72% | 5.73% | 19.66× | worse |
+| PSM | 3 | +8.93% | *AD not re-run* | — | — | no floor |
+| SWaT | 3 | +3.12% | *AD not re-run* | — | — | no floor |
+
+**16 worse, 0 ties, 0 better.** Every config improved under correction and none changed verdict.
+**ETTh1 n = 3 is the one borderline row** — 1.43× its floor, inside the < 1.5× band — and it is
+the most informative cell in the table: it is where the defect did the most damage (5.61× →
+1.43× its floor) and where the method comes closest to not losing. It is flagged rather than
+rolled in with rows at 10–30× their floor.
+
+⚠️ **AD has no floor for `reconstruction/score_mean`** and is reported `no_floor` rather than
+judged against a detection-metric floor — the §1.16 refusal, applied here. AD is also **not**
+re-run at B = 1; see §1.39b for why that is a scope decision and not an omission.
+
+**P2 — REFUTED, and refuted backwards.** λ\*_t ≈ 1/t was predicted on ETTh1/ETTm2 and departure
+on exchange_rate. At the corrected estimator:
+
+| dataset | n | λ/(1/t) at t=1 | λ/(1/t) at t≥2 | Λ/F ÷ t at t≥2 | F(θ̂_t)/F(θ\*_t) at t≥2 |
+|---|---|---|---|---|---|
+| ETTh1 | 3 | 1.16 | 0.60–1.68 | 0.4–1.9× | 1.1–2.1× |
+| ETTh2 | 2 | 1.87 | 0.12–0.77 | 1.4–12.3× | 8.7–12.1× |
+| ETTh2 | 3 | 1.94 | 0.20–0.36 | 3.4–7.1× | 5.9–10.9× |
+| ETTh2 | 5 | 1.96 | 0.04–0.28 | 4.1–33.1× | 3.3–10.9× |
+| ETTm2 | 2 | 1.71 | 0.45–0.55 | 2.2–2.8× | 6.0–8.1× |
+| ETTm2 | 3 | 1.71 | 0.16–0.57 | 2.0–8.6× | 4.1–7.6× |
+| ETTm2 | 5 | 1.92 | 0.08–0.24 | 4.8–18.7× | 3.0–23.9× |
+| exchange_rate | 3 | 1.25 | 1.21–2.31 | 0.1–0.8× | 1.0–5.3× |
+
+The datasets that track 1/t are **ETTh1 and exchange_rate** — the opposite pairing to the one
+registered. So the Fisher does **not** rediscover §1.18's α\*·n regularity from curvature; the
+two routes disagree about which datasets are regular, which is the §1.18 situation again and is
+reported as such rather than resolved by preference.
+
+**P4 — REFUTED.** `‖θ\*_T − θ₀‖ / mean_i ‖θ̂_i − θ₀‖` was predicted **> 1**. It is **≤ 1 in all
+54 runs** (0.089–1.001 overall; 0.115–0.909 at the corrected estimator). The chain **converges**
+rather than compounding: each pullback gives back more than the next fine-tune travels. `C21`'s
+structural blocker is therefore not the reason this frame behaves differently, and the
+rescoping of `C21`/`C22`/`C24` to the merging frame stands on its own.
+
+**P3 and P5 — not run.** P3 needs the fixed-λ = 1/t control (Tier 2, held). P5 is the projection
+variant, which §1.39b's result makes a question about a method that already loses by 10–30×
+its floor on seven of eight configs.
+
+#### 1.39b The estimator defect — the durable finding
+
+**`diagonal_fisher` squares the gradient of a batch-MEAN loss.** For batch size B that estimator
+has expectation
+
+    E[F̂] = g² + σ²/B
+
+so at a converged minimum, where g ≈ 0, it reads **σ²/B — a property of the dataloader, not of
+the model**. λ\*'s numerator `F_t(θ̂_t)` is taken at exactly such a minimum; Λ's terms after the
+first are taken at merged points that are minima of nothing and keep g² > 0. The prediction is
+therefore not "λ moves with B" but **two different exponents**, which is falsifiable in a way a
+shift under one intervention is not.
+
+⚠️ **The sample count is not the variable.** K does not appear in `E[F̂]`: more samples shrink
+the estimate's variance, not its mean. The sweep holds N = 8192 fixed and moves B alone. A first
+design varied the two together and would have measured nothing extra.
+
+⚠️ **Registered as `C36`, and the register holds it at *hypothesis*** — the algebra is exact
+and the exponents are measured against a negative control, but the B-sweep was run on **one**
+dataset. The *consequence* is broader (all eight forecasting configurations re-run at B = 1, all
+eight improved); the mechanism itself rests on ETTm2 n = 3 and is not to be quoted as settled.
+
+**Fitted slope p in `form ~ B^p`**, B ∈ {1, 8, 64, 128}, ETTm2 n = 3, 3 seeds:
+
+| | t = 1 | t = 2 | t = 3 |
+|---|---|---|---|
+| numerator F(θ̂_t) | −0.884 | −0.904 | −0.708 |
+| Λ term | −0.690 | −0.290 | −0.259 |
+
+**t = 1 is a negative control the design got for free.** There Λ **is** Λ₀, seeded at θ₀ on the
+base shard — also a minimum — so numerator and denominator scale together and λ must be
+B-invariant. It is: 0.63 → 0.85, 0.75 → 0.79, 0.53 → 0.82 across a 128× change in B, against
+96–1536× movement at t ≥ 2. The numerator's −0.88 rather than −1.00 is also right: these are
+early-stopped checkpoints, so g² is small but not zero.
+
+**Λ is a two-component mixture, and the exponent says by how much.** Λ_t sums Λ₀ (at a minimum,
+scales) and one term per completed period (at a merged point, saturates). For `Λ(B) = A·B^p + C`,
+`d log Λ / d log B = p · (scaling share)`, and p is **measured** at t = 1 rather than assumed. The
+scaling share comes out **42.6% at t = 2**, falling to **38.2% at t = 3** — in all three seeds
+independently, a direction the exponents were not fitted to produce.
+
+⚠️ **Where the mixture does not fit, reported as found.** With equal-sized merged-point terms,
+flat/scaling should roughly *double* from t = 2 (one flat term) to t = 3 (two). It rises 20–30%
+in every seed. The model gets the share right and the term sizes wrong.
+
+**Size of the defect.** At B = 1 the batch mean *is* the per-sample gradient, so that column is
+the estimator being correct — not an extrapolation. Multiplicative decomposition of λ's
+suppression below 1/t (ETTm2 n = 3):
+
+| seed | t | λ at B = 128 | λ at B = 1 | total | estimator | residual |
+|---|---|---|---|---|---|---|
+| 7 | 2 | 0.00103 | 0.01740 | 325× | 17.0× | 19.2× |
+| 42 | 2 | 0.00347 | 0.05236 | 96× | 15.1× | 6.4× |
+| 123 | 2 | 0.00022 | 0.00524 | 1536× | 24.1× | 63.7× |
+| 7 | 3 | 0.00820 | 0.05551 | 30× | 6.8× | 4.5× |
+| 42 | 3 | 0.01461 | 0.08818 | 17× | 6.0× | 2.8× |
+| 123 | 3 | 0.00090 | 0.01087 | 279× | 12.1× | 23.0× |
+
+**The estimator accounts for a 6.0–24.1× suppression of λ at every step past the first; a
+further 2.8–63.7× is real.** Reported as a range, not a point: seed 123's residual is 10× seed
+42's, so a point estimate would be fiction.
+
+**The residual has a measured candidate mechanism** — registered as `C37` and held at
+*hypothesis*, because no test has been run that could have overturned it. `_pullback` already computed
+`F_t(θ\*_t)` for Algorithm 1 line 9 and discarded the quadratic form; it now emits
+`dᵀF_t(θ\*_t)d` — same task, same data, same d, only the evaluation point moves. Across the 24
+corrected runs — **ETTh1, ETTh2, ETTm2 and exchange_rate**, eight configurations, three seeds —
+that ratio is **below 1 in all 78 cells**: the Fisher is always larger at the merged point.
+Fitting
+`log(Λ/F ÷ t)` on `log(1/asymmetry)` over the **54 cells at t > 1** gives **slope = +0.972**,
+at **r = +0.585**.
+
+⚠️ **Slope, not r.** Slope ≈ 1 says the mechanism is correctly *scaled* — a 10× asymmetry
+produces a 10× residual on average. But **r² = 0.342**, so **two thirds of the per-cell variation
+is unaccounted for**. The asymmetry accounts for the residual **in magnitude, with
+substantial per-cell scatter**; it does not explain it cell by cell.
+
+⚠️ **t = 1 is excluded from that fit and must be:** Λ₁ is Λ₀ alone and carries no merged-point
+term for the asymmetry to be about. Pooling it in inflates the slope from 0.97 to **1.82** — a
+cell that cannot speak to the hypothesis driving the number that tests it.
+
+⚠️ **The asymmetry is itself B-dependent, which nearly produced a fifteen-fold overstatement.**
+ETTm2 n = 3, `F_t(θ̂_t)/F_t(θ\*_t)`, mean of 3 seeds:
+
+| t | B = 1 | B = 8 | B = 64 | B = 128 |
+|---|---|---|---|---|
+| 1 | 0.169 | 0.073 | 0.016 | 0.011 |
+| 2 | 0.205 | 0.077 | 0.016 | 0.010 |
+| 3 | 0.119 | 0.027 | 0.008 | 0.007 |
+
+At B = 128 the asymmetry reads ~90×; at B = 1 it is ~5–8×. Most of what looks like asymmetry at
+the published batch size **is the artefact** — F(θ̂) suppressed by σ²/B while F(θ\*) keeps its g².
+Measuring the asymmetry only at the published B would have "confirmed" the mechanism at fifteen
+times its true size, and no other check in this project would have caught it.
+
+**Scope — where this defect does and does not bite.** It bites wherever a quadratic form at a
+minimum is compared against one that is not. It **does not** affect the merging-frame Fisher
+results (`E08`, `E18`, §1.31, §1.36): `_shard_fishers` evaluates every Fisher at that shard's
+**own** specialist θ̂_i, all of which are minima, so the σ²/B factor is common to numerator and
+denominator and cancels. That is the same algebra the t = 1 control demonstrates. The chain
+breaks only from t = 2, when Λ starts carrying merged-point terms that are not suppressed.
+
+**AD is published at B = 128, by decision.** On AD the bias is expected to largely self-cancel:
+random masking makes σ² large enough that σ²/B plausibly dominates g² at the merged points too,
+so numerator and denominator scale together — which is consistent with AD's Λ/F sitting at
+0.1–11× where forecasting's ran to thousands. ⚠️ **That is an inference, not a measurement.** A
+B-sweep on PSM n = 3 would settle it; it was not run because AD's verdict does not turn on it.
+
+**Why this outlives the experiment.** The defect applies to any EWC-style diagonal Fisher built
+from batch-mean gradients, which is a common shape in published code. The correction is one
+dataloader argument (`--pipeline_fisher_batch_size 1`), it was invisible to every other check in
+this repo, and it was found only because a coefficient came out absurd and the absurdity was
+chased rather than tuned away.
 
 
 ## 2. Exact configurations

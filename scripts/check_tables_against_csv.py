@@ -1218,6 +1218,72 @@ def _parse_matrix(table: str):
     return cells, alpha
 
 
+# §1.39's P1 table carries TWO columns of the same quantity: the estimator defect at B = 128
+# and the corrected result at B = 1. Each cell is bound to its own `fisher_batch_size`, and the
+# regex steps over the column it is not checking — so a check cannot pass by matching the other
+# column of the same row. That is the §1.16b failure mode, where a stale merge column sat beside
+# a fresh one and every per-cell check still passed.
+_P1_ROWS = (("ETTh1", 3), ("ETTh2", 2), ("ETTh2", 3), ("ETTh2", 5),
+            ("ETTm2", 2), ("ETTm2", 3), ("ETTm2", 5), ("exchange_rate", 3))
+
+
+def _p1_check(dataset: str, n: int, batch_size: int):
+    """One §1.39 P1 cell. `batch_size` picks which of the two columns is under test."""
+    number = r"\*{0,2}\+([\d.]+)%\*{0,2}"
+    skip = r"\+[\d.]+% \| " if batch_size == 1 else ""
+    return (f"§1.39 {dataset} n={n} ACC "
+            + ("corrected" if batch_size == 1 else "defect"),
+            rf"\| {dataset} \| {n} \| " + skip + number,
+            "adaptive_lambda/adaptive_lambda_acc.csv",
+            {"dataset": dataset, "n_segments": str(n), "metric": "forecast/mse",
+             "fisher_batch_size": str(batch_size)},
+            "acc_delta_pct", 0.02)
+
+
+CHECKS += [_p1_check(d, n, b) for d, n in _P1_ROWS for b in (128, 1)]
+
+CHECKS += [
+    # The borderline call is a threshold on this number, so the number is what is checked. If
+    # either the delta or the floor moves, band membership moves with it.
+    ("§1.39 ETTh1 n=3 margin ratio", r"\| ([\d.]+)× \| worse \*\*\(borderline\)\*\*",
+     "adaptive_lambda/adaptive_lambda_acc.csv",
+     {"dataset": "ETTh1", "n_segments": "3", "metric": "forecast/mse",
+      "fisher_batch_size": "1"}, "margin_ratio", 0.01),
+    # Slope, not r: slope ~1 is the claim ("correctly scaled"), r^2 = 0.34 is the caveat beside
+    # it. Both are checked so neither can drift into the other's sentence.
+    ("§1.39b asymmetry slope", r"\*\*slope = \+([\d.]+)\*\*",
+     "adaptive_lambda/adaptive_lambda_asymmetry_fit.csv", {"scope": "t>1"}, "slope", 0.01),
+    ("§1.39b asymmetry r", r"\*\*r = \+([\d.]+)\*\*",
+     "adaptive_lambda/adaptive_lambda_asymmetry_fit.csv", {"scope": "t>1"}, "pearson_r", 0.01),
+    ("§1.39b asymmetry r squared", r"\*\*r² = ([\d.]+)\*\*",
+     "adaptive_lambda/adaptive_lambda_asymmetry_fit.csv", {"scope": "t>1"}, "r_squared", 0.005),
+    ("§1.39b asymmetry slope pooled", r"inflates the slope from 0\.97 to \*\*([\d.]+)\*\*",
+     "adaptive_lambda/adaptive_lambda_asymmetry_fit.csv", {"scope": "all_t"}, "slope", 0.01),
+]
+
+# §1.39b's exponents. The *differential* between the two rows is the entire argument, so both
+# rows are checked at all three steps, and t=1 — the negative control, where the two must agree —
+# is checked alongside them rather than taken on trust.
+CHECKS += [
+    (f"§1.39b {name} exponent t={t}",
+     rf"\| {row} \| " + r"−[\d.]+ \| " * (t - 1) + r"(−[\d.]+) \|",
+     "fisher_scaling/fisher_scaling_exponents.csv", {"step": str(t)}, column, 0.01)
+    for name, row, column in (
+        ("numerator", r"numerator F\(θ̂_t\)", "exponent_numerator"),
+        ("Lambda", r"Λ term", "exponent_lambda_term"))
+    for t in (1, 2, 3)
+]
+
+# The mixture share is derived from those exponents, so checking it as well proves the derived
+# quantity and the quantities it derives from cannot drift apart.
+CHECKS += [
+    ("§1.39b mixture share t=2", r"\*\*([\d.]+)% at t = 2\*\*",
+     "fisher_scaling/fisher_scaling_exponents.csv", {"step": "2"}, "scaling_share_pct", 0.05),
+    ("§1.39b mixture share t=3", r"\*\*([\d.]+)% at t = 3\*\*",
+     "fisher_scaling/fisher_scaling_exponents.csv", {"step": "3"}, "scaling_share_pct", 0.05),
+]
+
+
 def check_transfer_matrices(text: str, runs_root: Path, spec_path: Path,
                             tolerance: float = 0.0015) -> int:
     """Verify every documented transfer matrix cell against its run. Returns failure count."""

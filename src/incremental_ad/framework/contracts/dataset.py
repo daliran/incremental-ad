@@ -94,10 +94,22 @@ class DataLoaderConfig:
             num_workers=cfg.loader_num_workers,
         )
 
-    def make_loader(self, dataset: TorchDataset, *, shuffle: bool) -> DataLoader:
+    def make_loader(self, dataset: TorchDataset, *, shuffle: bool,
+                    batch_size: int | None = None) -> DataLoader:
+        """`batch_size=None` keeps the configured size, so every existing call is unchanged.
+
+        The override exists for Fisher estimation. `diagonal_fisher` squares the gradient of a
+        **batch-mean** loss, which is neither the true Fisher nor the empirical one — both of
+        those use per-sample gradients. At a converged minimum the batch-mean gradient is
+        minibatch sampling noise whose magnitude scales like 1/sqrt(B), so the estimate is
+        suppressed by an amount that depends on the dataloader rather than the model. At
+        `batch_size=1` the batch-mean gradient IS the per-sample gradient and the result is the
+        empirical Fisher as EWC defines it: observed targets, PSD by construction, and
+        non-vanishing at a minimum.
+        """
         return DataLoader(
             dataset,
-            batch_size=self.batch_size,
+            batch_size=batch_size or self.batch_size,
             shuffle=shuffle,
             num_workers=self.num_workers,
         )

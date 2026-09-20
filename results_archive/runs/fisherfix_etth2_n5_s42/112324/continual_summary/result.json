@@ -1,0 +1,19 @@
+{
+  "step_name": "continual_summary",
+  "started_at": "2026-09-20T20:21:00.019050+00:00",
+  "finished_at": "2026-09-20T20:21:00.033803+00:00",
+  "metrics": {
+    "forecast/mae/ACC": 0.5473597705364227,
+    "forecast/mae/BWT": -0.0184071883559227,
+    "forecast/mae/base_slice_ratio_final": 1.283029850676898,
+    "forecast/mae/ACC_ratio_to_baseline": 0.7506053357900946,
+    "forecast/mse/ACC": 0.5661654770374298,
+    "forecast/mse/BWT": -0.032927997410297394,
+    "forecast/mse/base_slice_ratio_final": 1.1174274415050314,
+    "forecast/mse/ACC_ratio_to_baseline": 0.5609612785435649,
+    "forecast/rmse/ACC": 0.7081882573113558,
+    "forecast/rmse/BWT": -0.026962709613908342,
+    "forecast/rmse/base_slice_ratio_final": 1.0570844060457194,
+    "forecast/rmse/ACC_ratio_to_baseline": 0.7350149213417023
+  }
+}

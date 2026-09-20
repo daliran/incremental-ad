@@ -1,0 +1,27 @@
+{
+  "step_name": "continual_summary",
+  "started_at": "2026-09-20T18:27:01.811916+00:00",
+  "finished_at": "2026-09-20T18:27:05.216127+00:00",
+  "metrics": {
+    "reconstruction/score_mean/ACC": 0.2864090927035646,
+    "reconstruction/score_mean/BWT": -0.02527507418900532,
+    "reconstruction/score_mean/base_slice_ratio_final": 1.1072402802743055,
+    "reconstruction/score_mean/ACC_ratio_to_baseline": 0.7564088402616279,
+    "reconstruction/score_p50/ACC": 0.2049991339445114,
+    "reconstruction/score_p50/BWT": -0.019671492278575897,
+    "reconstruction/score_p50/base_slice_ratio_final": 1.2520715038288728,
+    "reconstruction/score_p50/ACC_ratio_to_baseline": 0.7537054466696759,
+    "reconstruction/score_p95/ACC": 0.7455342094103493,
+    "reconstruction/score_p95/BWT": -0.07743148505687714,
+    "reconstruction/score_p95/base_slice_ratio_final": 1.0390090790341624,
+    "reconstruction/score_p95/ACC_ratio_to_baseline": 0.7648082326437051,
+    "reconstruction/score_p99/ACC": 0.9924724555015567,
+    "reconstruction/score_p99/BWT": -0.07811905622482285,
+    "reconstruction/score_p99/base_slice_ratio_final": 1.0092215473490451,
+    "reconstruction/score_p99/ACC_ratio_to_baseline": 0.815060112945881,
+    "reconstruction/score_std/ACC": 0.19887252777912134,
+    "reconstruction/score_std/BWT": -0.01986113147214265,
+    "reconstruction/score_std/base_slice_ratio_final": 0.9966889588443465,
+    "reconstruction/score_std/ACC_ratio_to_baseline": 0.7826784252006908
+  }
+}

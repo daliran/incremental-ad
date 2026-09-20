@@ -50,5 +50,5 @@ EXPERIMENTS.md,4463,"board, the distance confound was never load-bearing, and §
 EXPERIMENTS.md,4555,"⚠️ **This is not BECAME, and must never be called that.** The published method (Li et al.,"
 EXPERIMENTS.md,4569,never mentions gradient projection. Appendix C.3 / Table 11 is the paper's **own** without-GP
 EXPERIMENTS.md,4576,"initialization, discarded at Algorithm 1 line 1 and never seen again. **Our θ₀ — the base model —"
-EXPERIMENTS.md,4743,**below 1 in all 78 cells**: the Fisher is always larger at the merged point. Fitting
-EXPERIMENTS.md,5622,"normalisation — and the test split is transformed with the training scaler, never fit on. But"
+EXPERIMENTS.md,4798,that ratio is **below 1 in all 78 cells**: the Fisher is always larger at the merged point.
+EXPERIMENTS.md,5680,"normalisation — and the test split is transformed with the training scaler, never fit on. But"

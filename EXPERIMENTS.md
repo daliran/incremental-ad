@@ -522,13 +522,13 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**37 claims: 25 supported, 5 hypothesis, 7 refuted.** The rule downgraded
+**39 claims: 27 supported, 5 hypothesis, 7 refuted.** The rule downgraded
 **3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
 now marked as a hypothesis in place.
 
-⚠️ **34 of the 37 are merging claims; `C35`–`C37` are not.** The merging chapter's tally — the
+⚠️ **34 of the 39 are merging claims; `C35`–`C39` are not.** The merging chapter's tally — the
 one CLAUDE.md's freeze quotes — is **unchanged at 34: 24 supported, 3 hypothesis, 7 refuted**.
 Strategy 6 (§1.39) is a sequential method, and its rows are counted here because this register
 covers the *document*, not because the freeze moved.
@@ -4635,15 +4635,69 @@ the source run's own `pipeline_baseline_checkpoint`, so the only difference is t
 | PSM | 3 | +8.93% | *AD not re-run* | — | — | no floor |
 | SWaT | 3 | +3.12% | *AD not re-run* | — | — | no floor |
 
-**16 worse, 0 ties, 0 better.** Every config improved under correction and none changed verdict.
+**16 worse, 0 ties, 0 better** on ACC. Every config improved under correction and none changed
+verdict *on this metric* — but see the test-metric table below, where one does.
 **ETTh1 n = 3 is the one borderline row** — 1.43× its floor, inside the < 1.5× band — and it is
 the most informative cell in the table: it is where the defect did the most damage (5.61× →
 1.43× its floor) and where the method comes closest to not losing. It is flagged rather than
 rolled in with rows at 10–30× their floor.
 
-⚠️ **AD has no floor for `reconstruction/score_mean`** and is reported `no_floor` rather than
-judged against a detection-metric floor — the §1.16 refusal, applied here. AD is also **not**
-re-run at B = 1; see §1.39b for why that is a scope decision and not an omission.
+⚠️ **The AD rows above are not a verdict, and the table below is.** ACC is loss-shaped, so on
+AD it reads `reconstruction/score_mean` — and §1.12 established that reconstruction loss is
+**blind to detection quality**. `reconstruction/score_mean` has no floor in `floors.csv`, but
+inventing one would not help: it would judge a proxy. AD is also **not** re-run at B = 1; see
+§1.39b for why that is a scope decision and not an omission.
+
+**P1 on the task's own metric — the comparison ACC cannot make.** The pipeline already evaluates
+the configurator's real test evaluator at every step and writes it to `continual_N/test/`, for
+the chain *and* for the plain chain it is paired against. That is the whole AD suite, and
+`window_auroc` **has** a published floor on both datasets. So the AD verdict costs nothing to
+produce and was sitting in the finished runs.
+
+⚠️ The evaluation runs **after** the pullback, so the model scored is θ\*_t — the chain's model.
+Scoring θ̂_t instead would compare a different model against the control.
+
+| dataset | n | metric | *defect: B = 128* | **corrected: B = 1** | floor | ratio | own spread | verdict |
+|---|---|---|---|---|---|---|---|---|
+| ETTh1 | 3 | `forecast/mse` | +47.80% | **+15.71%** | 8.759% | 1.79× | 3.93% | worse |
+| ETTh2 | 2 | `forecast/mse` | +157.35% | **+141.45%** | 6.741% | 20.98× | 72.22% | worse |
+| ETTh2 | 3 | `forecast/mse` | +89.17% | **+51.15%** | 6.741% | 7.59× | 12.30% | worse |
+| ETTh2 | 5 | `forecast/mse` | +50.42% | **+37.14%** | 6.741% | 5.51× | 12.50% | worse |
+| ETTm2 | 2 | `forecast/mse` | +57.57% | **+42.02%** | 14.107% | 2.98× | 7.83% | worse |
+| ETTm2 | 3 | `forecast/mse` | +88.14% | **+41.24%** | 14.107% | 2.92× | 8.03% | worse |
+| ETTm2 | 5 | `forecast/mse` | +33.16% | **+12.11%** | 14.107% | 0.86× | 10.03% | **tie** |
+| exchange_rate | 3 | `forecast/mse` | +5.65% | **−9.79%** | 5.734% | 1.71× | 4.91% | **better** |
+| PSM | 3 | `window_auroc` | −0.79% | *not re-run* | 0.068% | 11.57× | 1.05% | worse |
+| PSM | 3 | `window_auprc` | −0.70% | *not re-run* | 1.655% | 0.42× | 0.81% | tie |
+| SWaT | 3 | `window_auroc` | −0.44% | *not re-run* | 0.087% | 5.01× | 0.16% | worse |
+| SWaT | 3 | `window_auprc` | −0.07% | *not re-run* | 0.123% | 0.61× | 0.20% | tie |
+
+**1 better, 4 ties, 15 worse** over the 20 cells with both columns. Three things this says that
+the ACC table did not:
+
+- **AD now has a real verdict, and it is negative.** Adaptive λ loses AUROC on both datasets:
+  PSM −0.79%, SWaT −0.44%. The AUPRC ties on both, against a much larger floor. So the method
+  does not detect better, which is the only question AD asks — and it is measured, not inferred
+  from a reconstruction proxy.
+- ⚠️ **PSM's AUROC verdict is decisive by the published floor only.** The 0.79% margin is
+  **0.75× these runs' own seed spread** (1.05%), while the published floor is 0.068% — measured
+  on a dedicated base-model experiment, which is a different and much quieter model. SWaT's
+  0.44% is 2.7× its own spread (0.16%) and is decisive either way. This is §1.9's open question
+  landing on a live cell; `own_spread_pct` is emitted for every row so it can be seen rather
+  than argued.
+- **exchange_rate n = 3 is the one genuine win, and only after correcting the estimator.**
+  −9.79% at 1.71× its floor, and **all three seeds improve** (−9.08%, −2.10%, −17.18%) — though
+  the middle seed is itself inside the floor, so it is a consistent win of inconsistent size. At
+  B = 128 the same cell was a tie (+5.65%), so the estimator defect was **hiding** it. This is
+  the dataset where old data actively hurts (§1.24); a method that pulls the chain back toward
+  θ₀ has the least to destroy there, and the most.
+
+⚠️ **ACC and the test metric disagree, and neither is wrong.** ACC averages the loss over *every*
+regime, so it charges the chain for forgetting old shards; the test metric is the final model on
+the whole test set. On ETTm2 n = 5 that is a 154% loss on ACC and a tie on test; on
+exchange_rate, a 113% loss on ACC and a 9.8% *win* on test. Quoting one and calling it "the"
+result would be a choice of framing, so both are reported, in that order, with what each
+measures stated.
 
 **P2 — REFUTED, and refuted backwards.** λ\*_t ≈ 1/t was predicted on ETTh1/ETTm2 and departure
 on exchange_rate. At the corrected estimator:
@@ -4780,7 +4834,9 @@ breaks only from t = 2, when Λ starts carrying merged-point terms that are not 
 random masking makes σ² large enough that σ²/B plausibly dominates g² at the merged points too,
 so numerator and denominator scale together — which is consistent with AD's Λ/F sitting at
 0.1–11× where forecasting's ran to thousands. ⚠️ **That is an inference, not a measurement.** A
-B-sweep on PSM n = 3 would settle it; it was not run because AD's verdict does not turn on it.
+B-sweep on PSM n = 3 would settle it; it was not run because AD's verdict does not turn on it —
+that verdict is `C39`, measured on `window_auroc` against a published floor, and it is negative
+at the batch size AD was actually run at.
 
 **Why this outlives the experiment.** The defect applies to any EWC-style diagonal Fisher built
 from batch-mean gradients, which is a common shape in published code. The correction is one

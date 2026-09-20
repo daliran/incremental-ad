@@ -259,7 +259,8 @@ CLAIMS: list[tuple] = [
     # ---- strategy 6: adaptive-lambda sequential fine-tuning ---------------------------------
     # NOT merging claims. The freeze tally quoted in CLAUDE.md is a statement about the merging
     # chapter and stays at 34; these are counted separately in §0.7.
-    ("C35", "Adaptive-lambda sequential fine-tuning loses to the plain chain on forecasting",
+    ("C35", "On ACC, adaptive-lambda sequential fine-tuning loses to the plain chain on "
+     "forecasting",
      "1.39", "ETTh1,ETTh2,ETTm2,exchange_rate", 4, "yes", "measurement", "yes", "supported",
      "P1 registered before the runs and refuted by them: 16 worse, 0 ties, 0 better over 8 "
      "configurations x 2 estimator settings, each paired against the chain that supplied its own "
@@ -268,7 +269,34 @@ CLAIMS: list[tuple] = [
      "verdict and did not: every cell improved and none changed verdict. ETTh1 n=3 is the one "
      "borderline cell (1.43x its floor, inside the <1.5x band) and is flagged as such rather "
      "than pooled with cells at 10-30x. AD (PSM, SWaT) is NOT covered: its ACC has no floor for "
-     "reconstruction/score_mean and it was not re-run at the corrected estimator."),
+     "reconstruction/score_mean and it was not re-run at the corrected estimator. SCOPED TO ACC: "
+     "ACC is the mean over regimes of the LOSS, so it charges the chain for forgetting old "
+     "shards. On the task's own final test metric the picture differs on two cells - see C38 - "
+     "and neither metric is the right one on its own."),
+    ("C38", "On the task's own test metric adaptive-lambda still loses on forecasting, except "
+     "exchange_rate n=3",
+     "1.39", "ETTh1,ETTh2,ETTm2,exchange_rate", 4, "yes", "measurement", "yes", "supported",
+     "The pipeline already evaluated the configurator's real test evaluator at every step, AFTER "
+     "the pullback, so the model scored is theta*_t; no new compute was needed. Corrected "
+     "estimator, final step: 6 worse, 1 tie (ETTm2 n=5, 0.86x its floor), 1 BETTER - "
+     "exchange_rate n=3 at -9.79%, 1.71x its floor, with all three seeds improving (-9.08, "
+     "-2.10, -17.18%) though the middle seed is itself inside the floor. At B=128 that same cell "
+     "was a tie (+5.65%), so the estimator defect was HIDING the one win. Consistent with §1.24: "
+     "exchange_rate is the dataset where old data actively hurts, so a rule that pulls the chain "
+     "back toward theta_0 has the least to destroy. ACC and this metric DISAGREE on two cells "
+     "and both are reported (C35)."),
+    ("C39", "Adaptive-lambda does not improve anomaly detection",
+     "1.39", "PSM,SWaT", 2, "mixed", "measurement", "yes", "supported",
+     "Measured on window_auroc, which HAS a published floor on both datasets - not on "
+     "reconstruction/score_mean, which §1.12 showed is blind to detection quality and has no "
+     "floor. Adaptive lambda loses AUROC on both: PSM -0.79%, SWaT -0.44%, against floors of "
+     "0.068% and 0.087%. window_auprc ties on both against its larger floor. CAVEAT, on the "
+     "record: PSM's margin is 0.75x THESE RUNS' own seed spread (1.05%), so it is decisive by "
+     "the published floor - measured on a dedicated, quieter base-model experiment - only. "
+     "SWaT's is 2.7x its own spread (0.16%) and is decisive either way. This is §1.9's open "
+     "question landing on a live cell; own_spread_pct is emitted for every row. NOT re-run at "
+     "the corrected estimator: on AD the bias is expected to largely self-cancel (§1.39b) and "
+     "that expectation is an inference, not a measurement."),
     ("C36", "diagonal_fisher's batch-mean gradient suppresses lambda* by 6-24x at every step "
      "past the first",
      "1.39b", "ETTm2", 1, "n/a", "mechanism", "yes", "supported",

@@ -1261,6 +1261,52 @@ CHECKS += [
      "adaptive_lambda/adaptive_lambda_asymmetry_fit.csv", {"scope": "all_t"}, "slope", 0.01),
 ]
 
+# §1.39's TEST table — the task's own metric, which is a different quantity from the ACC table
+# above and is bound to a different CSV so the two cannot be confused for one another. AD's rows
+# exist at one batch size only, so they are checked in the column they actually occupy.
+_TEST_ROWS = (("ETTh1", 3, "forecast/mse", 1), ("ETTh2", 2, "forecast/mse", 1),
+              ("ETTh2", 3, "forecast/mse", 1), ("ETTh2", 5, "forecast/mse", 1),
+              ("ETTm2", 2, "forecast/mse", 1), ("ETTm2", 3, "forecast/mse", 1),
+              ("ETTm2", 5, "forecast/mse", 1), ("exchange_rate", 3, "forecast/mse", 1),
+              ("PSM", 3, "window_auroc", 64), ("PSM", 3, "window_auprc", 64),
+              ("SWaT", 3, "window_auroc", 64), ("SWaT", 3, "window_auprc", 64))
+
+
+def _test_check(dataset, n, metric, batch_size, field, group):
+    """One §1.39 test cell. `group` picks which number in the row is captured."""
+    signed = r"\*{0,2}([+−-][\d.]+)%\*{0,2}"
+    row = rf"\| {dataset} \| {n} \| `{re.escape(metric)}` \| "
+    if group == "corrected":
+        # Steps over the defect column. AD has no corrected column at all, so this form is only
+        # generated for the forecasting rows.
+        pattern = row + r"[+−-][\d.]+% \| " + signed
+    elif group == "defect":
+        pattern = row + signed
+    elif group == "own_spread":
+        pattern = (row + r"[^|]+\| [^|]+\| [\d.]+% \| [\d.]+× \| ([\d.]+)% \|")
+    else:
+        pattern = (row + r"[^|]+\| [^|]+\| [\d.]+% \| ([\d.]+)× \|")
+    return (f"§1.39 {dataset} n={n} {metric} test {group}", pattern,
+            "adaptive_lambda/adaptive_lambda_test.csv",
+            {"dataset": dataset, "n_segments": str(n), "metric": metric,
+             "fisher_batch_size": str(batch_size)},
+            field, 0.02)
+
+
+# `b` in _TEST_ROWS is the batch size of the column the document REPORTS the ratio and spread
+# from — B=1 where there is a corrected column, B=64 on AD where there is not. The *defect*
+# column is a different batch size, and reading it from `b` compared the two columns of the same
+# row against each other: all eight forecasting rows "drifted" while the document was correct.
+_DEFECT_B = {1: 128, 64: 64}
+CHECKS += [_test_check(d, n, m, _DEFECT_B[b], "delta_pct", "defect")
+           for d, n, m, b in _TEST_ROWS]
+CHECKS += [_test_check(d, n, m, 1, "delta_pct", "corrected")
+           for d, n, m, b in _TEST_ROWS if b == 1]
+# The margin and the runs' own spread are the two numbers the AD verdict turns on, so both are
+# checked on every row — including the one where they disagree (PSM's AUROC).
+CHECKS += [_test_check(d, n, m, b, "margin_ratio", "ratio") for d, n, m, b in _TEST_ROWS]
+CHECKS += [_test_check(d, n, m, b, "own_spread_pct", "own_spread") for d, n, m, b in _TEST_ROWS]
+
 # §1.39b's exponents. The *differential* between the two rows is the entire argument, so both
 # rows are checked at all three steps, and t=1 — the negative control, where the two must agree —
 # is checked alongside them rather than taken on trust.

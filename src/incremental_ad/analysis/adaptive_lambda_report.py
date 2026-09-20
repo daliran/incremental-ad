@@ -75,7 +75,20 @@ STEP_FIELDS = ["dataset", "n_segments", "seed"] + ESTIMATOR_FIELDS + [
                "lambda_over_fisher", "floor_is_t",
                "fisher_star_num", "asymmetry_hat_over_star", "d_norm", "step_norm",
                "merged_dist_from_base", "unconstrained_dist_from_base"]
+TEST_FIELDS = ["dataset", "n_segments", "metric", "higher_is_better"] + ESTIMATOR_FIELDS + [
+    "n_seeds", "floor_pct", "final_step",
+    "adaptive", "adaptive_sd", "plain", "plain_sd",
+    "delta_pct", "margin_ratio", "borderline", "verdict",
+    "own_spread_pct", "margin_over_own_spread"]
 ASYMMETRY_FIELDS = ["scope", "n_cells", "pearson_r", "slope", "r_squared"]
+
+# Metrics whose direction is "up is better". Same list as `results_audit`, restated rather than
+# imported so this module does not depend on that one's loading order.
+HIGHER_IS_BETTER = ("auroc", "auprc", "f1", "precision", "recall", "accuracy")
+
+
+def higher_is_better(metric: str) -> bool:
+    return any(k in metric.lower() for k in HIGHER_IS_BETTER)
 DIST_FIELDS = ["dataset", "n_segments", "seed"] + ESTIMATOR_FIELDS + [
                "n_steps", "chain_dist_from_base",
                "mean_unconstrained_dist", "ratio_p4"]
@@ -117,13 +130,20 @@ def margin_ratio(delta_pct: float, floor_pct: float | None) -> float | str:
     return abs(delta_pct) / floor_pct
 
 
-def verdict(delta_pct: float, floor_pct: float | None) -> str:
-    """`better` / `tie` / `worse`, where ACC is loss-shaped so a negative delta is better."""
+def verdict(delta_pct: float, floor_pct: float | None, up_is_better: bool = False) -> str:
+    """`better` / `tie` / `worse` for a signed relative change of adaptive against plain.
+
+    `delta_pct` is always the raw change in the metric, so its sign means different things for
+    an error and for an AUROC. The orientation is passed in rather than inferred here, and it
+    is written into the CSV beside every row: a table with two orientations in it and no column
+    saying which is which is a cell waiting to be read backwards.
+    """
     if floor_pct is None:
         return "no_floor"
     if abs(delta_pct) <= floor_pct:
         return "tie"
-    return "better" if delta_pct < 0 else "worse"
+    improved = delta_pct > 0 if up_is_better else delta_pct < 0
+    return "better" if improved else "worse"
 
 
 def estimator(config: dict) -> dict:
@@ -161,6 +181,31 @@ def summary_metrics(run: Path) -> dict[str, float]:
         return (json.loads(path.read_text()) or {}).get("metrics") or {}
     except (json.JSONDecodeError, OSError):
         return {}
+
+
+def final_test_metrics(run: Path) -> tuple[int, dict[str, float]]:
+    """`(step index, metrics)` from the LAST `continual_*/test/result.json`.
+
+    ⚠️ **This is a different quantity from the ACC table above, and the difference is the point.**
+    ACC is the mean over regimes of the *loss* the chain minimises; §1.12 established that
+    reconstruction loss is blind to detection quality, so on AD it cannot answer the only
+    question AD asks. These are the task's real test metrics — `window_auroc` and the rest of
+    the suite — produced by the configurator's own test evaluator.
+
+    The pipeline evaluates the test set **after** the pullback, so the model scored here is
+    theta*_t, the chain's model, not theta_hat_t. Scoring the unconstrained model instead would
+    compare a different model to the control and read as a result.
+    """
+    steps = [(int(p.parent.parent.name.split("_")[1]), p)
+             for p in run.glob("continual_*/test/result.json")
+             if p.parent.parent.name.split("_")[1].isdigit()]
+    if not steps:
+        return -1, {}
+    step, path = max(steps)
+    try:
+        return step, (json.loads(path.read_text()) or {}).get("metrics") or {}
+    except (json.JSONDecodeError, OSError):
+        return -1, {}
 
 
 def control_run(config: dict) -> Path | None:
@@ -201,6 +246,10 @@ def main() -> None:
                         default=Path("results_archive/audit/floors.csv"))
     parser.add_argument("--metrics", nargs="+", default=None,
                         help="restrict the ACC table to these metrics (default: all present)")
+    parser.add_argument("--test_metrics", nargs="+",
+                        default=["window_auroc", "window_auprc", "forecast/mse"],
+                        help="metrics for the final-step TEST table — the task's own metrics, "
+                             "not the loss the chain minimises")
     parser.add_argument("--exclude_prefix", nargs="+", default=["gate_"],
                         help="experiment-name prefixes to leave out; the gate runs are "
                              "fixtures, not results")
@@ -215,7 +264,7 @@ def main() -> None:
         parser.error("--runs_root is required (or pass --self-test)")
 
     floors = load_floors(args.floors)
-    seed_rows, step_rows, dist_rows = [], [], []
+    seed_rows, step_rows, dist_rows, test_seed_rows = [], [], [], []
     excluded: list[str] = []
 
     for run, config in discover(args.runs_root):
@@ -270,6 +319,21 @@ def main() -> None:
                     adaptive_metrics.get(f"{metric}/base_slice_ratio_final"),
                 "base_slice_plain": plain_metrics.get(f"{metric}/base_slice_ratio_final"),
             })
+
+        # --- the task's own test metrics at the end of the chain ---
+        step, adaptive_test = final_test_metrics(run)
+        control_step, plain_test = final_test_metrics(control)
+        if adaptive_test and plain_test and step == control_step:
+            for metric in args.test_metrics:
+                if metric not in adaptive_test or metric not in plain_test:
+                    continue
+                test_seed_rows.append({
+                    "dataset": dataset, "n_segments": n_segments, "seed": seed,
+                    "metric": metric, **estimator_id, "final_step": step,
+                    "adaptive": adaptive_test[metric], "plain": plain_test[metric]})
+        elif adaptive_test and plain_test:
+            excluded.append(
+                f"{experiment}/{run.name}: final test step {step} != control's {control_step}")
 
         with (run / "continual_summary" / "adaptive_lambdas.csv").open(encoding="utf-8") as fh:
             steps = list(csv.DictReader(fh))
@@ -342,6 +406,44 @@ def main() -> None:
                                           if r["base_slice_plain"] is not None]),
         })
 
+    # --- The task's own metric at the end of the chain ---
+    test_grouped = defaultdict(list)
+    for row in test_seed_rows:
+        test_grouped[(row["dataset"], row["n_segments"], row["metric"],
+                      row["fisher_batch_size"], row["fisher_batches"])].append(row)
+    test_rows = []
+    for (dataset, n_segments, metric, batch_size, batches), rows in sorted(test_grouped.items()):
+        adaptive = [r["adaptive"] for r in rows]
+        plain = [r["plain"] for r in rows]
+        delta = 100.0 * (st.fmean(adaptive) - st.fmean(plain)) / st.fmean(plain)
+        floor = floors.get((dataset, metric))
+        up = higher_is_better(metric)
+        # Pooled sd of the two arms, as a percentage of the control's mean — the same units as
+        # `delta_pct` and as `floor_pct`, so the three are directly comparable.
+        spread = (100.0 * math.sqrt((st.variance(adaptive) + st.variance(plain)) / 2)
+                  / st.fmean(plain)) if len(rows) > 1 else 0.0
+        test_rows.append({
+            "dataset": dataset, "n_segments": n_segments, "metric": metric,
+            "higher_is_better": up, "fisher_batch_size": batch_size,
+            "fisher_batches": batches, "fisher_samples": batch_size * batches,
+            "n_seeds": len(rows), "floor_pct": floor if floor is not None else "",
+            "final_step": rows[0]["final_step"],
+            "adaptive": st.fmean(adaptive),
+            "adaptive_sd": st.stdev(adaptive) if len(adaptive) > 1 else "",
+            "plain": st.fmean(plain),
+            "plain_sd": st.stdev(plain) if len(plain) > 1 else "",
+            "delta_pct": delta, "margin_ratio": margin_ratio(delta, floor),
+            "borderline": (floor is not None
+                           and floor < abs(delta) < BORDERLINE_RATIO * floor),
+            "verdict": verdict(delta, floor, up),
+            # §1.9's open question, as a number rather than a caveat: the published floor comes
+            # from a dedicated base-model experiment, but run-to-run spread is a property of the
+            # MODEL too, and the two do not move together. This is the spread of the two arms
+            # actually being compared. A verdict whose margin is below 1x its own spread is
+            # decisive only by the convention, and the reader should be able to see that.
+            "own_spread_pct": spread, "margin_over_own_spread":
+                abs(delta) / spread if spread else ""})
+
     for row in acc_rows:
         log.info("[P1] %-14s n=%d %-22s B=%-4d adaptive %.4f vs plain %.4f  %+.2f%% "
                  "(floor %s, %sx) -> %s%s", row["dataset"], row["n_segments"], row["metric"],
@@ -353,6 +455,26 @@ def main() -> None:
     for row in acc_rows:
         tally[row["verdict"]] += 1
     log.info("[P1] %s", "  ".join(f"{k}={v}" for k, v in sorted(tally.items())))
+
+    for row in test_rows:
+        log.info("[TEST] %-14s n=%d %-14s B=%-4d %s  adaptive %.4f vs plain %.4f  %+.2f%% "
+                 "(floor %s, %sx) -> %s%s",
+                 row["dataset"], row["n_segments"], row["metric"], row["fisher_batch_size"],
+                 "up" if row["higher_is_better"] else "dn",
+                 row["adaptive"], row["plain"], row["delta_pct"], row["floor_pct"],
+                 f'{row["margin_ratio"]:.2f}' if row["margin_ratio"] != "" else "-",
+                 row["verdict"], "  BORDERLINE" if row["borderline"] else "")
+    for row in test_rows:
+        if row["margin_over_own_spread"] != "" and row["margin_over_own_spread"] < 1.0 \
+                and row["verdict"] in ("better", "worse"):
+            log.warning("[TEST] ⚠️  %s n=%d %s: margin %.2f%% is %.2fx these runs' OWN spread "
+                        "(%.2f%%) — decisive by the published floor (%.3f%%) only",
+                        row["dataset"], row["n_segments"], row["metric"], row["delta_pct"],
+                        row["margin_over_own_spread"], row["own_spread_pct"], row["floor_pct"])
+    test_tally = defaultdict(int)
+    for row in test_rows:
+        test_tally[row["verdict"]] += 1
+    log.info("[TEST] %s", "  ".join(f"{k}={v}" for k, v in sorted(test_tally.items())))
     for row in sorted(dist_rows, key=lambda r: (r["dataset"], r["n_segments"],
                                                 r["fisher_batch_size"], r["seed"])):
         log.info("[P4] %-14s n=%d seed=%-4d B=%-4d ratio=%.3f", row["dataset"],
@@ -406,6 +528,7 @@ def main() -> None:
             ("adaptive_lambda_per_seed.csv", SEED_FIELDS, seed_rows),
             ("adaptive_lambda_steps.csv", STEP_FIELDS, step_rows),
             ("adaptive_lambda_distance.csv", DIST_FIELDS, dist_rows),
+            ("adaptive_lambda_test.csv", TEST_FIELDS, test_rows),
             ("adaptive_lambda_asymmetry_fit.csv", ASYMMETRY_FIELDS, asymmetry_rows),
         ):
             with (args.out / name).open("w", newline="", encoding="utf-8") as fh:
@@ -424,6 +547,14 @@ def _self_test() -> None:
     assert verdict(-20.0, 14.107) == "better", "loss-shaped: a negative delta is better"
     assert verdict(20.0, 14.107) == "worse"
     assert verdict(-20.0, None) == "no_floor", "a missing floor must not read as a win"
+
+    # Orientation: the SAME signed delta must read opposite ways for an error and an AUROC.
+    assert verdict(-20.0, 1.0, up_is_better=False) == "better"
+    assert verdict(-20.0, 1.0, up_is_better=True) == "worse"
+    assert verdict(+20.0, 1.0, up_is_better=True) == "better"
+    assert verdict(0.5, 1.0, up_is_better=True) == "tie", "the floor applies either way round"
+    assert higher_is_better("window_auroc") and higher_is_better("pa_f1")
+    assert not higher_is_better("forecast/mse") and not higher_is_better("reconstruction/score_mean")
 
     assert abs(margin_ratio(12.51, 8.759) - 1.428) < 1e-3
     assert margin_ratio(1.0, None) == "", "no floor means no ratio, not a ratio of 1"

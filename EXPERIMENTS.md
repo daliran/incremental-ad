@@ -4537,6 +4537,67 @@ the predecessors' directions are genuinely stale, and there it helps only below 
 recommended threshold.
 
 
+### 1.39 Adaptive-λ sequential fine-tuning (BECAME's coefficient) — registration
+
+> **Provenance.** `ContinualFineTuningPipeline --continual_lambda_source became` →
+> `continual_summary/adaptive_lambdas.csv` + `backward_transfer_unconstrained.csv`. Gates in
+> `scripts/verify_adaptive_lambda.py`. **No numbers yet — this section is a registration**,
+> written before the runs, per the practice §1.36–§1.38 follow.
+
+⚠️ **This is not BECAME, and must never be called that.** The published method (Li et al.,
+*BECAME*, ICML 2025) is two-stage: train with gradient projection to θ^GP, continue
+unconstrained to θ̂, then merge. Only the **coefficient** is used here — Eq. 20's closed form —
+inside this project's sequential chain. Call it **"adaptive-λ sequential fine-tuning (BECAME's
+coefficient)"**, the discipline `C26` applies to the OPCM variants. Gradient projection is a
+separate, later question (`P5`), gated on a measurement rather than assumed.
+
+**The paper supports the no-projection variant; it is not a simplification invented here.**
+Lemma 3.1 is stated with θ\*_{t−1} as the left endpoint and the derivation of λ\* (Eqs. 10–20)
+never mentions gradient projection. Appendix C.3 / Table 11 is the paper's **own** without-GP
+ablation: **+7.05 ACC** over plain fine-tuning on 10-Split CIFAR-100 (57.98 → 65.03) and
+**+7.69** on 20-Split MiniImageNet (57.06 → 64.75), with BWT −20.19 → −1.26 — a *larger* margin
+than the +3.24 the full method gains with projection (Table 3), because without the projection
+the unconstrained model forgets more and there is more for the pullback to recover.
+
+**Notation, stated because the same symbol means different things.** The paper's θ₀ is a random
+initialization, discarded at Algorithm 1 line 1 and never seen again. **Our θ₀ — the base model —
+maps to the paper's θ\*₁**: the accumulator seed, the model that has seen the first slice of the
+stream. That is why Λ₀ is seeded from the base model's own Fisher (Algorithm 1 line 2 populates
+the precision matrix *before* the loop), and why the `one_over_t` control counts the base as task
+1 — with equal Fishers Eq. 20 gives λ\*₁ = ½, so a control starting at t = 1 would confound the
+coefficient rule with the task indexing. `verify_adaptive_lambda.py` asserts λ\* = 1/t for
+t = 1…6, which is what makes that reasoning checkable rather than asserted.
+
+⚠️ **Predictions, registered before the sweep (2026-09-20):**
+
+- **P1.** Adaptive λ beats the plain chain on ACC, by more where the chain forgets more. **ETTh2
+  is the strongest candidate** — it forgets most in this project (§1.34) and still beats merging
+  (§1.23).
+- **P2.** λ\*_t ≈ 1/t on the datasets whose selected α\*·n ≈ 1 (ETTh1, ETTm2), and departs from
+  it on exchange_rate (α\*·n ≈ 1.5). If this holds, the Fisher **rediscovers from curvature** the
+  regularity §1.18 measured by validation sweep — two independent routes to one quantity.
+- **P3.** Adaptive λ ties fixed λ = 1/t inside the floor on at least half the configurations.
+  This mirrors `C22`, where BECAME's weighting added nothing once magnitude was matched. **A tie
+  is a result, not a null**, and it is the reason Tier 2 is the experiment rather than a nicety.
+- **P4.** On the AD pair the chain is **not** pinned to the mean task-vector norm:
+  `‖θ*_T − θ₀‖ / mean_i ‖θ̂_i − θ₀‖` comes out **> 1**. Predicts nothing about how it moves with
+  n — whether the chain drifts or converges is open, and that is what the measurement is for.
+  Rationale: a convex fold pins total strength only when a fixed set of task vectors from a
+  **shared origin** is combined; in the chain each θ̂_t is retrained from wherever the
+  accumulator sits, so displacements compound. If it holds, `C21`'s structural blocker does not
+  transfer to this frame, and that scoping belongs in the register. ⚠️ *"implied α·n" is a
+  merging-frame quantity with no meaning here and is not used.*
+- **P5** (projection variant only). Activation overlap exceeds 90% by period 2 on at least four
+  of six forecasting datasets, and the retained gradient fraction under GPM falls below 20% by
+  period 3. If so, θ^GP ≈ θ\*_{t−1}, the full method collapses into this one, and **not building
+  it is the finding.**
+
+**Results**
+
+_Pending. ⚠️ The runs are **blocked** on a scope decision recorded in CLAUDE.md — see the
+freeze note there. Code, gates and predictions are complete; nothing has been run._
+
+
 ## 2. Exact configurations
 
 Recorded so the results survive loss of the checkpoints. These are the runs every number

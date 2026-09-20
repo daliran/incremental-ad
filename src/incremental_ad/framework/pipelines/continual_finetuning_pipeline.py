@@ -1,7 +1,9 @@
 import csv
+import json
 import logging
 from argparse import ArgumentParser, Namespace
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Self
 
 import wandb
@@ -13,6 +15,8 @@ from incremental_ad.framework.contracts.dataset import (
 )
 from incremental_ad.framework.contracts.evaluator import ReferenceEvaluator
 from incremental_ad.framework.contracts.pipeline import Pipeline, RunContext, StepResult
+from incremental_ad.framework.contracts.trainer import TrainSummary
+from incremental_ad.framework.core.checkpoints import load_model_state
 from incremental_ad.framework.evaluators.evaluation_runner import EvaluationRunner
 from incremental_ad.framework.pipelines.standard_pipeline import (
     EvalStepResult,
@@ -69,11 +73,29 @@ class ContinualFineTuningPipeline(Pipeline):
         finetune_trainer: StandardTrainer,
         runner: EvaluationRunner,
         anchor_to_baseline: bool = True,
+        lambda_source: str = "none",
+        fixed_lambda: float = 1.0,
+        one_over_t_counts_base: bool = True,
+        fisher_batches: int = 64,
+        lambda_seed_from_base: bool = True,
+        lambda_fisher_weighting: str = "unweighted",
+        baseline_checkpoint: str | None = None,
     ) -> None:
         self.trainer = trainer
         self.finetune_trainer = finetune_trainer
         self.runner = runner
         self.anchor_to_baseline = anchor_to_baseline
+        # Every field below is inert at its default: `lambda_source="none"` is the only gate
+        # on the entire adaptive path, and nothing else reads these unless it is set.
+        self.lambda_source = lambda_source
+        self.fixed_lambda = fixed_lambda
+        self.one_over_t_counts_base = one_over_t_counts_base
+        self.fisher_batches = fisher_batches
+        self.lambda_seed_from_base = lambda_seed_from_base
+        self.lambda_fisher_weighting = lambda_fisher_weighting
+        self.baseline_checkpoint = baseline_checkpoint
+        assert lambda_source in ("none", "became", "one_over_t", "fixed")
+        assert 0.0 < fixed_lambda <= 1.0, f"fixed lambda must be in (0, 1], got {fixed_lambda}"
 
     @classmethod
     def add_args(cls, parser: ArgumentParser, prefix: str | None = None) -> None:
@@ -93,6 +115,55 @@ class ContinualFineTuningPipeline(Pipeline):
             "rather than per-step drift.",
         )
 
+        parser.add_argument(
+            f"--{p}_lambda_source", choices=["none", "became", "one_over_t", "fixed"],
+            default="none",
+            help="pull the chain back toward the accumulator after each period. 'none' is "
+            "today's plain chain and takes no new code path at all. 'became' uses BECAME's "
+            "closed-form coefficient (Eq. 20) in the SEQUENTIAL frame — which is not BECAME, "
+            "because the published method also runs a gradient-projection stage; call it "
+            "'adaptive-lambda sequential fine-tuning (BECAME's coefficient)'. 'one_over_t' is "
+            "the fixed-schedule control. 'fixed' holds lambda constant.",
+        )
+        parser.add_argument(
+            f"--{p}_fixed_lambda", type=float, default=1.0,
+            help="lambda for --lambda_source fixed. 1.0 reproduces the plain chain exactly, "
+            "which is what gate 1 of scripts/verify_adaptive_lambda.py checks.",
+        )
+        parser.add_argument(
+            f"--{p}_one_over_t_counts_base", type=_str_to_bool, default=True,
+            help="count the base model as task 1, so period 1 is task 2 and lambda = 1/2. "
+            "Default true because the control must index tasks the way the adaptive rule "
+            "does: with equal Fishers Eq. 20 gives lambda*_1 = 1/2, so starting the schedule "
+            "at t=1 would confound the coefficient rule with the task indexing.",
+        )
+        parser.add_argument(
+            f"--{p}_fisher_batches", type=int, default=64,
+            help="batches per diagonal-Fisher estimate; matches the merging pipeline.",
+        )
+        parser.add_argument(
+            f"--{p}_lambda_seed_from_base", type=_str_to_bool, default=True,
+            help="seed Lambda_0 with the base model's own Fisher. Algorithm 1 line 2 sets "
+            "Lambda_1 = F_1(theta*_1) before the loop, and our base model plays that role. "
+            "Without it lambda*_1 = 1 and period 1 enters whole, discarding the curvature of "
+            "the model that has seen the most data.",
+        )
+        parser.add_argument(
+            f"--{p}_lambda_fisher_weighting", choices=["unweighted", "data"],
+            default="unweighted",
+            help="'unweighted' is Algorithm 1 line 9 verbatim. 'data' scales each Fisher by "
+            "its sample count, which is closer to the Laplace derivation when tasks are "
+            "unequal in size — as they are here, where the base holds 50%% of the stream and "
+            "a period may hold 10%%. Ablation, not a default.",
+        )
+        parser.add_argument(
+            f"--{p}_baseline_checkpoint", type=str, default=None,
+            help="load theta_0 from this checkpoint and skip step-0 training. Makes the "
+            "comparison against an existing chain run PAIRED — same baseline, so the only "
+            "difference is the pullback — which matters because GPU placement alone moves "
+            "results by up to 18.8%% (EXPERIMENTS.md §3.2).",
+        )
+
     @classmethod
     def from_config(cls, cfg: Namespace, prefix: str | None = None) -> Self:
         p = prefix or cls.ARG_PREFIX
@@ -102,6 +173,13 @@ class ContinualFineTuningPipeline(Pipeline):
             finetune_trainer=StandardTrainer.from_config(cfg, prefix="finetune_trainer"),
             runner=EvaluationRunner(DataLoaderConfig.from_config(cfg), device=trainer.device),
             anchor_to_baseline=getattr(cfg, f"{p}_anchor_to_baseline"),
+            lambda_source=getattr(cfg, f"{p}_lambda_source"),
+            fixed_lambda=getattr(cfg, f"{p}_fixed_lambda"),
+            one_over_t_counts_base=getattr(cfg, f"{p}_one_over_t_counts_base"),
+            fisher_batches=getattr(cfg, f"{p}_fisher_batches"),
+            lambda_seed_from_base=getattr(cfg, f"{p}_lambda_seed_from_base"),
+            lambda_fisher_weighting=getattr(cfg, f"{p}_lambda_fisher_weighting"),
+            baseline_checkpoint=getattr(cfg, f"{p}_baseline_checkpoint"),
         )
 
     # ── Evaluation helpers ────────────────────────────────────────────────────
@@ -144,6 +222,81 @@ class ContinualFineTuningPipeline(Pipeline):
 
     # ── Run ───────────────────────────────────────────────────────────────────
 
+    def _pullback(self, model, segment, step: int, accumulator, precision, step_dir):
+        """One adaptive step: compute lambda, merge theta_hat into the accumulator, update Lambda.
+
+        Called ONLY from inside `if self.lambda_source != "none"`. Returns
+        ``(lambda_star, theta_star_state, precision)`` and leaves `model` holding theta*_t, so
+        the chain continues from the merged model as §2's pseudocode requires.
+
+        `step` is the period index counting from 1. The task index used by `one_over_t` is
+        `step + 1` when the base counts as task 1 — see `--continual_one_over_t_counts_base`.
+        """
+        from incremental_ad.framework.merging.became import (
+            accumulate_precision, became_lambda, diagonal_fisher,
+        )
+
+        keys = [k for k, v in accumulator.items() if v.is_floating_point()]
+        # theta_hat_t, snapshotted off the live model. `.detach().cpu().clone()` and not
+        # `.cpu()`: for a tensor already on CPU the latter returns *self*, so the snapshot
+        # would alias the live parameters and follow them through the merge below. The same
+        # bug is called out at the theta_0 anchor a few lines down in `run`.
+        unconstrained = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+        displacement = {k: unconstrained[k].double() - accumulator[k].double() for k in keys}
+
+        task_index = step + 1 if self.one_over_t_counts_base else step
+        one_over_t = 1.0 / task_index
+        numerator = denominator = float("nan")
+
+        if self.lambda_source == "fixed":
+            lam = self.fixed_lambda
+        elif self.lambda_source == "one_over_t":
+            lam = one_over_t
+        else:
+            loader = self.runner.loader_config.make_loader(segment.train, shuffle=True)
+            fisher_hat = diagonal_fisher(model, loader, self.runner.device,
+                                         max_batches=self.fisher_batches)
+            # Eq. 20 with Lambda_{t-1} passed as a one-element list; identical arithmetic to
+            # passing every earlier Fisher, asserted in verify_adaptive_lambda.py.
+            previous = [precision] if precision is not None else []
+            lam = became_lambda(displacement, fisher_hat, previous)
+            numerator, denominator = _quadratic_forms(displacement, fisher_hat, precision)
+
+        assert 0.0 <= lam <= 1.0, f"lambda {lam} outside [0, 1] at period {step}"
+
+        merged = {k: v.clone() for k, v in unconstrained.items()}
+        for key in keys:
+            merged[key] = ((1.0 - lam) * accumulator[key].double()
+                           + lam * unconstrained[key].double()).to(accumulator[key].dtype)
+        model.load_state_dict(merged)
+
+        # Algorithm 1 line 9: Lambda_t = F_t(theta*_t) + Lambda_{t-1}. A SECOND Fisher pass,
+        # at the MERGED point — not the one used for lambda, which is taken at theta_hat_t.
+        # Using one pass for both would be a different algorithm.
+        if self.lambda_source == "became":
+            loader = self.runner.loader_config.make_loader(segment.train, shuffle=True)
+            fisher_star = diagonal_fisher(model, loader, self.runner.device,
+                                          max_batches=self.fisher_batches)
+            weight = float(len(segment.train)) if self.lambda_fisher_weighting == "data" else 1.0
+            precision = accumulate_precision(precision, fisher_star, weight)
+
+        log.info("[adaptive] period %d: lambda*=%.6f (1/t would be %.6f, t=%d)",
+                 step, lam, one_over_t, task_index)
+        # Every distance is measured where it is DEFINED, not wherever `model` happens to point
+        # afterwards: `model` holds theta*_t by the time this returns, so reading the
+        # unconstrained distance from it later would silently report the merged one.
+        diagnostics = {
+            "step": step,
+            "lambda_star": lam,
+            "one_over_t": one_over_t,
+            "d_norm": _norm(displacement),
+            "fisher_num": numerator,
+            "fisher_den": denominator,
+            "merged_dist_from_base": _distance(merged, self._theta_zero),
+            "unconstrained_dist_from_base": _distance(unconstrained, self._theta_zero),
+        }
+        return merged, precision, diagnostics
+
     def run(self, context: RunContext) -> list[StepResult]:
         assert isinstance(context.dataset, PartitionedDataset), (
             f"{type(self).__name__} requires PartitionedDataset, "
@@ -171,13 +324,32 @@ class ContinualFineTuningPipeline(Pipeline):
         started_at = datetime.now(timezone.utc)
         global_step = 0
 
-        summary = self.trainer.fit(
-            model,
-            dataset.get_baseline(),
-            checkpoint_dir=step_dir / "checkpoints",
-            step_name="baseline",
-            step_offset=global_step,
-        )
+        if self.baseline_checkpoint:
+            # Paired comparison: point at the SAME baseline an existing chain run used, so the
+            # only difference between plain and adaptive is the pullback. Without this, GPU
+            # placement alone moves the baseline by up to 18.8% (EXPERIMENTS.md §3.2) and the
+            # comparison measures the scheduler as much as the method.
+            source = Path(self.baseline_checkpoint)
+            log.info("[baseline] loading theta_0 from %s — step-0 training SKIPPED", source)
+            model.load_state_dict(load_model_state(source))
+            # The source is recorded in the step dir rather than through the context, which
+            # has no extras channel; this keeps the provenance with the artefacts it explains.
+            step_dir.mkdir(parents=True, exist_ok=True)
+            (step_dir / "baseline_source.json").write_text(
+                json.dumps({"baseline_checkpoint": str(source)}, indent=2))
+            summary = TrainSummary(
+                final_train_loss=float("nan"), best_train_loss=float("nan"),
+                final_val_loss=None, best_val_loss=None, best_epoch=0, epochs_trained=0,
+                checkpoint_path=None,
+            )
+        else:
+            summary = self.trainer.fit(
+                model,
+                dataset.get_baseline(),
+                checkpoint_dir=step_dir / "checkpoints",
+                step_name="baseline",
+                step_offset=global_step,
+            )
         global_step += summary.epochs_trained
         results.append(
             TrainStepResult(
@@ -221,6 +393,31 @@ class ContinualFineTuningPipeline(Pipeline):
                 )
             )
             results[-1].write(step_dir / "test")
+
+        # --- Adaptive-lambda state (inert unless --continual_lambda_source is set) ---
+        # theta*_0 is the base model; Lambda_0 is seeded from its own Fisher, because
+        # Algorithm 1 line 2 populates the precision matrix BEFORE the loop and our base model
+        # plays the paper's theta*_1 (its theta_0 is a random init with no counterpart here).
+        accumulator = baseline_state if self.lambda_source != "none" else None
+        self._theta_zero = baseline_state      # fixed reference for the distance columns
+        precision = None
+        lambda_rows: list[dict] = []
+        unconstrained_matrix: dict[int, dict[str, dict[str, float]]] = {}
+        if self.lambda_source == "became" and self.lambda_seed_from_base:
+            from incremental_ad.framework.merging.became import (
+                accumulate_precision, diagonal_fisher,
+            )
+            base_segment = dataset.get_baseline()
+            loader = self.runner.loader_config.make_loader(base_segment.train, shuffle=True)
+            log.info("[adaptive] seeding Lambda_0 from the base model's Fisher")
+            weight = (float(len(base_segment.train))
+                      if self.lambda_fisher_weighting == "data" else 1.0)
+            precision = accumulate_precision(
+                None,
+                diagonal_fisher(model, loader, self.runner.device,
+                                max_batches=self.fisher_batches),
+                weight,
+            )
 
         # --- Sequential chain: each step continues from the previous model ---
         for index, segment in enumerate(segments):
@@ -267,6 +464,17 @@ class ContinualFineTuningPipeline(Pipeline):
             )
             results[-1].write(step_dir)
 
+            # ── adaptive-lambda pullback ────────────────────────────────────────────────
+            # Everything here is behind the guard; with the default `none` the loop body is
+            # exactly what it was. theta_hat_t is scored FIRST, while the model still holds
+            # it — evaluating after the merge would need a reload and a second forward pass.
+            if self.lambda_source != "none":
+                unconstrained_matrix[index + 1] = self._eval_all_columns(context, columns)
+                accumulator, precision, diagnostics = self._pullback(
+                    model, segment, index + 1, accumulator, precision, step_dir
+                )
+                lambda_rows.append(diagnostics)
+
             # The whole point: score this step's model on EVERY region, not just its own.
             eval_started = datetime.now(timezone.utc)
             matrix[index + 1] = self._eval_all_columns(context, columns)
@@ -286,6 +494,9 @@ class ContinualFineTuningPipeline(Pipeline):
                 results[-1].write(step_dir / "test")
 
         summary_started = datetime.now(timezone.utc)
+        if self.lambda_source != "none":
+            self._write_adaptive_outputs(context, unconstrained_matrix, lambda_rows, columns)
+
         summary_metrics = self._write_outputs(
             context, matrix, test_by_step, columns, baseline_state, len(segments)
         )
@@ -306,6 +517,39 @@ class ContinualFineTuningPipeline(Pipeline):
         return results
 
     # ── Output ────────────────────────────────────────────────────────────────
+
+    def _write_adaptive_outputs(self, context, unconstrained_matrix, lambda_rows, columns):
+        """The two files the adaptive path adds. Neither has an existing consumer.
+
+        `backward_transfer.csv` is deliberately NOT touched: it keeps today's schema and carries
+        theta*_t, which is the chain's model and what §1.34 measures. Adding a `model` column to
+        it would change a file `analysis/forgetting_report.py` parses, so theta_hat_t goes to a
+        separate file with the same columns instead. A new file breaks nothing; a new column in
+        a shared file breaks a consumer.
+        """
+        step_dir = context.step_dir("continual_summary")
+        step_dir.mkdir(parents=True, exist_ok=True)
+        metrics = sorted({m for step in unconstrained_matrix.values()
+                          for col in step.values() for m in col})
+        path = step_dir / "backward_transfer_unconstrained.csv"
+        with path.open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.writer(fh)
+            writer.writerow(["after_step", "step_name", "column", "metric", "value"])
+            for step in sorted(unconstrained_matrix):
+                for column, _ in columns:
+                    for metric in metrics:
+                        value = unconstrained_matrix[step].get(column, {}).get(metric)
+                        if value is not None:
+                            writer.writerow([step, f"continual_{step - 1}", column, metric, value])
+
+        fields = ["step", "lambda_star", "one_over_t", "d_norm", "fisher_num", "fisher_den",
+                  "merged_dist_from_base", "unconstrained_dist_from_base"]
+        path = step_dir / "adaptive_lambdas.csv"
+        with path.open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(lambda_rows)
+        log.info("[adaptive] wrote %s (%d step(s))", path, len(lambda_rows))
 
     def _write_outputs(
         self, context, matrix, test_by_step, columns, baseline_state, n_segments
@@ -377,6 +621,41 @@ class ContinualFineTuningPipeline(Pipeline):
                     f / a for f, a in zip(finals, anchors)
                 ) / len(finals)
         return summary
+
+
+def _norm(state) -> float:
+    """L2 norm over the floating-point tensors of a state dict, in float64."""
+    import torch
+    total = sum(float((v.double() ** 2).sum()) for v in state.values()
+                if v.is_floating_point())
+    return float(torch.tensor(total).sqrt())
+
+
+def _distance(state, reference) -> float:
+    """``||state - reference||_2`` over the shared floating-point tensors."""
+    return _norm({k: v.detach().cpu().double() - reference[k].detach().cpu().double()
+                  for k, v in state.items()
+                  if v.is_floating_point() and k in reference})
+
+
+def _quadratic_forms(displacement, fisher_new, precision):
+    """``(d^T F_t d, d^T (F_t + Lambda) d)`` — lambda*'s numerator and denominator, for the CSV.
+
+    Recomputed rather than returned from `became_lambda`, because §3.4 of the brief forbids
+    changing that function's signature. The ratio is asserted against the logged lambda in
+    `verify_adaptive_lambda.py`, so a divergence between the two shows up as a gate failure
+    rather than as a quietly wrong diagnostic column.
+    """
+    numerator = denominator = 0.0
+    for key in displacement:
+        if key not in fisher_new:
+            continue
+        squared = displacement[key].detach().double().cpu() ** 2
+        own = float((fisher_new[key] * squared).sum())
+        other = float((precision[key] * squared).sum()) if precision and key in precision else 0.0
+        numerator += own
+        denominator += own + other
+    return numerator, denominator
 
 
 def _str_to_bool(value: str) -> bool:

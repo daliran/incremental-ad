@@ -12,8 +12,23 @@ derivation reproduces the 1/n rule this project measures empirically (EXPERIMENT
 §1.18). That is a prediction of the method, stated here before it is run.
 
 **Scope: the coefficient only.** BECAME's first stage — theta_GP via gradient projection
-(GPM/NSCL) — is deliberately not implemented. It is class-incremental-classification
-machinery built around a growing label space, and there is no label space here to grow.
+(GPM/NSCL) — is deliberately not implemented here.
+
+⚠️ The reason previously given in this docstring was **wrong** and is corrected (2026-09-20).
+It said GPM was "class-incremental-classification machinery built around a growing label
+space". It is not: GPM constrains each update to the orthogonal complement of the subspace
+spanned by previous tasks' **layer input activations**, obtained by SVD of those activations
+(paper, Appendix A). It needs no label space and is architecture-agnostic, so nothing about
+this project's lack of classes rules it out.
+
+The real reasons are two, and only the second is an argument: (1) it is out of frame here —
+this module serves *merging*, where every shard is fine-tuned from the frozen theta_0 and
+there is no sequential trajectory to project along; and (2) it is expected to *saturate* on
+consecutive windows of one series, because the periods share input channels and most of
+their activation subspace, so the projection would remove nearly the whole gradient. That
+second reason is measurable rather than asserted — `scripts/diagnose_activation_overlap.py`
+measures it — and until it is measured it is a hypothesis.
+
 This is therefore *BECAME's coefficient applied to this project's merges*, not a
 reimplementation of BECAME, and it must not be described as one.
 
@@ -169,3 +184,41 @@ def became_weights(
                 accumulated[key].device
             )
     return weights, lambdas
+
+
+def accumulate_precision(
+    total: dict[str, Tensor] | None,
+    fisher: dict[str, Tensor],
+    weight: float = 1.0,
+) -> dict[str, Tensor]:
+    """``Lambda_t = Lambda_{t-1} + weight * F_t`` — Algorithm 1 line 9, one term at a time.
+
+    Used by the *chain* frame (EXPERIMENTS.md §1.39), not by `became_weights`, which keeps the
+    full list because the merging frame needs each shard's Fisher separately for its own
+    bookkeeping. Here only the running sum is ever read, so holding n Fishers of one float per
+    parameter would be pure waste — at 0.7M parameters and n = 5 that is five copies of the
+    model to carry for a quantity that is always consumed as a sum.
+
+    Passing the result to `became_lambda` as a ONE-ELEMENT list is exactly equivalent to passing
+    the full list: that function computes ``sum_i F_i[k] * d[k]**2`` over the list, and summing
+    the Fishers first factors the same arithmetic. `verify_adaptive_lambda.py` asserts the
+    equivalence rather than relying on the reader to believe it.
+
+    ``weight`` implements the `data` Fisher weighting of the brief's §4.4. `diagonal_fisher`
+    returns a **mean** over batches, so every Fisher arrives on the same per-sample scale and
+    line 9's plain sum treats a period holding 10% of the stream as equal to the base model
+    holding 50% of it. Weighting by sample count is arguably closer to the Laplace derivation,
+    where a posterior precision after N samples scales with N. The paper can gloss the choice
+    because its tasks are equal-sized; ours are not, so it is a flag and an ablation, not a
+    default.
+
+    Returns a new dict; neither argument is mutated, because the caller keeps `fisher` alive to
+    write its diagnostics and an in-place add here would silently corrupt them.
+    """
+    if total is None:
+        return {k: (v.double() * weight).clone() for k, v in fisher.items()}
+    out = {k: v.clone() for k, v in total.items()}
+    for key, value in fisher.items():
+        contribution = value.double() * weight
+        out[key] = out[key] + contribution if key in out else contribution
+    return out

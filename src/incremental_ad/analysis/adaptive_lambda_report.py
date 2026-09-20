@@ -59,11 +59,16 @@ DATASET_LABELS = {
 # g^2 + sigma^2/B` depends on B, so two runs of the same configuration at different B are
 # different measurements and must never be pooled. Carried as a column and as part of every
 # group key, which is what makes the pooling impossible rather than merely discouraged.
-ESTIMATOR_FIELDS = ["fisher_batch_size", "fisher_batches", "fisher_samples"]
+# `lambda_source` leads because it is the coarsest distinction: `became` derives lambda from the
+# Fisher, `one_over_t` imposes it and computes no Fisher at all. Two runs of the same
+# configuration under the two rules are different methods, not different settings, and pooling
+# them would make the P3 control disappear into the thing it controls.
+ESTIMATOR_FIELDS = ["lambda_source", "fisher_batch_size", "fisher_batches", "fisher_samples"]
 
 ACC_FIELDS = ["dataset", "n_segments", "metric"] + ESTIMATOR_FIELDS + ["n_seeds", "floor_pct",
               "acc_adaptive", "acc_adaptive_sd", "acc_plain", "acc_plain_sd",
               "acc_delta_pct", "margin_ratio", "borderline", "verdict",
+              "own_spread_pct", "margin_over_own_spread",
               "bwt_adaptive", "bwt_plain", "base_slice_adaptive", "base_slice_plain"]
 SEED_FIELDS = ["dataset", "n_segments", "seed", "metric"] + ESTIMATOR_FIELDS + [
                "adaptive_run", "plain_run",
@@ -153,9 +158,16 @@ def estimator(config: dict) -> dict:
     the loader's batch size, which is what the fallback below reads. Getting this wrong pools
     two different estimators into one cell.
     """
+    source = config.get("pipeline_lambda_source", "none")
+    if source != "became":
+        # No Fisher is computed on the imposed-lambda paths, so a batch size would be a number
+        # with no referent. Written as 0 rather than left blank: a blank reads as missing data.
+        return {"lambda_source": source, "fisher_batch_size": 0, "fisher_batches": 0,
+                "fisher_samples": 0}
     batch_size = config.get("pipeline_fisher_batch_size") or config["loader_batch_size"]
     batches = config["pipeline_fisher_batches"]
-    return {"fisher_batch_size": int(batch_size), "fisher_batches": int(batches),
+    return {"lambda_source": source, "fisher_batch_size": int(batch_size),
+            "fisher_batches": int(batches),
             "fisher_samples": int(batch_size) * int(batches)}
 
 
@@ -233,7 +245,7 @@ def discover(runs_root: Path) -> list[tuple[Path, dict]]:
         except (json.JSONDecodeError, OSError, KeyError):
             log.warning("[skip] %s — unreadable config.json", run)
             continue
-        if config.get("pipeline_lambda_source") != "became":
+        if config.get("pipeline_lambda_source") not in ("became", "one_over_t", "fixed"):
             continue
         out.append((run, config))
     return out
@@ -375,24 +387,33 @@ def main() -> None:
     # --- P1: aggregate over seeds ---
     grouped = defaultdict(list)
     for row in seed_rows:
-        grouped[(row["dataset"], row["n_segments"], row["metric"],
+        grouped[(row["dataset"], row["n_segments"], row["metric"], row["lambda_source"],
                  row["fisher_batch_size"], row["fisher_batches"])].append(row)
     acc_rows = []
-    for (dataset, n_segments, metric, batch_size, batches), rows in sorted(grouped.items()):
+    for (dataset, n_segments, metric, source, batch_size, batches), rows in sorted(
+            grouped.items()):
         adaptive = [r["acc_adaptive"] for r in rows]
         plain = [r["acc_plain"] for r in rows]
         delta = 100.0 * (st.fmean(adaptive) - st.fmean(plain)) / st.fmean(plain)
         floor = floors.get((dataset, metric))
+        # The same own-spread column the test table carries. A verdict near its floor can be
+        # decisive by the published floor and inside the spread of the runs being compared, and
+        # the reader should be able to see that on every near-floor cell, not only the ones
+        # somebody thought to check.
+        spread = (100.0 * math.sqrt((st.variance(adaptive) + st.variance(plain)) / 2)
+                  / st.fmean(plain)) if len(rows) > 1 else 0.0
         acc_rows.append({
             "dataset": dataset, "n_segments": n_segments, "metric": metric,
-            "fisher_batch_size": batch_size, "fisher_batches": batches,
-            "fisher_samples": batch_size * batches,
+            "lambda_source": source, "fisher_batch_size": batch_size,
+            "fisher_batches": batches, "fisher_samples": batch_size * batches,
             "n_seeds": len(rows), "floor_pct": floor if floor is not None else "",
             "acc_adaptive": st.fmean(adaptive),
             "acc_adaptive_sd": st.stdev(adaptive) if len(adaptive) > 1 else "",
             "acc_plain": st.fmean(plain),
             "acc_plain_sd": st.stdev(plain) if len(plain) > 1 else "",
             "acc_delta_pct": delta, "margin_ratio": margin_ratio(delta, floor),
+            "own_spread_pct": spread,
+            "margin_over_own_spread": abs(delta) / spread if spread else "",
             "borderline": (floor is not None
                            and floor < abs(delta) < BORDERLINE_RATIO * floor),
             "verdict": verdict(delta, floor),
@@ -409,10 +430,11 @@ def main() -> None:
     # --- The task's own metric at the end of the chain ---
     test_grouped = defaultdict(list)
     for row in test_seed_rows:
-        test_grouped[(row["dataset"], row["n_segments"], row["metric"],
+        test_grouped[(row["dataset"], row["n_segments"], row["metric"], row["lambda_source"],
                       row["fisher_batch_size"], row["fisher_batches"])].append(row)
     test_rows = []
-    for (dataset, n_segments, metric, batch_size, batches), rows in sorted(test_grouped.items()):
+    for (dataset, n_segments, metric, source, batch_size, batches), rows in sorted(
+            test_grouped.items()):
         adaptive = [r["adaptive"] for r in rows]
         plain = [r["plain"] for r in rows]
         delta = 100.0 * (st.fmean(adaptive) - st.fmean(plain)) / st.fmean(plain)
@@ -424,7 +446,8 @@ def main() -> None:
                   / st.fmean(plain)) if len(rows) > 1 else 0.0
         test_rows.append({
             "dataset": dataset, "n_segments": n_segments, "metric": metric,
-            "higher_is_better": up, "fisher_batch_size": batch_size,
+            "higher_is_better": up, "lambda_source": source,
+            "fisher_batch_size": batch_size,
             "fisher_batches": batches, "fisher_samples": batch_size * batches,
             "n_seeds": len(rows), "floor_pct": floor if floor is not None else "",
             "final_step": rows[0]["final_step"],
@@ -445,9 +468,10 @@ def main() -> None:
                 abs(delta) / spread if spread else ""})
 
     for row in acc_rows:
-        log.info("[P1] %-14s n=%d %-22s B=%-4d adaptive %.4f vs plain %.4f  %+.2f%% "
+        log.info("[P1] %-14s n=%d %-22s %-10s adaptive %.4f vs plain %.4f  %+.2f%% "
                  "(floor %s, %sx) -> %s%s", row["dataset"], row["n_segments"], row["metric"],
-                 row["fisher_batch_size"], row["acc_adaptive"], row["acc_plain"],
+                 f'{row["lambda_source"][:6]}/{row["fisher_batch_size"]}',
+                 row["acc_adaptive"], row["acc_plain"],
                  row["acc_delta_pct"], row["floor_pct"],
                  f'{row["margin_ratio"]:.2f}' if row["margin_ratio"] != "" else "-",
                  row["verdict"], "  BORDERLINE" if row["borderline"] else "")
@@ -457,19 +481,21 @@ def main() -> None:
     log.info("[P1] %s", "  ".join(f"{k}={v}" for k, v in sorted(tally.items())))
 
     for row in test_rows:
-        log.info("[TEST] %-14s n=%d %-14s B=%-4d %s  adaptive %.4f vs plain %.4f  %+.2f%% "
+        log.info("[TEST] %-14s n=%d %-14s %-10s %s  adaptive %.4f vs plain %.4f  %+.2f%% "
                  "(floor %s, %sx) -> %s%s",
-                 row["dataset"], row["n_segments"], row["metric"], row["fisher_batch_size"],
+                 row["dataset"], row["n_segments"], row["metric"],
+                 f'{row["lambda_source"][:6]}/{row["fisher_batch_size"]}',
                  "up" if row["higher_is_better"] else "dn",
                  row["adaptive"], row["plain"], row["delta_pct"], row["floor_pct"],
                  f'{row["margin_ratio"]:.2f}' if row["margin_ratio"] != "" else "-",
                  row["verdict"], "  BORDERLINE" if row["borderline"] else "")
-    for row in test_rows:
+    for row in acc_rows + test_rows:
         if row["margin_over_own_spread"] != "" and row["margin_over_own_spread"] < 1.0 \
                 and row["verdict"] in ("better", "worse"):
             log.warning("[TEST] ⚠️  %s n=%d %s: margin %.2f%% is %.2fx these runs' OWN spread "
                         "(%.2f%%) — decisive by the published floor (%.3f%%) only",
-                        row["dataset"], row["n_segments"], row["metric"], row["delta_pct"],
+                        row["dataset"], row["n_segments"], row["metric"],
+                        row.get("delta_pct", row.get("acc_delta_pct")),
                         row["margin_over_own_spread"], row["own_spread_pct"], row["floor_pct"])
     test_tally = defaultdict(int)
     for row in test_rows:
@@ -570,11 +596,20 @@ def _self_test() -> None:
     assert control_run({}) is None, "a run that trained its own baseline has no control"
     assert control_run({"pipeline_baseline_checkpoint": "/w/runs/x/1/baseline/best.pt"}) is None
 
-    assert estimator({"pipeline_fisher_batches": 64, "loader_batch_size": 128}) == {
-        "fisher_batch_size": 128, "fisher_batches": 64, "fisher_samples": 8192}, \
+    assert estimator({"pipeline_lambda_source": "became", "pipeline_fisher_batches": 64,
+                      "loader_batch_size": 128}) == {
+        "lambda_source": "became", "fisher_batch_size": 128, "fisher_batches": 64,
+        "fisher_samples": 8192}, \
         "a run predating --pipeline_fisher_batch_size used the loader's batch size"
-    assert estimator({"pipeline_fisher_batch_size": 1, "pipeline_fisher_batches": 512,
+    assert estimator({"pipeline_lambda_source": "became", "pipeline_fisher_batch_size": 1,
+                      "pipeline_fisher_batches": 512,
                       "loader_batch_size": 128})["fisher_batch_size"] == 1
+    # An imposed-lambda run computes no Fisher, so it must not inherit a batch size that would
+    # let it group with a `became` run of the same configuration.
+    imposed = estimator({"pipeline_lambda_source": "one_over_t", "pipeline_fisher_batches": 64,
+                         "loader_batch_size": 128})
+    assert imposed == {"lambda_source": "one_over_t", "fisher_batch_size": 0,
+                       "fisher_batches": 0, "fisher_samples": 0}, imposed
 
     xs = [1.0, 2.0, 4.0, 8.0]
     exact = [(math.log(x), math.log(x)) for x in xs]

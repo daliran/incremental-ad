@@ -1236,7 +1236,7 @@ def _p1_check(dataset: str, n: int, batch_size: int):
             rf"\| {dataset} \| {n} \| " + skip + number,
             "adaptive_lambda/adaptive_lambda_acc.csv",
             {"dataset": dataset, "n_segments": str(n), "metric": "forecast/mse",
-             "fisher_batch_size": str(batch_size)},
+             "lambda_source": "became", "fisher_batch_size": str(batch_size)},
             "acc_delta_pct", 0.02)
 
 
@@ -1248,7 +1248,7 @@ CHECKS += [
     ("§1.39 ETTh1 n=3 margin ratio", r"\| ([\d.]+)× \| worse \*\*\(borderline\)\*\*",
      "adaptive_lambda/adaptive_lambda_acc.csv",
      {"dataset": "ETTh1", "n_segments": "3", "metric": "forecast/mse",
-      "fisher_batch_size": "1"}, "margin_ratio", 0.01),
+      "lambda_source": "became", "fisher_batch_size": "1"}, "margin_ratio", 0.01),
     # Slope, not r: slope ~1 is the claim ("correctly scaled"), r^2 = 0.34 is the caveat beside
     # it. Both are checked so neither can drift into the other's sentence.
     ("§1.39b asymmetry slope", r"\*\*slope = \+([\d.]+)\*\*",
@@ -1289,7 +1289,7 @@ def _test_check(dataset, n, metric, batch_size, field, group):
     return (f"§1.39 {dataset} n={n} {metric} test {group}", pattern,
             "adaptive_lambda/adaptive_lambda_test.csv",
             {"dataset": dataset, "n_segments": str(n), "metric": metric,
-             "fisher_batch_size": str(batch_size)},
+             "lambda_source": "became", "fisher_batch_size": str(batch_size)},
             field, 0.02)
 
 
@@ -1306,6 +1306,45 @@ CHECKS += [_test_check(d, n, m, 1, "delta_pct", "corrected")
 # checked on every row — including the one where they disagree (PSM's AUROC).
 CHECKS += [_test_check(d, n, m, b, "margin_ratio", "ratio") for d, n, m, b in _TEST_ROWS]
 CHECKS += [_test_check(d, n, m, b, "own_spread_pct", "own_spread") for d, n, m, b in _TEST_ROWS]
+
+# §1.39c — the one-cell P3 control. Bound to `lambda_source` as well as batch size: the whole
+# point of the table is that two rules on the SAME configuration give different answers, so a
+# check that did not name the rule could be satisfied by the row it is meant to contrast with.
+CHECKS += [
+    ("§1.39c adaptive corrected delta",
+     r"\| adaptive, corrected \(B = 1\) \| derived \| \*\*([+−-][\d.]+)%\*\*",
+     "adaptive_lambda/adaptive_lambda_test.csv",
+     {"dataset": "exchange_rate", "n_segments": "3", "metric": "forecast/mse",
+      "lambda_source": "became", "fisher_batch_size": "1"}, "delta_pct", 0.02),
+    ("§1.39c adaptive defect delta",
+     r"\| adaptive, defect \(B = 128\) \| derived \| ([+−-][\d.]+)%",
+     "adaptive_lambda/adaptive_lambda_test.csv",
+     {"dataset": "exchange_rate", "n_segments": "3", "metric": "forecast/mse",
+      "lambda_source": "became", "fisher_batch_size": "128"}, "delta_pct", 0.02),
+    ("§1.39c fixed one_over_t delta",
+     r"\| \*\*fixed λ = 1/t\*\* \| imposed \| \*\*([+−-][\d.]+)%\*\*",
+     "adaptive_lambda/adaptive_lambda_test.csv",
+     {"dataset": "exchange_rate", "n_segments": "3", "metric": "forecast/mse",
+      "lambda_source": "one_over_t", "fisher_batch_size": "0"}, "delta_pct", 0.02),
+]
+# The lambda table beneath it: the claim is that the derived lambda EXCEEDS 1/t, so the values
+# and the ratios are both checked. `lambda_over_one_over_t` is the quantity the sentence quotes.
+CHECKS += [
+    (f"§1.39c lambda t={t}",
+     rf"\| {t} \| ([\d.]+) \| [\d.]+ \| [\d.]+ \|",
+     "adaptive_lambda/adaptive_lambda_steps.csv",
+     {"dataset": "exchange_rate", "n_segments": "3", "lambda_source": "became",
+      "fisher_batch_size": "1", "step": str(t)}, "lambda_star", 0.0001)
+    for t in (1, 2, 3)
+]
+CHECKS += [
+    (f"§1.39c lambda ratio t={t}",
+     rf"\| {t} \| [\d.]+ \| [\d.]+ \| ([\d.]+) \|",
+     "adaptive_lambda/adaptive_lambda_steps.csv",
+     {"dataset": "exchange_rate", "n_segments": "3", "lambda_source": "became",
+      "fisher_batch_size": "1", "step": str(t)}, "lambda_over_one_over_t", 0.01)
+    for t in (1, 2, 3)
+]
 
 # §1.39b's exponents. The *differential* between the two rows is the entire argument, so both
 # rows are checked at all three steps, and t=1 — the negative control, where the two must agree —

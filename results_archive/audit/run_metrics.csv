@@ -3225,6 +3225,42 @@ noisefloor_swat,Swat,IncrementalTaskArithmeticPipeline,3,merge,merged/val,recons
 noisefloor_swat,Swat,IncrementalTaskArithmeticPipeline,3,merge,merged/val,reconstruction/score_p95,3,7 42 123,0.380986,0.006826,1.792
 noisefloor_swat,Swat,IncrementalTaskArithmeticPipeline,3,merge,merged/val,reconstruction/score_p99,3,7 42 123,0.839669,0.047198,5.621
 noisefloor_swat,Swat,IncrementalTaskArithmeticPipeline,3,merge,merged/val,reconstruction/score_std,3,7 42 123,0.125866,0.006708,5.329
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mae,1,123,0.644218,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mse,1,123,0.647655,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/rmse,1,123,0.80477,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mae,1,123,0.621705,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mse,1,123,0.585004,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/rmse,1,123,0.764855,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mae,1,123,0.612107,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mse,1,123,0.567011,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/rmse,1,123,0.753001,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mae,1,123,0.505978,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mse,1,123,0.37014,0.0,0.0
+onet_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/rmse,1,123,0.608391,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mae,1,42,0.679087,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mse,1,42,0.706194,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/rmse,1,42,0.840354,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mae,1,42,0.647946,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mse,1,42,0.631302,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/rmse,1,42,0.794545,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mae,1,42,0.632097,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mse,1,42,0.598724,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/rmse,1,42,0.773773,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mae,1,42,0.505187,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mse,1,42,0.36934,0.0,0.0
+onet_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/rmse,1,42,0.607733,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mae,1,7,0.699647,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mse,1,7,0.728524,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/rmse,1,7,0.853536,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mae,1,7,0.689396,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mse,1,7,0.69889,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/rmse,1,7,0.835996,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mae,1,7,0.663995,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mse,1,7,0.645966,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/rmse,1,7,0.80372,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mae,1,7,0.532136,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mse,1,7,0.410067,0.0,0.0
+onet_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/rmse,1,7,0.640365,0.0,0.0
 opcm2_psm_opcm_became,PsmForecastDataset,IncrementalTaskArithmeticPipeline,3,,baseline/test,forecast/mae,3,7 42 123,0.405189,0.006979,1.722
 opcm2_psm_opcm_became,PsmForecastDataset,IncrementalTaskArithmeticPipeline,3,,baseline/test,forecast/mse,3,7 42 123,0.512732,0.008314,1.622
 opcm2_psm_opcm_became,PsmForecastDataset,IncrementalTaskArithmeticPipeline,3,,baseline/test,forecast/rmse,3,7 42 123,0.716038,0.005807,0.811

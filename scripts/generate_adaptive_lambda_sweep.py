@@ -56,6 +56,14 @@ TIERS = {
     # sample count is not carrying anything here, exactly as `E[F_hat]`'s independence of K says.
     3: ("became", ["--pipeline_fisher_batch_size", "1", "--pipeline_fisher_batches", "512"],
         FORECAST, "fisherfix"),
+    # Tier 2 restricted to the ONE cell where the method wins (§1.39, C38/C40). Three
+    # fine-tunes, not the 30 of the full tier. The question it answers is whether the *adaptive*
+    # coefficient is doing the work or whether braking per se is: fixed lambda = 1/t brakes by
+    # the same schedule with no Fisher at all, so if it also wins there the win is about
+    # regularising an unreliable fine-tune (~1,012 rows per period) and not about curvature.
+    # The rest of Tier 2 stays unspent -- every other cell loses by 3-30x its floor, and a
+    # control on a settled loss is not a result.
+    4: ("one_over_t", [], {("exchange", "3")}, "onet"),
 }
 SKIP = {"experiment", "run_id", "runs_root"}
 

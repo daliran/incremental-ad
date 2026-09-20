@@ -2,53 +2,53 @@ document,line,text
 EXPERIMENTS.md,339,"call substantially more cells decisive, so sd keeps the conservative reading the floor always"
 EXPERIMENTS.md,344,"- **Percentages.** ""A beats B by p%"" is **always** p = (B − A) / B for an error metric — a"
 EXPERIMENTS.md,510,"dataset with the same drift was run; §1.26's *""merging never wins a decisive forecasting"
-EXPERIMENTS.md,564,"name is the single most damaging thing this file could contain, so `opcm_residual` is **never**"
-EXPERIMENTS.md,565,"called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** called BECAME."
-EXPERIMENTS.md,1163,"\* **Every dataset has a floor for every metric it reports** — the source experiment differs, not"
-EXPERIMENTS.md,1278,"decisive. Using sd preserves the conservative reading the floor always had, and is a choice"
-EXPERIMENTS.md,1289,"⚠️ **""Merging never wins"" is true of §1.26 and false of the wider table.** Across §1.5b's 48"
-EXPERIMENTS.md,1293,PSM's point-AUROC* — not that it never wins. The two tables disagree because they read different
-EXPERIMENTS.md,1441,"**What this costs the α\*·n claim.** It holds as *""order 1 on every dataset measured""* — every"
-EXPERIMENTS.md,1829,**Merging sits closer to the routing ceiling than always-using-the-newest-specialist in 8 of the
-EXPERIMENTS.md,1831,"but not always. ⚠️ **Two counterexamples, and they are in the CSV**"
-EXPERIMENTS.md,1836,"than 8; the sentence is a count either way and never ""all four datasets"", which is what it said"
-EXPERIMENTS.md,1959,"It also sharpens [THEORY.md §6.6](THEORY.md): if the optimal merge is always k·mean(τ), then at large n"
-EXPERIMENTS.md,2042,diagnostics always evaluates. At n=3 and n=5 on both ETTh2 and ETTm2 that extra point is
-EXPERIMENTS.md,2115,"four-dataset fix). Both mixed within- and between-dataset variation, so the value moved whenever"
-EXPERIMENTS.md,2177,"and 1.5 against floors of 8.2% and 5.3%. The limit was resolution and identifiability, never"
-EXPERIMENTS.md,2221,"If the newest data were always the most relevant, the newest specialist would win every regime"
-EXPERIMENTS.md,2260,**How the split is made.** The base model θ₀ always trains on the first 50% of the training
-EXPERIMENTS.md,2275,"variable. Test set, **3 seeds on every dataset**."
-EXPERIMENTS.md,2433,"Base 0.8415, joint 0.1362 — **83.8% headroom**, the largest of any dataset here, against a 6.7%"
-EXPERIMENTS.md,2546,widest of any dataset here; differences below that are not resolvable. Three seeds throughout.
-EXPERIMENTS.md,2605,"**GRR 0.927, specialisation 0.694** — the highest specialisation of any dataset measured, and"
-EXPERIMENTS.md,2638,That is false whenever α is **selected**: the selection scores the pooled validation union
-EXPERIMENTS.md,2747,"- **Merging never wins a decisive forecasting configuration** — 0 of 18 **in this table**, with"
-EXPERIMENTS.md,2811,"⚠️ **""Merging never wins a decisive forecasting configuration"" no longer holds.** That claim —"
-EXPERIMENTS.md,2876,deployment-realistic split — you always predict the future — but it gives no error bar for the
-EXPERIMENTS.md,3002,"conditions being pooled, pool the *ranks* or the *normalised* values, never the raw means. The"
-EXPERIMENTS.md,3145,published number uses 0.5 consistently — but the setting is a free parameter that was never
-EXPERIMENTS.md,3290,"**α\* ≈ 1/n replicates, on a dataset that was never used to derive it.**"
-EXPERIMENTS.md,3378,"little: its within-series drift is 0.112, the lowest of any dataset here (§0.1b), because it is a"
-EXPERIMENTS.md,3556,"in **all six** comparisons (+0.91% to +6.21%), so the sign never reverses. But only the two n = 3"
-EXPERIMENTS.md,3606,its weights always sum to 1 and the quantity is identically 1/n for *every* λ sequence —
-EXPERIMENTS.md,3922,concluded from one dataset that OPCM always hurts; it does not.
-EXPERIMENTS.md,4056,- **P1 — the paper's OPCM does not beat plain summation outside the floor on any dataset except
-EXPERIMENTS.md,4072,ETTh2's loss shrinks.** OPCM is order-dependent by construction: the first vector is never
-EXPERIMENTS.md,4116,"strength""* and never *""BECAME""* — the published method is the convex fold, and a variant that"
-EXPERIMENTS.md,4117,"changes its total strength is not it. Likewise `opcm_residual` (§1.31, §1.35) is never called the"
-EXPERIMENTS.md,4178,"**At the threshold the paper recommends, it loses on every dataset and every segment count: 0"
-EXPERIMENTS.md,4204,"At **n = 2 the paper's operator never wins** — its best threshold only ties, while the simplified"
-EXPERIMENTS.md,4278,distinctive**. A test that punishes every dataset cannot attribute exchange_rate's loss to
-EXPERIMENTS.md,4303,"§1.36's P1 found the paper's OPCM losing on every dataset at its own recommended threshold, and"
-EXPERIMENTS.md,4304,left one suspect: **it never merges at the strength this project's data wants.** Theorem 5.2 pins
-EXPERIMENTS.md,4322,"⚠️ **This is not the paper's method and is never called it** (`C26`). It is *""the paper's"
-EXPERIMENTS.md,4337,"is harmful here, the norm rule was never the problem, and §1.36's ""leading suspect"" sentence"
-EXPERIMENTS.md,4433,rescale was a near no-op (distance ratio 0.96–1.15). On forecasting it was never settled. P5
-EXPERIMENTS.md,4447,"⚠️ **This is not the paper's method and is never called it** (`C26`). It is *""the paper's"
-EXPERIMENTS.md,4463,"board, the distance confound was never load-bearing, and §1.37's conclusion widens rather than"
-EXPERIMENTS.md,4555,"⚠️ **This is not BECAME, and must never be called that.** The published method (Li et al.,"
-EXPERIMENTS.md,4569,never mentions gradient projection. Appendix C.3 / Table 11 is the paper's **own** without-GP
-EXPERIMENTS.md,4576,"initialization, discarded at Algorithm 1 line 1 and never seen again. **Our θ₀ — the base model —"
-EXPERIMENTS.md,4798,that ratio is **below 1 in all 78 cells**: the Fisher is always larger at the merged point.
-EXPERIMENTS.md,5680,"normalisation — and the test split is transformed with the training scaler, never fit on. But"
+EXPERIMENTS.md,565,"name is the single most damaging thing this file could contain, so `opcm_residual` is **never**"
+EXPERIMENTS.md,566,"called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** called BECAME."
+EXPERIMENTS.md,1164,"\* **Every dataset has a floor for every metric it reports** — the source experiment differs, not"
+EXPERIMENTS.md,1279,"decisive. Using sd preserves the conservative reading the floor always had, and is a choice"
+EXPERIMENTS.md,1290,"⚠️ **""Merging never wins"" is true of §1.26 and false of the wider table.** Across §1.5b's 48"
+EXPERIMENTS.md,1294,PSM's point-AUROC* — not that it never wins. The two tables disagree because they read different
+EXPERIMENTS.md,1442,"**What this costs the α\*·n claim.** It holds as *""order 1 on every dataset measured""* — every"
+EXPERIMENTS.md,1830,**Merging sits closer to the routing ceiling than always-using-the-newest-specialist in 8 of the
+EXPERIMENTS.md,1832,"but not always. ⚠️ **Two counterexamples, and they are in the CSV**"
+EXPERIMENTS.md,1837,"than 8; the sentence is a count either way and never ""all four datasets"", which is what it said"
+EXPERIMENTS.md,1960,"It also sharpens [THEORY.md §6.6](THEORY.md): if the optimal merge is always k·mean(τ), then at large n"
+EXPERIMENTS.md,2043,diagnostics always evaluates. At n=3 and n=5 on both ETTh2 and ETTm2 that extra point is
+EXPERIMENTS.md,2116,"four-dataset fix). Both mixed within- and between-dataset variation, so the value moved whenever"
+EXPERIMENTS.md,2178,"and 1.5 against floors of 8.2% and 5.3%. The limit was resolution and identifiability, never"
+EXPERIMENTS.md,2222,"If the newest data were always the most relevant, the newest specialist would win every regime"
+EXPERIMENTS.md,2261,**How the split is made.** The base model θ₀ always trains on the first 50% of the training
+EXPERIMENTS.md,2276,"variable. Test set, **3 seeds on every dataset**."
+EXPERIMENTS.md,2434,"Base 0.8415, joint 0.1362 — **83.8% headroom**, the largest of any dataset here, against a 6.7%"
+EXPERIMENTS.md,2547,widest of any dataset here; differences below that are not resolvable. Three seeds throughout.
+EXPERIMENTS.md,2606,"**GRR 0.927, specialisation 0.694** — the highest specialisation of any dataset measured, and"
+EXPERIMENTS.md,2639,That is false whenever α is **selected**: the selection scores the pooled validation union
+EXPERIMENTS.md,2748,"- **Merging never wins a decisive forecasting configuration** — 0 of 18 **in this table**, with"
+EXPERIMENTS.md,2812,"⚠️ **""Merging never wins a decisive forecasting configuration"" no longer holds.** That claim —"
+EXPERIMENTS.md,2877,deployment-realistic split — you always predict the future — but it gives no error bar for the
+EXPERIMENTS.md,3003,"conditions being pooled, pool the *ranks* or the *normalised* values, never the raw means. The"
+EXPERIMENTS.md,3146,published number uses 0.5 consistently — but the setting is a free parameter that was never
+EXPERIMENTS.md,3291,"**α\* ≈ 1/n replicates, on a dataset that was never used to derive it.**"
+EXPERIMENTS.md,3379,"little: its within-series drift is 0.112, the lowest of any dataset here (§0.1b), because it is a"
+EXPERIMENTS.md,3557,"in **all six** comparisons (+0.91% to +6.21%), so the sign never reverses. But only the two n = 3"
+EXPERIMENTS.md,3607,its weights always sum to 1 and the quantity is identically 1/n for *every* λ sequence —
+EXPERIMENTS.md,3923,concluded from one dataset that OPCM always hurts; it does not.
+EXPERIMENTS.md,4057,- **P1 — the paper's OPCM does not beat plain summation outside the floor on any dataset except
+EXPERIMENTS.md,4073,ETTh2's loss shrinks.** OPCM is order-dependent by construction: the first vector is never
+EXPERIMENTS.md,4117,"strength""* and never *""BECAME""* — the published method is the convex fold, and a variant that"
+EXPERIMENTS.md,4118,"changes its total strength is not it. Likewise `opcm_residual` (§1.31, §1.35) is never called the"
+EXPERIMENTS.md,4179,"**At the threshold the paper recommends, it loses on every dataset and every segment count: 0"
+EXPERIMENTS.md,4205,"At **n = 2 the paper's operator never wins** — its best threshold only ties, while the simplified"
+EXPERIMENTS.md,4279,distinctive**. A test that punishes every dataset cannot attribute exchange_rate's loss to
+EXPERIMENTS.md,4304,"§1.36's P1 found the paper's OPCM losing on every dataset at its own recommended threshold, and"
+EXPERIMENTS.md,4305,left one suspect: **it never merges at the strength this project's data wants.** Theorem 5.2 pins
+EXPERIMENTS.md,4323,"⚠️ **This is not the paper's method and is never called it** (`C26`). It is *""the paper's"
+EXPERIMENTS.md,4338,"is harmful here, the norm rule was never the problem, and §1.36's ""leading suspect"" sentence"
+EXPERIMENTS.md,4434,rescale was a near no-op (distance ratio 0.96–1.15). On forecasting it was never settled. P5
+EXPERIMENTS.md,4448,"⚠️ **This is not the paper's method and is never called it** (`C26`). It is *""the paper's"
+EXPERIMENTS.md,4464,"board, the distance confound was never load-bearing, and §1.37's conclusion widens rather than"
+EXPERIMENTS.md,4556,"⚠️ **This is not BECAME, and must never be called that.** The published method (Li et al.,"
+EXPERIMENTS.md,4578,never mentions gradient projection. Appendix C.3 / Table 11 is the paper's **own** without-GP
+EXPERIMENTS.md,4585,"initialization, discarded at Algorithm 1 line 1 and never seen again. **Our θ₀ — the base model —"
+EXPERIMENTS.md,4889,that ratio is **below 1 in all 78 cells**: the Fisher is always larger at the merged point.
+EXPERIMENTS.md,5771,"normalisation — and the test split is transformed with the training scaler, never fit on. But"

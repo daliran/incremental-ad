@@ -522,13 +522,13 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**39 claims: 27 supported, 5 hypothesis, 7 refuted.** The rule downgraded
+**40 claims: 27 supported, 5 hypothesis, 8 refuted.** The rule downgraded
 **3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
 now marked as a hypothesis in place.
 
-⚠️ **34 of the 39 are merging claims; `C35`–`C39` are not.** The merging chapter's tally — the
+⚠️ **34 of the 40 are merging claims; `C35`–`C40` are not.** The merging chapter's tally — the
 one CLAUDE.md's freeze quotes — is **unchanged at 34: 24 supported, 3 hypothesis, 7 refuted**.
 Strategy 6 (§1.39) is a sequential method, and its rows are counted here because this register
 covers the *document*, not because the freeze moved.
@@ -555,6 +555,7 @@ by someone repeating it.
 | `C24` | lambda* is unstable because the Fisher estimate is noisy | 1.32 | §1.32 ran the falsification test and the estimate saturates at the full pass - the instability is not sampling noise. |
 | `C25` | Attention-exclusive fine-tuning (the testable half of QOMM) helps | 1.33 | Measured on PSM-forecast n=3, three seeds, and did not clear the floor - reported as a negative result. |
 | `C26` | The simplified OPCM operator (§1.31, §1.35) is the paper's OPCM | 1.31, 1.35, 1.36 | Never claimed and must never be: `opcm_residual` projects out the span of the flattened predecessors; the paper's operator (Tang et al., NeurIPS 2025, Algorithm 1) projects out the top-alpha singular subspace of the ACCUMULATED MERGED matrix, on both sides, drops the i==j diagonal, and carries a norm-stabilising lambda. |
+| `C40` | Adaptive-λ's exchange_rate win is scarcity (braking as regularisation), not recency | 1.39, 1.39c | Registered and refuted the same day. Fixed λ = 1/t brakes on the same schedule with no Fisher and does **not** win (+6.86% vs −9.79%). The derived λ *exceeds* 1/t at every period here, so the coefficient wins by braking **less**, not more — the opposite of the regularisation reading, and of the recency one it replaced. |
 | `C34` | The paper's OPCM loses because of its fixed magnitude, not its projection (AD: refuted; forecasting: refuted) | 1.36, 1.37, 1.38 | §1.37's P4 ran the isolating test - the paper's projection held bit-for-bit fixed (collinear to 3.7e-15) and rescaled to each run's committed alpha - and refuted it: 0 better, 10 ties, 62 worse over 72 cells. |
 | `C28` | The winner survives moving the train/test cut (rolling origin) | 1.27, 1.27a | It does not: the ranking is unstable across origins. |
 
@@ -4559,7 +4560,15 @@ inside this project's sequential chain. Call it **"adaptive-λ sequential fine-t
 applies to the OPCM variants.
 
 **It is a sixth update strategy, not a subsection of the merging work** (scope note in
-CLAUDE.md, 2026-09-20). It adds one column to §1.26's five-strategy comparison. The
+CLAUDE.md, 2026-09-20). It adds one column to §1.26's five-strategy comparison.
+
+⚠️ **That column uses the TEST metric (`C38`), not ACC (`C35`).** The five strategies §1.26
+compares are compared on test metrics — that is what `method_comparison_spec.csv` keys on — so
+strategy 6 has to join them on the same quantity or the table is not a comparison. ACC is the
+continual-learning **supplement**, reported first in §1.39 because it is the metric the method's
+own paper reports, and it disagrees with the test metric on two cells (ETTm2 n = 5 and
+exchange_rate n = 3). The ordering is declared here so the strategy table and this section cannot
+be read as contradicting each other. The
 merging-frame rows `C21`/`C22`/`C24` are rescoped, not withdrawn: they concern the coefficient
 in the merging frame and are the reason this was implemented in the paper's own frame. Gradient projection is a
 separate, later question (`P5`), gated on a measurement rather than assumed.
@@ -4637,6 +4646,14 @@ the source run's own `pipeline_baseline_checkpoint`, so the only difference is t
 
 **16 worse, 0 ties, 0 better** on ACC. Every config improved under correction and none changed
 verdict *on this metric* — but see the test-metric table below, where one does.
+
+**The borderline cell was checked against the runs' own spread as well, and it holds.** ETTh1
+n = 3's own spread is **5.32%**, *narrower* than its published floor of 8.759%, so the 12.51%
+margin is **2.35× the spread of the runs actually being compared** — more decisive on its own
+spread than the 1.43× floor ratio suggests, not less. On the test metric the same cell is 4.0×
+its own spread (3.93%). ⚠️ This is the opposite of what the same check does to PSM's AUROC
+below, which is why it is worth running on every near-floor cell rather than only where a
+caveat is expected: own spread can firm a verdict up as easily as it can soften one.
 **ETTh1 n = 3 is the one borderline row** — 1.43× its floor, inside the < 1.5× band — and it is
 the most informative cell in the table: it is where the defect did the most damage (5.61× →
 1.43× its floor) and where the method comes closest to not losing. It is flagged rather than
@@ -4688,9 +4705,22 @@ the ACC table did not:
 - **exchange_rate n = 3 is the one genuine win, and only after correcting the estimator.**
   −9.79% at 1.71× its floor, and **all three seeds improve** (−9.08%, −2.10%, −17.18%) — though
   the middle seed is itself inside the floor, so it is a consistent win of inconsistent size. At
-  B = 128 the same cell was a tie (+5.65%), so the estimator defect was **hiding** it. This is
-  the dataset where old data actively hurts (§1.24); a method that pulls the chain back toward
-  θ₀ has the least to destroy there, and the most.
+  B = 128 the same cell was a tie (+5.65%), so the estimator defect was **hiding** it. It carries
+  this project's standard exchange_rate caveat: **strong drift or small shards**, and the two are
+  not separated on this dataset (§0.1b, §1.24).
+
+  ⚠️ **A recency reading of this win is wrong by its own logic, and is recorded as such.** An
+  earlier draft of this section attributed it to §1.24 — exchange_rate is where old data actively
+  hurts, so a rule that pulls back toward θ₀ has least to destroy. That is **backwards**: the
+  pullback interpolates toward θ\*_{t−1}, which *retains* more of the earlier periods, so on a
+  dataset where old data hurts braking should cost more, not less. The likelier reading is
+  **scarcity**: at `baseline_fraction = 0.5, n = 3` each period is ≈ **1,012 of exchange_rate's
+  6,071 rows**, a fine-tune small enough to overfit, and braking is then simply regularisation.
+  §1.28's own discriminating test applies — ETTm2 has essentially the same drift (0.752 vs
+  0.833) with **nine times** the data — and ETTm2 n = 5, at ≈ 5,574 rows per period, came out a
+  **tie**, not a win. ⚠️ **That scarcity reading was then refuted too**, by §1.39c: fixed
+  λ = 1/t brakes on the same schedule and does not win. `C40` is registered **refuted**, and
+  §1.39c says what is left.
 
 ⚠️ **ACC and the test metric disagree, and neither is wrong.** ACC averages the loss over *every*
 regime, so it charges the chain for forgetting old shards; the test metric is the final model on
@@ -4728,6 +4758,67 @@ rescoping of `C21`/`C22`/`C24` to the merging frame stands on its own.
 variant, which §1.39b's result makes a question about a method that already loses by 10–30×
 its floor on seven of eight configs.
 
+#### 1.39c P3 on one cell — is it the coefficient, or just the braking?
+
+> **Provenance.** `scripts/generate_adaptive_lambda_sweep.py --tier 4` → three runs,
+> `onet_exchange_n3_s{42,7,123}`, `--pipeline_lambda_source one_over_t`. Same θ₀, same
+> configuration, same control chain as the `fisherfix_exchange_n3_*` runs; the **only**
+> difference is that λ_t = 1/t is imposed instead of derived. No Fisher is computed at all on
+> this path, so the estimator question does not arise.
+
+⚠️ **Registered before the runs (2026-09-20), and this is the whole of P3 that gets spent.**
+The full Tier 2 is 30 runs; this is **three**. Every other cell loses by 3–30× its floor, and a
+control on a settled loss is not a result. `C38`'s exchange_rate n = 3 is the only cell where
+the method wins, so it is the only cell where "is the *adaptive* coefficient doing the work?"
+has anything to distinguish.
+
+**Both outcomes are informative, and they say opposite things about `C40`:**
+
+- **Fixed λ = 1/t also wins** → the adaptive coefficient is **not** doing the work. Braking per
+  se is, and the win is about regularising a fine-tune on ≈1,012 rows rather than about
+  curvature. That supports `C40`'s scarcity reading and makes the Fisher machinery redundant on
+  the one cell it helps.
+- **Only the adaptive version wins** → the coefficient earns its keep exactly where the method
+  works, and `C40`'s scarcity reading loses its simplest form: braking alone would not be
+  enough, so *how much* braking is chosen matters.
+- **Neither wins** → the corrected-estimator win was the adaptive coefficient landing well on
+  one cell by luck, and `C38`'s exception should be re-read against three seeds of noise.
+
+**Results — the second outcome: only the adaptive version wins**
+
+3/3 runs, 0 failures. Final-step test `forecast/mse` against the same plain chain:
+
+| rule | λ_t | delta | floor | ratio | verdict |
+|---|---|---|---|---|---|
+| adaptive, corrected (B = 1) | derived | **−9.79%** | 5.734% | 1.71× | **better** |
+| adaptive, defect (B = 128) | derived | +5.65% | 5.734% | 0.99× | tie |
+| **fixed λ = 1/t** | imposed | **+6.86%** | 5.734% | 1.20× | worse (borderline) |
+
+**Braking per se does not win. `C40`'s scarcity reading is refuted in the form it was stated.**
+Fixed λ = 1/t brakes on the same schedule with no Fisher at all and loses — it is 16.7 pp worse
+than the adaptive rule, and lands on the wrong side of the floor. If the win were regularisation
+of an overfitted 1,012-row fine-tune, the imposed schedule would have delivered it.
+
+**What the coefficient is actually doing is the opposite of braking harder.** On exchange_rate
+the derived λ **exceeds** 1/t at every period (λ/(1/t) = 1.25, 2.18, 1.30 at the corrected
+estimator):
+
+| t | λ\* (adaptive, B = 1) | 1/t | ratio |
+|---|---|---|---|
+| 1 | 0.6260 | 0.500 | 1.25 |
+| 2 | 0.7268 | 0.333 | 2.18 |
+| 3 | 0.3261 | 0.250 | 1.30 |
+
+So the Fisher says *take more of the new shard than 1/t would*, and taking more is what wins.
+**1/t over-brakes on this dataset.** That is a coherent reading of §1.24 that the recency
+argument got backwards: exchange_rate is where old data hurts, so the rule that wins is the one
+that **retains less** of the accumulator — and the adaptive coefficient is the one that
+discovers that from curvature, while 1/t cannot.
+
+⚠️ **One cell, one dataset, three seeds, and it rests on a coefficient that is only correct
+under the corrected estimator** — at B = 128 the same rule ties. It is registered as an
+observation, not a mechanism: `C40` is refuted as stated, and no replacement claim is made
+beyond what this table shows.
 #### 1.39b The estimator defect — the durable finding
 
 **`diagonal_fisher` squares the gradient of a batch-MEAN loss.** For batch size B that estimator

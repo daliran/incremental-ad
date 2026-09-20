@@ -285,6 +285,31 @@ CLAIMS: list[tuple] = [
      "exchange_rate is the dataset where old data actively hurts, so a rule that pulls the chain "
      "back toward theta_0 has the least to destroy. ACC and this metric DISAGREE on two cells "
      "and both are reported (C35)."),
+    ("C40", "Adaptive-lambda's exchange_rate win is scarcity (braking as regularisation), not "
+     "recency",
+     "1.39, 1.39c", "exchange_rate,ETTm2", 2, "n/a", "mechanism", "yes", "refuted",
+     "REFUTED by §1.39c, run the same day it was registered: fixed lambda = 1/t brakes on the "
+     "same schedule with no Fisher at all and does NOT win - +6.86% against the adaptive rule's "
+     "-9.79%, 16.7pp apart and on the wrong side of the floor. If the win were regularisation of "
+     "an overfitted ~1,012-row fine-tune, the imposed schedule would have delivered it. What the "
+     "coefficient actually does is the OPPOSITE of braking harder: on exchange_rate the derived "
+     "lambda EXCEEDS 1/t at every period (1.25x, 2.18x, 1.30x), so the Fisher says take more of "
+     "the new shard, and taking more is what wins - 1/t over-brakes here. That is a reading of "
+     "§1.24 the withdrawn recency argument had backwards. No replacement mechanism is claimed: "
+     "one cell, one dataset, three seeds, and the coefficient is only right under the corrected "
+     "estimator (at B=128 the same rule ties). Original wording follows. "
+     "The recency reading was STATED in an earlier draft and is withdrawn as backwards: the "
+     "pullback interpolates toward theta*_(t-1), which RETAINS more of the earlier periods, so "
+     "on a dataset where old data hurts (§1.24) braking should cost more, not less. Scarcity is "
+     "the likelier reading - at baseline_fraction=0.5, n=3 each period is ~1,012 of "
+     "exchange_rate's 6,071 rows, small enough that the fine-tune overfits and braking is simply "
+     "regularisation. §1.28's discriminating test applies (ETTm2 has essentially the same drift, "
+     "0.752 vs 0.833, with 9x the data) and ETTm2 n=5 at ~5,574 rows per period came out a TIE, "
+     "not a win - one cell, weak, pointing at scarcity. NOT settled: the two readings are not "
+     "separated on this dataset, which is why every exchange_rate result in this document "
+     "carries the 'strong drift or small shards' caveat. The decisive test is registered and "
+     "cheap: fixed lambda = 1/t on exchange_rate n=3 (three fine-tunes). If braking per se wins "
+     "there, the adaptive coefficient is not doing the work."),
     ("C39", "Adaptive-lambda does not improve anomaly detection",
      "1.39", "PSM,SWaT", 2, "mixed", "measurement", "yes", "supported",
      "Measured on window_auroc, which HAS a published floor on both datasets - not on "

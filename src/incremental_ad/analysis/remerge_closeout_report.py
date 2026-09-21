@@ -234,10 +234,13 @@ def summarise(test: str, entry: dict, floor, pairs: list[tuple],
 # derived.csv's `grr`.
 STORED_MERGE_LABEL = "plain sum at committed alpha"
 
-# Set by derived.csv's 4-decimal storage of `grr`, not chosen for convenience: two values that
-# agree can differ by up to 5e-5 before rounding, so 2e-4 is the tightest bound that cannot fire
-# on rounding alone. The observed worst gap is 1.0e-4 (noisefloor_psm, 1.0239 vs 1.024).
-GRR_CROSSCHECK_TOL = 2e-4
+# Covers two things, and the second is NOT rounding. derived.csv stores `grr` to 4 decimals, so
+# 5e-5 of any gap is storage rounding. The worst observed gap is 6.9e-5, so roughly 2e-5 is
+# something else — most likely float ordering in how the two files pool seeds. Deliberately not
+# investigated: it is four orders below the smallest floor in this project and changes no
+# verdict. The tolerance covers both, and this comment exists so nobody later reads the whole
+# gap as rounding.
+GRR_CROSSCHECK_TOL = 1e-4
 
 
 def attach_grr(rows: list[dict], derived_path: Path | None) -> int:

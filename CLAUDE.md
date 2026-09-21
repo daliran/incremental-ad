@@ -255,5 +255,14 @@ stage that is not implemented. Registered in EXPERIMENTS.md §1.39;
   the stale mean and sd had nearly the same ratio. §1.21's W-columns look correct on ETTh1 under
   the wrong block, because at W=1 the merged model *is* `finetune_0`. Both passed every
   eyeball test. Bind the cell to the experiment and block it claims to come from.
+- **A check that verifies a different KIND of property finds things a finer version of an
+  existing check does not.** Three added on 2026-09-20/21 each caught a live defect on its first
+  run, and none of them checks a number: `check_register_datasets` (does a claim's dataset list
+  appear in the section it cites?) found `C37` claiming four datasets its prose named none of;
+  `check_stale_claim_text` (does a retracted claim survive in its old wording?) found §1.36's
+  recency claim still asserted as a finding in EXECUTION_PLAN; `check_archive_reproduces` (do the
+  CSVs regenerate?) found `remerge_closeout.csv` correct while its pipeline emitted 24 of 241
+  rows. When looking for coverage, ask what *kind* of wrongness is currently unobservable, not
+  which table lacks a cell check.
 - Be conservative with anything that changes RNG, data splits, or metric definitions — prefer preserving established behavior unless explicitly asked, and surface behavior changes explicitly.
 - Windows host, PowerShell primary; Bash tool available. `num_workers` defaults to 0 on Windows.

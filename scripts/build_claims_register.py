@@ -310,6 +310,47 @@ CLAIMS: list[tuple] = [
      "carries the 'strong drift or small shards' caveat. The decisive test is registered and "
      "cheap: fixed lambda = 1/t on exchange_rate n=3 (three fine-tunes). If braking per se wins "
      "there, the adaptive coefficient is not doing the work."),
+    ("C41", "Adaptive-lambda's premise - a useful point strictly between the accumulated model "
+     "and the fresh fine-tune - holds on some configurations and fails on most; where it holds "
+     "the derived coefficient locates it better than a fixed schedule",
+     "1.39d", "exchange_rate,ETTh2,ETTm2", 3, "n/a", "mechanism", "yes", "refuted",
+     "REFUTED by its own registered test (45 runs, 0 failures). The claim had two halves and "
+     "only one survives. FIRST HALF WRONG: the premise does NOT fail on most configurations - a "
+     "useful interior point exists on TWO of the three swept, including ETTh2 n=3, which was "
+     "registered as the loser that should decrease monotonically toward lambda=1 and instead "
+     "has an optimum at lambda=0.7 beating the plain chain by 9.11% (1.35x its floor, which is "
+     "borderline). exchange_rate is interior at 3.85x its floor as predicted; ETTm2 is flat "
+     "within the floor, demonstrating no interior point. SECOND HALF SURVIVES and is re-"
+     "registered as C42. REGISTERED 2026-09-21 BEFORE the fixed-lambda grid, from evidence "
+     "already in hand. §1.39c "
+     "gives three coefficients that bracket one cell: lambda=1 IS the plain chain (gate 1 "
+     "asserts it reproduces it bitwise) at 0.3586, adaptive at 0.3235 (-9.79%), fixed 1/t at "
+     "0.3832 (+6.86%) - worse at the boundary, better in the middle, worse again when braking "
+     "harder, so the optimum on that cell is INTERIOR and bounded on both sides. On the other "
+     "seven configurations the plain chain wins outright, so the optimum is at the BOUNDARY, and "
+     "Eq. 20 cannot reach it: lambda* = A/(A+B) with A,B>0 is strictly inside (0,1). The "
+     "falsification test is registered with the claim: a fixed-lambda grid over {0.1,0.3,0.5,"
+     "0.7,0.9} x 3 seeds must show exchange_rate n=3 with an interior minimum and ETTh2 n=3 / "
+     "ETTm2 n=3 decreasing monotonically toward lambda=1. ETTm2 is chosen as the third dataset "
+     "because §1.28 already names it exchange_rate's discriminating comparison (same drift, 9x "
+     "the data), and because 3 datasets is what the register's rule needs before this can be "
+     "anything but a hypothesis."),
+    ("C42", "Where adaptive-lambda loses on forecasting, the coefficient over-brakes: a useful "
+     "interior point exists and Eq. 20 sits well below it",
+     "1.39d", "exchange_rate,ETTh2,ETTm2", 3, "mixed", "mechanism", "yes", "supported",
+     "Measured by the fixed-lambda grid registered as C41's falsification test, so the test "
+     "that could have overturned it was run before the claim was written. The curve's own "
+     "optimum against the derived coefficient at t>=2: exchange_rate 0.5 vs 0.727/0.326 (0.9x - "
+     "lands on it, and wins), ETTm2 0.5 vs 0.070/0.135 (4.9x), ETTh2 0.7 vs 0.081/0.087 (8.4x - "
+     "the point exists and Eq. 20 sits 8.4x below it). The ordering matches C37's independently: "
+     "the configurations where the derived lambda collapses are exactly those with a large "
+     "Lambda/F excess over its floor of t (exchange 0.1-0.8x, ETTm2 2.0-8.6x, ETTh2 3.4-7.1x), "
+     "which is the at-a-minimum asymmetry §1.39b measures. Two separately-built quantities agree "
+     "about which configurations the coefficient will mis-set. SCOPE: three configurations, one "
+     "dataset each, and ETTh2's interior gain is borderline (1.35x its floor). It does NOT show "
+     "that a well-chosen fixed lambda beats the plain chain in general - ETTm2 says it does not "
+     "- and it does not change any §1.39 verdict. It relocates the failure from 'the premise "
+     "rarely applies' to 'the premise often applies and this coefficient mis-sets it'."),
     ("C39", "Adaptive-lambda does not improve anomaly detection",
      "1.39", "PSM,SWaT", 2, "mixed", "measurement", "yes", "supported",
      "Measured on window_auroc, which HAS a published floor on both datasets - not on "

@@ -1346,6 +1346,52 @@ CHECKS += [
     for t in (1, 2, 3)
 ]
 
+# §1.39d — the fixed-lambda curve. Every swept point is checked, not just the argmin: the
+# claim is about the SHAPE, and a shape cannot be verified from one cell of it. Each point is
+# bound to its own `fixed_lambda` so a check cannot be satisfied by a neighbouring column.
+_CURVE_CONFIGS = (("exchange_rate", 3), ("ETTh2", 3), ("ETTm2", 3))
+_CURVE_LAMBDAS = (0.1, 0.3, 0.5, 0.7, 0.9)
+
+
+def _curve_check(dataset, n, index):
+    lam = _CURVE_LAMBDAS[index]
+    row = rf"\| {dataset} \| {n} \| "
+    skip = r"\*{0,2}[\d.]+\*{0,2} \| " * index
+    return (f"§1.39d {dataset} n={n} curve lambda={lam}",
+            row + skip + r"\*{0,2}([\d.]+)\*{0,2} \|",
+            "adaptive_lambda/adaptive_lambda_test.csv",
+            {"dataset": dataset, "n_segments": str(n), "metric": "forecast/mse",
+             "lambda_source": "fixed", "fixed_lambda": str(lam)}, "adaptive", 0.0001)
+
+
+CHECKS += [_curve_check(d, n, i) for d, n in _CURVE_CONFIGS for i in range(5)]
+# The gain over the boundary and its ratio to the floor are what the verdict turns on, and the
+# `best lambda / derived lambda` ratio is C42's whole quantity.
+CHECKS += [
+    (f"§1.39d {d} n={n} interior gain",
+     rf"\| {d} \| {n} \|" + r"(?:[^|]*\|){6} [\d.]+ \| \*{0,2}([+−-][\d.]+)%",
+     "adaptive_lambda/adaptive_lambda_curve.csv",
+     {"dataset": d, "n_segments": str(n), "metric": "forecast/mse"},
+     "interior_gain_pct", 0.02)
+    for d, n in _CURVE_CONFIGS
+]
+CHECKS += [
+    (f"§1.39d {d} n={n} gain over floor",
+     rf"\| {d} \| {n} \|" + r"(?:[^|]*\|){6} [\d.]+ \| \*{0,2}[+−-][\d.]+%\*{0,2} \(([+−-]?[\d.]+)× floor\)",
+     "adaptive_lambda/adaptive_lambda_curve.csv",
+     {"dataset": d, "n_segments": str(n), "metric": "forecast/mse"},
+     "interior_gain_over_floor", 0.02)
+    for d, n in _CURVE_CONFIGS
+]
+CHECKS += [
+    (f"§1.39d {d} best over derived",
+     rf"\| {d} \| [\d.]+ \| [\d.]+ / [\d.]+ \| \*\*([\d.]+)×\*\*",
+     "adaptive_lambda/adaptive_lambda_curve.csv",
+     {"dataset": d, "n_segments": "3", "metric": "forecast/mse"},
+     "best_lambda_over_adaptive", 0.05)
+    for d, _ in _CURVE_CONFIGS
+]
+
 # §1.39b's exponents. The *differential* between the two rows is the entire argument, so both
 # rows are checked at all three steps, and t=1 — the negative control, where the two must agree —
 # is checked alongside them rather than taken on trust.

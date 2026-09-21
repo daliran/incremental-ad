@@ -1,0 +1,10 @@
+{
+  "step_name": "continual_2/test",
+  "started_at": "2026-09-20T23:00:27.060964+00:00",
+  "finished_at": "2026-09-20T23:00:31.235297+00:00",
+  "metrics": {
+    "forecast/mse": 0.305074542760849,
+    "forecast/rmse": 0.5523355345809728,
+    "forecast/mae": 0.45163363218307495
+  }
+}

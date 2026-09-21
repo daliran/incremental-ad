@@ -522,13 +522,13 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**40 claims: 27 supported, 5 hypothesis, 8 refuted.** The rule downgraded
+**42 claims: 28 supported, 5 hypothesis, 9 refuted.** The rule downgraded
 **3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
 now marked as a hypothesis in place.
 
-⚠️ **34 of the 40 are merging claims; `C35`–`C40` are not.** The merging chapter's tally — the
+⚠️ **34 of the 42 are merging claims; `C35`–`C42` are not.** The merging chapter's tally — the
 one CLAUDE.md's freeze quotes — is **unchanged at 34: 24 supported, 3 hypothesis, 7 refuted**.
 Strategy 6 (§1.39) is a sequential method, and its rows are counted here because this register
 covers the *document*, not because the freeze moved.
@@ -555,6 +555,7 @@ by someone repeating it.
 | `C24` | lambda* is unstable because the Fisher estimate is noisy | 1.32 | §1.32 ran the falsification test and the estimate saturates at the full pass - the instability is not sampling noise. |
 | `C25` | Attention-exclusive fine-tuning (the testable half of QOMM) helps | 1.33 | Measured on PSM-forecast n=3, three seeds, and did not clear the floor - reported as a negative result. |
 | `C26` | The simplified OPCM operator (§1.31, §1.35) is the paper's OPCM | 1.31, 1.35, 1.36 | Never claimed and must never be: `opcm_residual` projects out the span of the flattened predecessors; the paper's operator (Tang et al., NeurIPS 2025, Algorithm 1) projects out the top-alpha singular subspace of the ACCUMULATED MERGED matrix, on both sides, drops the i==j diagonal, and carries a norm-stabilising lambda. |
+| `C41` | Adaptive-λ's premise holds on some configurations and **fails on most** | 1.39d | Registered before its own test and refuted by it: a useful interior point exists on **two of three** swept configurations, including ETTh2 n = 3, which was registered as the monotone loser. The surviving half is re-registered as `C42`. |
 | `C40` | Adaptive-λ's exchange_rate win is scarcity (braking as regularisation), not recency | 1.39, 1.39c | Registered and refuted the same day. Fixed λ = 1/t brakes on the same schedule with no Fisher and does **not** win (+6.86% vs −9.79%). The derived λ *exceeds* 1/t at every period here, so the coefficient wins by braking **less**, not more — the opposite of the regularisation reading, and of the recency one it replaced. |
 | `C34` | The paper's OPCM loses because of its fixed magnitude, not its projection (AD: refuted; forecasting: refuted) | 1.36, 1.37, 1.38 | §1.37's P4 ran the isolating test - the paper's projection held bit-for-bit fixed (collinear to 3.7e-15) and rescaled to each run's committed alpha - and refuted it: 0 better, 10 ties, 62 worse over 72 cells. |
 | `C28` | The winner survives moving the train/test cut (rolling origin) | 1.27, 1.27a | It does not: the ranking is unstable across origins. |
@@ -4614,7 +4615,27 @@ t = 1…6, which is what makes that reasoning checkable rather than asserted.
   period 3. If so, θ^GP ≈ θ\*_{t−1}, the full method collapses into this one, and **not building
   it is the finding.**
 
-#### Results — P1, P2 and P4 all REFUTED; the interesting finding is methodological
+#### Results — the premise holds on one of eight; P1, P2 and P4 all REFUTED
+
+⚠️ **How to read this section.** The tally is 1 of 8, and "loses on seven of eight" is a true
+but weaker reading of it than "**the method's premise holds on one of eight, and where it holds
+the derived coefficient earns its keep**". Both are supported by the same cells; the second is
+preferred here because it is the one that explains the rest of the section:
+
+- It says what the losses *are* — not a coefficient performing badly, but a premise that does
+  not apply. Where no useful point exists between θ\*_{t−1} and θ̂_t, the optimum is at λ = 1,
+  and Eq. 20 **cannot reach it by construction** (§1.39d, `C41`). No choice of coefficient
+  rescues a configuration whose optimum is at the boundary.
+- It explains the estimator defect's role rather than only its size. The defect **suppressed**
+  λ (§1.39b), which pushes toward *over*-braking — and on the one cell where the premise holds,
+  §1.39c shows the winning direction is **under**-braking (the derived λ exceeds 1/t at every
+  period). So on that cell the defect did not shrink the result, it **flipped its sign**:
+  +5.65% at B = 128 against −9.79% at B = 1.
+- It is falsifiable, and the test is registered: §1.39d states the interior-optimum prediction
+  and the fixed-λ grid that breaks it.
+
+The tallies below are reported as counts either way, so nothing here depends on the framing.
+
 
 > **Provenance of the numbers below.** `scripts/generate_adaptive_lambda_sweep.py --tier 1`
 > (30 runs, B = 128) and `--tier 3` (24 runs, forecasting, B = 1) →
@@ -4819,6 +4840,103 @@ discovers that from curvature, while 1/t cannot.
 under the corrected estimator** — at B = 128 the same rule ties. It is registered as an
 observation, not a mechanism: `C40` is refuted as stated, and no replacement claim is made
 beyond what this table shows.
+#### 1.39d The interior-optimum hypothesis — registered 2026-09-21, before the grid
+
+⚠️ **Registered before any Tier 3 run, from evidence already in hand.** §1.39c produced three
+points on one cell, and they have a shape. This section states what that shape would mean, and
+the prediction that would break it, *before* the measurement that tests it.
+
+**The claim (`C41`).** Adaptive-λ's premise is that a useful model exists **strictly between**
+the accumulated model θ\*_{t−1} and the fresh fine-tune θ̂_t. That premise **holds on some
+configurations and fails on most**. Where it holds, the derived coefficient locates that point
+better than a fixed schedule does. Where it fails, the optimum sits at **λ = 1** — the plain
+chain — which Eq. 20 **cannot reach by construction**, because λ\* = A/(A+B) with A, B > 0 is
+strictly inside (0, 1).
+
+**Why exchange_rate n = 3 says "interior", from three coefficients that bracket it.** λ = 1 *is*
+the plain chain (`verify_adaptive_lambda.py` gate 1 asserts it reproduces it bitwise), so the
+three rules are three points on one curve:
+
+| λ schedule | final-step test MSE | vs plain |
+|---|---|---|
+| λ = 1 (plain chain) | 0.3586 | — |
+| adaptive (0.626 / 0.727 / 0.326) | **0.3235** | **−9.79%** |
+| fixed λ = 1/t (0.5 / 0.333 / 0.25) | 0.3832 | +6.86% |
+
+Worse at λ = 1, better in the middle, worse again when braking harder: **bounded on both
+sides**. On the other seven configurations the plain chain wins outright, so there the optimum
+is at the **boundary** and no coefficient inside (0, 1) can match it.
+
+⚠️ **Prediction, registered before the grid (2026-09-21):**
+
+> Sweeping a **fixed** λ ∈ {0.1, 0.3, 0.5, 0.7, 0.9} at three seeds, **exchange_rate n = 3
+> traces a curve with an interior minimum**, while **ETTh2 n = 3 and ETTm2 n = 3 decrease
+> monotonically toward λ = 1**.
+
+**Either outcome is informative:**
+
+- **Confirmed** → `C41` is supported on three datasets, the one-of-eight result becomes a
+  statement about *when* the premise holds rather than a tally of losses, and Eq. 20's inability
+  to reach the boundary is named as the structural reason the method cannot win where the
+  premise fails.
+- **exchange_rate has no interior minimum** → §1.39c's win was the adaptive coefficient landing
+  well by luck on one cell, and `C38`'s exception should be re-read against three seeds of noise.
+- **A loser shows an interior minimum too** → the premise holds more widely than the verdicts
+  suggest, and what fails is the *coefficient*, not the premise — a different and more
+  interesting conclusion than either of the above.
+
+**Scope chosen so the register can settle it.** exchange_rate plus one loser would test the
+prediction but keep `C41` at `hypothesis` under the ≥ 3-datasets rule. **ETTm2 n = 3** is the
+third, and it is the right third: §1.28 already names ETTm2 as exchange_rate's discriminating
+comparison — essentially the same drift (0.752 vs 0.833) with nine times the data.
+
+**Results — the prediction is REFUTED in the form registered, and the third outcome landed**
+
+45/45 runs, 0 failures. Final-step test `forecast/mse`, mean of 3 seeds, against the same plain
+chain. λ = 1 is the plain chain itself (gate 1), so it is the curve's boundary point and needs
+no run.
+
+| dataset | n | λ = 0.1 | 0.3 | 0.5 | 0.7 | 0.9 | λ = 1 (plain) | best λ | gain | shape |
+|---|---|---|---|---|---|---|---|---|---|---|
+| exchange_rate | 3 | 0.5437 | 0.3466 | **0.2795** | 0.2852 | 0.3319 | 0.3586 | 0.5 | **+22.07%** (3.85× floor) | **interior** |
+| ETTh2 | 3 | 0.5515 | 0.2445 | 0.1839 | **0.1790** | 0.1798 | 0.1970 | 0.7 | **+9.11%** (1.35× floor) | **interior** *(borderline)* |
+| ETTm2 | 3 | 0.3360 | 0.1389 | **0.0948** | 0.0955 | 0.0982 | 0.0920 | 0.5 | −3.07% (−0.22× floor) | flat within the floor |
+
+**exchange_rate confirmed the prediction. ETTh2 refuted it.** ETTh2 n = 3 was registered as the
+loser that should decrease monotonically toward λ = 1, and it does not: it has an interior
+optimum at λ = 0.7 that beats the plain chain by 9.11%, 1.35× its floor. ETTm2 is neither —
+its best swept λ loses to plain by less than a quarter of the floor, so the curve is flat where
+it matters and no interior point is demonstrated.
+
+⚠️ **ETTh2's interior gain is borderline** (1.35×, inside the < 1.5× band). One of the two
+interior results is therefore a weak one, and the claim below is scoped accordingly.
+
+**So `C41` is refuted as stated — and what replaces it is sharper.** The registered claim had
+two halves: the premise fails on most configurations, *and* where it holds the derived
+coefficient locates the optimum. The first half is wrong: a useful interior point exists on
+**two of the three** configurations swept, including one the method loses badly. The second half
+survives, and the grid measures it directly:
+
+| dataset | best fixed λ | derived λ (t ≥ 2) | best ÷ derived | Λ/F excess over its floor | test verdict |
+|---|---|---|---|---|---|
+| exchange_rate | 0.5 | 0.727 / 0.326 | **0.9×** | 0.1–0.8× | **better** |
+| ETTm2 | 0.5 | 0.070 / 0.135 | **4.9×** | 2.0–8.6× | worse |
+| ETTh2 | 0.7 | 0.081 / 0.087 | **8.4×** | 3.4–7.1× | worse |
+
+**The coefficient is what fails, not the premise.** On ETTh2 a useful interior point exists and
+Eq. 20 sits **8.4× below it** — it brakes far harder than the curve wants. On exchange_rate it
+lands essentially on the optimum (0.9×) and wins. And the ordering is the same as `C37`'s: the
+configurations where the derived λ collapses are exactly the ones where the Λ/F excess is
+large, which is the at-a-minimum asymmetry §1.39b measures. Two independently-built quantities
+agree about which configurations the coefficient will mis-set.
+
+⚠️ **What this does not say.** Three configurations, one dataset each, and one of the two
+interior results is borderline. It does **not** show that a well-chosen fixed λ beats the plain
+chain in general — ETTm2 says it does not — and it does not rescue adaptive λ, whose verdicts in
+§1.39 are unchanged. It relocates the failure: from *"the method's premise rarely applies"* to
+*"the premise often applies and this coefficient mis-sets it, in the direction and by roughly the
+amount the Fisher asymmetry predicts."* Registered as `C42`.
+
 #### 1.39b The estimator defect — the durable finding
 
 **`diagonal_fisher` squares the gradient of a batch-MEAN loss.** For batch size B that estimator

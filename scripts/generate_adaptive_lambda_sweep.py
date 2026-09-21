@@ -35,7 +35,16 @@ FORECAST = {("ETTh1", "3"), ("ETTh2", "2"), ("ETTh2", "3"), ("ETTh2", "5"),
             ("ETTm2", "2"), ("ETTm2", "3"), ("ETTm2", "5"), ("exchange", "3")}
 ALL_CONFIGS = FORECAST | {("SWaT", "3"), ("PSM", "3")}
 
-# tier -> (lambda_source, extra flags, configs, experiment-name prefix)
+# A tier may expand over a GRID of variants: each is (name suffix, extra flags), and the suffix
+# goes into the experiment name. Without it every point of a fixed-lambda sweep would land in the
+# same experiment directory and the runs would be told apart only by job id.
+GRID_LAMBDAS = (0.1, 0.3, 0.5, 0.7, 0.9)
+FIXED_GRID = tuple(
+    (f"{int(round(lam * 100)):03d}",
+     ["--pipeline_fixed_lambda", str(lam)])
+    for lam in GRID_LAMBDAS)
+
+# tier -> (lambda_source, extra flags OR grid of variants, configs, experiment-name prefix)
 TIERS = {
     1: ("became", [], ALL_CONFIGS, "adaptive_became"),
     2: ("one_over_t", [], ALL_CONFIGS, "adaptive_one_over_t"),
@@ -64,6 +73,13 @@ TIERS = {
     # The rest of Tier 2 stays unspent -- every other cell loses by 3-30x its floor, and a
     # control on a settled loss is not a result.
     4: ("one_over_t", [], {("exchange", "3")}, "onet"),
+    # Tier 3: the fixed-lambda grid that tests C41 (§1.39d, registered 2026-09-21 BEFORE this).
+    # Three configurations, chosen so the register's >=3-datasets rule can settle the claim
+    # rather than hold it at hypothesis: the one cell where the method wins, one clear loser,
+    # and ETTm2 because §1.28 already names it exchange_rate's discriminating comparison.
+    # No Fisher is computed on the `fixed` path, so the estimator question does not arise.
+    5: ("fixed", FIXED_GRID,
+        {("exchange", "3"), ("ETTh2", "3"), ("ETTm2", "3")}, "lamgrid"),
 }
 SKIP = {"experiment", "run_id", "runs_root"}
 
@@ -106,6 +122,8 @@ def main() -> None:
     args = parser.parse_args()
 
     source, extra, configs, prefix = TIERS[args.tier]
+    # A plain flag list is one unnamed variant; a grid is several named ones.
+    variants = extra if extra and isinstance(extra[0], tuple) else (("", list(extra)),)
     with args.spec.open() as fh:
         spec = [r for r in csv.DictReader(fh) if (r["dataset"], r["n"]) in configs]
 
@@ -123,13 +141,16 @@ def main() -> None:
             config = config.get("args", config)
             if cached is None:
                 cached = store_true_flags(config)
-            name = f"{prefix}_{row['dataset'].lower()}_n{row['n']}_s{config['seed']}"
-            commands.append(
-                f"python -m incremental_ad.main {render(config, cached)} "
-                f"--pipeline_baseline_checkpoint {checkpoint} "
-                f"--pipeline_lambda_source {source} "
-                + " ".join(extra) + f" --experiment {name}"
-            )
+            for suffix, flags in variants:
+                tag = f"{suffix}_" if suffix else ""
+                name = (f"{prefix}_{tag}{row['dataset'].lower()}_n{row['n']}"
+                        f"_s{config['seed']}")
+                commands.append(
+                    f"python -m incremental_ad.main {render(config, cached)} "
+                    f"--pipeline_baseline_checkpoint {checkpoint} "
+                    f"--pipeline_lambda_source {source} "
+                    + " ".join(flags) + f" --experiment {name}"
+                )
 
     args.out.mkdir(parents=True, exist_ok=True)
     path = args.out / f"adaptive_tier{args.tier}.sh"

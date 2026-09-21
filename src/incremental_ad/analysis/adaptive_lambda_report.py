@@ -63,7 +63,8 @@ DATASET_LABELS = {
 # Fisher, `one_over_t` imposes it and computes no Fisher at all. Two runs of the same
 # configuration under the two rules are different methods, not different settings, and pooling
 # them would make the P3 control disappear into the thing it controls.
-ESTIMATOR_FIELDS = ["lambda_source", "fisher_batch_size", "fisher_batches", "fisher_samples"]
+ESTIMATOR_FIELDS = ["lambda_source", "fixed_lambda", "fisher_batch_size", "fisher_batches",
+                    "fisher_samples"]
 
 ACC_FIELDS = ["dataset", "n_segments", "metric"] + ESTIMATOR_FIELDS + ["n_seeds", "floor_pct",
               "acc_adaptive", "acc_adaptive_sd", "acc_plain", "acc_plain_sd",
@@ -85,6 +86,10 @@ TEST_FIELDS = ["dataset", "n_segments", "metric", "higher_is_better"] + ESTIMATO
     "adaptive", "adaptive_sd", "plain", "plain_sd",
     "delta_pct", "margin_ratio", "borderline", "verdict",
     "own_spread_pct", "margin_over_own_spread"]
+CURVE_FIELDS = ["dataset", "n_segments", "metric", "n_points", "n_seeds", "floor_pct",
+                "lambdas", "values", "best_lambda", "best_value", "value_at_lambda_1",
+                "interior_gain_pct", "interior_gain_over_floor", "borderline", "shape",
+                "best_lambda_over_adaptive"]
 ASYMMETRY_FIELDS = ["scope", "n_cells", "pearson_r", "slope", "r_squared"]
 
 # Metrics whose direction is "up is better". Same list as `results_audit`, restated rather than
@@ -159,16 +164,49 @@ def estimator(config: dict) -> dict:
     two different estimators into one cell.
     """
     source = config.get("pipeline_lambda_source", "none")
+    # `fixed` runs differ ONLY in lambda, so without it every point of the grid collapses into
+    # one cell and the curve the grid exists to draw disappears. Blank for the derived and
+    # scheduled rules, where there is no such constant.
+    fixed = (config.get("pipeline_fixed_lambda") if source == "fixed" else "")
     if source != "became":
         # No Fisher is computed on the imposed-lambda paths, so a batch size would be a number
         # with no referent. Written as 0 rather than left blank: a blank reads as missing data.
-        return {"lambda_source": source, "fisher_batch_size": 0, "fisher_batches": 0,
-                "fisher_samples": 0}
+        return {"lambda_source": source, "fixed_lambda": fixed, "fisher_batch_size": 0,
+                "fisher_batches": 0, "fisher_samples": 0}
     batch_size = config.get("pipeline_fisher_batch_size") or config["loader_batch_size"]
     batches = config["pipeline_fisher_batches"]
-    return {"lambda_source": source, "fisher_batch_size": int(batch_size),
-            "fisher_batches": int(batches),
+    return {"lambda_source": source, "fixed_lambda": fixed,
+            "fisher_batch_size": int(batch_size), "fisher_batches": int(batches),
             "fisher_samples": int(batch_size) * int(batches)}
+
+
+def curve_shape(lambdas: list[float], values: list[float], boundary: float,
+                floor_pct: float | None) -> tuple[str, float, float]:
+    """`(shape, gain over the boundary in %, that gain as a multiple of the floor)`.
+
+    λ = 1 **is** the plain chain — `_pullback` at λ = 1 leaves the model at θ̂_t, and
+    `verify_adaptive_lambda.py` gate 1 asserts it reproduces the plain chain bitwise. So the
+    plain chain's own result is the curve's boundary point and does not need to be re-run.
+
+    `interior` means the best swept λ beats that boundary by more than the floor: a useful model
+    exists strictly between θ\*_{t−1} and θ̂_t, which is adaptive-λ's premise (`C41`, §1.39d).
+    `boundary` means it does not, and then **no** coefficient of the form A/(A+B) can win,
+    because that form is strictly inside (0, 1) — the failure is the premise, not the rule.
+
+    ⚠️ A curve is called `interior` on the **margin**, not on the ordering. Five noisy points
+    almost always have an argmin away from the edge; requiring the margin to clear the floor is
+    what stops "the minimum is not at λ = 0.9" from being reported as a finding.
+    """
+    best = min(range(len(values)), key=lambda i: values[i])
+    gain = 100.0 * (boundary - values[best]) / boundary
+    ratio = gain / floor_pct if floor_pct else float("nan")
+    if floor_pct is not None and gain > floor_pct:
+        shape = "interior"
+    elif floor_pct is not None and gain < -floor_pct:
+        shape = "boundary (every swept lambda loses)"
+    else:
+        shape = "flat within the floor"
+    return shape, gain, ratio
 
 
 def log_fit(pairs: list[tuple[float, float]]) -> tuple[float, float, int]:
@@ -388,9 +426,10 @@ def main() -> None:
     grouped = defaultdict(list)
     for row in seed_rows:
         grouped[(row["dataset"], row["n_segments"], row["metric"], row["lambda_source"],
-                 row["fisher_batch_size"], row["fisher_batches"])].append(row)
+                 str(row["fixed_lambda"]), row["fisher_batch_size"],
+                 row["fisher_batches"])].append(row)
     acc_rows = []
-    for (dataset, n_segments, metric, source, batch_size, batches), rows in sorted(
+    for (dataset, n_segments, metric, source, fixed, batch_size, batches), rows in sorted(
             grouped.items()):
         adaptive = [r["acc_adaptive"] for r in rows]
         plain = [r["acc_plain"] for r in rows]
@@ -404,7 +443,8 @@ def main() -> None:
                   / st.fmean(plain)) if len(rows) > 1 else 0.0
         acc_rows.append({
             "dataset": dataset, "n_segments": n_segments, "metric": metric,
-            "lambda_source": source, "fisher_batch_size": batch_size,
+            "lambda_source": source, "fixed_lambda": rows[0]["fixed_lambda"],
+            "fisher_batch_size": batch_size,
             "fisher_batches": batches, "fisher_samples": batch_size * batches,
             "n_seeds": len(rows), "floor_pct": floor if floor is not None else "",
             "acc_adaptive": st.fmean(adaptive),
@@ -431,9 +471,10 @@ def main() -> None:
     test_grouped = defaultdict(list)
     for row in test_seed_rows:
         test_grouped[(row["dataset"], row["n_segments"], row["metric"], row["lambda_source"],
-                      row["fisher_batch_size"], row["fisher_batches"])].append(row)
+                      str(row["fixed_lambda"]), row["fisher_batch_size"],
+                      row["fisher_batches"])].append(row)
     test_rows = []
-    for (dataset, n_segments, metric, source, batch_size, batches), rows in sorted(
+    for (dataset, n_segments, metric, source, fixed, batch_size, batches), rows in sorted(
             test_grouped.items()):
         adaptive = [r["adaptive"] for r in rows]
         plain = [r["plain"] for r in rows]
@@ -447,7 +488,7 @@ def main() -> None:
         test_rows.append({
             "dataset": dataset, "n_segments": n_segments, "metric": metric,
             "higher_is_better": up, "lambda_source": source,
-            "fisher_batch_size": batch_size,
+            "fixed_lambda": rows[0]["fixed_lambda"], "fisher_batch_size": batch_size,
             "fisher_batches": batches, "fisher_samples": batch_size * batches,
             "n_seeds": len(rows), "floor_pct": floor if floor is not None else "",
             "final_step": rows[0]["final_step"],
@@ -516,6 +557,67 @@ def main() -> None:
              if r["step"] > 1 and r["asymmetry_hat_over_star"] not in ("", None)
              and r["lambda_over_fisher"] not in ("", None)
              and float(r["lambda_over_fisher"]) > 0]
+    # --- The fixed-lambda curve: C41's test (§1.39d) ---
+    curve_rows = []
+    by_config = defaultdict(dict)
+    boundary = {}
+    for row in test_rows:
+        key = (row["dataset"], row["n_segments"], row["metric"])
+        if row["lambda_source"] == "fixed" and row["fixed_lambda"] not in ("", None):
+            by_config[key][float(row["fixed_lambda"])] = row["adaptive"]
+            # Every row of a config carries the same control, so the boundary is read off
+            # whichever row is present rather than requiring a separate lambda=1 run.
+            boundary[key] = row["plain"]
+        elif key not in boundary:
+            boundary[key] = row["plain"]
+    # Mean derived lambda over the periods after the first. t=1 is excluded because every rule
+    # agrees there is nothing to brake against yet on the first period -- the accumulator is
+    # theta_0 -- and including it hides the collapse that happens afterwards.
+    derived = defaultdict(list)
+    for row in step_rows:
+        if row["lambda_source"] == "became" and row["fisher_batch_size"] == 1 and row["step"] > 1:
+            derived[(row["dataset"], row["n_segments"], "forecast/mse")].append(
+                row["lambda_star"])
+    for key, points in sorted(by_config.items()):
+        dataset, n_segments, metric = key
+        lambdas = sorted(points)
+        values = [points[lam] for lam in lambdas]
+        floor = floors.get((dataset, metric))
+        shape, gain, ratio = curve_shape(lambdas, values, boundary[key], floor)
+        best = min(range(len(values)), key=lambda i: values[i])
+        curve_rows.append({
+            "dataset": dataset, "n_segments": n_segments, "metric": metric,
+            "n_points": len(lambdas),
+            "n_seeds": min(r["n_seeds"] for r in test_rows
+                           if (r["dataset"], r["n_segments"], r["metric"]) == key
+                           and r["lambda_source"] == "fixed"),
+            "floor_pct": floor if floor is not None else "",
+            "lambdas": " ".join(f"{lam:g}" for lam in lambdas),
+            "values": " ".join(f"{v:.4f}" for v in values),
+            "best_lambda": lambdas[best], "best_value": values[best],
+            "value_at_lambda_1": boundary[key],
+            "interior_gain_pct": gain, "interior_gain_over_floor": ratio,
+            # Same <1.5x band the verdict tables use: an interior optimum that clears its floor
+            # by 1.35x is a different kind of statement from one that clears it by 3.85x.
+            "borderline": (floor is not None
+                           and floor < abs(gain) < BORDERLINE_RATIO * floor),
+            "shape": shape,
+            # How far the DERIVED coefficient sits from the curve's own optimum, at the periods
+            # where the two can differ. This is the quantity that separates "the premise fails"
+            # from "the coefficient fails": a large ratio with an interior optimum means the
+            # point exists and Eq. 20 does not find it.
+            "best_lambda_over_adaptive": (
+                lambdas[best] / st.fmean(derived[key]) if derived.get(key) else "")})
+    for row in curve_rows:
+        log.info("[CURVE] %-14s n=%d %-13s lambda*=%.1f  %s  (best %.4f vs plain %.4f, "
+                 "%+.2f%% = %.2fx floor) -> %s",
+                 row["dataset"], row["n_segments"], row["metric"], row["best_lambda"],
+                 row["values"], row["best_value"], row["value_at_lambda_1"],
+                 row["interior_gain_pct"], row["interior_gain_over_floor"],
+                 row["shape"] + ("  BORDERLINE" if row["borderline"] else "")
+                 + (f'  [best lambda is {row["best_lambda_over_adaptive"]:.1f}x the derived one]'
+                    if row["best_lambda_over_adaptive"] != "" else ""))
+
     asymmetry_rows = []
     if len(pairs) > 2:
         correlation, slope, n_pairs = log_fit(pairs)
@@ -555,6 +657,7 @@ def main() -> None:
             ("adaptive_lambda_steps.csv", STEP_FIELDS, step_rows),
             ("adaptive_lambda_distance.csv", DIST_FIELDS, dist_rows),
             ("adaptive_lambda_test.csv", TEST_FIELDS, test_rows),
+            ("adaptive_lambda_curve.csv", CURVE_FIELDS, curve_rows),
             ("adaptive_lambda_asymmetry_fit.csv", ASYMMETRY_FIELDS, asymmetry_rows),
         ):
             with (args.out / name).open("w", newline="", encoding="utf-8") as fh:
@@ -598,8 +701,8 @@ def _self_test() -> None:
 
     assert estimator({"pipeline_lambda_source": "became", "pipeline_fisher_batches": 64,
                       "loader_batch_size": 128}) == {
-        "lambda_source": "became", "fisher_batch_size": 128, "fisher_batches": 64,
-        "fisher_samples": 8192}, \
+        "lambda_source": "became", "fixed_lambda": "", "fisher_batch_size": 128,
+        "fisher_batches": 64, "fisher_samples": 8192}, \
         "a run predating --pipeline_fisher_batch_size used the loader's batch size"
     assert estimator({"pipeline_lambda_source": "became", "pipeline_fisher_batch_size": 1,
                       "pipeline_fisher_batches": 512,
@@ -608,8 +711,28 @@ def _self_test() -> None:
     # let it group with a `became` run of the same configuration.
     imposed = estimator({"pipeline_lambda_source": "one_over_t", "pipeline_fisher_batches": 64,
                          "loader_batch_size": 128})
-    assert imposed == {"lambda_source": "one_over_t", "fisher_batch_size": 0,
+    assert imposed == {"lambda_source": "one_over_t", "fixed_lambda": "", "fisher_batch_size": 0,
                        "fisher_batches": 0, "fisher_samples": 0}, imposed
+    # Two points of a fixed-lambda grid must not be the same cell, or the curve collapses.
+    grid = [estimator({"pipeline_lambda_source": "fixed", "pipeline_fixed_lambda": lam,
+                       "loader_batch_size": 128}) for lam in (0.1, 0.9)]
+    assert grid[0] != grid[1] and grid[0]["fixed_lambda"] == 0.1, grid
+    assert estimator({"pipeline_lambda_source": "became", "pipeline_fixed_lambda": 1.0,
+                      "pipeline_fisher_batches": 64,
+                      "loader_batch_size": 128})["fixed_lambda"] == "", \
+        "a derived-lambda run has no fixed lambda, whatever the inert flag says"
+
+    lams = [0.1, 0.3, 0.5, 0.7, 0.9]
+    # A genuine dip that clears the floor is interior; the same ordering inside the floor is not.
+    dip = [1.0, 0.9, 0.80, 0.9, 0.95]
+    assert curve_shape(lams, dip, 1.0, 5.0)[0] == "interior"
+    assert curve_shape(lams, [1.0, 0.99, 0.98, 0.99, 0.995], 1.0, 5.0)[0] == \
+        "flat within the floor", "an argmin away from the edge is not by itself a finding"
+    # Monotone toward the boundary: every swept lambda loses to lambda = 1.
+    assert curve_shape(lams, [1.6, 1.45, 1.3, 1.2, 1.1], 1.0, 5.0)[0] == \
+        "boundary (every swept lambda loses)"
+    assert curve_shape(lams, dip, 1.0, 5.0)[1] > 0, "a dip must report a positive gain"
+    assert curve_shape(lams, [1.6, 1.45, 1.3, 1.2, 1.1], 1.0, 5.0)[1] < 0
 
     xs = [1.0, 2.0, 4.0, 8.0]
     exact = [(math.log(x), math.log(x)) for x in xs]

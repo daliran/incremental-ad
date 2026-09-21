@@ -133,8 +133,8 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
 `results_archive/audit/claims_register.csv` whose `status` is not `supported`.** Re-measuring a
 settled claim is not a result, and the chapter is closed: 34 merging claims, 24 settled, 3
 hypothesis, 7 refuted, with `scripts/build_claims_register.py` as the script of record
-(`--self-test` proves its downgrade rule can fire). The register file itself now holds **40**
-rows — `C35`–`C40` are strategy 6 (§1.39), which is not a merging experiment and does not move
+(`--self-test` proves its downgrade rule can fire). The register file itself now holds **42**
+rows — `C35`–`C42` are strategy 6 (§1.39), which is not a merging experiment and does not move
 this tally; the register counts what the *document* claims, not what the chapter contains.
 
 **No merging experiment is open, and none should be added.** The three that were are closed:

@@ -141,7 +141,9 @@ CLAIMS: list[tuple] = [
      "1.35", "SWaT,PSM,ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast,SWaT-forecast", 8, "mixed",
      "mechanism", "yes", "refuted",
      "Registered as P1 before the sweep and refuted by it: the cost does not order by rho. The "
-     "prediction and its refutation are both published."),
+     "prediction and its refutation are both published. REPLACED, not merely refuted: C31 gives "
+     "the predictor that does work at threshold 0.3 - base-to-joint headroom, i.e. how much "
+     "there was to lose rather than how much was removed (§1.36)."),
     ("C21", "In the MERGING frame, BECAME's coefficient cannot reach the strength AD needs "
               "because its convex fold pins alpha.n = 1.0",
      "1.31, 1.35", "SWaT,PSM,PSM-forecast", 3, "yes", "mechanism", "yes", "supported",
@@ -171,10 +173,33 @@ CLAIMS: list[tuple] = [
      "stale-directions story either: under reversal the OLDER shards are stripped, which should "
      "have helped on the one dataset where old data hurts, and did not. No further merging run "
      "can settle this; what stands is the measurement C32, not the mechanism."),
-    ("C31", "OPCM hurts most where there is most base-to-joint headroom",
-     "1.35", "ETTh2,ETTm2", 2, "mixed", "mechanism", "no", "hypothesis",
-     "§1.35 already labels it 'a hypothesis from six points, not a finding'. Recorded so it is "
-     "not later quoted as one."),
+    ("C31", "At threshold 0.3, OPCM hurts most where there is most base-to-joint headroom",
+     "1.35, 1.36", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "mixed", "mechanism", "yes",
+     "supported",
+     "SETTLED 2026-09-21 WITHOUT NEW RUNS, which is what the freeze requires of this row: "
+     "§1.36's P1 deltas joined to derived.csv's headroom on (dataset, n_segments), 15 cells over "
+     "5 forecasting datasets. At threshold 0.3 the per-cell correlation is r=+0.732, rho=+0.729; "
+     "collapsed to datasets - where the dependence actually lives, since headroom is close to a "
+     "dataset property and the 15 cells carry only 5 distinct x values - r=+0.954 with an EXACT "
+     "permutation p=0.025 over all 120 permutations. It survives dropping any single dataset "
+     "(r=+0.897 to +0.999). This is the predictor refuted C20 was looking for: the cost tracks "
+     "the size of the PRIZE (how much a joint model improves on the base at all), not the size "
+     "of the deletion. "
+     "SCOPE, and it is a real limit: the claim holds AT THRESHOLD 0.3 ONLY. At the paper's own "
+     "recommended 0.5 the dataset-level p is 0.125 and at 0.7 it is 0.667 - not distinguishable "
+     "from chance with five datasets. The decay is CONSISTENT with aggressive deletion swamping "
+     "the dependence (at 0.7 exchange_rate jumps to +53.4% and breaks the ordering), but five "
+     "datasets cannot separate 'swamped' from 'underpowered' and no such claim is made. "
+     "The permutation test's own floor is 2/120 = 0.017, so p=0.025 is real evidence and also "
+     "near the resolution limit of five datasets. "
+     "TWO EXCLUSIONS, both load-bearing: SWaT-forecast (headroom NEGATIVE at n=3,5, so 'how much "
+     "there was to lose' is undefined) and PSM/SWaT on window_auroc (headroom 1-3%, at which "
+     "every merge scores alike and |delta| is small BY CONSTRUCTION - including them raises the "
+     "per-cell r for an arithmetic rather than a mechanistic reason). "
+     "SENSITIVITY: headroom is averaged over every experiment carrying it; using the experiment "
+     "of record instead gives r=+0.627 at threshold 0.3. Both positive, same story, both emitted "
+     "to headroom_cost_fit.csv. NOTE the label: remerge_closeout.csv spells this dataset "
+     "'exchange' while floors.csv and this register spell it 'exchange_rate'."),
     ("C32", "The measurement that survives P3 regardless: OPCM beats plain summation on "
      "exchange_rate at n=2 and n=3, at all three thresholds",
      "1.35", "exchange_rate", 1, "yes", "measurement", "n/a", "supported",

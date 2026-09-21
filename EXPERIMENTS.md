@@ -522,7 +522,7 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**42 claims: 28 supported, 5 hypothesis, 9 refuted.** The rule downgraded
+**42 claims: 29 supported, 4 hypothesis, 9 refuted.** The rule downgraded
 **3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
@@ -539,7 +539,6 @@ covers the *document*, not because the freeze moved.
 |---|---|---|---|---|
 | `C03` | alpha*.n rises with n on PSM because the task vectors de-align | 1.18 | PSM | Already reported as mechanistically uncorroborated in §1.18: ETTh1 de-aligns fastest and has the flattest product, so the geometry points the other way. |
 | `C23` | OPCM helps on exchange_rate at n<=3 because it acts as a recency filter | 1.35, 1.36 | exchange_rate | §1.35 asserts it as a finding - 'OPCM is not a merge improvement; it is a recency filter, and it pays exactly where recency pays' - on ONE dataset with no test that could have broken it. |
-| `C31` | OPCM hurts most where there is most base-to-joint headroom | 1.35 | ETTh2,ETTm2 | §1.35 already labels it 'a hypothesis from six points, not a finding'. Recorded so it is not later quoted as one. |
 | `C36` | `diagonal_fisher`'s batch-mean gradient suppresses λ\* by 6–24× at every step past the first | 1.39b | ETTm2 | The algebra is exact and the differential exponent is measured with a negative control, but the B-sweep was run on **one** dataset. The *consequence* is broader — all eight forecasting configurations were re-run at B = 1 and every one improved — yet the mechanism itself rests on ETTm2 n = 3. |
 | `C37` | The residual left after correcting the estimator is Eq. 20's at-a-minimum asymmetry | 1.39b | ETTh1,ETTh2,ETTm2,exchange_rate | Slope +0.972 says it is correctly *scaled*, but r² = 0.342 leaves two thirds of the per-cell variation unexplained, and **no test has been run that could have overturned it**. |
 
@@ -551,7 +550,7 @@ by someone repeating it.
 | id | claim | § | what happened |
 |---|---|---|---|
 | `C19` | Merging never wins a decisive forecasting configuration | 1.26 | Withdrawn in-place at §1.26: true of that table's 18 cells, false across §1.5b's 48. |
-| `C20` | OPCM's cost grows with the accumulated-subspace overlap rho | 1.35 | Registered as P1 before the sweep and refuted by it: the cost does not order by rho. |
+| `C20` | OPCM's cost grows with the accumulated-subspace overlap rho | 1.35 | Registered as P1 before the sweep and refuted by it: the cost does not order by rho. **Replaced** by `C31` — at threshold 0.3 the predictor is base-to-joint *headroom*: how much there was to lose, not how much was removed (§1.36). |
 | `C24` | lambda* is unstable because the Fisher estimate is noisy | 1.32 | §1.32 ran the falsification test and the estimate saturates at the full pass - the instability is not sampling noise. |
 | `C25` | Attention-exclusive fine-tuning (the testable half of QOMM) helps | 1.33 | Measured on PSM-forecast n=3, three seeds, and did not clear the floor - reported as a negative result. |
 | `C26` | The simplified OPCM operator (§1.31, §1.35) is the paper's OPCM | 1.31, 1.35, 1.36 | Never claimed and must never be: `opcm_residual` projects out the span of the flattened predecessors; the paper's operator (Tang et al., NeurIPS 2025, Algorithm 1) projects out the top-alpha singular subspace of the ACCUMULATED MERGED matrix, on both sides, drops the i==j diagonal, and carries a norm-stabilising lambda. |
@@ -4185,6 +4184,63 @@ both only at α = 0.3.
 P1 predicted "no win outside the floor except exchange_rate at n ≤ 3". That holds, with one
 qualification in the project's favour and one against: the exchange win appears only at n = 3, not
 n ≤ 3, and one unforeseen win turns up on PSM-forecast at n = 5.
+
+#### What DOES predict the cost: base-to-joint headroom (`C31`), replacing refuted `C20`
+
+> **Provenance.** `analysis/headroom_cost_report.py` → `headroom_cost/headroom_cost_{cells,fit}.csv`,
+> joining `derived.csv:headroom_pct` to this section's `P1_paper_opcm` rows on
+> (dataset, n_segments). **No new runs** — both quantities were already in the archive, which is
+> what the freeze requires of anything touching this chapter.
+
+`C20` predicted the cost would order by the accumulated-subspace overlap ρ and was **refuted**:
+it does not. `C31` is the surviving alternative — the cost tracks **how much there was to lose**,
+not how much the projection removes.
+
+| threshold | per-cell r (n = 15) | per-cell ρ | per-dataset r (n = 5) | exact permutation p |
+|---|---|---|---|---|
+| 0.3 | **+0.732** | **+0.729** | **+0.954** | **0.025** |
+| 0.5 *(the paper's own)* | +0.504 | +0.621 | +0.714 | 0.125 |
+| 0.7 | +0.230 | +0.325 | +0.237 | 0.667 |
+
+Per dataset, at threshold 0.3 — the ordering is the claim:
+
+| dataset | headroom | mean OPCM delta |
+|---|---|---|
+| ETTm2 | 86.97% | +34.29% |
+| ETTh2 | 75.03% | +26.14% |
+| exchange | 47.51% | +3.81% |
+| ETTh1 | 42.13% | +11.32% |
+| PSM-forecast | 41.40% | +0.65% |
+
+**This answers the question ρ could not.** OPCM's cost is large on ETTh2/ETTm2 and negligible on
+PSM-forecast because the headroom is 75–87% against 41% — the predictor is the size of the prize,
+not the size of the deletion. It survives dropping any single dataset (**r = +0.897 to +0.999**
+leave-one-out).
+
+⚠️ **Scoped to threshold 0.3, and that is not the paper's threshold.** At α ≈ 0.5 — the value the
+paper recommends and the one §1.36's headline table uses — the dataset-level dependence is
+**p = 0.125**, and at 0.7 it is **p = 0.667**: not distinguishable from chance with five datasets.
+The decay *is consistent with* aggressive deletion swamping the dependence, and the deltas support
+that reading (at 0.7 exchange_rate jumps to +53.4% and breaks the ordering outright). But five
+datasets cannot separate "swamped" from "underpowered", and this section does not claim it can.
+
+⚠️ **15 cells are 5 datasets.** Headroom is close to a dataset-level property, so the 15
+(dataset, n) cells carry five distinct x values. The per-cell r is reported because it is the
+number the claim was first stated in; the **primary** inference is the 5-dataset collapse with a
+permutation test over datasets. That test is exact (120 permutations) and its **floor is
+2/120 = 0.017**, so p = 0.025 is real evidence *and* close to the resolution limit of five
+datasets.
+
+⚠️ **Two exclusions, both principled, both load-bearing.** **SWaT-forecast** is dropped because
+its headroom is *negative* at n = 3, 5 (−99.87%, −93.64%) — the joint model loses to the base, so
+"how much there was to lose" is undefined there. **PSM and SWaT (AD)** are dropped because their
+headroom is 1–3%, at which *every* merge scores alike and |delta| is small **by construction**:
+including them raises the per-cell r but for an arithmetic reason rather than a mechanistic one.
+
+⚠️ **The join rule moves the number.** Headroom per cell is averaged over **every** experiment in
+`derived.csv` that carries it; taking the experiment of record instead gives **r = +0.627**
+(ρ = +0.568) at threshold 0.3. Both are positive and tell the same story, and both are emitted to
+`headroom_cost_fit.csv` so the choice is auditable rather than assumed.
 
 #### The exchange_rate win belongs to the simplified variant, and P1 said to report that
 

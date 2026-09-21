@@ -1307,6 +1307,52 @@ CHECKS += [_test_check(d, n, m, 1, "delta_pct", "corrected")
 CHECKS += [_test_check(d, n, m, b, "margin_ratio", "ratio") for d, n, m, b in _TEST_ROWS]
 CHECKS += [_test_check(d, n, m, b, "own_spread_pct", "own_spread") for d, n, m, b in _TEST_ROWS]
 
+# §1.36's headroom table (C31). Both correlation scopes are checked at all three thresholds:
+# the per-cell number is the one the claim was first stated in, the per-dataset one is the
+# primary inference, and the two must not be allowed to drift into each other's sentence. The
+# permutation p is checked too — it is what scopes the claim to threshold 0.3, so a wrong value
+# there would widen the claim rather than merely misstate it.
+_HEADROOM_THRESHOLDS = ("0.3", "0.5", "0.7")
+
+
+def _headroom_check(thr, column, group):
+    row = rf"\| {thr}" + (r" \*\(the paper's own\)\*" if thr == "0.5" else "") + r" \| "
+    skip = {"cell_r": 0, "cell_rho": 1, "dataset_r": 2, "p": 3}[group]
+    cell = r"\*{0,2}[+−-][\d.]+\*{0,2} \| " * skip if group != "p" else \
+        r"\*{0,2}[+−-][\d.]+\*{0,2} \| " * 3
+    capture = r"\*{0,2}([\d.]+)\*{0,2} \|" if group == "p" else r"\*{0,2}([+−-][\d.]+)\*{0,2} \|"
+    scope = "per_dataset" if group in ("dataset_r", "p") else "per_cell"
+    return (f"§1.36 headroom thr={thr} {group}", row + cell + capture,
+            "headroom_cost/headroom_cost_fit.csv",
+            {"threshold": thr, "scope": scope,
+             "headroom_source": "mean over every experiment"}, column, 0.002)
+
+
+CHECKS += [_headroom_check(t, c, g) for t in _HEADROOM_THRESHOLDS
+           for c, g in (("pearson", "cell_r"), ("spearman", "cell_rho"),
+                        ("pearson", "dataset_r"), ("permutation_p", "p"))]
+# The per-dataset ordering table is the claim in its most quotable form, so every cell of it is
+# bound to the CSV rather than left as prose.
+CHECKS += [
+    (f"§1.36 headroom {d} headroom", rf"\| {d} \| ([\d.]+)% \| [+−-][\d.]+% \|",
+     "headroom_cost/headroom_cost_cells.csv",
+     {"dataset": d, "threshold": "0.3"}, "headroom_pct", 0.02)
+    for d in ("ETTm2", "ETTh2", "exchange", "ETTh1", "PSM-forecast")
+]
+CHECKS += [
+    (f"§1.36 headroom {d} delta", rf"\| {d} \| [\d.]+% \| \+([\d.]+)% \|",
+     "headroom_cost/headroom_cost_cells.csv",
+     {"dataset": d, "threshold": "0.3"}, "delta_pct", 0.02)
+    for d in ("ETTm2", "ETTh2", "exchange", "ETTh1", "PSM-forecast")
+]
+# The of-record sensitivity value, so the alternative join rule cannot go stale either.
+CHECKS += [
+    ("§1.36 headroom of-record r", r"instead gives \*\*r = \+([\d.]+)\*\*",
+     "headroom_cost/headroom_cost_fit.csv",
+     {"threshold": "0.3", "scope": "per_cell", "headroom_source": "experiment of record"},
+     "pearson", 0.002),
+]
+
 # §1.39c — the one-cell P3 control. Bound to `lambda_source` as well as batch size: the whole
 # point of the table is that two rules on the SAME configuration give different answers, so a
 # check that did not name the rule could be satisfied by the row it is meant to contrast with.

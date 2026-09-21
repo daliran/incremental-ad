@@ -1,0 +1,10 @@
+threshold,scope,n_points,pearson,spearman,headroom_source,permutation_p,permutations
+0.3,per_cell,15,0.7320980506600023,0.7285714285714285,mean over every experiment,,
+0.3,per_cell,15,0.6268656716012835,0.5678571428571428,experiment of record,,
+0.3,per_dataset,5,0.9538959364093973,0.9,mean over every experiment,0.025,120
+0.5,per_cell,15,0.504454272956582,0.6214285714285714,mean over every experiment,,
+0.5,per_cell,15,0.35753288608090567,0.4714285714285714,experiment of record,,
+0.5,per_dataset,5,0.7141420409755915,0.9,mean over every experiment,0.125,120
+0.7,per_cell,15,0.2299609355312755,0.325,mean over every experiment,,
+0.7,per_cell,15,0.09350193248018486,0.25,experiment of record,,
+0.7,per_dataset,5,0.23661293704932593,0.5,mean over every experiment,0.6666666666666666,120

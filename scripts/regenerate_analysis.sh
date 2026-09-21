@@ -186,6 +186,18 @@ python -m incremental_ad.analysis.remerge_closeout_report --runs_root "$RUNS" \
     --floors "$OUT/floors.csv" \
     --out "$OUT/remerge_closeout_report" || echo "  closeout report skipped (no sweep outputs)"
 
+echo "== headroom vs OPCM cost (§1.36, C31) =="
+# Settles a merging claim with NO new runs, by joining two quantities the archive already holds.
+# Pure CSV aggregation; the exact permutation test is 120 evaluations, not a simulation.
+python -m incremental_ad.analysis.headroom_cost_report --self-test
+# `remerge_closeout` is carried into "$OUT" only at the END of this script, so the P1 source is
+# resolved through `carried` and passed explicitly. Reading it from "$OUT" would find nothing and
+# the `|| echo` would swallow it -- the trap this file's header describes, hit twice already.
+python -m incremental_ad.analysis.headroom_cost_report --audit_dir "$OUT" \
+    --closeout "$(carried remerge_closeout)/remerge_closeout.csv" \
+    --out "$OUT/headroom_cost" \
+    || echo "  headroom_cost skipped (no closeout outputs)"
+
 echo "== adaptive-lambda sequential fine-tuning (§1.39) =="
 # Strategy 6, not a merging experiment (CLAUDE.md scope note). Pure aggregation over finished
 # runs. Cells are keyed on the Fisher estimator's batch size as well as the configuration, so a

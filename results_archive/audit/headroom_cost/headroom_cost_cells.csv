@@ -1,0 +1,46 @@
+dataset,n_segments,threshold,headroom_pct,n_headroom_experiments,delta_pct,verdict
+ETTh1,2,0.3,37.05,4,9.051,worse
+ETTh1,3,0.3,42.93913043478261,23,15.201,worse
+ETTh1,5,0.3,46.405,4,9.695,worse
+ETTh2,2,0.3,83.28,2,52.473,worse
+ETTh2,3,0.3,57.66,6,10.348,worse
+ETTh2,5,0.3,84.16,2,15.585,worse
+ETTm2,2,0.3,86.815,2,12.053,tie (inside floor)
+ETTm2,3,0.3,87.35333333333334,6,38.696,worse
+ETTm2,5,0.3,86.735,2,52.109,worse
+exchange,2,0.3,47.20333333333334,3,-2.651,tie (inside floor)
+exchange,3,0.3,41.49594594594595,37,-15.341,better
+exchange,5,0.3,53.82,3,29.422,worse
+PSM-forecast,2,0.3,41.85125,8,-0.592,tie (inside floor)
+PSM-forecast,3,0.3,41.29684210526316,19,4.853,worse
+PSM-forecast,5,0.3,41.051249999999996,8,-2.317,better
+ETTh1,2,0.5,37.05,4,16.143,worse
+ETTh1,3,0.5,42.93913043478261,23,31.702,worse
+ETTh1,5,0.5,46.405,4,24.797,worse
+ETTh2,2,0.5,83.28,2,54.53,worse
+ETTh2,3,0.5,57.66,6,16.355,worse
+ETTh2,5,0.5,84.16,2,15.8,worse
+ETTm2,2,0.5,86.815,2,16.724,worse
+ETTm2,3,0.5,87.35333333333334,6,34.008,worse
+ETTm2,5,0.5,86.735,2,59.838,worse
+exchange,2,0.5,47.20333333333334,3,30.212,worse
+exchange,3,0.5,41.49594594594595,37,7.008,worse
+exchange,5,0.5,53.82,3,52.186,worse
+PSM-forecast,2,0.5,41.85125,8,1.667,worse
+PSM-forecast,3,0.5,41.29684210526316,19,11.992,worse
+PSM-forecast,5,0.5,41.051249999999996,8,8.621,worse
+ETTh1,2,0.7,37.05,4,21.152,worse
+ETTh1,3,0.7,42.93913043478261,23,39.129,worse
+ETTh1,5,0.7,46.405,4,32.513,worse
+ETTh2,2,0.7,83.28,2,57.142,worse
+ETTh2,3,0.7,57.66,6,22.501,worse
+ETTh2,5,0.7,84.16,2,12.584,worse
+ETTm2,2,0.7,86.815,2,19.356,worse
+ETTm2,3,0.7,87.35333333333334,6,34.077,worse
+ETTm2,5,0.7,86.735,2,63.287,worse
+exchange,2,0.7,47.20333333333334,3,66.236,worse
+exchange,3,0.7,41.49594594594595,37,25.226,worse
+exchange,5,0.7,53.82,3,68.709,worse
+PSM-forecast,2,0.7,41.85125,8,1.181,worse
+PSM-forecast,3,0.7,41.29684210526316,19,16.622,worse
+PSM-forecast,5,0.7,41.051249999999996,8,18.542,worse

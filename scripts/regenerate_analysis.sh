@@ -255,4 +255,13 @@ for path in "$CARRY"/*; do
 done
 
 echo
+echo "== does this run reproduce the archive? =="
+# The gap every other check leaves open: they verify that documents match CSVs, not that the
+# CSVs regenerate. `remerge_closeout.csv` was correct for months while this script produced 24
+# of its 241 rows. Not fatal here — the archive is legitimately ahead of a fresh run right after
+# new results land — but it must be run and read before archiving.
+python "$REPO/scripts/check_archive_reproduces.py" --fresh "$OUT" \
+    --archive "$REPO/results_archive/audit" || true
+
+echo
 echo "wrote $OUT"

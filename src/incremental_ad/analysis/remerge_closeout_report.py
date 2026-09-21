@@ -234,6 +234,11 @@ def summarise(test: str, entry: dict, floor, pairs: list[tuple],
 # derived.csv's `grr`.
 STORED_MERGE_LABEL = "plain sum at committed alpha"
 
+# Set by derived.csv's 4-decimal storage of `grr`, not chosen for convenience: two values that
+# agree can differ by up to 5e-5 before rounding, so 2e-4 is the tightest bound that cannot fire
+# on rounding alone. The observed worst gap is 1.0e-4 (noisefloor_psm, 1.0239 vs 1.024).
+GRR_CROSSCHECK_TOL = 2e-4
+
 
 def attach_grr(rows: list[dict], derived_path: Path | None) -> int:
     """Add GRR columns to every row whose source experiment has a base and a joint.
@@ -278,12 +283,12 @@ def attach_grr(rows: list[dict], derived_path: Path | None) -> int:
             continue
         row["base"], row["joint"] = base, joint
         row["joint_from"] = source.get("joint_from", "")
-        row["grr_baseline"] = round((base - float(row["baseline"])) / gap, 4)
-        row["grr_variant"] = round((base - float(row["variant"])) / gap, 4)
-        row["grr_delta"] = round(row["grr_variant"] - row["grr_baseline"], 4)
-        row["grr_baseline_sd"] = round(float(row["baseline_sd"]) / abs(gap), 4)
-        row["grr_variant_sd"] = round(float(row["variant_sd"]) / abs(gap), 4)
-        row["grr_delta_paired_sd"] = round(float(row["paired_diff_sd"]) / abs(gap), 4)
+        row["grr_baseline"] = round((base - float(row["baseline"])) / gap, 6)
+        row["grr_variant"] = round((base - float(row["variant"])) / gap, 6)
+        row["grr_delta"] = round(row["grr_variant"] - row["grr_baseline"], 6)
+        row["grr_baseline_sd"] = round(float(row["baseline_sd"]) / abs(gap), 6)
+        row["grr_variant_sd"] = round(float(row["variant_sd"]) / abs(gap), 6)
+        row["grr_delta_paired_sd"] = round(float(row["paired_diff_sd"]) / abs(gap), 6)
         # ⚠️ The cross-check applies ONLY where the baseline arm really is the stored plain-sum
         # merge. `P3_order_reversal` baselines against the FORWARD-order OPCM instead, so its
         # `grr_baseline` legitimately differs from derived.csv's `grr` — comparing them fired on
@@ -292,9 +297,12 @@ def attach_grr(rows: list[dict], derived_path: Path | None) -> int:
         stored = row["baseline_label"] == STORED_MERGE_LABEL
         row["grr_baseline_derived"] = source.get("grr", "") if stored else ""
         if stored and source.get("grr"):
-            # 5e-3 covers the rounding both files apply; a real disagreement is a bug in one of
-            # them and is reported rather than absorbed.
-            if abs(float(source["grr"]) - row["grr_baseline"]) > 5e-3:
+            # ⚠️ The EFFECTIVE tolerance of this cross-check is set by `derived.csv`, which
+            # stores `grr` to 4 decimals: two values agreeing here can still differ by up to
+            # 5e-5 before rounding, so the check cannot detect an error below ~1e-4. This file
+            # now stores 6 decimals so it is not itself the limit. "All rows agree" therefore
+            # means "agree to 1e-4", and the section that quotes it says so.
+            if abs(float(source["grr"]) - row["grr_baseline"]) > GRR_CROSSCHECK_TOL:
                 mismatched += 1
                 log.warning("[grr] %s %s: baseline arm gives %.4f but derived.csv says %s — "
                             "one of the two is wrong", row["source_experiment"], row["metric"],

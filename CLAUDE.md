@@ -68,7 +68,20 @@ Research codebase for **incremental anomaly detection on multivariate time serie
   `prefix_merges.csv`, written only by the `prefix_etth1`/`prefix_exchange` runs, never by the
   `*_diagnostics` groups. `geometry_report` loads checkpoints, so it is behind `WITH_GEOMETRY=1`
   and stays off the login node. Everything else is pure CSV aggregation and reproduces the
-  archived outputs byte-for-byte — that equality is the regression test for the script.
+  archived outputs byte-for-byte — **and that is now checked rather than asserted**:
+  `scripts/check_archive_reproduces.py` diffs a fresh run against the archive file by file and
+  the regeneration script runs it at the end. It reports **22 of the 37 CSVs the checker reads
+  as regenerated and 15 as carried** — the carried ones (geometry, novelty, alignment,
+  concentration, oracle_router, outcomes, window_selection, remerge/fisher_sweep) need a GPU and
+  their generators are **not exercised by the default path**, which the check prints every time.
+  ⚠️ **The defect it was built for:** `--remerge_dir` pointed at the directory the closeout
+  report *writes* rather than the per-run tree it *reads*, so regeneration produced **24 of
+  `remerge_closeout.csv`'s 241 rows** while every one of the 1295 checks passed — because the 24
+  it produced were a correct subset and the checks read the full file carried from an earlier
+  session. A right file with a broken pipeline is invisible to every other check here. The
+  per-run tree is 3.0 MB and is now archived as `remerge_closeout_runs`. That call site had
+  carried an explanatory comment through two earlier instances of the same trap; comments failed
+  twice, which is why this is a check.
 - **The diagnostics pipeline appends the source run's *selected* α to the merge-scale grid.** With
   `--pipeline_select_merge_scale_on_val` on, a run that selected 0.55 produces a curve with an
   extra off-grid point, and `scale_report` then drops that seed for grid mismatch — silently, so

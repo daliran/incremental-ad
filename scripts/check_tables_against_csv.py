@@ -1548,9 +1548,24 @@ def check_stale_claim_text(paths: list[Path]) -> int:
         for path in paths:
             if not path.is_file():
                 continue
-            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            text = path.read_text(encoding="utf-8")
+            for number, line in enumerate(text.splitlines(), 1):
                 if re.search(pattern, line) and not any(a in line for a in allowed):
                     hits.append(f"{path.name}:{number}  {line.strip()[:100]}")
+            # A claim asserted ACROSS a line break evades the line-by-line pass entirely — these
+            # documents wrap at 100 characters, so that is the common case, not the exotic one.
+            # The second pass joins the whole file and looks again; it cannot give a line number,
+            # so it reports the surrounding text instead. The allow-markers are checked in a
+            # window around the hit rather than on "the line", which no longer exists here.
+            flat = " ".join(text.split())
+            for found in re.finditer(pattern, flat):
+                window = flat[max(0, found.start() - 220): found.end() + 220]
+                if any(a in window for a in allowed):
+                    continue
+                snippet = flat[max(0, found.start() - 40): found.end() + 40]
+                candidate = f"{path.name}:(wrapped)  …{snippet}…"
+                if not any(h.startswith(f"{path.name}:") and snippet[:40] in h for h in hits):
+                    hits.append(candidate)
         if hits:
             problems += len(hits)
             print(f"  STALE     {claim}: {why}")

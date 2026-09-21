@@ -4245,11 +4245,22 @@ there. The rows are still in the CSV; they are excluded from the count, and this
 
 **Cross-checked against the archive, not just computed.** The baseline arm *is* each run's
 stored plain-sum merge, so its GRR must reproduce `derived.csv`'s own `grr` for that experiment
-— computed by different code from a different file. All 241 rows agree. ⚠️ That check applies
-only to rows whose baseline is the stored merge: `P3_order_reversal` baselines against the
-forward-order OPCM instead, and `grr_baseline_derived` is left **blank** there rather than
-filled with a number that means something else. An unscoped version of this check fired on all
-12 forecasting experiments while the data was right every time.
+— computed by different code from a different file. All 241 rows agree.
+
+⚠️ **"Agree" here means to 1e-4, not exactly.** `derived.csv` stores `grr` to four decimals, so
+two values that agree can still differ by up to 5e-5 before rounding and **the check cannot
+detect an error below ~1e-4**. The observed worst gap is exactly that: 1.0e-4 on PSM n = 3
+(`noisefloor_psm`, 1.0239 against 1.024), which is stored precision, not disagreement. This file
+now stores six decimals so that it is not itself the limit, and the tolerance is bound to
+`derived.csv`'s granularity in the code rather than chosen for comfort.
+
+⚠️ **The check applies only where the baseline IS the stored merge, which is 222 of 241 rows.**
+The other **19** carry a blank `grr_baseline_derived`, and both kinds are legitimate:
+**`P3_order_reversal` (12 rows)** baselines against the forward-order OPCM, and
+**`P2_became_rescaled` (7 rows)** against uniform 1/n at the same α·n. Neither is the stored
+merge, so `derived.csv`'s `grr` is not the right comparison and the cell is left blank rather
+than filled with a number that means something else. An unscoped version of this check fired on
+all 12 forecasting experiments while the data was right every time.
 
 #### AD's α = 1.0 is conservative toward task arithmetic, not generous
 

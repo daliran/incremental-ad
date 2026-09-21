@@ -208,8 +208,12 @@ CLAIMS: list[tuple] = [
      "headroom is negative at n=3,5, so the gap GRR divides by has the wrong sign. "
      "CROSS-CHECKED: the baseline arm is each run's stored plain-sum merge, so its GRR must "
      "reproduce derived.csv's own grr, computed by different code from a different file - all "
-     "241 rows agree. That check applies only where the baseline IS the stored merge; "
-     "P3_order_reversal baselines against forward-order OPCM and is left blank."),
+     "241 rows agree TO 1e-4, which is the effective tolerance: derived.csv stores grr to 4 "
+     "decimals, so the check cannot detect an error below that, and the observed worst gap is "
+     "exactly 1.0e-4 on PSM n=3 (stored precision, not disagreement). The check applies to 222 "
+     "of 241 rows; the other 19 carry a blank grr_baseline_derived because their baseline is "
+     "not the stored merge - P3_order_reversal (12, forward-order OPCM) and P2_became_rescaled "
+     "(7, uniform 1/n at the same alpha*n)."),
     ("C31", "At threshold 0.3, OPCM hurts most where there is most base-to-joint headroom",
      "1.35, 1.36", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "mixed", "mechanism", "yes",
      "supported",

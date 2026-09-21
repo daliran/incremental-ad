@@ -1,0 +1,25 @@
+{
+  "source_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_psm_merge_n3/85143",
+  "merge_rule": "sum",
+  "coefficient_source": "scale",
+  "reverse_order": false,
+  "alpha": 0.3,
+  "alpha_source": "merge_scale/selected",
+  "opcm_threshold": 0.5,
+  "fisher_batches": null,
+  "fisher_seed": null,
+  "implied_alpha_times_n": 0.9,
+  "seed": 123,
+  "n_shards": 3,
+  "metrics": {
+    "val/forecast/mse": 0.33710017800331116,
+    "val/forecast/rmse": 0.5806032879714953,
+    "val/forecast/mae": 0.3004262149333954,
+    "test/forecast/mse": 0.39396563172340393,
+    "test/forecast/rmse": 0.6276668158532869,
+    "test/forecast/mae": 0.3759913146495819
+  },
+  "schema": 1,
+  "code_fingerprint": "d17016ca18b513ef",
+  "completed_at": "2026-09-18T17:06:16"
+}

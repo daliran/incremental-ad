@@ -1307,6 +1307,51 @@ CHECKS += [_test_check(d, n, m, 1, "delta_pct", "corrected")
 CHECKS += [_test_check(d, n, m, b, "margin_ratio", "ratio") for d, n, m, b in _TEST_ROWS]
 CHECKS += [_test_check(d, n, m, b, "own_spread_pct", "own_spread") for d, n, m, b in _TEST_ROWS]
 
+# §1.36's GRR table (C43). Every cell of both arms, bound to threshold 0.5 and to the P1 test,
+# so a row from another threshold or another test cannot satisfy it.
+_GRR_ROWS = (("ETTh1", 2), ("ETTh1", 3), ("ETTh1", 5), ("ETTh2", 2), ("ETTh2", 3), ("ETTh2", 5),
+             ("ETTm2", 2), ("ETTm2", 3), ("ETTm2", 5), ("PSM", 2), ("PSM", 3), ("PSM", 5),
+             ("PSM-forecast", 2), ("PSM-forecast", 3), ("PSM-forecast", 5),
+             ("SWaT", 2), ("SWaT", 3), ("SWaT", 5),
+             ("exchange", 2), ("exchange", 3), ("exchange", 5))
+
+
+def _grr_check(dataset, n, column, group):
+    skip = {"baseline": 0, "variant": 1, "delta": 2, "sd": 3}[group]
+    number = r"\*{0,2}[+−-]?[\d.]+\*{0,2} \| " * skip
+    capture = (r"\*{0,2}([+−-][\d.]+)\*{0,2} \|" if group == "delta"
+               else r"\*{0,2}([+−-]?[\d.]+)\*{0,2} \|")
+    return (f"§1.36/unit GRR {dataset} n={n} {group}",
+            rf"\| {dataset} \| {n} \| " + number + capture,
+            "remerge_closeout/remerge_closeout.csv",
+            {"test": "P1_paper_opcm", "dataset": dataset, "n_segments": str(n),
+             "threshold": "0.5"}, column, 0.0002)
+
+
+CHECKS += [_grr_check(d, n, c, g) for d, n in _GRR_ROWS
+           for c, g in (("grr_baseline", "baseline"), ("grr_variant", "variant"),
+                        ("grr_delta", "delta"), ("grr_delta_paired_sd", "sd"))]
+
+# §1.36's AD alpha-fairness table. The oracle alpha and the honest cost are what the argument
+# turns on, so both are bound; `scale_ad` keys on the diagnostics group name.
+_AD_ALPHA = (("SWaT", 2, "segsweep_swat_merge_n2_diagnostics"),
+             ("SWaT", 3, "noisefloor_swat_diagnostics"),
+             ("SWaT", 5, "segsweep_swat_merge_n5_diagnostics"),
+             ("PSM", 2, "segsweep_psm_merge_n2_diagnostics"),
+             ("PSM", 3, "noisefloor_psm_diagnostics"),
+             ("PSM", 5, "segsweep_psm_merge_n5_diagnostics"))
+CHECKS += [
+    (f"§1.36/conservative alpha-fairness {d} n={n} oracle",
+     rf"\| {d} \| {n} \| [\d.]+ \| 1\.0 \| \*{{0,2}}([\d.]+)\*{{0,2}} \|",
+     "scale_ad/scale_summary.csv", {"group": g}, "alpha_oracle", 0.001)
+    for d, n, g in _AD_ALPHA
+] + [
+    (f"§1.36/conservative alpha-fairness {d} n={n} cost",
+     rf"\| {d} \| {n} \|" + r"(?:[^|]*\|){5} \*{0,2}([\d.]+)%\*{0,2} \|",
+     "scale_ad/scale_summary.csv", {"group": g}, "honest_alpha_cost_pct", 0.05)
+    for d, n, g in _AD_ALPHA
+]
+
 # §1.36's headroom table (C31). Both correlation scopes are checked at all three thresholds:
 # the per-cell number is the one the claim was first stated in, the per-dataset one is the
 # primary inference, and the two must not be allowed to drift into each other's sentence. The
@@ -1459,6 +1504,61 @@ CHECKS += [
     ("§1.39b mixture share t=3", r"\*\*([\d.]+)% at t = 3\*\*",
      "fisher_scaling/fisher_scaling_exponents.csv", {"step": "3"}, "scaling_share_pct", 0.05),
 ]
+
+
+# Claim TEXT, not claim numbers ------------------------------------------------------------
+#
+# 1200 checks verify that every documented NUMBER matches its CSV. Nothing verified that a claim
+# whose wording was later narrowed, replaced or refuted does not survive in its OLD wording
+# somewhere else in the prose. That is the cheapest possible viva wound — a correct table beside
+# a sentence that the table no longer supports — and the check is a grep.
+#
+# Each entry: (claim id, a phrase that must NO LONGER appear unqualified, why, allowed contexts).
+# A hit is a failure unless the line also carries one of the allowed markers, which is how the
+# row that *records* the retraction is distinguished from a row that still asserts it.
+STALE_CLAIM_TEXT = [
+    ("C20", r"cost (?:grows|scales) with (?:the )?(?:accumulated-subspace )?overlap",
+     "C20 is refuted and replaced by C31 — the predictor is headroom, not rho",
+     ("refuted", "Refuted", "REFUTED", "replaced", "Replaced", "does not")),
+    ("C31", r"OPCM hurts most where there is most base-to-joint headroom",
+     "C31 is scoped to threshold 0.3; the bare sentence overstates it",
+     ("threshold 0.3", "At threshold 0.3", "`C31`")),
+    ("C34", r"loses because of its fixed magnitude",
+     "C34 is refuted on both task families",
+     ("refuted", "Refuted", "REFUTED", "`C34`")),
+    ("C40", r"acts as a recency filter|recency filter, and it pays",
+     "the recency mechanism is untested (C23 inconclusive) and C40's scarcity reading is refuted",
+     ("hypothesis", "inconclusive", "INCONCLUSIVE", "untested", "refuted", "withdrawn",
+      "`C23`", "asserts it as a finding")),
+    ("C41", r"premise .{0,40}fails on most",
+     "C41 was refuted by its own registered test — the premise holds on two of three",
+     ("refuted", "Refuted", "REFUTED", "`C41`")),
+    ("C35", r"loses to the plain chain on forecasting(?!.{0,80}ACC)",
+     "C35 is scoped to ACC; on the test metric exchange_rate n=3 wins (C38)",
+     ("ACC", "`C35`", "`C38`")),
+]
+
+
+def check_stale_claim_text(paths: list[Path]) -> int:
+    """Does any document still assert a claim in wording the register has since narrowed?"""
+    print("\nCLAIM TEXT — a narrowed or refuted claim must not survive in its old wording:")
+    problems = 0
+    for claim, pattern, why, allowed in STALE_CLAIM_TEXT:
+        hits = []
+        for path in paths:
+            if not path.is_file():
+                continue
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if re.search(pattern, line) and not any(a in line for a in allowed):
+                    hits.append(f"{path.name}:{number}  {line.strip()[:100]}")
+        if hits:
+            problems += len(hits)
+            print(f"  STALE     {claim}: {why}")
+            for hit in hits:
+                print(f"            {hit}")
+        else:
+            print(f"  ok        {claim}: no unqualified occurrence")
+    return problems
 
 
 def check_transfer_matrices(text: str, runs_root: Path, spec_path: Path,
@@ -2294,6 +2394,14 @@ def main() -> None:
     if recon:
         print(f"  -> {recon} reconciliation failure(s): §1.11 and §1.12 disagree")
         drift += recon
+
+    # Every prose document, not just the checked one: a retracted sentence is as damaging in
+    # THEORY.md or the plan as in EXPERIMENTS.md, and those files carry no numeric checks at all.
+    stale = check_stale_claim_text([args.doc, Path("THEORY.md"), Path("EXECUTION_PLAN.md"),
+                                    Path("CLAUDE.md")])
+    if stale:
+        print(f"  -> {stale} line(s) assert a claim in wording the register has narrowed")
+        drift += stale
 
     if args.self_test:
         print("\nSELF-TEST — corrupting each backing cell; every check must then fail:")

@@ -58,7 +58,13 @@ FIELDS = ["test", "dataset", "n_segments", "metric", "n_seeds", "floor_pct",
           "committed_alpha", "target_alpha_times_n", "implied_alpha_times_n",
           "threshold", "opcm_norm_ratio", "distance_ratio", "confounded", "alpha_n_ok",
           "n_seeds_expected", "complete",
-          "source_experiment"]
+          "source_experiment",
+          # GRR: the unit §1.11 already uses, so the re-merges can be read against the committed
+          # merges without a hand-join. Appended, never inserted — 60+ checks read this file by
+          # column name and a shifted column would break every regex at once.
+          "base", "joint", "joint_from",
+          "grr_baseline", "grr_baseline_sd", "grr_baseline_derived",
+          "grr_variant", "grr_variant_sd", "grr_delta", "grr_delta_paired_sd"]
 
 
 # Mirrors scripts/generate_remerge_closeout.py, so "how many cells should exist" is derived from
@@ -190,6 +196,14 @@ def summarise(test: str, entry: dict, floor, pairs: list[tuple],
         "variant_label": variant_label, "variant": round(new, 6),
         "variant_sd": round(st.stdev(variants), 6) if len(variants) > 1 else 0.0,
         "delta_pct": round(delta, 3), "verdict": verdict,
+        # The per-seed baseline-minus-variant differences, kept because they are PAIRED: both
+        # arms come from the same seed's checkpoints, so the difference cancels the run-to-run
+        # variance the two share. Its sd is the honest spread of the comparison, and it is
+        # smaller than either arm's own sd whenever the two move together. Converted into GRR
+        # units by `attach_grr`, which is where base and joint are known.
+        "paired_diff_mean": round(st.mean([b - v for b, v in pairs]), 9),
+        "paired_diff_sd": (round(st.stdev([b - v for b, v in pairs]), 9)
+                           if len(pairs) > 1 else 0.0),
         "committed_alpha": "", "target_alpha_times_n": "", "implied_alpha_times_n": "",
         "threshold": "", "opcm_norm_ratio": "", "distance_ratio": "", "confounded": "",
         "alpha_n_ok": "",
@@ -215,9 +229,93 @@ def summarise(test: str, entry: dict, floor, pairs: list[tuple],
     return row
 
 
+# The one baseline label that means "the run's own stored plain-sum merge". Rows carrying any
+# other label are comparing against something else and must not be cross-checked against
+# derived.csv's `grr`.
+STORED_MERGE_LABEL = "plain sum at committed alpha"
+
+
+def attach_grr(rows: list[dict], derived_path: Path | None) -> int:
+    """Add GRR columns to every row whose source experiment has a base and a joint.
+
+    **GRR = (base − merged) / (base − joint)** — §0.6's definition, not a new one. The point of
+    putting it here is that `remerge_closeout.csv` otherwise carries only raw metric values, so
+    "does the sophisticated merge recover more of the base-to-joint gap than plain task
+    arithmetic?" could not be answered from the repo without joining two CSVs by hand.
+
+    Paired on **`source_experiment`**, never on (dataset, n_segments): several experiments can
+    share a dataset and segment count — `selalpha_etth1_n3` and `segsweep_etth1_merge_n3` both
+    exist — and pairing on the coarser key would silently average across them.
+
+    Three sd's, and they are not interchangeable:
+
+    - `grr_baseline_sd` / `grr_variant_sd` are **exact**, not approximations: with base and joint
+      held at their means, GRR is affine in the merged value, so sd divides straight through by
+      |base − joint|.
+    - `grr_delta_paired_sd` comes from the per-seed *differences*, so it cancels the variance the
+      two arms share. It is the one to quote for a comparison.
+
+    `grr_baseline_derived` is `derived.csv`'s own `grr` for the same experiment, carried as a
+    **cross-check**: the baseline arm IS the stored merge, so the two must agree. They are
+    computed by different code from different files, and a disagreement means one of them is
+    wrong rather than that the number is uncertain.
+    """
+    if derived_path is None or not derived_path.is_file():
+        return 0
+    lookup = {}
+    with derived_path.open(encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if row.get("base") and row.get("joint"):
+                lookup[(row["experiment"], row["metric"])] = row
+    attached = mismatched = 0
+    for row in rows:
+        source = lookup.get((row["source_experiment"], row["metric"]))
+        if source is None:
+            continue
+        base, joint = float(source["base"]), float(source["joint"])
+        gap = base - joint
+        if gap == 0:
+            continue
+        row["base"], row["joint"] = base, joint
+        row["joint_from"] = source.get("joint_from", "")
+        row["grr_baseline"] = round((base - float(row["baseline"])) / gap, 4)
+        row["grr_variant"] = round((base - float(row["variant"])) / gap, 4)
+        row["grr_delta"] = round(row["grr_variant"] - row["grr_baseline"], 4)
+        row["grr_baseline_sd"] = round(float(row["baseline_sd"]) / abs(gap), 4)
+        row["grr_variant_sd"] = round(float(row["variant_sd"]) / abs(gap), 4)
+        row["grr_delta_paired_sd"] = round(float(row["paired_diff_sd"]) / abs(gap), 4)
+        # ⚠️ The cross-check applies ONLY where the baseline arm really is the stored plain-sum
+        # merge. `P3_order_reversal` baselines against the FORWARD-order OPCM instead, so its
+        # `grr_baseline` legitimately differs from derived.csv's `grr` — comparing them fired on
+        # all 12 forecasting experiments and the data was right every time. `grr_baseline_derived`
+        # is left blank on those rows rather than filled with a number that means something else.
+        stored = row["baseline_label"] == STORED_MERGE_LABEL
+        row["grr_baseline_derived"] = source.get("grr", "") if stored else ""
+        if stored and source.get("grr"):
+            # 5e-3 covers the rounding both files apply; a real disagreement is a bug in one of
+            # them and is reported rather than absorbed.
+            if abs(float(source["grr"]) - row["grr_baseline"]) > 5e-3:
+                mismatched += 1
+                log.warning("[grr] %s %s: baseline arm gives %.4f but derived.csv says %s — "
+                            "one of the two is wrong", row["source_experiment"], row["metric"],
+                            row["grr_baseline"], source["grr"])
+        attached += 1
+    if mismatched:
+        log.warning("[grr] %d row(s) disagree with derived.csv", mismatched)
+    else:
+        log.info("[grr] %d row(s) carry GRR; every stored-merge baseline reproduces "
+                 "derived.csv's grr", attached)
+    return attached
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--runs_root", type=Path, required=True)
+    parser.add_argument("--derived", type=Path,
+                        help="derived.csv, for base/joint so GRR can be emitted per row")
+    parser.add_argument("--per_seed", type=Path,
+                        help="accepted for symmetry with the other reports; the paired spread "
+                             "this file needs comes from the per-seed pairs already in hand")
     parser.add_argument("--remerge_dir", type=Path, required=True,
                         help="output of the closeout sweep")
     parser.add_argument("--forward_dir", type=Path,
@@ -516,11 +614,17 @@ def main() -> None:
     elif any(r["alpha_n_ok"] != "" for r in rows):
         log.info("\nRescaled rows: implied alpha*n equals the committed alpha x n on every one")
 
+    attach_grr(rows, args.derived)
+
     if args.out:
         args.out.mkdir(parents=True, exist_ok=True)
         path = args.out / "remerge_closeout.csv"
         with path.open("w", newline="") as fh:
-            writer = csv.DictWriter(fh, fieldnames=FIELDS)
+            # `extrasaction="ignore"` drops the per-seed difference columns, which are working
+            # state for `attach_grr` rather than published quantities: what they support is
+            # `grr_delta_paired_sd`, and emitting both would invite reading the raw difference
+            # as if it were in GRR units.
+            writer = csv.DictWriter(fh, fieldnames=FIELDS, extrasaction="ignore")
             writer.writeheader()
             writer.writerows(rows)
         with (args.out / "reversal_nullcheck.csv").open("w", newline="") as fh:

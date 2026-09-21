@@ -522,13 +522,13 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**42 claims: 29 supported, 4 hypothesis, 9 refuted.** The rule downgraded
+**43 claims: 30 supported, 4 hypothesis, 9 refuted.** The rule downgraded
 **3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
 now marked as a hypothesis in place.
 
-⚠️ **34 of the 42 are merging claims; `C35`–`C42` are not.** The merging chapter's tally — the
+⚠️ **35 of the 43 are merging claims; `C35`–`C42` are not** (`C43` is one, and is the chapter's last: it restates finished results in GRR and adds no run). The merging chapter's tally — the
 one CLAUDE.md's freeze quotes — is **unchanged at 34: 24 supported, 3 hypothesis, 7 refuted**.
 Strategy 6 (§1.39) is a sequential method, and its rows are counted here because this register
 covers the *document*, not because the freeze moved.
@@ -4185,6 +4185,102 @@ P1 predicted "no win outside the floor except exchange_rate at n ≤ 3". That ho
 qualification in the project's favour and one against: the exchange win appears only at n = 3, not
 n ≤ 3, and one unforeseen win turns up on PSM-forecast at n = 5.
 
+#### The result in the repo's own unit: OPCM recovers less of the base-to-joint gap (`C43`)
+
+> **Provenance.** `analysis/remerge_closeout_report.py` now emits GRR per row —
+> `grr_baseline`, `grr_variant`, `grr_delta` and a **paired** seed sd — into
+> `remerge_closeout/remerge_closeout.csv`. **No new runs.** GRR is §0.6's definition, not a new
+> quantity: **(base − merged) / (base − joint)**, the share of the base-to-joint gap a merge
+> closes. 1.00 = as good as full retraining.
+
+The deltas above are in percent-of-baseline, which answers "how much worse is OPCM than plain
+summation" but **not** the question actually asked of this work: *does sophisticated merging help
+where task arithmetic falls short of joint training?* That needs GRR, and until now the file
+carried none, so answering it meant joining two CSVs by hand.
+
+At the paper's own threshold (α ≈ 0.5), SWaT-forecast excluded for negative headroom:
+
+| dataset | n | plain TA | paper OPCM | Δ GRR | paired sd |
+|---|---|---|---|---|---|
+| ETTh1 | 2 | 0.8675 | 0.6284 | **−0.2391** | 0.0417 |
+| ETTh1 | 3 | 0.7685 | 0.3079 | **−0.4606** | 0.0285 |
+| ETTh1 | 5 | 0.8847 | 0.4947 | **−0.3900** | 0.1878 |
+| ETTh2 | 2 | 0.8084 | 0.5900 | −0.2184 | 0.2701 |
+| ETTh2 | 3 | 0.8981 | 0.8528 | −0.0453 | 0.0299 |
+| ETTh2 | 5 | 0.8202 | 0.7621 | −0.0581 | 0.0313 |
+| ETTm2 | 2 | 0.9017 | 0.8600 | −0.0417 | 0.0045 |
+| ETTm2 | 3 | 0.9263 | 0.8506 | −0.0757 | 0.0311 |
+| ETTm2 | 5 | 0.8716 | 0.7040 | −0.1676 | 0.0274 |
+| PSM | 2 | 1.1587 | 0.8349 | **−0.3238** | 0.0242 |
+| PSM | 3 | 1.0240 | 0.5070 | **−0.5170** | 0.0110 |
+| PSM | 5 | 0.7750 | 0.1794 | **−0.5956** | 0.0452 |
+| PSM-forecast | 2 | 0.7364 | 0.7102 | −0.0262 | 0.0171 |
+| PSM-forecast | 3 | 0.5832 | 0.3660 | −0.2172 | 0.0628 |
+| PSM-forecast | 5 | 0.5183 | 0.3529 | −0.1654 | 0.0592 |
+| SWaT | 2 | 0.5730 | **−0.0766** | **−0.6496** | 0.1085 |
+| SWaT | 3 | 0.5237 | **−0.1409** | **−0.6646** | 0.1338 |
+| SWaT | 5 | 0.6607 | **−0.1562** | **−0.8169** | 0.1945 |
+| exchange | 2 | 1.3987 | 1.1793 | −0.2194 | 0.0919 |
+| exchange | 3 | 1.0991 | 1.0190 | −0.0801 | 0.2079 |
+| exchange | 5 | 1.2244 | 0.6661 | **−0.5583** | 0.0868 |
+
+**OPCM recovers less of the base-to-joint gap than plain task arithmetic in 21 of 21 measurable
+configurations**, mean **ΔGRR = −0.311**. On SWaT its GRR goes **negative** at every n: the
+projected merge ends up *worse than the base model*, recovering none of the gap and losing
+ground on top.
+
+**The sd quoted is paired, and that is the one to use.** Both arms are built from the same
+seed's checkpoints, so the per-seed difference cancels the variance they share; it is the spread
+of the comparison rather than of either arm. By it, **19 of 21** deltas exceed 1× their own
+paired sd. The two that do not are ETTh2 n = 2 (−0.2184 against 0.2701) and exchange n = 3
+(−0.0801 against 0.2079), and they are named rather than folded into the 21.
+
+⚠️ **Scoped to the paper's threshold and above.** At α = 0.3 it is **17 of 21**, mean −0.218 —
+the same direction, not the same unanimity. At 0.7 it is 21 of 21 again, mean −0.383. Quoting
+"21 of 21" without the threshold would be quoting the strongest of three.
+
+⚠️ **SWaT-forecast is excluded for the same reason as in `C31`**: its headroom is negative at
+n = 3, 5, so the base-to-joint gap it divides by has the wrong sign and GRR is not interpretable
+there. The rows are still in the CSV; they are excluded from the count, and this is why.
+
+**Cross-checked against the archive, not just computed.** The baseline arm *is* each run's
+stored plain-sum merge, so its GRR must reproduce `derived.csv`'s own `grr` for that experiment
+— computed by different code from a different file. All 241 rows agree. ⚠️ That check applies
+only to rows whose baseline is the stored merge: `P3_order_reversal` baselines against the
+forward-order OPCM instead, and `grr_baseline_derived` is left **blank** there rather than
+filled with a number that means something else. An unscoped version of this check fired on all
+12 forecasting experiments while the data was right every time.
+
+#### AD's α = 1.0 is conservative toward task arithmetic, not generous
+
+An examiner's first objection to the AD rows above is that task arithmetic was handed α = 1.0,
+which sounds like a lot. The archive refutes it — `scale_ad/scale_summary.csv`, no new runs:
+
+| dataset | n | val would pick α\* | committed α | oracle α | GRR at val α | GRR at oracle α | cost of selecting honestly |
+|---|---|---|---|---|---|---|---|
+| SWaT | 2 | 0.400 | 1.0 | **1.5** | 0.0250 | 0.6139 | **95.9%** |
+| SWaT | 3 | 0.233 | 1.0 | **1.5** | 0.0186 | 0.6083 | **96.9%** |
+| SWaT | 5 | 0.200 | 1.0 | **1.5** | 0.0166 | 0.8269 | **98.0%** |
+| PSM | 2 | 0.533 | 1.0 | **1.3** | 0.8848 | 1.1856 | 25.4% |
+| PSM | 3 | 0.433 | 1.0 | 0.8 | 0.7484 | 1.0670 | 29.9% |
+| PSM | 5 | 0.300 | 1.0 | 0.7 | 0.5521 | 0.9836 | 43.9% |
+
+**α = 1.0 *undershoots* the test-optimal α on four of the six AD configurations** — every SWaT
+config, where the oracle sits at 1.5, and PSM n = 2. It overshoots only on PSM n = 3 and n = 5,
+and modestly (0.8 and 0.7). So the AD comparison is if anything **conservative toward task
+arithmetic**: the committed strength is below what the task actually wanted on two thirds of the
+cells.
+
+And the alternative is worse. Selecting α on validation — the only honest thing to do without a
+test set — costs **95.9–98.0% of the achievable GRR on SWaT** and 25.4–43.9% on PSM (§1.11,
+§1.12). Handing task arithmetic α = 1.0 is therefore a *generous* reading of what a deployable
+selection rule would have produced, not a thumb on the scale.
+
+⚠️ **This does not rescue OPCM by symmetry.** OPCM's magnitude is not a free parameter — Theorem
+5.2 pins it to the mean task-vector norm (`C33`), which is exactly why `C34` needed the
+distance-matched control in §1.37/§1.38. The point here is only that the *baseline* was not
+flattered.
+
 #### What DOES predict the cost: base-to-joint headroom (`C31`), replacing refuted `C20`
 
 > **Provenance.** `analysis/headroom_cost_report.py` → `headroom_cost/headroom_cost_{cells,fit}.csv`,
@@ -4968,8 +5064,8 @@ it matters and no interior point is demonstrated.
 interior results is therefore a weak one, and the claim below is scoped accordingly.
 
 **So `C41` is refuted as stated — and what replaces it is sharper.** The registered claim had
-two halves: the premise fails on most configurations, *and* where it holds the derived
-coefficient locates the optimum. The first half is wrong: a useful interior point exists on
+two halves. The first — refuted — was that the premise fails on most configurations; the
+second, that where it holds the derived coefficient locates the optimum. The first half is wrong: a useful interior point exists on
 **two of the three** configurations swept, including one the method loses badly. The second half
 survives, and the grid measures it directly:
 

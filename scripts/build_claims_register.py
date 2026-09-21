@@ -61,7 +61,16 @@ CLAIMS: list[tuple] = [
      "1.18", "PSM", 1, "yes", "mechanism", "no", "hypothesis",
      "Already reported as mechanistically uncorroborated in §1.18: ETTh1 de-aligns fastest and "
      "has the flattest product, so the geometry points the other way. One dataset, no "
-     "falsification test."),
+     "falsification test. "
+     "DETERMINATION 2026-09-21, after C31 showed a hypothesis can be settled from the archive "
+     "with zero runs: C03 CANNOT be. The archive holds alpha*.n for PSM at n=2,3,5 and the "
+     "geometry that contradicts it, and both are already reported - there is no third quantity "
+     "sitting in finished runs that separates 'the task vectors de-align' from 'something else "
+     "rises with n'. Settling it needs PSM at more segment counts with per-shard geometry, i.e. "
+     "NEW RUNS, and the merging chapter is frozen. DECLARED OUT OF SCOPE for the thesis: the "
+     "measurement stands (alpha*.n rises, 2.4x the quantisation bound), the mechanism does not, "
+     "and §1.18 already says so. An open row here is a deliberate boundary, not unfinished "
+     "work."),
     ("C04", "Merging is worth two to four periods of retained history",
      "TL;DR, 1.21, 1.23", "ETTh1,ETTh2,exchange_rate", 3, "yes", "measurement", "yes",
      "supported",
@@ -172,7 +181,35 @@ CLAIMS: list[tuple] = [
      "refuted outright (its loss grew rather than shrank). The direction does not fit the "
      "stale-directions story either: under reversal the OLDER shards are stripped, which should "
      "have helped on the one dataset where old data hurts, and did not. No further merging run "
-     "can settle this; what stands is the measurement C32, not the mechanism."),
+     "can settle this; what stands is the measurement C32, not the mechanism. "
+     "DETERMINATION 2026-09-21: INCONCLUSIVE IS THE FINAL STATE, and that is the honest answer "
+     "rather than a placeholder. The archive cannot settle it - the falsification test has "
+     "already been run (§1.36's P3) and its result is not ambiguous about the data, only about "
+     "what the data can attribute: reversal is decisively worse everywhere, so exchange_rate's "
+     "penalty being mid-range cannot separate a recency effect from the general cost of "
+     "reversing. A different experiment could (feeding shards in random orders, or filtering by "
+     "age without reordering), but that is NEW RUNS on a frozen chapter. DECLARED OUT OF SCOPE: "
+     "the win is real and measured (C32); the recency explanation is recorded as untested and "
+     "must not be quoted as the reason."),
+    ("C43", "At the paper's threshold, OPCM recovers less of the base-to-joint gap than plain "
+     "task arithmetic on every measurable configuration",
+     "1.36", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM,SWaT,PSM-forecast", 7, "yes", "measurement",
+     "n/a", "supported",
+     "Stated in GRR, the unit §1.11 already uses - (base - merged)/(base - joint), §0.6's "
+     "definition - so it answers the question actually asked of this work: does sophisticated "
+     "merging help where task arithmetic falls short of joint training? It does not. 21 of 21 "
+     "cells at threshold 0.5, mean delta GRR = -0.311; on SWaT the OPCM GRR goes NEGATIVE at "
+     "every n (-0.077, -0.141, -0.156), i.e. worse than the base model. The sd quoted is PAIRED "
+     "(both arms from the same seed's checkpoints, so the per-seed difference cancels their "
+     "shared variance) and 19 of 21 deltas exceed 1x it; the two that do not - ETTh2 n=2 and "
+     "exchange n=3 - are named in the section rather than folded into the count. "
+     "SCOPE: at threshold 0.3 it is 17 of 21, mean -0.218 - same direction, not the same "
+     "unanimity - so the claim names the threshold. SWaT-forecast is excluded because its "
+     "headroom is negative at n=3,5, so the gap GRR divides by has the wrong sign. "
+     "CROSS-CHECKED: the baseline arm is each run's stored plain-sum merge, so its GRR must "
+     "reproduce derived.csv's own grr, computed by different code from a different file - all "
+     "241 rows agree. That check applies only where the baseline IS the stored merge; "
+     "P3_order_reversal baselines against forward-order OPCM and is left blank."),
     ("C31", "At threshold 0.3, OPCM hurts most where there is most base-to-joint headroom",
      "1.35, 1.36", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "mixed", "mechanism", "yes",
      "supported",

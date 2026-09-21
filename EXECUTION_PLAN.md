@@ -1616,9 +1616,13 @@ remove exactly the ρ fraction — `verify_merge_rules.py` asserts that — but 
 n = 3 (−14.2%), at all three thresholds, against a 5.73% floor. §1.31 concluded from one dataset
 that OPCM always hurts; it does not. Coherent with §1.24: exchange is the one dataset where old
 data actively hurts (joint is the *worst* method there), and OPCM discards the component of each
-new vector that re-edits directions the older shards already claimed. **OPCM is behaving as a
-recency filter, and it pays where recency pays.** It reverses at n = 5, where 607-row shards make
-each vector's unique component too poorly estimated to stand alone.
+new vector that re-edits directions the older shards already claimed. ⚠️ **This paragraph once asserted, as
+a finding, that OPCM behaves as a recency filter, and it pays where recency pays — untested
+(`C23`), and §1.36's P3 ran the falsification test and came back INCONCLUSIVE** — reversal
+is decisively worse on every dataset, so exchange_rate's mid-range penalty cannot separate a
+recency effect from the general cost of reversing. The win is real and measured (`C32`); the
+recency explanation is untested and is not to be quoted as the reason. It reverses at n = 5,
+where 607-row shards make each vector's unique component too poorly estimated to stand alone.
 
 **P2 — "BECAME is pinned at α·n = 1.0 on AD" — CONFIRMED, exactly.** `implied_alpha_times_n` =
 **1.000 on all six AD cells**, as the convex fold requires, and BECAME is decisively worse than

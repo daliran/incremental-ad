@@ -181,10 +181,17 @@ echo "== closeout: BECAME rescaled + order reversal (§1.36) =="
 # directory. Exits non-zero if the order-reversal null check is inexact: plain summation is
 # order-inert, so an inexact row means the reversal moved something other than the order and every
 # P3 number is void.
+# ⚠️ `--remerge_dir` is the PER-RUN tree (one directory per experiment__run_id, each holding a
+# tag/result.json), NOT the directory the report writes its CSVs to. It used to be pointed at the
+# latter, so this step silently regenerated **24 of 241 rows** for months while every check read
+# the full file carried from an earlier session — the script's claim to reproduce the archive was
+# false for exactly this file, and nothing caught it because the 24 rows it did produce were a
+# correct subset. The per-run tree is 1.5 MB and is now archived as `remerge_closeout_runs`.
 python -m incremental_ad.analysis.remerge_closeout_report --runs_root "$RUNS" \
-    --remerge_dir "$(carried remerge_closeout)" --forward_dir "$(carried remerge_sweep)" \
-    --floors "$OUT/floors.csv" \
-    --out "$OUT/remerge_closeout_report" || echo "  closeout report skipped (no sweep outputs)"
+    --remerge_dir "$(carried remerge_closeout_runs)" --forward_dir "$(carried remerge_sweep)" \
+    --floors "$OUT/floors.csv" --derived "$OUT/derived.csv" \
+    --per_seed "$OUT/run_metrics_per_seed.csv" \
+    --out "$OUT/remerge_closeout" || echo "  closeout report skipped (no sweep outputs)"
 
 echo "== headroom vs OPCM cost (§1.36, C31) =="
 # Settles a merging claim with NO new runs, by joining two quantities the archive already holds.
@@ -231,7 +238,7 @@ python "$REPO/scripts/build_results_report.py" --archive "$REPO/results_archive"
 echo "== carrying forward GPU-only outputs (not regenerated here) =="
 for sub in oracle_router concentration novelty_swat selection_probe drift \
            geometry novelty alignment subblocks mask_span window_selection remerge \
-           remerge_sweep remerge_closeout geometry_gap geometry_aeft \
+           remerge_sweep remerge_closeout remerge_closeout_runs geometry_gap geometry_aeft \
            fisher_scaling_sweep; do
     if [ -d "$CARRY/$sub" ] && [ ! -d "$OUT/$sub" ]; then
         cp -r "$CARRY/$sub" "$OUT/$sub"

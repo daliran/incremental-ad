@@ -145,10 +145,13 @@ its floor) and on forecasting by §1.38's P5, run because P4's control was *wron
 **Three independent magnitude controls now agree**: the paper's own norm rule, coefficient-matched
 and distance-matched. Projecting each incoming task vector out of its predecessors' span removes
 something this backbone needs, at any strength. The sole exception is exchange_rate at a threshold
-below the paper's recommended one — the one dataset where old data actively hurts (§1.24). Three register rows remain
-`hypothesis` — `C03`, `C23`, `C31` — but **no further merging run can settle them**: `C23`'s
-falsification test has already been run and came back inconclusive, and `C03`/`C31` need
-measurements of a different kind, not another merge. Treat the chapter as finished.
+below the paper's recommended one — the one dataset where old data actively hurts (§1.24). Two register rows remain
+`hypothesis` — `C03` and `C23` — and **no further merging run can settle them**: `C23`'s
+falsification test has already been run and came back inconclusive, and `C03` needs a
+measurement of a different kind, not another merge. **`C31` was the third and is now settled
+(2026-09-21) without a single new run** — §1.36's P1 deltas joined to `derived.csv`'s headroom,
+`analysis/headroom_cost_report.py` as the script of record. That is the shape the remaining two
+would have to take: a *different measurement over finished runs*, never another merge. Treat the chapter as finished.
 
 The paper's OPCM is implemented in full (`framework/merging/opcm.py`) and kept strictly separate
 from the simplified `opcm_residual`; `C26` forbids conflating them, and the same discipline names

@@ -1,55 +1,55 @@
-dataset,n_segments,metric,rule,coefficient_source,threshold,n_seeds,floor_pct,rho,plain,plain_sd,remerged,remerged_sd,delta_pct,verdict,implied_alpha_times_n,committed_alpha,source_experiment
-ETTh1,2,forecast/mse,opcm,scale,0.3,3,8.759,0.0944,0.459709,0.01414,0.455843,0.015598,-0.841,tie (inside floor),,0.5,segsweep_etth1_merge_n2
-ETTh1,2,forecast/mse,opcm,scale,0.5,3,8.759,0.0944,0.459709,0.01414,0.455843,0.015598,-0.841,tie (inside floor),,0.5,segsweep_etth1_merge_n2
-ETTh1,2,forecast/mse,opcm,scale,0.7,3,8.759,0.0944,0.459709,0.01414,0.455843,0.015598,-0.841,tie (inside floor),,0.5,segsweep_etth1_merge_n2
-ETTh1,3,forecast/mse,opcm,scale,0.3,3,8.759,0.0679,0.496383,0.010514,0.491435,0.009329,-0.997,tie (inside floor),,0.3,selalpha_etth1_n3
-ETTh1,3,forecast/mse,opcm,scale,0.5,3,8.759,0.0679,0.496383,0.010514,0.491435,0.009329,-0.997,tie (inside floor),,0.3,selalpha_etth1_n3
-ETTh1,3,forecast/mse,opcm,scale,0.7,3,8.759,0.0679,0.496383,0.010514,0.491476,0.009019,-0.989,tie (inside floor),,0.3,selalpha_etth1_n3
-ETTh1,5,forecast/mse,opcm,scale,0.3,3,8.759,0.0707,0.451689,0.022118,0.460246,0.020528,1.894,tie (inside floor),,0.2,segsweep_etth1_merge_n5
-ETTh1,5,forecast/mse,opcm,scale,0.5,3,8.759,0.0707,0.451689,0.022118,0.461242,0.021127,2.115,tie (inside floor),,0.2,segsweep_etth1_merge_n5
-ETTh1,5,forecast/mse,opcm,scale,0.7,3,8.759,0.0707,0.451689,0.022118,0.46234,0.020458,2.358,tie (inside floor),,0.2,segsweep_etth1_merge_n5
-ETTh2,2,forecast/mse,opcm,scale,0.3,3,6.741,0.0199,0.261224,0.045197,0.291946,0.073943,11.761,worse,,0.65,etth2_merge_n2
-ETTh2,2,forecast/mse,opcm,scale,0.5,3,6.741,0.0199,0.261224,0.045197,0.291946,0.073943,11.761,worse,,0.65,etth2_merge_n2
-ETTh2,2,forecast/mse,opcm,scale,0.7,3,6.741,0.0199,0.261224,0.045197,0.291946,0.073943,11.761,worse,,0.65,etth2_merge_n2
-ETTh2,3,forecast/mse,opcm,scale,0.3,3,6.741,0.0713,0.215281,0.018391,0.264626,0.061627,22.921,worse,,0.25,etth2_merge_n3
-ETTh2,3,forecast/mse,opcm,scale,0.5,3,6.741,0.0713,0.215281,0.018391,0.264626,0.061627,22.921,worse,,0.25,etth2_merge_n3
-ETTh2,3,forecast/mse,opcm,scale,0.7,3,6.741,0.0713,0.215281,0.018391,0.270969,0.068143,25.868,worse,,0.25,etth2_merge_n3
-ETTh2,5,forecast/mse,opcm,scale,0.3,3,6.741,0.1262,0.26692,0.030245,0.441447,0.143532,65.385,worse,,0.15,etth2_merge_n5
-ETTh2,5,forecast/mse,opcm,scale,0.5,3,6.741,0.1262,0.26692,0.030245,0.440017,0.14225,64.85,worse,,0.15,etth2_merge_n5
-ETTh2,5,forecast/mse,opcm,scale,0.7,3,6.741,0.1262,0.26692,0.030245,0.449955,0.130495,68.573,worse,,0.15,etth2_merge_n5
-ETTm2,2,forecast/mse,opcm,scale,0.3,3,14.107,0.0322,0.123973,0.007642,0.126923,0.007468,2.38,tie (inside floor),,0.4,ettm2_merge_n2
-ETTm2,2,forecast/mse,opcm,scale,0.5,3,14.107,0.0322,0.123973,0.007642,0.126923,0.007468,2.38,tie (inside floor),,0.4,ettm2_merge_n2
-ETTm2,2,forecast/mse,opcm,scale,0.7,3,14.107,0.0322,0.123973,0.007642,0.126923,0.007468,2.38,tie (inside floor),,0.4,ettm2_merge_n2
-ETTm2,3,forecast/mse,opcm,scale,0.3,3,14.107,0.0498,0.112149,0.013002,0.118573,0.018187,5.728,tie (inside floor),,0.25,ettm2_merge_n3
-ETTm2,3,forecast/mse,opcm,scale,0.5,3,14.107,0.0498,0.112149,0.013002,0.118573,0.018187,5.728,tie (inside floor),,0.25,ettm2_merge_n3
-ETTm2,3,forecast/mse,opcm,scale,0.7,3,14.107,0.0498,0.112149,0.013002,0.119576,0.018743,6.622,tie (inside floor),,0.25,ettm2_merge_n3
-ETTm2,5,forecast/mse,opcm,scale,0.3,3,14.107,0.0975,0.138523,0.008026,0.152498,0.005506,10.089,tie (inside floor),,0.15,ettm2_merge_n5
-ETTm2,5,forecast/mse,opcm,scale,0.5,3,14.107,0.0975,0.138523,0.008026,0.154607,0.005676,11.611,tie (inside floor),,0.15,ettm2_merge_n5
-ETTm2,5,forecast/mse,opcm,scale,0.7,3,14.107,0.0975,0.138523,0.008026,0.171746,0.007455,23.984,worse,,0.15,ettm2_merge_n5
-exchange,2,forecast/mse,opcm,scale,0.3,3,5.73,0.0343,0.255416,0.020567,0.227614,0.013079,-10.885,better,,0.7,segsweep_exchange_merge_n2
-exchange,2,forecast/mse,opcm,scale,0.5,3,5.73,0.0343,0.255416,0.020567,0.227614,0.013079,-10.885,better,,0.7,segsweep_exchange_merge_n2
-exchange,2,forecast/mse,opcm,scale,0.7,3,5.73,0.0343,0.255416,0.020567,0.227614,0.013079,-10.885,better,,0.7,segsweep_exchange_merge_n2
-exchange,3,forecast/mse,opcm,scale,0.3,3,5.73,0.1293,0.362579,0.065738,0.311154,0.052565,-14.183,better,,0.55,selalpha_exchange_n3
-exchange,3,forecast/mse,opcm,scale,0.5,3,5.73,0.1293,0.362579,0.065738,0.311154,0.052565,-14.183,better,,0.55,selalpha_exchange_n3
-exchange,3,forecast/mse,opcm,scale,0.7,3,5.73,0.1293,0.362579,0.065738,0.311308,0.052383,-14.141,better,,0.55,selalpha_exchange_n3
-exchange,5,forecast/mse,opcm,scale,0.3,3,5.73,0.1362,0.327055,0.028188,0.342028,0.023452,4.578,tie (inside floor),,0.3,segsweep_exchange_merge_n5
-exchange,5,forecast/mse,opcm,scale,0.5,3,5.73,0.1362,0.327055,0.028188,0.352235,0.021954,7.699,worse,,0.3,segsweep_exchange_merge_n5
-exchange,5,forecast/mse,opcm,scale,0.7,3,5.73,0.1362,0.327055,0.028188,0.378554,0.023791,15.746,worse,,0.3,segsweep_exchange_merge_n5
-SWaT,2,window_auroc,sum,became,,3,0.087,0.5923,0.8044,0.000985,0.800581,0.00115,0.475,worse,1.0,1.0,segsweep_swat_merge_n2
-SWaT,2,window_auroc,opcm,scale,0.5,3,0.087,0.5923,0.8044,0.000985,0.802587,0.001108,0.225,worse,,1.0,segsweep_swat_merge_n2
-SWaT,3,window_auroc,sum,became,,3,0.087,0.6007,0.803736,0.001344,0.799686,0.000557,0.504,worse,1.0,1.0,noisefloor_swat
-SWaT,3,window_auroc,opcm,scale,0.5,3,0.087,0.6007,0.803736,0.001344,0.802302,0.000824,0.178,worse,,1.0,noisefloor_swat
-SWaT,5,window_auroc,sum,became,,3,0.087,0.6102,0.804853,0.001889,0.799225,0.001504,0.699,worse,1.0,1.0,segsweep_swat_merge_n5
-SWaT,5,window_auroc,opcm,scale,0.5,3,0.087,0.6102,0.804853,0.001889,0.803202,0.00214,0.205,worse,,1.0,segsweep_swat_merge_n5
-PSM,2,window_auroc,sum,became,,3,0.068,0.1462,0.804109,0.000691,0.796971,0.001343,0.888,worse,1.0,1.0,segsweep_psm_merge_n2
-PSM,2,window_auroc,opcm,scale,0.5,3,0.068,0.1462,0.804109,0.000691,0.803068,0.000962,0.129,worse,,1.0,segsweep_psm_merge_n2
-PSM,3,window_auroc,sum,became,,3,0.068,0.2155,0.80046,0.002054,0.792437,0.001016,1.002,worse,1.0,1.0,noisefloor_psm
-PSM,3,window_auroc,opcm,scale,0.5,3,0.068,0.2155,0.80046,0.002054,0.800346,0.003116,0.014,tie (inside floor),,1.0,noisefloor_psm
-PSM,5,window_auroc,sum,became,,3,0.068,0.2142,0.794416,0.004909,0.785737,0.002294,1.093,worse,1.0,1.0,segsweep_psm_merge_n5
-PSM,5,window_auroc,opcm,scale,0.5,3,0.068,0.2142,0.794416,0.004909,0.798294,0.004403,-0.488,better,,1.0,segsweep_psm_merge_n5
-PSM-forecast,2,forecast/mse,opcm,scale,0.5,3,1.157,,0.362958,0.039069,0.374695,0.029741,3.234,worse,,0.55,adfc2_psm_merge_n2
-PSM-forecast,3,forecast/mse,opcm,scale,0.5,3,1.157,0.0343,0.392485,0.010808,0.402825,0.011344,2.634,worse,,0.3,adfc2_psm_merge_n3
-PSM-forecast,5,forecast/mse,opcm,scale,0.5,3,1.157,,0.40356,0.005596,0.407445,0.00136,0.963,tie (inside floor),,0.2,adfc2_psm_merge_n5
-SWaT-forecast,2,forecast/mse,opcm,scale,0.5,3,84.232,,14.858959,18.067498,15.406826,18.974468,3.687,tie (inside floor),,0.55,adfc2_swat_merge_n2
-SWaT-forecast,3,forecast/mse,opcm,scale,0.5,3,84.232,0.3221,4.760369,3.226638,5.115484,3.757167,7.46,tie (inside floor),,0.25,adfc2_swat_merge_n3
-SWaT-forecast,5,forecast/mse,opcm,scale,0.5,3,84.232,,5.244547,3.553435,5.604225,4.105597,6.858,tie (inside floor),,0.2,adfc2_swat_merge_n5
+dataset,n_segments,metric,rule,coefficient_source,threshold,n_seeds,floor_pct,rho,plain,plain_sd,remerged,remerged_sd,delta_pct,verdict,implied_alpha_times_n,committed_alpha,source_experiment,plain_matched_seed,delta_pct_matched_seed,verdict_matched_seed,verdict_changed
+ETTh1,2,forecast/mse,opcm,scale,0.3,3,8.759,0.0944,0.459709,0.01414,0.455843,0.015598,-0.841,tie (inside floor),,0.5,segsweep_etth1_merge_n2,,,,
+ETTh1,2,forecast/mse,opcm,scale,0.5,3,8.759,0.0944,0.459709,0.01414,0.455843,0.015598,-0.841,tie (inside floor),,0.5,segsweep_etth1_merge_n2,,,,
+ETTh1,2,forecast/mse,opcm,scale,0.7,3,8.759,0.0944,0.459709,0.01414,0.455843,0.015598,-0.841,tie (inside floor),,0.5,segsweep_etth1_merge_n2,,,,
+ETTh1,3,forecast/mse,opcm,scale,0.3,3,8.759,0.0679,0.496383,0.010514,0.491435,0.009329,-0.997,tie (inside floor),,0.3,selalpha_etth1_n3,,,,
+ETTh1,3,forecast/mse,opcm,scale,0.5,3,8.759,0.0679,0.496383,0.010514,0.491435,0.009329,-0.997,tie (inside floor),,0.3,selalpha_etth1_n3,,,,
+ETTh1,3,forecast/mse,opcm,scale,0.7,3,8.759,0.0679,0.496383,0.010514,0.491476,0.009019,-0.989,tie (inside floor),,0.3,selalpha_etth1_n3,,,,
+ETTh1,5,forecast/mse,opcm,scale,0.3,3,8.759,0.0707,0.451689,0.022118,0.460246,0.020528,1.894,tie (inside floor),,0.2,segsweep_etth1_merge_n5,,,,
+ETTh1,5,forecast/mse,opcm,scale,0.5,3,8.759,0.0707,0.451689,0.022118,0.461242,0.021127,2.115,tie (inside floor),,0.2,segsweep_etth1_merge_n5,,,,
+ETTh1,5,forecast/mse,opcm,scale,0.7,3,8.759,0.0707,0.451689,0.022118,0.46234,0.020458,2.358,tie (inside floor),,0.2,segsweep_etth1_merge_n5,,,,
+ETTh2,2,forecast/mse,opcm,scale,0.3,3,6.741,0.0199,0.261224,0.045197,0.291946,0.073943,11.761,worse,,0.65,etth2_merge_n2,,,,
+ETTh2,2,forecast/mse,opcm,scale,0.5,3,6.741,0.0199,0.261224,0.045197,0.291946,0.073943,11.761,worse,,0.65,etth2_merge_n2,,,,
+ETTh2,2,forecast/mse,opcm,scale,0.7,3,6.741,0.0199,0.261224,0.045197,0.291946,0.073943,11.761,worse,,0.65,etth2_merge_n2,,,,
+ETTh2,3,forecast/mse,opcm,scale,0.3,3,6.741,0.0713,0.215281,0.018391,0.264626,0.061627,22.921,worse,,0.25,etth2_merge_n3,,,,
+ETTh2,3,forecast/mse,opcm,scale,0.5,3,6.741,0.0713,0.215281,0.018391,0.264626,0.061627,22.921,worse,,0.25,etth2_merge_n3,,,,
+ETTh2,3,forecast/mse,opcm,scale,0.7,3,6.741,0.0713,0.215281,0.018391,0.270969,0.068143,25.868,worse,,0.25,etth2_merge_n3,,,,
+ETTh2,5,forecast/mse,opcm,scale,0.3,3,6.741,0.1262,0.26692,0.030245,0.441447,0.143532,65.385,worse,,0.15,etth2_merge_n5,,,,
+ETTh2,5,forecast/mse,opcm,scale,0.5,3,6.741,0.1262,0.26692,0.030245,0.440017,0.14225,64.85,worse,,0.15,etth2_merge_n5,,,,
+ETTh2,5,forecast/mse,opcm,scale,0.7,3,6.741,0.1262,0.26692,0.030245,0.449955,0.130495,68.573,worse,,0.15,etth2_merge_n5,,,,
+ETTm2,2,forecast/mse,opcm,scale,0.3,3,14.107,0.0322,0.123973,0.007642,0.126923,0.007468,2.38,tie (inside floor),,0.4,ettm2_merge_n2,,,,
+ETTm2,2,forecast/mse,opcm,scale,0.5,3,14.107,0.0322,0.123973,0.007642,0.126923,0.007468,2.38,tie (inside floor),,0.4,ettm2_merge_n2,,,,
+ETTm2,2,forecast/mse,opcm,scale,0.7,3,14.107,0.0322,0.123973,0.007642,0.126923,0.007468,2.38,tie (inside floor),,0.4,ettm2_merge_n2,,,,
+ETTm2,3,forecast/mse,opcm,scale,0.3,3,14.107,0.0498,0.112149,0.013002,0.118573,0.018187,5.728,tie (inside floor),,0.25,ettm2_merge_n3,,,,
+ETTm2,3,forecast/mse,opcm,scale,0.5,3,14.107,0.0498,0.112149,0.013002,0.118573,0.018187,5.728,tie (inside floor),,0.25,ettm2_merge_n3,,,,
+ETTm2,3,forecast/mse,opcm,scale,0.7,3,14.107,0.0498,0.112149,0.013002,0.119576,0.018743,6.622,tie (inside floor),,0.25,ettm2_merge_n3,,,,
+ETTm2,5,forecast/mse,opcm,scale,0.3,3,14.107,0.0975,0.138523,0.008026,0.152498,0.005506,10.089,tie (inside floor),,0.15,ettm2_merge_n5,,,,
+ETTm2,5,forecast/mse,opcm,scale,0.5,3,14.107,0.0975,0.138523,0.008026,0.154607,0.005676,11.611,tie (inside floor),,0.15,ettm2_merge_n5,,,,
+ETTm2,5,forecast/mse,opcm,scale,0.7,3,14.107,0.0975,0.138523,0.008026,0.171746,0.007455,23.984,worse,,0.15,ettm2_merge_n5,,,,
+exchange,2,forecast/mse,opcm,scale,0.3,3,5.73,0.0343,0.255416,0.020567,0.227614,0.013079,-10.885,better,,0.7,segsweep_exchange_merge_n2,,,,
+exchange,2,forecast/mse,opcm,scale,0.5,3,5.73,0.0343,0.255416,0.020567,0.227614,0.013079,-10.885,better,,0.7,segsweep_exchange_merge_n2,,,,
+exchange,2,forecast/mse,opcm,scale,0.7,3,5.73,0.0343,0.255416,0.020567,0.227614,0.013079,-10.885,better,,0.7,segsweep_exchange_merge_n2,,,,
+exchange,3,forecast/mse,opcm,scale,0.3,3,5.73,0.1293,0.362579,0.065738,0.311154,0.052565,-14.183,better,,0.55,selalpha_exchange_n3,,,,
+exchange,3,forecast/mse,opcm,scale,0.5,3,5.73,0.1293,0.362579,0.065738,0.311154,0.052565,-14.183,better,,0.55,selalpha_exchange_n3,,,,
+exchange,3,forecast/mse,opcm,scale,0.7,3,5.73,0.1293,0.362579,0.065738,0.311308,0.052383,-14.141,better,,0.55,selalpha_exchange_n3,,,,
+exchange,5,forecast/mse,opcm,scale,0.3,3,5.73,0.1362,0.327055,0.028188,0.342028,0.023452,4.578,tie (inside floor),,0.3,segsweep_exchange_merge_n5,,,,
+exchange,5,forecast/mse,opcm,scale,0.5,3,5.73,0.1362,0.327055,0.028188,0.352235,0.021954,7.699,worse,,0.3,segsweep_exchange_merge_n5,,,,
+exchange,5,forecast/mse,opcm,scale,0.7,3,5.73,0.1362,0.327055,0.028188,0.378554,0.023791,15.746,worse,,0.3,segsweep_exchange_merge_n5,,,,
+SWaT,2,window_auroc,sum,became,,3,0.087,0.5923,0.8044,0.000985,0.800581,0.00115,0.475,worse,1.0,1.0,segsweep_swat_merge_n2,,,,
+SWaT,2,window_auroc,opcm,scale,0.5,3,0.087,0.5923,0.8044,0.000985,0.802587,0.001108,0.225,worse,,1.0,segsweep_swat_merge_n2,,,,
+SWaT,3,window_auroc,sum,became,,3,0.087,0.6007,0.803736,0.001344,0.799686,0.000557,0.504,worse,1.0,1.0,noisefloor_swat,,,,
+SWaT,3,window_auroc,opcm,scale,0.5,3,0.087,0.6007,0.803736,0.001344,0.802302,0.000824,0.178,worse,,1.0,noisefloor_swat,,,,
+SWaT,5,window_auroc,sum,became,,3,0.087,0.6102,0.804853,0.001889,0.799225,0.001504,0.699,worse,1.0,1.0,segsweep_swat_merge_n5,,,,
+SWaT,5,window_auroc,opcm,scale,0.5,3,0.087,0.6102,0.804853,0.001889,0.803202,0.00214,0.205,worse,,1.0,segsweep_swat_merge_n5,,,,
+PSM,2,window_auroc,sum,became,,3,0.068,0.1462,0.804109,0.000691,0.796971,0.001343,0.888,worse,1.0,1.0,segsweep_psm_merge_n2,,,,
+PSM,2,window_auroc,opcm,scale,0.5,3,0.068,0.1462,0.804109,0.000691,0.803068,0.000962,0.129,worse,,1.0,segsweep_psm_merge_n2,,,,
+PSM,3,window_auroc,sum,became,,3,0.068,0.2155,0.80046,0.002054,0.792437,0.001016,1.002,worse,1.0,1.0,noisefloor_psm,,,,
+PSM,3,window_auroc,opcm,scale,0.5,3,0.068,0.2155,0.80046,0.002054,0.800346,0.003116,0.014,tie (inside floor),,1.0,noisefloor_psm,,,,
+PSM,5,window_auroc,sum,became,,3,0.068,0.2142,0.794416,0.004909,0.785737,0.002294,1.093,worse,1.0,1.0,segsweep_psm_merge_n5,,,,
+PSM,5,window_auroc,opcm,scale,0.5,3,0.068,0.2142,0.794416,0.004909,0.798294,0.004403,-0.488,better,,1.0,segsweep_psm_merge_n5,,,,
+PSM-forecast,2,forecast/mse,opcm,scale,0.5,3,1.157,,0.362958,0.039069,0.374695,0.029741,3.234,worse,,0.55,adfc2_psm_merge_n2,,,,
+PSM-forecast,3,forecast/mse,opcm,scale,0.5,3,1.157,0.0343,0.392485,0.010808,0.402825,0.011344,2.634,worse,,0.3,adfc2_psm_merge_n3,,,,
+PSM-forecast,5,forecast/mse,opcm,scale,0.5,3,1.157,,0.40356,0.005596,0.407445,0.00136,0.963,tie (inside floor),,0.2,adfc2_psm_merge_n5,,,,
+SWaT-forecast,2,forecast/mse,opcm,scale,0.5,3,84.232,,14.858959,18.067498,15.406826,18.974468,3.687,tie (inside floor),,0.55,adfc2_swat_merge_n2,,,,
+SWaT-forecast,3,forecast/mse,opcm,scale,0.5,3,84.232,0.3221,4.760369,3.226638,5.115484,3.757167,7.46,tie (inside floor),,0.25,adfc2_swat_merge_n3,,,,
+SWaT-forecast,5,forecast/mse,opcm,scale,0.5,3,84.232,,5.244547,3.553435,5.604225,4.105597,6.858,tie (inside floor),,0.2,adfc2_swat_merge_n5,,,,

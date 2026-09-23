@@ -117,8 +117,13 @@ A series is split once, chronologically and never shuffled:
 The **base model θ₀** trains on the first 50% of the training portion and is then frozen. The
 remainder is cut into `n` equal **periods** (called *shards* or *segments* elsewhere in the
 codebase — same thing). The test set is the final 20% of the whole series and is never used for
-any training or model selection. Each period holds out its own **validation slice** — the last
-`val_fraction` of it, temporally — which is what "val_i" means in every table below.
+training, for checkpoint selection, or for choosing α — those use validation only. ⚠️ **The
+architecture and training settings are a different matter, and are stated in §0.1c:** for
+SWaT, PSM and ETTh1 they are grid-search trials, the grid's ranking tool reads test columns, and
+the record of how the trial was chosen was removed — so "never used for model selection" cannot
+be verified for them. §0.1c measures where the chosen trials rank. Each period holds out its own
+**validation slice** — the last `val_fraction` of it, temporally — which is what "val_i" means in
+every table below.
 
 ### 0.1b The six datasets
 
@@ -160,6 +165,55 @@ where it looks worst. That contrast drives most of the conclusions below.
 
 All four come from `thuml/Time-Series-Library`. Every model is the same MAE transformer
 (`MaeTx`); per-dataset architecture and training settings are in §2.
+
+### 0.1c How the configurations were chosen, and what the joint reference is
+
+> **Provenance.** `analysis/config_selection_report.py` →
+> `config_selection/{config_selection_ranks,joint_sensitivity}.csv`, reading the grid-search
+> CSVs archived under `results_archive/audit/grid_search/`. No new runs. Grid trials are
+> single-seed (42), so everything here is about **sensitivity to the configuration**, not level.
+
+**Each dataset uses one configuration for all of its pipelines** (§2) — merge, sequential and
+joint differ only in `--pipeline`. That is a controlled comparison: a difference between two
+pipelines cannot be a difference in architecture or learning rate. For SWaT, PSM and ETTh1 that
+configuration is a grid-search trial; the forecasting datasets added later (exchange_rate, ETTh2,
+ETTm2, PSM- and SWaT-forecast) reuse settings rather than being tuned on their own data.
+
+**1. The configurations of record were not picked by maximising a test metric.** How the trial
+was chosen cannot be read off the repo — the grid record was removed (header of this file) and
+`slurm_grid_search/report.py` can only rank on test columns — so this measures instead where each
+trial of record ranks under **every** validation and test criterion the grid recorded. A trial
+chosen by maximising a test metric would rank first on it. **The trials of record rank first on 1
+of 27 criteria** (SWaT's joint trial on `window_f1`, not a metric this file draws a conclusion
+from); on the primary metrics they rank 4th of 15 (SWaT merge, test AUROC), 5th of 30 (PSM merge)
+and 13th of 15 (ETTh1 merge, test MSE). There is no sign of test-set tuning — but the criterion
+that *was* used is unrecorded, and that is stated rather than guessed.
+
+**2. The joint-training reference is the shared configuration, not a separately tuned one.** Joint
+training is the denominator of GRR and the reference of every "merging vs joint" claim, so how
+good it *could* be matters more than for any other column. Other configurations in the grid's
+joint-training sweep would move it by:
+
+| dataset | metric | floor | best by validation | best valid configuration on test | trials |
+|---|---|---|---|---|---|
+| SWaT | `window_auroc` | 0.087% | **+0.23%** (2.7× floor) | +0.24% (2.7× floor) | 7 |
+| PSM | `window_auroc` | 0.068% | **+0.37%** (5.5× floor) | +0.55% (8.1× floor)¹ | 14 |
+| ETTh1 | `forecast/mse` | 8.759% | **+2.34%** (0.3× floor) | +10.13% (1.2× floor) | 7 |
+
+Positive = that configuration's joint model is **better** than the reference used, in % of it.
+¹ PSM's raw test-best is `patch_len = 25`, which `MaeTx` now refuses as degenerate (fewer than
+four visible patches); the column uses the best configuration that would still run.
+
+**What this means for the conclusions.** On **forecasting** the reference is inside its floor
+under validation-based tuning — the only tuning a deployment could do — so "merging vs joint"
+verdicts on ETTh1 are unaffected. On **AD** a differently configured joint model would be
+2.7–8.1× the floor better, which is larger than several AD merge-vs-joint margins in §1. ⚠️
+**Read every AD "merging vs joint" verdict and every AD GRR as relative to the shared
+configuration's joint model, not to the best achievable one.** Two things make this less
+damaging than it sounds: on AD, "best by validation" means best *reconstruction error*, which
+§1.12 shows is blind to detection, so no label-free procedure would have picked the better joint
+configuration either; and the merge itself was not tuned per pipeline — the configuration serves
+all of them equally.
 
 ### 0.2 The update strategies
 
@@ -340,7 +394,10 @@ checkpoint set, and exits on anything else — filter the list before passing it
   had — and **independence** between runs of different pipelines, which if they share data
   splits over-estimates the threshold and again errs toward *tie*. Cells within 1.5× of the
   threshold are marked as boundary cells: with three seeds each sd carries roughly 50% relative
-  uncertainty, so the threshold is itself uncertain.
+  uncertainty, so the threshold is itself uncertain. ⚠️ **This is a decision rule, not a
+  significance test**: no p-value is attached to a better/tie/worse verdict, and with three seeds
+  none could be computed with useful power. Where a claim carries weight, the file reports a
+  paired seed-level spread or an exact permutation test beside it (e.g. `C31`, §1.36).
 - **Percentages.** "A beats B by p%" is **always** p = (B − A) / B for an error metric — a
   fraction of **B, the alternative**. The reverse denominator inflates every figure; it produced
   three of the errors found in August 2026.
@@ -522,13 +579,13 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**43 claims: 30 supported, 4 hypothesis, 9 refuted.** The rule downgraded
+**44 claims: 31 supported, 4 hypothesis, 9 refuted.** The rule downgraded
 **3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
 now marked as a hypothesis in place.
 
-⚠️ **35 of the 43 are merging claims; `C35`–`C42` are not** (`C43` is one, and is the chapter's last: it restates finished results in GRR and adds no run). The merging chapter's tally — the
+⚠️ **35 of the 44 are merging claims; `C35`–`C42` are not** (`C43` is one, and is the chapter's last: it restates finished results in GRR and adds no run). `C44` is a project-wide scope row (§0.1c), not a merging result. The merging chapter's tally — the
 one CLAUDE.md's freeze quotes — is **unchanged at 34: 24 supported, 3 hypothesis, 7 refuted**.
 Strategy 6 (§1.39) is a sequential method, and its rows are counted here because this register
 covers the *document*, not because the freeze moved.
@@ -1362,6 +1419,12 @@ optimum — these penalties come from the grid already used for the curve. A fin
 shrink them; a coarser one would not.
 
 ### 1.11 The segment-count sweep
+
+> ⚠️ **AD GRR here is relative to the shared configuration's joint model** (§0.1c): a differently
+> configured joint would be 2.7–8.1× the AD floor better, which would lower every AD GRR in this
+> section. Forecasting GRR is unaffected (the reference is inside its floor under validation
+> tuning), and §1.12's *cost* is a ratio of two GRRs in which the joint cancels, so it is
+> unaffected on both.
 
 `n_finetune_segments ∈ {2, 3, 5}` across all four datasets — 12 configurations. The
 baseline partition is fixed at 50% of training data throughout, so **segment size varies
@@ -5216,6 +5279,83 @@ dataloader argument (`--pipeline_fisher_batch_size 1`), it was invisible to ever
 this repo, and it was found only because a coefficient came out absurd and the absurdity was
 chased rather than tuned away.
 
+
+### 1.40 The supervisor's merge baselines — DARE, TIES, Iso-C, TSV (registration)
+
+> **Provenance.** `framework/merging/interference.py` (port of the supervisor's `other/`, which is
+> left untouched) → `analysis/remerge.py --baseline_rule` → one `result.json` per (run, rule, α).
+> Gates in `scripts/verify_merge_baselines.py`. **Training-free**: every merge recombines the
+> baseline and fine-tune checkpoints the runs of record already hold, after `remerge.py`'s
+> bitwise self-check has rebuilt each run's stored merge.
+
+**Four defects in the reference were fixed, each first reproduced on the reference itself.**
+The gates import `other/` read-only and require the port to equal it **exactly** wherever
+nothing was changed, and to differ by **exactly** the documented factor where something was:
+
+| rule | defect in the reference | effect, measured on the reference | fix |
+|---|---|---|---|
+| TIES | matrix delta scaled by an extra 1/n | surviving matrix entries at **0.333** of their value at n = 3, biases at 1.0 | drop the 1/n, as the official `ptm + lamda * merged_tv` |
+| Iso-C | flattened the *mean* task matrix, not the *sum* | spectrum **3.000×** smaller than the official `iso_c` at n = 3 | multiply back by n before the SVD, as the official code does |
+| DARE | mask drawn from the unseeded global RNG | two identical calls give different merges | per-task generator seeded by the run's training seed |
+| TSV | a matrix of rank < n is silently zeroed | a (4, 10) matrix at n = 5 comes back all zeros | raise instead (never fires here: no matrix in these models has a dimension below 5) |
+
+TIES and Iso-C are the same class of defect: a scale error on **matrices only**, which a global α
+cannot undo because α scales matrices and biases together. TA and TSV match the reference
+exactly; TSV also matches the official code, which the gates' first draft assumed and did not
+check.
+
+**Kept as the supervisor wrote them, and stated rather than silently changed:** TIES trims each
+matrix to its own top 20% (the official code trims the whole flattened model at once) and merges
+non-matrix tensors by plain mean; DARE drops only from 2-D tensors (the official code masks
+everything). These are design choices, not bugs, and changing them would stop this being the
+method that was handed over.
+
+**Protocol — the part that makes the comparison fair.** The rules' α are **not on a common scale**
+(TA and DARE sum task vectors, TIES averages them, Iso-C and TSV put matrices at sum scale and
+everything else at mean scale — inherited from the official code). A single α would favour
+whichever rule it happens to suit, so every rule, **task arithmetic included**, is swept over one
+grid α ∈ {0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0} and treated identically:
+
+- **Forecasting:** α selected per seed on the merged-val union's `forecast/mse` — the same
+  `selection_metric()` task arithmetic's own `--pipeline_select_merge_scale_on_val` uses. The
+  headline is test at that α; the test-optimal α is reported beside it as an **upper bound**.
+- **AD:** val selection is refused (§1.12 — the test metrics are rank-based and blind to α), so
+  every rule is reported at the α where it travels **exactly as far from the base as task
+  arithmetic does at its committed α = 1.0** — §1.38's distance-matched control. The grid
+  α ∈ {0.5, 1.0, 2.0, 3.0, 5.0} supplies the test-optimal α as an upper bound.
+
+  ⚠️ **This AD protocol was changed after a smoke run and before any comparison existed.** It was
+  first registered as "every rule at α = 1.0". A single-seed smoke of TIES on PSM showed AUROC
+  still rising at α = 3.0 (0.784 → 0.792 → 0.803 → 0.808), which is the scale problem above
+  showing itself: TIES *averages* task vectors where task arithmetic *sums* them, so a shared α
+  hands it roughly 1/n of TA's strength and the comparison would measure magnitude, not method.
+  No task-arithmetic number had been computed on that run when the change was made, so it could
+  not have been chosen to favour either side; it is recorded here so it is not mistaken for a
+  post-hoc adjustment.
+- The comparison is against **task arithmetic under the same protocol** — same grid, same
+  selection rule, same evaluation code — not against the stored merge, so a difference cannot be
+  an artefact of two paths. Distance travelled, ‖α·Δ‖, is emitted per cell (§1.37/§1.38: compare
+  distances, not coefficients, once a transform is in the loop). A selected α on the grid's edge
+  is flagged.
+- All 24 (dataset, n) configurations of `method_comparison_spec.csv`, three seeds each: 72
+  runs, five rules, 54 forecasting jobs and 90 AD jobs.
+
+⚠️ **Predictions, registered 2026-09-23 before the sweep:**
+
+- **P1.** No rule beats same-protocol task arithmetic outside the floor on more than **3** of the
+  21 configurations that exclude SWaT-forecast. These methods were designed to resolve
+  interference between *heterogeneous* tasks; here the tasks are temporal slices of one series,
+  and §1.36–§1.38 found that removing parts of the task vectors costs on this backbone (`C34`).
+- **P2.** TIES and TSV lose the most — each discards most of every task vector (TIES keeps 20% of
+  each matrix; TSV keeps rank/n directions per task), the same kind of operation `C34` refuted.
+- **P3.** DARE ties task arithmetic inside the floor on most configurations: it is unbiased
+  (E[DARE] = TA, a gate), so at a matched α it differs only by mask noise.
+- **P4.** Of the four, Iso-C has the best mean rank, and where it helps at all it is where task
+  arithmetic's GRR is lowest.
+
+**Results**
+
+_Pending — registered before the sweep._
 
 ## 2. Exact configurations
 

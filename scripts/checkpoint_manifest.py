@@ -37,7 +37,12 @@ from pathlib import Path
 log = logging.getLogger("checkpoint_manifest")
 
 EXTRA_PREFIXES = ("opcm2_", "window_", "origin_", "basefrac_", "selalpha_", "n1_",
-                  "aeft_", "adfc2_")
+                  "aeft_", "adfc2_",
+                  # Strategy 6 (§1.39): its runs are discovered by `adaptive_lambda_report` from
+                  # the adaptive_lambdas.csv they write, not named by any spec, so the derived
+                  # scope above never reached them and their checkpoints — which back §1.39's
+                  # published numbers — went uninventoried until 2026-09-23.
+                  "adaptive_became_", "fisherfix_", "onet_", "lamgrid_")
 
 
 def referenced_experiments(spec_dir: Path, regenerate_script: Path) -> set[str]:

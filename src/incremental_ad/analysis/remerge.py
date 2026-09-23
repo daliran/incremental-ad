@@ -53,6 +53,84 @@ def committed_alpha(run: Path, args: dict) -> tuple[float, str]:
     return float(args.get("pipeline_merge_scale", 1.0)), "config.json"
 
 
+def evaluate(model, dataset, configurator, runner, seed,
+             test_only: bool = False) -> dict[str, float]:
+    """Merged-val and test metrics for whatever `model` currently holds."""
+    metrics: dict[str, float] = {}
+    splits = [("val", dataset.get_merged_val_eval_dataset), ("test", dataset.get_test_dataset)]
+    for split, loader_fn in (splits[1:] if test_only else splits):
+        evaluator = (configurator.create_val_evaluator() if split == "val"
+                     else configurator.create_test_evaluator())
+        try:
+            scored = runner.run(model, evaluator, loader_fn(), seed=seed)
+        except Exception as exc:                                    # noqa: BLE001
+            log.warning("  %s evaluation failed: %s", split, exc)
+            continue
+        metrics.update({f"{split}/{k}": v for k, v in scored.items()})
+    return metrics
+
+
+def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source,
+                      model, dataset, configurator, runner) -> None:
+    """Build one rule's Delta once, then evaluate theta_0 + a * Delta for every a in the grid.
+
+    Also records ``||Delta||`` and TA's ``||sum tau||``, so the distance each merge travels from
+    the base — ``a * ||Delta||`` — can be read against task arithmetic's at its own alpha. The
+    rules put their deltas on different scales (module docstring of `interference.py`), and
+    §1.37/§1.38 showed that comparing coefficients across a transform, rather than distances,
+    can overstate a difference about twofold.
+    """
+    import torch
+
+    from incremental_ad.framework.merging.interference import DELTAS
+    from incremental_ad.framework.merging.task_vectors import apply_task_vectors
+
+    seed = run_args.get("seed")
+    rule = args.baseline_rule
+    builder = DELTAS[rule]
+    # DARE's mask is seeded by the TRAINING seed, so the three seeds of a configuration draw
+    # three independent masks and the mask's own variance lands in the reported seed spread.
+    delta = builder(taus, seed=int(seed or 0)) if rule == "dare" else builder(taus)
+
+    def norm(state) -> float:
+        return float(torch.sqrt(sum((v.to(torch.float64) ** 2).sum() for v in state.values())))
+
+    delta_norm = norm(delta)
+    ta_norm = norm(DELTAS["ta"](taus))
+    log.info("[%s] ||Delta||=%.4f  ||sum tau||=%.4f  ratio %.4f  — %d alphas",
+             rule, delta_norm, ta_norm, delta_norm / ta_norm if ta_norm else float("nan"),
+             len(args.alpha_grid))
+
+    points = [(value, f"{rule}_a{value:.2f}") for value in args.alpha_grid]
+    if args.distance_match_alpha is not None:
+        matched = args.distance_match_alpha * ta_norm / delta_norm
+        points.append((matched, f"{rule}_dm"))
+        log.info("[%s] distance-matched to TA at alpha=%.2f: alpha=%.6f travels %.6f",
+                 rule, args.distance_match_alpha, matched, matched * delta_norm)
+
+    for value, tag in points:
+        model.load_state_dict(apply_task_vectors(base_state, [delta], value))
+        metrics = evaluate(model, dataset, configurator, runner, seed, args.test_only)
+        out_dir = args.out / f"{run.parent.name}__{run.name}" / tag
+        out_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "source_run": str(run), "merge_rule": f"baseline:{rule}",
+            "baseline_rule": rule, "alpha": value, "alpha_grid": list(args.alpha_grid),
+            "committed_alpha": alpha, "committed_alpha_source": alpha_source,
+            "delta_norm": round(delta_norm, 6), "ta_sum_norm": round(ta_norm, 6),
+            "distance_from_base": round(value * delta_norm, 6),
+            "distance_matched_to_ta_alpha": (args.distance_match_alpha
+                                             if tag.endswith("_dm") else None),
+            "dare_seed": int(seed or 0) if rule == "dare" else None,
+            "seed": seed, "n_shards": len(taus), "metrics": metrics,
+        }
+        log.info("[%s] alpha=%.2f  %s", rule, value,
+                 {k: round(v, 5) for k, v in metrics.items()
+                  if isinstance(v, float) and k.split("/", 1)[1] in
+                  ("forecast/mse", "window_auroc", "reconstruction/score_mean")})
+        write_result(out_dir, payload)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--run_dir", type=Path, required=True)
@@ -89,6 +167,29 @@ def main() -> None:
                         help="shuffling seed for the Fisher loader. Two draws at one sample size "
                              "measure the estimator's own variance, which is the thing §1.32 "
                              "needs to separate from real shard differences.")
+    parser.add_argument("--baseline_rule", choices=["ta", "dare", "ties", "iso_c", "tsv"],
+                        default=None,
+                        help="the supervisor's interference-reducing rules "
+                             "(framework/merging/interference.py). Each is theta_0 + alpha * "
+                             "Delta with Delta independent of alpha, so Delta is built ONCE and "
+                             "every alpha in --alpha_grid is evaluated from it; one result.json "
+                             "per alpha. 'ta' is the same-protocol control. Selection of alpha "
+                             "happens downstream, on the val metrics written here — this script "
+                             "measures, it does not choose.")
+    parser.add_argument("--alpha_grid", type=float, nargs="+",
+                        default=[0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0])
+    parser.add_argument("--distance_match_alpha", type=float, default=None,
+                        help="--baseline_rule only: ALSO evaluate the rule at the alpha where "
+                             "||alpha * Delta|| equals task arithmetic's ||A * sum tau||, i.e. "
+                             "where it travels exactly as far from the base as TA does at alpha "
+                             "A. Written under tag '<rule>_dm'. This is §1.38's control: the "
+                             "rules put Delta on different scales, so a shared alpha compares "
+                             "magnitude and direction at once, and a shared DISTANCE isolates "
+                             "direction.")
+    parser.add_argument("--test_only", action="store_true",
+                        help="--baseline_rule only: skip the merged-val pass. For AD, where val "
+                             "selection is refused (§1.12) and the protocol reads a fixed alpha, "
+                             "that pass is never used — and on SWaT each one costs minutes.")
     parser.add_argument("--tag", default=None, help="output subdirectory name")
     parser.add_argument("--skip_self_check", action="store_true")
     parser.add_argument("--out", type=Path, required=True)
@@ -173,6 +274,15 @@ def main() -> None:
                 )
             log.info("[remerge] self-check ok — %s + %s via %s is bitwise identical to the "
                      "stored merge", source_rule, source_coefficient, how)
+
+    # --- the supervisor's rules: one Delta, a grid of alphas --------------------------------
+    # Entirely separate from the path below, which produces every published re-merge; nothing in
+    # it is touched. The self-check above has already run, so a run that fails to rebuild its own
+    # stored merge never reaches this point.
+    if args.baseline_rule is not None:
+        run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source,
+                          model, dataset, configurator, runner)
+        return
 
     # --- the requested merge -------------------------------------------------------------------
     lambdas: list[float] = []

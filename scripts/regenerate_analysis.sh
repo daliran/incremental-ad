@@ -170,6 +170,7 @@ echo "== OPCM / BECAME re-merge sweep (§1.35) =="
 python -m incremental_ad.analysis.remerge_report --runs_root "$RUNS" \
     --remerge_dir "$(carried remerge_sweep)" --floors "$OUT/floors.csv" \
     --geometry results_archive/audit/geometry/geometry_by_dataset.csv \
+    --rescored_dir "$(carried merge_baselines_runs)" \
     --geometry_summary results_archive/audit/geometry/geometry_summary.csv \
                        "$(carried geometry_gap)/geometry_summary.csv" \
     --out "$OUT/remerge_sweep_report" || echo "  remerge report skipped (no sweep outputs)"
@@ -190,7 +191,7 @@ echo "== closeout: BECAME rescaled + order reversal (§1.36) =="
 python -m incremental_ad.analysis.remerge_closeout_report --runs_root "$RUNS" \
     --remerge_dir "$(carried remerge_closeout_runs)" --forward_dir "$(carried remerge_sweep)" \
     --floors "$OUT/floors.csv" --derived "$OUT/derived.csv" \
-    --per_seed "$OUT/run_metrics_per_seed.csv" \
+    --per_seed "$OUT/run_metrics_per_seed.csv" --rescored_dir "$(carried merge_baselines_runs)" \
     --out "$OUT/remerge_closeout" || echo "  closeout report skipped (no sweep outputs)"
 
 echo "== headroom vs OPCM cost (§1.36, C31) =="
@@ -204,6 +205,23 @@ python -m incremental_ad.analysis.headroom_cost_report --audit_dir "$OUT" \
     --closeout "$(carried remerge_closeout)/remerge_closeout.csv" \
     --out "$OUT/headroom_cost" \
     || echo "  headroom_cost skipped (no closeout outputs)"
+
+echo "== how the configurations of record sit in their grid searches (§0.1c) =="
+# The grid-search CSVs are archived inputs (the grid record was removed from the documents, and
+# the choice of configuration is something an examiner asks about), so they are carried.
+python -m incremental_ad.analysis.config_selection_report --self-test
+python -m incremental_ad.analysis.config_selection_report \
+    --grid_dir "$(carried grid_search)" --floors "$OUT/floors.csv" --out "$OUT/config_selection"
+
+echo "== the supervisor's merge baselines (§1.40) =="
+# The per-run grid is GPU-produced (`remerge.py --baseline_rule`) and archived as
+# `merge_baselines_runs`, so it is resolved through `carried` -- reading it from "$OUT" before the
+# carry loop finds nothing, which is the trap `remerge_closeout` fell into.
+python -m incremental_ad.analysis.merge_baselines_report --self-test
+python -m incremental_ad.analysis.merge_baselines_report --runs_root "$RUNS" \
+    --remerge_dir "$(carried merge_baselines_runs)" --floors "$OUT/floors.csv" \
+    --derived "$OUT/derived.csv" --out "$OUT/merge_baselines" \
+    || echo "  merge_baselines skipped (no grid outputs)"
 
 echo "== adaptive-lambda sequential fine-tuning (§1.39) =="
 # Strategy 6, not a merging experiment (CLAUDE.md scope note). Pure aggregation over finished
@@ -239,7 +257,7 @@ echo "== carrying forward GPU-only outputs (not regenerated here) =="
 for sub in oracle_router concentration novelty_swat selection_probe drift \
            geometry novelty alignment subblocks mask_span window_selection remerge \
            remerge_sweep remerge_closeout remerge_closeout_runs geometry_gap geometry_aeft \
-           fisher_scaling_sweep; do
+           fisher_scaling_sweep merge_baselines_runs grid_search; do
     if [ -d "$CARRY/$sub" ] && [ ! -d "$OUT/$sub" ]; then
         cp -r "$CARRY/$sub" "$OUT/$sub"
         echo "  carried $sub from results_archive (regenerate with a GPU job if its runs changed)"

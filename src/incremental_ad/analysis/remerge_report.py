@@ -46,7 +46,12 @@ SCANNED = [0]
 FIELDS = ["dataset", "n_segments", "metric", "rule", "coefficient_source", "threshold",
           "n_seeds", "floor_pct", "rho",
           "plain", "plain_sd", "remerged", "remerged_sd", "delta_pct", "verdict",
-          "implied_alpha_times_n", "committed_alpha", "source_experiment"]
+          "implied_alpha_times_n", "committed_alpha", "source_experiment",
+          # Matched-seed correction for AD, as in remerge_closeout_report.attach_matched_seed:
+          # `plain` is the STORED merge (scored at eval_seed = seed + 1) while `remerged` was
+          # scored by remerge.py at `seed`, so on AD the two arms saw different random masks.
+          "plain_matched_seed", "delta_pct_matched_seed", "verdict_matched_seed",
+          "verdict_changed"]
 
 # rho is read **per merge experiment**, not per dataset label.
 #
@@ -141,6 +146,9 @@ def main() -> None:
                         help="geometry_summary.csv files keyed by experiment_name; these win "
                              "over the per-dataset aggregate because they are measured on the "
                              "exact task vectors the re-merge used")
+    parser.add_argument("--rescored_dir", type=Path,
+                        help="§1.40's grid: its ta_a1.00 is the stored merge re-scored at the "
+                             "re-merge's eval seed (AD matched-seed correction)")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -236,6 +244,33 @@ def main() -> None:
                 "committed_alpha": items[0][3],
                 "source_experiment": experiment,
             })
+
+    if args.rescored_dir is not None and args.rescored_dir.is_dir():
+        flips = 0
+        for row in rows:
+            if row["metric"] not in ("window_auroc", "window_auprc"):
+                continue
+            group = args.runs_root / row["source_experiment"]
+            values = []
+            for run in sorted(q for q in group.iterdir() if q.is_dir()) if group.is_dir() else []:
+                payload, _why = load_result(
+                    args.rescored_dir / f"{row['source_experiment']}__{run.name}" / "ta_a1.00"
+                    / "result.json", require_metric=f"test/{row['metric']}")
+                if payload is not None:
+                    values.append(payload["metrics"][f"test/{row['metric']}"])
+            if len(values) != row["n_seeds"]:
+                continue
+            base = st.mean(values)
+            delta = 100.0 * (base - row["remerged"]) / base
+            floor = row["floor_pct"] if row["floor_pct"] != "" else None
+            verdict = ("tie (inside floor)" if floor is not None and abs(delta) < floor
+                       else ("worse" if delta > 0 else "better"))
+            row.update({"plain_matched_seed": round(base, 6),
+                        "delta_pct_matched_seed": round(delta, 3),
+                        "verdict_matched_seed": verdict,
+                        "verdict_changed": verdict != row["verdict"]})
+            flips += verdict != row["verdict"]
+        log.info("[matched-seed] AD rows re-read at one eval seed; %d verdict(s) changed", flips)
 
     excluded = report_exclusions(log, EXCLUSIONS, SCANNED[0])
     if not rows:

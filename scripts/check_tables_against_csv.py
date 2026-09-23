@@ -1307,6 +1307,26 @@ CHECKS += [_test_check(d, n, m, 1, "delta_pct", "corrected")
 CHECKS += [_test_check(d, n, m, b, "margin_ratio", "ratio") for d, n, m, b in _TEST_ROWS]
 CHECKS += [_test_check(d, n, m, b, "own_spread_pct", "own_spread") for d, n, m, b in _TEST_ROWS]
 
+# §0.1c — joint-reference sensitivity. Every number is bound; the "first on 1 of 27" count is
+# checked too, because it is the whole of the argument that the configuration was not
+# test-tuned, and a wrong count there would overstate the reassurance.
+_JOINT = (("SWaT", "window_auroc"), ("PSM", "window_auroc"), ("ETTh1", "forecast/mse"))
+CHECKS += [
+    (f"§0.1c {d} val-best gap", rf"\| {d} \| `{re.escape(m)}` \| [\d.]+% \| \*\*\+([\d.]+)%\*\*",
+     "config_selection/joint_sensitivity.csv", {"dataset": d}, "gap_to_val_best_pct", 0.01)
+    for d, m in _JOINT
+] + [
+    (f"§0.1c {d} val-best over floor",
+     rf"\| {d} \| `{re.escape(m)}` \| [\d.]+% \| \*\*\+[\d.]+%\*\* \(([\d.]+)× floor\)",
+     "config_selection/joint_sensitivity.csv", {"dataset": d}, "gap_to_val_best_over_floor", 0.05)
+    for d, m in _JOINT
+] + [
+    (f"§0.1c {d} valid-best gap",
+     rf"\| {d} \| `{re.escape(m)}` \|(?:[^|]*\|){{2}} \+([\d.]+)%",
+     "config_selection/joint_sensitivity.csv", {"dataset": d}, "gap_to_valid_test_best_pct", 0.01)
+    for d, m in _JOINT
+]
+
 # §1.36's GRR table (C43). Every cell of both arms, bound to threshold 0.5 and to the P1 test,
 # so a row from another threshold or another test cannot satisfy it.
 _GRR_ROWS = (("ETTh1", 2), ("ETTh1", 3), ("ETTh1", 5), ("ETTh2", 2), ("ETTh2", 3), ("ETTh2", 5),
@@ -1537,6 +1557,25 @@ STALE_CLAIM_TEXT = [
      "C35 is scoped to ACC; on the test metric exchange_rate n=3 wins (C38)",
      ("ACC", "`C35`", "`C38`")),
 ]
+
+
+def check_config_selection_count(text: str, audit: Path) -> int:
+    """§0.1c's "first on N of M criteria" must be the count the CSV actually holds."""
+    print("\nCONFIG SELECTION — §0.1c's rank-first count must match config_selection_ranks.csv:")
+    path = audit / "config_selection" / "config_selection_ranks.csv"
+    if not path.is_file():
+        print("  SKIP      no config_selection_ranks.csv in this audit dir")
+        return 0
+    rows = list(csv.DictReader(path.open(encoding="utf-8")))
+    firsts, total = sum(r["rank"] == "1" for r in rows), len(rows)
+    match = re.search(r"rank first on (\d+)\s+of (\d+) criteria", section_slice(text, "§0.1c"))
+    if match is None:
+        print("  FAIL      the count sentence is missing from §0.1c")
+        return 1
+    ok = (int(match.group(1)), int(match.group(2))) == (firsts, total)
+    print(f"  {'ok  ' if ok else 'FAIL'}      document {match.group(1)} of {match.group(2)}, "
+          f"CSV {firsts} of {total}")
+    return 0 if ok else 1
 
 
 def check_stale_claim_text(paths: list[Path]) -> int:
@@ -2409,6 +2448,10 @@ def main() -> None:
     if recon:
         print(f"  -> {recon} reconciliation failure(s): §1.11 and §1.12 disagree")
         drift += recon
+
+    count = check_config_selection_count(text, args.audit_dir)
+    if count:
+        drift += count
 
     # Every prose document, not just the checked one: a retracted sentence is as damaging in
     # THEORY.md or the plan as in EXPERIMENTS.md, and those files carry no numeric checks at all.

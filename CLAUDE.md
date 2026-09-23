@@ -146,7 +146,7 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
 `results_archive/audit/claims_register.csv` whose `status` is not `supported`.** Re-measuring a
 settled claim is not a result, and the chapter is closed: 35 merging claims, 26 settled, 2
 hypothesis, 7 refuted, with `scripts/build_claims_register.py` as the script of record
-(`--self-test` proves its downgrade rule can fire). The register file itself now holds **43**
+(`--self-test` proves its downgrade rule can fire). The register file itself now holds **44**
 rows — `C35`–`C42` are strategy 6 (§1.39), which is not a merging experiment and does not move
 this tally; the register counts what the *document* claims, not what the chapter contains.
 
@@ -210,6 +210,23 @@ adds one column to the five-strategy comparison and one section. It does not reo
 fine-tuning"** in prose. Never "BECAME" — the published method includes a gradient-projection
 stage that is not implemented. Registered in EXPERIMENTS.md §1.39;
 `scripts/verify_adaptive_lambda.py` holds the six gates.
+
+## Scope note — the supervisor's merge baselines (2026-09-23)
+
+The freeze above says no merging experiment is added unless it maps to a register row that is not
+`supported`. **This one is added at the user's explicit request**, for the same reason strategy 6
+was: the supervisor handed over DARE, TIES, Iso-C and TSV (`other/`, never modified) and asked for
+them to be tested. It adds rows to the method comparison (§1.40); it does not reopen any settled
+task-arithmetic claim.
+
+- **Four defects in `other/` were fixed in the port** (`framework/merging/interference.py`), each
+  reproduced on the reference first: TIES scaled matrices by an extra 1/n, Iso-C flattened the
+  mean instead of the sum, DARE was unseeded, TSV silently zeroed rank-deficient matrices.
+  `scripts/verify_merge_baselines.py` imports `other/` read-only and requires the port to equal it
+  exactly except by those defects. **Never describe the port's TIES or Iso-C numbers as the
+  reference's** — the reference would have produced different ones.
+- **Their α are on different scales**, so every rule — task arithmetic included — is swept over
+  one grid and selected by one rule. Never compare them at a shared fixed α on forecasting.
 
 ## Working-style notes
 

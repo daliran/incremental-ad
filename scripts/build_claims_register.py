@@ -417,6 +417,22 @@ CLAIMS: list[tuple] = [
      "that a well-chosen fixed lambda beats the plain chain in general - ETTm2 says it does not "
      "- and it does not change any §1.39 verdict. It relocates the failure from 'the premise "
      "rarely applies' to 'the premise often applies and this coefficient mis-sets it'."),
+    ("C44", "AD GRR and AD merge-vs-joint verdicts are relative to the shared configuration's "
+     "joint model, which is not separately tuned",
+     "0.1c, 1.11", "SWaT,PSM,ETTh1", 3, "n/a", "scope", "n/a", "supported",
+     "Every pipeline of a dataset shares one configuration (§2) - a controlled comparison, but "
+     "joint training is the denominator of GRR and the reference of every merging-vs-joint "
+     "claim, and it was not tuned for itself. Measured from the archived grid-search CSVs (no new "
+     "runs): other joint configurations would be better by +0.23% (SWaT, 2.7x floor), +0.37% "
+     "to +0.55% (PSM, 5.5-8.1x) and +2.34% under validation tuning (ETTh1, 0.3x - inside the "
+     "floor). So forecasting merge-vs-joint verdicts stand and AD ones are relative to this "
+     "reference. What does NOT move: §1.12's selection cost, a ratio of two GRRs in which the "
+     "joint cancels, and any comparison of two merge rules against the same joint (C43), whose "
+     "sign a better joint cannot flip. Mitigation, also stated: on AD, validation-best means "
+     "best reconstruction error, blind to detection (§1.12), so no label-free procedure would "
+     "have chosen the better joint configuration either. Separately: the trials of record rank "
+     "first on 1 of 27 grid criteria, so there is no sign the configurations were test-tuned - "
+     "but the criterion actually used is unrecorded."),
     ("C39", "Adaptive-lambda does not improve anomaly detection",
      "1.39", "PSM,SWaT", 2, "mixed", "measurement", "yes", "supported",
      "Measured on window_auroc, which HAS a published floor on both datasets - not on "

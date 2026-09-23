@@ -41,7 +41,7 @@ CARRIED = {
     "oracle_router", "concentration", "novelty_swat", "selection_probe", "drift", "geometry",
     "novelty", "alignment", "subblocks", "mask_span", "window_selection", "remerge",
     "remerge_sweep", "remerge_closeout_runs", "geometry_gap", "geometry_aeft",
-    "fisher_scaling_sweep", "subblocks_origin",
+    "fisher_scaling_sweep", "subblocks_origin", "merge_baselines_runs", "grid_search",
 }
 # Individual files with no generator in the regeneration script, each produced by a separate
 # deliberate step (a GPU job, or a verification run). Named so "no generator" is a declaration

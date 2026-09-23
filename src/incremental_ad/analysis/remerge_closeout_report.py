@@ -64,7 +64,10 @@ FIELDS = ["test", "dataset", "n_segments", "metric", "n_seeds", "floor_pct",
           # column name and a shifted column would break every regex at once.
           "base", "joint", "joint_from",
           "grr_baseline", "grr_baseline_sd", "grr_baseline_derived",
-          "grr_variant", "grr_variant_sd", "grr_delta", "grr_delta_paired_sd"]
+          "grr_variant", "grr_variant_sd", "grr_delta", "grr_delta_paired_sd",
+          # Matched-seed correction for AD (see `attach_matched_seed`). Appended, like GRR.
+          "baseline_matched_seed", "delta_pct_matched_seed", "verdict_matched_seed",
+          "matched_seed_n", "verdict_changed"]
 
 
 # Mirrors scripts/generate_remerge_closeout.py, so "how many cells should exist" is derived from
@@ -319,9 +322,70 @@ def attach_grr(rows: list[dict], derived_path: Path | None) -> int:
     return attached
 
 
+# Tests whose baseline arm is the run's STORED merge metric rather than a re-scored one.
+STORED_BASELINE_TESTS = {"P1_paper_opcm", "P4_opcm_committed", "P5_opcm_distance"}
+AD_METRICS = {"window_auroc", "window_auprc"}
+
+
+def attach_matched_seed(rows: list[dict], rescored_dir: Path | None, runs_root: Path) -> int:
+    """Re-read AD comparisons with BOTH arms scored under the same evaluation seed.
+
+    ⚠️ **The defect this corrects.** The pipeline scores the stored merge with
+    ``eval_seed = seed + 1`` (`framework/experiment.py`); `remerge.py` scored every variant with
+    ``seed``. AD scoring averages ``n_eval_passes`` RANDOM masks, so for every AD row whose
+    baseline is the stored merge (P1, P4) the two arms were scored under different mask draws.
+    Forecasting scoring is deterministic and is unaffected, which is also why the P3 null check
+    — run on forecasting datasets only — could never have seen it.
+
+    **The correction costs no run.** §1.40's sweep re-scores task arithmetic at the committed
+    alpha through `remerge.py`, i.e. the stored merge's exact model (bitwise, by the self-check;
+    every AD run committed alpha = 1.0) under ``seed`` — the variant's seed. So its ``ta_a1.00``
+    result IS the matched-seed baseline. The published columns are left as they were and the
+    corrected ones are added beside them, with ``verdict_changed`` so a flip cannot hide.
+    """
+    if rescored_dir is None or not rescored_dir.is_dir():
+        return 0
+    corrected = 0
+    for row in rows:
+        if row["test"] not in STORED_BASELINE_TESTS or row["metric"] not in AD_METRICS:
+            continue
+        group = runs_root / row["source_experiment"]
+        values = []
+        for run in sorted(p for p in group.iterdir() if p.is_dir()) if group.is_dir() else []:
+            payload, _why = load_result(
+                rescored_dir / f"{row['source_experiment']}__{run.name}" / "ta_a1.00"
+                / "result.json", require_metric=f"test/{row['metric']}")
+            if payload is not None and abs(float(payload.get("committed_alpha", 1.0)) - 1.0) < 1e-9:
+                values.append(payload["metrics"][f"test/{row['metric']}"])
+        if len(values) != int(row["n_seeds"]):
+            continue
+        base = st.mean(values)
+        variant = float(row["variant"])
+        # Same sign convention as `summarise`: positive = the variant is worse.
+        delta = 100.0 * (base - variant) / base
+        floor = float(row["floor_pct"]) if row["floor_pct"] != "" else None
+        verdict = ("tie (inside floor)" if floor is not None and abs(delta) < floor
+                   else ("worse" if delta > 0 else "better"))
+        row.update({"baseline_matched_seed": round(base, 6),
+                    "delta_pct_matched_seed": round(delta, 3),
+                    "verdict_matched_seed": verdict, "matched_seed_n": len(values),
+                    "verdict_changed": verdict != row["verdict"]})
+        corrected += 1
+    flips = [r for r in rows if r.get("verdict_changed") is True]
+    log.info("[matched-seed] %d AD row(s) re-read with both arms at one eval seed; %d verdict(s) "
+             "changed%s", corrected, len(flips),
+             "" if not flips else ": " + ", ".join(
+                 f"{r['test']} {r['dataset']} n={r['n_segments']} {r['variant_label']}"
+                 for r in flips[:8]))
+    return corrected
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--runs_root", type=Path, required=True)
+    parser.add_argument("--rescored_dir", type=Path,
+                        help="§1.40's per-run grid (remerge.py --baseline_rule): its ta_a1.00 "
+                             "results are the stored merge re-scored at the variant's eval seed")
     parser.add_argument("--derived", type=Path,
                         help="derived.csv, for base/joint so GRR can be emitted per row")
     parser.add_argument("--per_seed", type=Path,
@@ -626,6 +690,7 @@ def main() -> None:
         log.info("\nRescaled rows: implied alpha*n equals the committed alpha x n on every one")
 
     attach_grr(rows, args.derived)
+    attach_matched_seed(rows, args.rescored_dir, args.runs_root)
 
     if args.out:
         args.out.mkdir(parents=True, exist_ok=True)

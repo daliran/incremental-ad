@@ -53,7 +53,8 @@ CELL_FIELDS = ["dataset", "n_segments", "metric", "rule", "protocol", "n_seeds",
                "floor_pct", "value", "value_sd", "ta_value", "delta_pct", "delta_paired_sd",
                "margin_ratio", "borderline", "verdict", "alpha_mean", "alpha_values",
                "alpha_at_edge", "oracle_value", "oracle_alpha_values", "distance",
-               "ta_distance", "grr", "grr_ta", "grr_delta", "source_experiment"]
+               "ta_distance", "grr", "grr_ta", "grr_delta", "oracle_ta_value",
+               "oracle_delta_pct", "oracle_verdict", "oracle_at_edge", "source_experiment"]
 SEED_FIELDS = ["dataset", "n_segments", "seed", "rule", "metric", "alpha", "value",
                "oracle_alpha", "oracle_value", "distance", "source_experiment", "run"]
 SUMMARY_FIELDS = ["rule", "protocol", "n_cells", "better", "tie", "worse", "mean_rank",
@@ -154,7 +155,9 @@ def main() -> None:
         runs = sorted(p for p in group.iterdir() if p.is_dir()) if group.is_dir() else []
         runs = [r for r in runs if (r / "merged" / "checkpoints" / "best.pt").is_file()]
         per_rule: dict[str, dict[str, tuple]] = defaultdict(dict)
-        grid_seen = None
+        # Per RULE: a rule re-run on a wider grid (Iso-C, §1.40b) must be judged against its own
+        # edge, not whichever rule's grid the loop saw last.
+        grid_seen: dict[str, tuple] = {}
         for run in runs:
             for rule in RULES:
                 folder = args.remerge_dir / f"{experiment}__{run.name}"
@@ -187,7 +190,7 @@ def main() -> None:
                 if set(points) != set(grid):
                     gaps["incomplete alpha grid (the seed is dropped from its cell)"] += 1
                     continue
-                grid_seen = grid
+                grid_seen[rule] = grid
                 matched = None
                 if not forecasting and rule != "ta":
                     matched, why = load_result(folder / f"{rule}_dm" / "result.json",
@@ -255,6 +258,9 @@ def main() -> None:
             delta = 100.0 * (value - ta_value) / ta_value
             diffs = [100.0 * (mine[s][1] - ta[s][1]) / ta_value for s in seeds]
             alphas = [mine[s][0] for s in seeds]
+            oracle_mine = st.fmean(mine[s][3] for s in seeds)
+            oracle_ta = st.fmean(ta[s][3] for s in seeds)
+            oracle_delta = 100.0 * (oracle_mine - oracle_ta) / oracle_ta
             grr = grr_ta = None
             if gap:
                 grr = (base - value) / gap
@@ -273,8 +279,8 @@ def main() -> None:
                 "verdict": "control" if rule == "ta" else verdict(delta, floor, up),
                 "alpha_mean": st.fmean(alphas),
                 "alpha_values": " ".join(f"{a:g}" for a in alphas),
-                "alpha_at_edge": bool(forecasting and grid_seen
-                                      and any(a in (min(grid_seen), max(grid_seen))
+                "alpha_at_edge": bool(forecasting and rule in grid_seen
+                                      and any(a in (min(grid_seen[rule]), max(grid_seen[rule]))
                                               for a in alphas)),
                 "oracle_value": st.fmean(mine[s][3] for s in seeds),
                 "oracle_alpha_values": " ".join(f"{mine[s][2]:g}" for s in seeds),
@@ -283,6 +289,18 @@ def main() -> None:
                 "grr": round(grr, 6) if grr is not None else "",
                 "grr_ta": round(grr_ta, 6) if grr_ta is not None else "",
                 "grr_delta": round(grr - grr_ta, 6) if grr is not None else "",
+                # The UPPER BOUND: each rule at its own test-optimal alpha against TA at ITS
+                # test-optimal alpha, same seeds. Not deployable — test picks alpha — but it
+                # separates "the rule's direction is worse" from "the protocol read it at the
+                # wrong alpha", which on AD (no val selection) the headline cannot.
+                "oracle_ta_value": oracle_ta,
+                "oracle_delta_pct": oracle_delta,
+                "oracle_verdict": ("control" if rule == "ta"
+                                   else verdict(oracle_delta, floor, up)),
+                # On AD too: an oracle at the grid's top bounds the rule only for alpha <= max,
+                # so a "worse" there is scoped to the grid, not settled.
+                "oracle_at_edge": bool(rule in grid_seen and any(
+                    mine[s][2] in (min(grid_seen[rule]), max(grid_seen[rule])) for s in seeds)),
                 "source_experiment": experiment})
 
     # --- per-rule tally and mean rank over the configurations every rule covers ------------------
@@ -307,6 +325,23 @@ def main() -> None:
                     st.fmean(-c["delta_pct"] if not higher_is_better(c["metric"])
                              else c["delta_pct"] for c in mine)
                     if protocol != "all" else "")})
+
+    # The upper bound, tallied per task family: never pooled with the protocol rows above.
+    for family, is_ad in (("AD", True), ("forecasting", False)):
+        for rule in RULES[1:]:
+            mine = [c for c in cells if c["rule"] == rule and c["dataset"] != "SWaT-forecast"
+                    and higher_is_better(c["metric"]) == is_ad]
+            if not mine:
+                continue
+            summary.append({
+                "rule": rule, "protocol": f"upper bound: test-optimal alpha vs TA's ({family})",
+                "n_cells": len(mine),
+                "better": sum(c["oracle_verdict"] == "better" for c in mine),
+                "tie": sum(c["oracle_verdict"] == "tie" for c in mine),
+                "worse": sum(c["oracle_verdict"] == "worse" for c in mine),
+                "mean_rank": "",
+                "mean_improvement_pct": st.fmean(
+                    c["oracle_delta_pct"] if is_ad else -c["oracle_delta_pct"] for c in mine)})
 
     for row in summary:
         log.info("[%-6s] %-42s %2d cells: better %2d  tie %2d  worse %2d  %s", row["rule"],

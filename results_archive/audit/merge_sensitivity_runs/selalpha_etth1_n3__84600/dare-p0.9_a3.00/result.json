@@ -1,0 +1,41 @@
+{
+  "source_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/selalpha_etth1_n3/84600",
+  "merge_rule": "baseline:dare",
+  "baseline_rule": "dare",
+  "alpha": 3.0,
+  "alpha_grid": [
+    0.1,
+    0.2,
+    0.3,
+    0.5,
+    0.7,
+    1.0,
+    1.5,
+    2.0,
+    3.0
+  ],
+  "ties_density": null,
+  "dare_drop_rate": 0.9,
+  "variant": "p0.9",
+  "committed_alpha": 0.35,
+  "committed_alpha_source": "merge_scale/selected",
+  "delta_norm": 9.386077,
+  "ta_sum_norm": 3.444009,
+  "distance_from_base": 28.15823,
+  "distance_matched_to_ta_alpha": null,
+  "dare_seed": 123,
+  "seed": 123,
+  "eval_seed": 124,
+  "n_shards": 3,
+  "metrics": {
+    "val/forecast/mse": 5.234542369842529,
+    "val/forecast/rmse": 2.2879122294883887,
+    "val/forecast/mae": 1.8185248374938965,
+    "test/forecast/mse": 3.7758636474609375,
+    "test/forecast/rmse": 1.9431581632643642,
+    "test/forecast/mae": 1.516318678855896
+  },
+  "schema": 1,
+  "code_fingerprint": "fc37dd8b24ae7071",
+  "completed_at": "2026-09-25T20:16:33"
+}

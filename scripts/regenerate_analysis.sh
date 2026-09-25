@@ -222,6 +222,13 @@ python -m incremental_ad.analysis.merge_baselines_report --runs_root "$RUNS" \
     --remerge_dir "$(carried merge_baselines_runs)" --floors "$OUT/floors.csv" \
     --derived "$OUT/derived.csv" --out "$OUT/merge_baselines" \
     || echo "  merge_baselines skipped (no grid outputs)"
+# §1.40b: TIES/DARE at non-default settings. Variants are read from their OWN carried tree
+# (`merge_sensitivity_runs`); TA and the default settings from §1.40's, so the default rows here
+# are §1.40's numbers rather than a second measurement of them.
+python -m incremental_ad.analysis.merge_sensitivity_report --runs_root "$RUNS" \
+    --sensitivity_dir "$(carried merge_sensitivity_runs)" \
+    --baselines_dir "$(carried merge_baselines_runs)" --floors "$OUT/floors.csv" \
+    --out "$OUT/merge_sensitivity" || echo "  merge_sensitivity skipped (no variant outputs)"
 
 echo "== adaptive-lambda sequential fine-tuning (§1.39) =="
 # Strategy 6, not a merging experiment (CLAUDE.md scope note). Pure aggregation over finished
@@ -238,6 +245,14 @@ python -m incremental_ad.analysis.fisher_scaling_report --self-test
 python -m incremental_ad.analysis.fisher_scaling_report \
     --scaling_root "$(carried fisher_scaling_sweep)" --out "$OUT/fisher_scaling" \
     || echo "  fisher_scaling skipped (no B-sweep outputs)"
+
+echo "== global comparison (every strategy and merge rule, one table) =="
+# Pure join over three tables generated above; copies values, recomputes nothing. Kept out of
+# `method_comparison.csv`, whose schema other checks bind to.
+python -m incremental_ad.analysis.global_comparison_report \
+    --method_comparison "$OUT/methods_windowval/method_comparison.csv" \
+    --merge_baselines "$OUT/merge_baselines/merge_baselines.csv" \
+    --adaptive "$OUT/adaptive_lambda/adaptive_lambda_test.csv" --out "$OUT/global_comparison"
 
 echo "== claims register =="
 # Not an aggregation over runs: the register is what binds each *claim* to the evidence it rests
@@ -257,7 +272,7 @@ echo "== carrying forward GPU-only outputs (not regenerated here) =="
 for sub in oracle_router concentration novelty_swat selection_probe drift \
            geometry novelty alignment subblocks mask_span window_selection remerge \
            remerge_sweep remerge_closeout remerge_closeout_runs geometry_gap geometry_aeft \
-           fisher_scaling_sweep merge_baselines_runs grid_search; do
+           fisher_scaling_sweep merge_baselines_runs merge_sensitivity_runs grid_search; do
     if [ -d "$CARRY/$sub" ] && [ ! -d "$OUT/$sub" ]; then
         cp -r "$CARRY/$sub" "$OUT/$sub"
         echo "  carried $sub from results_archive (regenerate with a GPU job if its runs changed)"

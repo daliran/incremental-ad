@@ -440,13 +440,25 @@ CLAIMS: list[tuple] = [
      "72 runs x 5 rules (TA included), one alpha grid, alpha selected on validation for "
      "forecasting and distance-matched to TA for AD; 2,952 results, 143/143 jobs. Over the 21 "
      "configurations without SWaT-forecast: TA mean rank 1.71; DARE 1 better / 15 tie / 5 worse "
-     "(rank 2.52); TSV 2/5/14 (2.81); TIES 4/0/17 (3.86); Iso-C 0/5/16 (4.10). No rule beats TA "
+     "(rank 2.52); TSV 2/5/14 (2.81); TIES 4/0/17 (3.90); Iso-C 0/6/15 (4.05). No rule beats TA "
      "on more than 4 of 21. The falsification test was registered first (P1: no rule beats TA "
      "on more than 3) and narrowly failed for TIES, which is why the claim reads 'best overall', "
      "not 'never beaten'. SCOPE: the supervisor's variants with four defects fixed (§1.40), TIES "
-     "trimmed per matrix and DARE on matrices only as he wrote them; Iso-C's six upper-edge cells "
-     "(alpha = 3.0 selected) are provisional and could move its rank. The TA column is TA "
-     "re-selected on this grid, which is coarser than its own runs' - by design."),
+     "trimmed per matrix and DARE on matrices only as he wrote them; Iso-C's six former upper-edge "
+     "cells were re-run on a grid extended to alpha = 12 (§1.40b); none now selects an edge. The TA column is TA "
+     "re-selected on this grid, which is coarser than its own runs' - by design. The claim is "
+     "about THIS protocol: at test-optimal alpha TSV beats TA on all three PSM cells (C47)."),
+    ("C47", "At each rule's own test-optimal alpha, TSV beats task arithmetic on every PSM "
+     "configuration; on SWaT no rule does",
+     "1.40", "PSM,SWaT", 2, "yes", "measurement", "no", "supported",
+     "An UPPER BOUND, not a deployable result: AD has no validation selection (§1.12), so the "
+     "alpha is picked on test for every rule, TA included, paired on the same seeds. TSV vs TA "
+     "at their best alphas: PSM n=2 +0.18%, n=3 +0.25%, n=5 +0.78% against a 0.068% floor, every "
+     "TSV best alpha interior (2-3) so not grid-truncated. Under the distance-matched protocol "
+     "the same rule loses all three - the protocol reads TSV away from its best alpha. SWaT: "
+     "DARE ties on all 3, every other rule is worse or ties. Tally over 6 AD cells: DARE 0/6/0, "
+     "TIES 2/0/4, Iso-C 0/0/6, TSV 3/2/1. SCOPE: AD grid 0.5-5; Iso-C and several TIES/TSV "
+     "SWaT cells peak at alpha=5, so their 'worse' holds for alpha <= 5 only."),
     ("C46", "Removing part of each task vector helps only where old data hurts",
      "1.40", "exchange_rate", 1, "n/a", "mechanism", "no", "hypothesis",
      "Every forecasting win of the supervisor's rules is on exchange_rate - TIES at n=3,5 and TSV "
@@ -456,6 +468,33 @@ CLAIMS: list[tuple] = [
      "dataset cannot separate it from anything else particular to exchange_rate, and no test "
      "that could break it has been run. Two of the four wins are weak: TIES at n=3 is borderline "
      "and inside its own paired seed spread (31.4% against an 8.55% margin)."),
+    ("C48", "TIES's forecasting loss is not only its trimming: with no trimming it still loses "
+     "on 4 of 5 datasets",
+     "1.40b", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "yes", "measurement", "yes",
+     "supported",
+     "Registered P5 (loss falls monotonically in density AND k=1.0 ties TA on >=3 of 5) was "
+     "refuted: monotone on 3 of 5, and k=1.0 ties on 0 of 5 - it is worse on ETTh1 +21.24%, "
+     "ETTh2 +21.77%, ETTm2 +44.71%, PSM-forecast +4.62%, better on exchange -8.52%. Trimming is "
+     "roughly half the ETT damage (+121-183% at k=0.2). n=3, 3 seeds, forecasting only; the "
+     "reference's per-matrix TIES. Says nothing about WHY sign election costs - that would be a "
+     "mechanism claim, and none is made."),
+    ("C49", "DARE ties task arithmetic at every drop rate up to 0.5 and loses at 0.9",
+     "1.40b", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "yes", "measurement", "yes",
+     "supported",
+     "Registered P6 confirmed: ties at p=0.3 and 0.5 on 5 of 5; worse at p=0.9 on 3 (ETTh2 "
+     "+20.94%, ETTm2 +56.70%, PSM-forecast +7.58%). The reference default p=0.7 already loses "
+     "on PSM-forecast (+2.27%, 1.96x floor) where p<=0.5 ties. It is never better at any setting. "
+     "n=3, 3 seeds, forecasting only, DARE on matrices only as the reference applies it."),
+    ("C50", "No update strategy or merge rule is best on most configurations; task arithmetic "
+     "has the best mean rank across all of them",
+     "1.41", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast,PSM,SWaT", 7, "mixed", "measurement",
+     "no", "supported",
+     "A join of §1.26b, §1.40 and §1.39 with nothing recomputed. Over 21 configurations "
+     "(SWaT-forecast excluded): best on - TA 8, sequential 5, window (val-selected W) 4, TIES 2, "
+     "DARE 1, TSV 1, Iso-C 0, adaptive lambda 0; mean normalised rank TA 0.247, next sequential "
+     "0.354. TA is ranked from §1.40's grid, the one the four rules were selected on. STRENGTH: "
+     "counts of means, not of decisive wins - only 11 of 21 best-vs-runner-up margins clear the "
+     "floor. The window strategy has no AD entry and adaptive lambda covers 10 configurations."),
     ("C39", "Adaptive-lambda does not improve anomaly detection",
      "1.39", "PSM,SWaT", 2, "mixed", "measurement", "yes", "supported",
      "Measured on window_auroc, which HAS a published floor on both datasets - not on "
@@ -561,10 +600,12 @@ METHODS: list[tuple] = [
     ("Iso-C (isotropic merging)", "full",
      "The supervisor's implementation with its mean-instead-of-sum defect fixed (the official "
      "code multiplies back by n before the SVD).",
-     "Worst mean rank of the four; six cells chose alpha at the grid's top and are provisional (C45)."),
+     "Worst mean rank of the four, including after its α grid was widened on the six cells that "
+     "hit the top (C45)."),
     ("TSV-Merge (task singular vectors)", "full",
      "The supervisor's implementation matched the official code exactly; a rank < n guard added.",
-     "Second-best rule; wins exchange_rate n=3,5 (C45, C46)."),
+     "Second-best rule; wins exchange_rate n=3,5 (C45, C46). At its test-optimal α it beats TA's "
+     "on all three PSM configurations, an upper bound only (C47)."),
     ("Routing / regime indicator", "partial",
      "A per-window ORACLE router only; no buildable router exists, and it cannot be computed on "
      "AD from these runs at all (C17).",

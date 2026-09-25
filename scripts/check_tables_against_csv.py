@@ -1351,6 +1351,74 @@ CHECKS += [
      "mean_rank", 0.006),
 ]
 
+# §1.40's AD upper bound: each rule at its test-optimal alpha against TA at its own. Rows carry
+# no metric column, so they cannot bind to the headline table above; the tally rows end in a
+# SIGNED percentage, which the headline tally (a mean rank) never does.
+_UB_PROTOCOL = "upper bound: test-optimal alpha vs TA's (AD)"
+
+
+def _ub_check(dataset, n, index):
+    row = rf"\| {dataset} \| {n} \| [\d.]+ \| "
+    skip = r"[^|]+\| " * index
+    rule = _MB_RULES[index]
+    return (f"§1.40 upper bound {dataset} n={n} {rule}",
+            row + skip + r"(?:\*\*)?([+−-][\d.]+)%", "merge_baselines/merge_baselines.csv",
+            {"dataset": dataset, "n_segments": str(n), "rule": rule}, "oracle_delta_pct", 0.006)
+
+
+CHECKS += [_ub_check(d, n, i) for d in ("SWaT", "PSM") for n in (2, 3, 5) for i in range(4)]
+CHECKS += [
+    (f"§1.40 upper bound {d} n={n} TA", rf"\| {d} \| {n} \| ([\d.]+) \| [+−-]",
+     "merge_baselines/merge_baselines.csv", {"dataset": d, "n_segments": str(n), "rule": "ta"},
+     "oracle_value", 0.00006)
+    for d in ("SWaT", "PSM") for n in (2, 3, 5)
+]
+_B = r"(?:\*\*)?"
+CHECKS += [
+    (f"§1.40 upper bound summary {label} {column}",
+     rf"\| {_B}{re.escape(label)}{_B} \| " + {
+         "better": rf"{_B}(\d+){_B} \| \d+ \| \d+ \| {_B}[+−-]",
+         "tie": rf"{_B}\d+{_B} \| (\d+) \| \d+ \| {_B}[+−-]",
+         "worse": rf"{_B}\d+{_B} \| \d+ \| (\d+) \| {_B}[+−-]",
+         "mean_improvement_pct": rf"{_B}\d+{_B} \| \d+ \| \d+ \| {_B}([+−-][\d.]+)%",
+     }[column],
+     "merge_baselines/merge_baselines_summary.csv", {"rule": rule, "protocol": _UB_PROTOCOL},
+     column, 0.006)
+    for label, rule in _MB_LABEL.items()
+    for column in ("better", "tie", "worse", "mean_improvement_pct")
+]
+
+# §1.40b: TIES and DARE at non-default settings. The two tables share row labels, so each regex
+# is anchored on its own table's bold caption; `(?s)` lets it step from caption to row.
+_SENS_DATASETS = ("ETTh1", "ETTh2", "ETTm2", "exchange", "PSM-forecast")
+_SENS = (("TIES", "ties", (0.1, 0.2, 0.5, 1.0)), ("DARE", "dare", (0.3, 0.5, 0.7, 0.9)))
+
+
+def _sens_check(label, rule, settings, dataset, index):
+    caption = rf"(?s)\*\*{label}, change against TA[^*]*\*\*.*?"
+    row = rf"\| {re.escape(dataset)} \| " + r"[^|]+\| " * index
+    return (f"§1.40b {rule} {dataset} {settings[index]:g}", caption + row + r"([+−-][\d.]+)%",
+            "merge_sensitivity/merge_sensitivity.csv",
+            {"dataset": dataset, "rule": rule, "setting": str(float(settings[index]))},
+            "delta_pct", 0.006)
+
+
+CHECKS += [_sens_check(label, rule, settings, d, i)
+           for label, rule, settings in _SENS for d in _SENS_DATASETS for i in range(4)]
+
+# §1.41's summary: every column of every method. Labels differ from the CSV's method keys.
+_GC_LABEL = {"task arithmetic": "ta", "sequential": "sequential", "DARE": "dare",
+             "window (val-selected W)": "window_val", "TSV": "tsv", "adaptive λ": "adaptive_lambda",
+             "TIES": "ties", "Iso-C": "iso_c"}
+_GC_COLS = (("n_cells", 0, 0.0001), ("n_best", 1, 0.0001), ("mean_normalised_rank", 2, 0.0006),
+            ("mean_gap_to_best_pct", 3, 0.006))
+CHECKS += [
+    (f"§1.41 {label} {column}",
+     rf"\| {_B}{re.escape(label)}{_B} \| " + r"[^|]+\| " * index + rf"{_B}([\d.]+)",
+     "global_comparison/global_comparison_summary.csv", {"method": method}, column, tol)
+    for label, method in _GC_LABEL.items() for column, index, tol in _GC_COLS
+]
+
 # §0.1c — joint-reference sensitivity. Every number is bound; the "first on 1 of 27" count is
 # checked too, because it is the whole of the argument that the configuration was not
 # test-tuned, and a wrong count there would overstate the reassurance.
@@ -1619,6 +1687,27 @@ def check_config_selection_count(text: str, audit: Path) -> int:
     ok = (int(match.group(1)), int(match.group(2))) == (firsts, total)
     print(f"  {'ok  ' if ok else 'FAIL'}      document {match.group(1)} of {match.group(2)}, "
           f"CSV {firsts} of {total}")
+    return 0 if ok else 1
+
+
+def check_global_margin_count(text: str, audit: Path) -> int:
+    """§1.41's "N of M margins exceed the floor" is the claim's strength qualifier; bind it."""
+    print("\nGLOBAL COMPARISON — §1.41's decisive-margin count must match global_comparison.csv:")
+    path = audit / "global_comparison" / "global_comparison.csv"
+    if not path.is_file():
+        print("  SKIP      no global_comparison.csv in this audit dir")
+        return 0
+    runners = [r for r in csv.DictReader(path.open(encoding="utf-8"))
+               if r["rank"] == "2" and r["dataset"] != "SWaT-forecast"]
+    decisive = sum(float(r["gap_over_floor"]) > 1 for r in runners if r["gap_over_floor"])
+    match = re.search(r"Of the (\d+) margins between the best\s+entry and the runner-up, (\d+) "
+                      r"exceed", section_slice(text, "§1.41"))
+    if match is None:
+        print("  FAIL      the margin-count sentence is missing from §1.41")
+        return 1
+    ok = (int(match.group(1)), int(match.group(2))) == (len(runners), decisive)
+    print(f"  {'ok  ' if ok else 'FAIL'}      document {match.group(2)} of {match.group(1)}, "
+          f"CSV {decisive} of {len(runners)}")
     return 0 if ok else 1
 
 
@@ -2494,6 +2583,9 @@ def main() -> None:
         drift += recon
 
     count = check_config_selection_count(text, args.audit_dir)
+    if count:
+        drift += count
+    count = check_global_margin_count(text, args.audit_dir)
     if count:
         drift += count
 

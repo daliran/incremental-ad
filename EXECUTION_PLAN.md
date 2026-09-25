@@ -1696,6 +1696,34 @@ nuisance term — it is the signal"*.
 `claims_register.csv` row, and none is open. `C03`, `C23`, `C31` remain `hypothesis` and **no
 further merging run can settle them**.
 
+### 2.44 The supervisor's merge rules ✅ — TA stays best; one table for every family
+
+EXPERIMENTS.md §1.40, §1.40b and §1.41; claims `C45`–`C50`. **Training-free throughout.** DARE,
+TIES, Iso-C and TSV were ported from `other/` (never modified) with four defects fixed, and are
+gated by `scripts/verify_merge_baselines.py`. They were swept on one α grid with one selection
+rule, TA included.
+
+⚠️ **This is prose. The checker covers EXPERIMENTS.md only** — where a figure here disagrees,
+the section wins. None is quoted below for that reason.
+
+- **§1.40:** task arithmetic has the best mean rank of the five rules. DARE ties it almost
+  everywhere, and TIES and Iso-C lose on most configurations. Every forecasting win is on
+  exchange_rate (`C46`, a hypothesis).
+- **AD upper bound (§1.40, `C47`):** at each rule's own test-optimal α, TSV beats TA on all three
+  PSM configurations. That is a ceiling, not a deployable result.
+- **§1.40b:** Iso-C's grid-edge cells were re-run on a wider grid. Its rank barely moved, and no
+  selected α of any rule sits on an edge now. TIES without trimming still loses on 4 of 5
+  datasets (P5 refuted, `C48`). DARE is flat up to a 0.5 drop rate and breaks at 0.9 (P6
+  confirmed, `C49`).
+- **§1.41:** strategies, merge rules and adaptive λ ranked together. No method is best on most
+  configurations, and TA has the best mean rank. Only about half of the orderings clear the
+  floor (`C50`).
+
+**Open, deliberately not run:**
+- An AD α grid beyond 5 for the rules whose AD oracle sits at 5. Their "worse" upper bound is
+  scoped to α ≤ 5.
+- The TIES/DARE settings on AD, which would need a distance match per setting.
+
 ### 3.16 Match distance, not coefficients, when a transform is in the loop ✅
 
 The trap §1.37 fell into, and the reason §1.38 exists. Rescaling a merge so the per-vector

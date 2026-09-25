@@ -1,0 +1,293 @@
+dataset,n,metric,higher_is_better,floor_pct,method,role,selection,value,sd,n_seeds,rank,n_ranked,gap_to_best_pct,gap_over_floor,adaptive_paired_plain,source
+ETTh1,2,forecast/mse,False,8.759,base,reference,none,0.728958,,,,7,86.2928,9.8519,,method_comparison
+ETTh1,2,forecast/mse,False,8.759,joint,reference,shared configuration,0.41857,,,,7,6.9699,0.7957,,method_comparison
+ETTh1,2,forecast/mse,False,8.759,specialists,reference,mean of per-segment models,0.499926,,,,7,27.7613,3.1695,,method_comparison
+ETTh1,2,forecast/mse,False,8.759,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.459709,,,,7,17.4834,1.996,,method_comparison
+ETTh1,2,forecast/mse,False,8.759,sequential,candidate,final step,0.40781,,,2,7,4.2201,0.4818,,method_comparison
+ETTh1,2,forecast/mse,False,8.759,window_val,candidate,W selected on validation,0.391297,,,1,7,0.0,0.0,,method_comparison
+ETTh1,2,forecast/mse,False,8.759,window_oracle,reference,W selected on TEST,0.391297,,,,7,0.0,0.0,,method_comparison
+ETTh1,2,forecast/mse,False,8.759,ta,candidate,val-selected alpha,0.45970908800760907,0.014139897006360567,3,4,7,17.4834,1.9961,,merge_baselines
+ETTh1,2,forecast/mse,False,8.759,dare,candidate,val-selected alpha,0.461434930562973,0.011317989527901992,3,5,7,17.9245,2.0464,,merge_baselines
+ETTh1,2,forecast/mse,False,8.759,ties,candidate,val-selected alpha,0.6167182127634684,0.02245683968808905,3,7,7,57.6087,6.5771,,merge_baselines
+ETTh1,2,forecast/mse,False,8.759,iso_c,candidate,val-selected alpha,0.49477089444796246,0.012040189372482208,3,6,7,26.4438,3.019,,merge_baselines
+ETTh1,2,forecast/mse,False,8.759,tsv,candidate,val-selected alpha,0.45678932468096417,0.02059205549227726,3,3,7,16.7372,1.9109,,merge_baselines
+ETTh1,3,forecast/mse,False,8.759,base,reference,none,0.758902,,,,8,93.9453,10.7256,,method_comparison
+ETTh1,3,forecast/mse,False,8.759,joint,reference,shared configuration,0.41857,,,,8,6.9699,0.7957,,method_comparison
+ETTh1,3,forecast/mse,False,8.759,specialists,reference,mean of per-segment models,0.568531,,,,8,45.294,5.1711,,method_comparison
+ETTh1,3,forecast/mse,False,8.759,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.496383,,,,8,26.8558,3.0661,,method_comparison
+ETTh1,3,forecast/mse,False,8.759,sequential,candidate,final step,0.414003,,,2,8,5.8028,0.6625,,method_comparison
+ETTh1,3,forecast/mse,False,8.759,window_val,candidate,W selected on validation,0.391297,,,1,8,0.0,0.0,,method_comparison
+ETTh1,3,forecast/mse,False,8.759,window_oracle,reference,W selected on TEST,0.391297,,,,8,0.0,0.0,,method_comparison
+ETTh1,3,forecast/mse,False,8.759,ta,candidate,val-selected alpha,0.49972403049468994,0.011901814041539378,3,6,8,27.7097,3.1636,,merge_baselines
+ETTh1,3,forecast/mse,False,8.759,dare,candidate,val-selected alpha,0.499016672372818,0.012286055030442722,3,5,8,27.5289,3.1429,,merge_baselines
+ETTh1,3,forecast/mse,False,8.759,ties,candidate,val-selected alpha,0.6726429263750712,0.027909719161757218,3,8,8,71.9009,8.2088,,merge_baselines
+ETTh1,3,forecast/mse,False,8.759,iso_c,candidate,val-selected alpha,0.5387248198191324,0.013071994349079206,3,7,8,37.6767,4.3015,,merge_baselines
+ETTh1,3,forecast/mse,False,8.759,tsv,candidate,val-selected alpha,0.49759794274965924,0.010373329881108395,3,4,8,27.1663,3.1015,,merge_baselines
+ETTh1,3,forecast/mse,False,8.759,adaptive_lambda,candidate,"final step, B = 1 (corrected)",0.47902604937553406,0.011221603425681938,3,3,8,22.4201,2.5597,0.41400274634361267,adaptive_lambda
+ETTh1,5,forecast/mse,False,8.759,base,reference,none,0.705769,,,,7,80.3666,9.1753,,method_comparison
+ETTh1,5,forecast/mse,False,8.759,joint,reference,shared configuration,0.41857,,,,7,6.9699,0.7957,,method_comparison
+ETTh1,5,forecast/mse,False,8.759,specialists,reference,mean of per-segment models,0.525833,,,,7,34.3821,3.9253,,method_comparison
+ETTh1,5,forecast/mse,False,8.759,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.451689,,,,7,15.4338,1.7621,,method_comparison
+ETTh1,5,forecast/mse,False,8.759,sequential,candidate,final step,0.441027,,,2,7,12.709,1.451,,method_comparison
+ETTh1,5,forecast/mse,False,8.759,window_val,candidate,W selected on validation,0.391297,,,1,7,0.0,0.0,,method_comparison
+ETTh1,5,forecast/mse,False,8.759,window_oracle,reference,W selected on TEST,0.391297,,,,7,0.0,0.0,,method_comparison
+ETTh1,5,forecast/mse,False,8.759,ta,candidate,val-selected alpha,0.4516889452934265,0.022118390308737988,3,4,7,15.4338,1.762,,merge_baselines
+ETTh1,5,forecast/mse,False,8.759,dare,candidate,val-selected alpha,0.4516744514306386,0.022053773284340276,3,3,7,15.4301,1.7616,,merge_baselines
+ETTh1,5,forecast/mse,False,8.759,ties,candidate,val-selected alpha,0.5646335085233053,0.034278413814487145,3,7,7,44.2979,5.0574,,merge_baselines
+ETTh1,5,forecast/mse,False,8.759,iso_c,candidate,val-selected alpha,0.5211785535017649,0.05472865453802184,3,6,7,33.1926,3.7895,,merge_baselines
+ETTh1,5,forecast/mse,False,8.759,tsv,candidate,val-selected alpha,0.47951754927635193,0.03146585300444265,3,5,7,22.5457,2.574,,merge_baselines
+ETTh2,2,forecast/mse,False,6.741,base,reference,none,0.788477,,,,8,238.0887,35.3195,,method_comparison
+ETTh2,2,forecast/mse,False,6.741,joint,reference,shared configuration,0.136248,,,,8,-41.5786,-6.168,,method_comparison
+ETTh2,2,forecast/mse,False,6.741,specialists,reference,mean of per-segment models,0.403194,,,,8,72.8844,10.8121,,method_comparison
+ETTh2,2,forecast/mse,False,6.741,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.261224,,,,8,12.0095,1.7816,,method_comparison
+ETTh2,2,forecast/mse,False,6.741,sequential,candidate,final step,0.233216,,,1,8,0.0,0.0,,method_comparison
+ETTh2,2,forecast/mse,False,6.741,window_val,candidate,W selected on validation,0.295173,,,4,8,26.5664,3.941,,method_comparison
+ETTh2,2,forecast/mse,False,6.741,window_oracle,reference,W selected on TEST,0.295173,,,,8,26.5664,3.941,,method_comparison
+ETTh2,2,forecast/mse,False,6.741,ta,candidate,val-selected alpha,0.2571328928073247,0.03888315127931777,3,2,8,10.2553,1.5213,,merge_baselines
+ETTh2,2,forecast/mse,False,6.741,dare,candidate,val-selected alpha,0.2608216504255931,0.04097210004945765,3,3,8,11.8369,1.756,,merge_baselines
+ETTh2,2,forecast/mse,False,6.741,ties,candidate,val-selected alpha,0.6065160234769186,0.11896265525398206,3,8,8,160.0662,23.7452,,merge_baselines
+ETTh2,2,forecast/mse,False,6.741,iso_c,candidate,val-selected alpha,0.2973360518614451,0.05967510600675064,3,5,8,27.4938,4.0786,,merge_baselines
+ETTh2,2,forecast/mse,False,6.741,tsv,candidate,val-selected alpha,0.305671622355779,0.05678583697970382,3,6,8,31.068,4.6088,,merge_baselines
+ETTh2,2,forecast/mse,False,6.741,adaptive_lambda,candidate,"final step, B = 1 (corrected)",0.5631070137023926,0.23648440482696764,3,7,8,141.453,20.984,0.23321597774823508,adaptive_lambda
+ETTh2,3,forecast/mse,False,6.741,base,reference,none,0.912174,,,,8,372.7632,55.2979,,method_comparison
+ETTh2,3,forecast/mse,False,6.741,joint,reference,shared configuration,0.136248,,,,8,-29.3851,-4.3592,,method_comparison
+ETTh2,3,forecast/mse,False,6.741,specialists,reference,mean of per-segment models,0.29701,,,,8,53.9349,8.001,,method_comparison
+ETTh2,3,forecast/mse,False,6.741,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.215281,,,,8,11.5762,1.7173,,method_comparison
+ETTh2,3,forecast/mse,False,6.741,sequential,candidate,final step,0.196985,,,3,8,2.0937,0.3106,,method_comparison
+ETTh2,3,forecast/mse,False,6.741,window_val,candidate,W selected on validation,0.295173,,,6,8,52.9828,7.8598,,method_comparison
+ETTh2,3,forecast/mse,False,6.741,window_oracle,reference,W selected on TEST,0.295173,,,,8,52.9828,7.8598,,method_comparison
+ETTh2,3,forecast/mse,False,6.741,ta,candidate,val-selected alpha,0.1929452121257782,0.0014168606879607585,3,1,8,0.0,0.0,,merge_baselines
+ETTh2,3,forecast/mse,False,6.741,dare,candidate,val-selected alpha,0.19606979191303253,0.0034906414589194273,3,2,8,1.6194,0.2402,,merge_baselines
+ETTh2,3,forecast/mse,False,6.741,ties,candidate,val-selected alpha,0.42691702644030255,0.05216788322358236,3,8,8,121.2633,17.9889,,merge_baselines
+ETTh2,3,forecast/mse,False,6.741,iso_c,candidate,val-selected alpha,0.25813432534535724,0.051619791698088384,3,5,8,33.7863,5.0121,,merge_baselines
+ETTh2,3,forecast/mse,False,6.741,tsv,candidate,val-selected alpha,0.22413381934165955,0.011541865562842644,3,4,8,16.1645,2.3979,,merge_baselines
+ETTh2,3,forecast/mse,False,6.741,adaptive_lambda,candidate,"final step, B = 1 (corrected)",0.2977343002955119,0.032775935264391716,3,7,8,54.3103,8.0567,0.1969845394293467,adaptive_lambda
+ETTh2,5,forecast/mse,False,6.741,base,reference,none,0.862824,,,,8,286.1861,42.4546,,method_comparison
+ETTh2,5,forecast/mse,False,6.741,joint,reference,shared configuration,0.136248,,,,8,-39.0176,-5.7881,,method_comparison
+ETTh2,5,forecast/mse,False,6.741,specialists,reference,mean of per-segment models,0.332331,,,,8,48.746,7.2313,,method_comparison
+ETTh2,5,forecast/mse,False,6.741,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.26692,,,,8,19.4691,2.8882,,method_comparison
+ETTh2,5,forecast/mse,False,6.741,sequential,candidate,final step,0.249455,,,3,8,11.652,1.7285,,method_comparison
+ETTh2,5,forecast/mse,False,6.741,window_val,candidate,W selected on validation,0.295173,,,7,8,32.1147,4.7641,,method_comparison
+ETTh2,5,forecast/mse,False,6.741,window_oracle,reference,W selected on TEST,0.295173,,,,8,32.1147,4.7641,,method_comparison
+ETTh2,5,forecast/mse,False,6.741,ta,candidate,val-selected alpha,0.22342179715633392,0.014536142761364357,3,1,8,0.0,0.0,,merge_baselines
+ETTh2,5,forecast/mse,False,6.741,dare,candidate,val-selected alpha,0.22369290391604105,0.013075835510896307,3,2,8,0.1213,0.018,,merge_baselines
+ETTh2,5,forecast/mse,False,6.741,ties,candidate,val-selected alpha,0.2786033054192861,0.010900126546126527,3,6,8,24.6984,3.6639,,merge_baselines
+ETTh2,5,forecast/mse,False,6.741,iso_c,candidate,val-selected alpha,0.27647629380226135,0.048047556977928715,3,5,8,23.7463,3.5227,,merge_baselines
+ETTh2,5,forecast/mse,False,6.741,tsv,candidate,val-selected alpha,0.2533196856578191,0.01821625983376378,3,4,8,13.3818,1.9851,,merge_baselines
+ETTh2,5,forecast/mse,False,6.741,adaptive_lambda,candidate,"final step, B = 1 (corrected)",0.3420925736427307,0.020234494248104345,3,8,8,53.1151,7.8794,0.24945528308550516,adaptive_lambda
+ETTm2,2,forecast/mse,False,14.107,base,reference,none,0.572725,,,,8,501.3682,35.5404,,method_comparison
+ETTm2,2,forecast/mse,False,14.107,joint,reference,shared configuration,0.075037,,,,8,-21.2102,-1.5035,,method_comparison
+ETTm2,2,forecast/mse,False,14.107,specialists,reference,mean of per-segment models,0.141174,,,,8,48.2344,3.4192,,method_comparison
+ETTm2,2,forecast/mse,False,14.107,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.123973,,,,8,30.1731,2.1389,,method_comparison
+ETTm2,2,forecast/mse,False,14.107,sequential,candidate,final step,0.095237,,,1,8,0.0,0.0,,method_comparison
+ETTm2,2,forecast/mse,False,14.107,window_val,candidate,W selected on validation,0.109166,,,2,8,14.6256,1.0368,,method_comparison
+ETTm2,2,forecast/mse,False,14.107,window_oracle,reference,W selected on TEST,0.109166,,,,8,14.6256,1.0368,,method_comparison
+ETTm2,2,forecast/mse,False,14.107,ta,candidate,val-selected alpha,0.14550816267728806,0.03501984031127852,3,5,8,52.7853,3.7418,,merge_baselines
+ETTm2,2,forecast/mse,False,14.107,dare,candidate,val-selected alpha,0.17769141495227814,0.01503811172493202,3,6,8,86.5781,6.1372,,merge_baselines
+ETTm2,2,forecast/mse,False,14.107,ties,candidate,val-selected alpha,0.40658536553382874,0.0498575305083824,3,8,8,326.9195,23.1743,,merge_baselines
+ETTm2,2,forecast/mse,False,14.107,iso_c,candidate,val-selected alpha,0.25345905621846515,0.05262376531977505,3,7,8,166.1351,11.7768,,merge_baselines
+ETTm2,2,forecast/mse,False,14.107,tsv,candidate,val-selected alpha,0.1411931961774826,0.009987432416678566,3,4,8,48.2546,3.4206,,merge_baselines
+ETTm2,2,forecast/mse,False,14.107,adaptive_lambda,candidate,"final step, B = 1 (corrected)",0.13525217274824777,0.0035158841917987222,3,3,8,42.0164,2.9784,0.09523722032705943,adaptive_lambda
+ETTm2,3,forecast/mse,False,14.107,base,reference,none,0.57878,,,,8,529.3207,37.5219,,method_comparison
+ETTm2,3,forecast/mse,False,14.107,joint,reference,shared configuration,0.075037,,,,8,-18.4106,-1.3051,,method_comparison
+ETTm2,3,forecast/mse,False,14.107,specialists,reference,mean of per-segment models,0.153148,,,,8,66.5213,4.7155,,method_comparison
+ETTm2,3,forecast/mse,False,14.107,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.112149,,,,8,21.9422,1.5554,,method_comparison
+ETTm2,3,forecast/mse,False,14.107,sequential,candidate,final step,0.091969,,,1,8,0.0,0.0,,method_comparison
+ETTm2,3,forecast/mse,False,14.107,window_val,candidate,W selected on validation,0.109166,,,2,8,18.6987,1.3255,,method_comparison
+ETTm2,3,forecast/mse,False,14.107,window_oracle,reference,W selected on TEST,0.109166,,,,8,18.6987,1.3255,,method_comparison
+ETTm2,3,forecast/mse,False,14.107,ta,candidate,val-selected alpha,0.11442957570155461,0.02629487055068159,3,3,8,24.4219,1.7312,,merge_baselines
+ETTm2,3,forecast/mse,False,14.107,dare,candidate,val-selected alpha,0.1246942604581515,0.028143199659795105,3,4,8,35.5829,2.5224,,merge_baselines
+ETTm2,3,forecast/mse,False,14.107,ties,candidate,val-selected alpha,0.27789375682671863,0.04337098624724249,3,8,8,202.1602,14.3305,,merge_baselines
+ETTm2,3,forecast/mse,False,14.107,iso_c,candidate,val-selected alpha,0.1844149132569631,0.005596612138727954,3,7,8,100.5186,7.1254,,merge_baselines
+ETTm2,3,forecast/mse,False,14.107,tsv,candidate,val-selected alpha,0.1419120579957962,0.009134711087158801,3,6,8,54.3042,3.8495,,merge_baselines
+ETTm2,3,forecast/mse,False,14.107,adaptive_lambda,candidate,"final step, B = 1 (corrected)",0.12989441553751627,0.0021130694548752906,3,5,8,41.2372,2.9232,0.09196929633617401,adaptive_lambda
+ETTm2,5,forecast/mse,False,14.107,base,reference,none,0.569494,,,,8,421.6771,29.8913,,method_comparison
+ETTm2,5,forecast/mse,False,14.107,joint,reference,shared configuration,0.075037,,,,8,-31.2634,-2.2162,,method_comparison
+ETTm2,5,forecast/mse,False,14.107,specialists,reference,mean of per-segment models,0.201843,,,,8,84.8955,6.018,,method_comparison
+ETTm2,5,forecast/mse,False,14.107,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.138523,,,,8,26.8921,1.9063,,method_comparison
+ETTm2,5,forecast/mse,False,14.107,sequential,candidate,final step,0.183852,,,5,8,68.4151,4.8497,,method_comparison
+ETTm2,5,forecast/mse,False,14.107,window_val,candidate,W selected on validation,0.109166,,,1,8,0.0,0.0,,method_comparison
+ETTm2,5,forecast/mse,False,14.107,window_oracle,reference,W selected on TEST,0.109166,,,,8,0.0,0.0,,method_comparison
+ETTm2,5,forecast/mse,False,14.107,ta,candidate,val-selected alpha,0.1190199926495552,0.010024599858635377,3,2,8,9.0266,0.6399,,merge_baselines
+ETTm2,5,forecast/mse,False,14.107,dare,candidate,val-selected alpha,0.1216454083720843,0.017154745757206595,3,3,8,11.4316,0.8103,,merge_baselines
+ETTm2,5,forecast/mse,False,14.107,ties,candidate,val-selected alpha,0.2914571166038513,0.03140666631209927,3,8,8,166.9852,11.837,,merge_baselines
+ETTm2,5,forecast/mse,False,14.107,iso_c,candidate,val-selected alpha,0.1997870405515035,0.029604086736718195,3,6,8,83.0121,5.8845,,merge_baselines
+ETTm2,5,forecast/mse,False,14.107,tsv,candidate,val-selected alpha,0.17501466472943625,0.020079657650849084,3,4,8,60.3198,4.2759,,merge_baselines
+ETTm2,5,forecast/mse,False,14.107,adaptive_lambda,candidate,"final step, B = 1 (corrected)",0.20611754059791565,0.004630373204988661,3,7,8,88.8111,6.2955,0.18385240932305655,adaptive_lambda
+PSM,2,window_auroc,True,0.068,base,reference,none,0.772975,,,,6,3.8738,56.9672,,method_comparison
+PSM,2,window_auroc,True,0.068,joint,reference,shared configuration,0.799845,,,,6,0.5322,7.8272,,method_comparison
+PSM,2,window_auroc,True,0.068,specialists,reference,mean of per-segment models,0.794685,,,,6,1.1739,17.2638,,method_comparison
+PSM,2,window_auroc,True,0.068,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.804109,,,,6,0.002,0.0292,,method_comparison
+PSM,2,window_auroc,True,0.068,sequential,candidate,final step,0.803046,,,2,6,0.1342,1.9732,,method_comparison
+PSM,2,window_auroc,True,0.068,window_oracle,reference,W selected on TEST,0.798699,,,,6,0.6748,9.923,,method_comparison
+PSM,2,window_auroc,True,0.068,ta,candidate,distance-matched to TA at alpha = 1.0,0.8041249497574965,0.0006966451686122553,3,1,6,0.0,0.0,,merge_baselines
+PSM,2,window_auroc,True,0.068,dare,candidate,distance-matched to TA at alpha = 1.0,0.7998620517237588,0.001348970049987554,3,5,6,0.5301,7.796,,merge_baselines
+PSM,2,window_auroc,True,0.068,ties,candidate,distance-matched to TA at alpha = 1.0,0.800377645396895,0.0010731553940315393,3,3,6,0.466,6.8531,,merge_baselines
+PSM,2,window_auroc,True,0.068,iso_c,candidate,distance-matched to TA at alpha = 1.0,0.7846944074238872,0.0017196033406979797,3,6,6,2.4164,35.5347,,merge_baselines
+PSM,2,window_auroc,True,0.068,tsv,candidate,distance-matched to TA at alpha = 1.0,0.8002320181759122,0.0015219946098558109,3,4,6,0.4841,7.1194,,merge_baselines
+PSM,3,window_auroc,True,0.068,base,reference,none,0.774187,,,,7,3.6929,54.3067,,method_comparison
+PSM,3,window_auroc,True,0.068,joint,reference,shared configuration,0.799845,,,,7,0.5011,7.3685,,method_comparison
+PSM,3,window_auroc,True,0.068,specialists,reference,mean of per-segment models,0.789593,,,,7,1.7764,26.1233,,method_comparison
+PSM,3,window_auroc,True,0.068,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.80046,,,,7,0.4246,6.2435,,method_comparison
+PSM,3,window_auroc,True,0.068,sequential,candidate,final step,0.796863,,,4,7,0.872,12.8237,,method_comparison
+PSM,3,window_auroc,True,0.068,window_oracle,reference,W selected on TEST,0.798699,,,,7,0.6436,9.465,,method_comparison
+PSM,3,window_auroc,True,0.068,ta,candidate,distance-matched to TA at alpha = 1.0,0.8004519815816854,0.0019461767379056066,3,3,7,0.4256,6.2581,,merge_baselines
+PSM,3,window_auroc,True,0.068,dare,candidate,distance-matched to TA at alpha = 1.0,0.8005636955982803,0.0014375425915453697,3,2,7,0.4117,6.0538,,merge_baselines
+PSM,3,window_auroc,True,0.068,ties,candidate,distance-matched to TA at alpha = 1.0,0.8038728881738114,0.0021525934800036375,3,1,7,0.0,0.0,,merge_baselines
+PSM,3,window_auroc,True,0.068,iso_c,candidate,distance-matched to TA at alpha = 1.0,0.7847186636944814,0.0007704851020091253,3,7,7,2.3827,35.0403,,merge_baselines
+PSM,3,window_auroc,True,0.068,tsv,candidate,distance-matched to TA at alpha = 1.0,0.796772080660232,0.001411963476218591,3,5,7,0.8833,12.9901,,merge_baselines
+PSM,3,window_auroc,True,0.068,adaptive_lambda,candidate,"final step, B = 64 (defect; AD not re-run)",0.7905952013297523,0.007138817163810536,3,6,7,1.6517,24.2899,0.796863489613565,adaptive_lambda
+PSM,5,window_auroc,True,0.068,base,reference,none,0.775714,,,,6,3.0267,44.5109,,method_comparison
+PSM,5,window_auroc,True,0.068,joint,reference,shared configuration,0.799845,,,,6,0.0101,0.1484,,method_comparison
+PSM,5,window_auroc,True,0.068,specialists,reference,mean of per-segment models,0.783478,,,,6,2.0562,30.2375,,method_comparison
+PSM,5,window_auroc,True,0.068,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.794416,,,,6,0.6888,10.1291,,method_comparison
+PSM,5,window_auroc,True,0.068,sequential,candidate,final step,0.795251,,,3,6,0.5844,8.594,,method_comparison
+PSM,5,window_auroc,True,0.068,window_oracle,reference,W selected on TEST,0.798699,,,,6,0.1534,2.2552,,method_comparison
+PSM,5,window_auroc,True,0.068,ta,candidate,distance-matched to TA at alpha = 1.0,0.7943708894541085,0.004819012755654386,3,4,6,0.6944,10.212,,merge_baselines
+PSM,5,window_auroc,True,0.068,dare,candidate,distance-matched to TA at alpha = 1.0,0.7999256955621735,0.0024380155803879846,3,1,6,0.0,0.0,,merge_baselines
+PSM,5,window_auroc,True,0.068,ties,candidate,distance-matched to TA at alpha = 1.0,0.7976537329223946,0.005740059680575305,3,2,6,0.284,4.1768,,merge_baselines
+PSM,5,window_auroc,True,0.068,iso_c,candidate,distance-matched to TA at alpha = 1.0,0.7839919480577177,0.0028819471947394543,3,6,6,1.9919,29.2927,,merge_baselines
+PSM,5,window_auroc,True,0.068,tsv,candidate,distance-matched to TA at alpha = 1.0,0.792415689854432,0.001310200158770771,3,5,6,0.9388,13.8064,,merge_baselines
+PSM-forecast,2,forecast/mse,False,1.157,base,reference,none,0.532746,,,,7,45.7939,39.5799,,method_comparison
+PSM-forecast,2,forecast/mse,False,1.157,joint,reference,shared configuration,0.302186,,,,7,-17.3023,-14.9544,,method_comparison
+PSM-forecast,2,forecast/mse,False,1.157,specialists,reference,mean of per-segment models,0.426517,,,,7,16.7227,14.4535,,method_comparison
+PSM-forecast,2,forecast/mse,False,1.157,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.362958,,,,7,-0.6711,-0.5801,,method_comparison
+PSM-forecast,2,forecast/mse,False,1.157,sequential,candidate,final step,0.442678,,,7,7,21.1454,18.2761,,method_comparison
+PSM-forecast,2,forecast/mse,False,1.157,window_val,candidate,W selected on validation,0.413191,,,5,7,13.0759,11.3015,,method_comparison
+PSM-forecast,2,forecast/mse,False,1.157,window_oracle,reference,W selected on TEST,0.361129,,,,7,-1.1717,-1.0127,,method_comparison
+PSM-forecast,2,forecast/mse,False,1.157,ta,candidate,val-selected alpha,0.36541034777959186,0.038490203433361916,3,1,7,0.0,0.0,,merge_baselines
+PSM-forecast,2,forecast/mse,False,1.157,dare,candidate,val-selected alpha,0.3868483603000641,0.024222646989173834,3,3,7,5.8668,5.0707,,merge_baselines
+PSM-forecast,2,forecast/mse,False,1.157,ties,candidate,val-selected alpha,0.42371275027592975,0.015651942211633036,3,6,7,15.9553,13.7903,,merge_baselines
+PSM-forecast,2,forecast/mse,False,1.157,iso_c,candidate,val-selected alpha,0.3824724853038788,0.02975588177162363,3,2,7,4.6693,4.0357,,merge_baselines
+PSM-forecast,2,forecast/mse,False,1.157,tsv,candidate,val-selected alpha,0.3873481551806132,0.027470057512628304,3,4,7,6.0036,5.1889,,merge_baselines
+PSM-forecast,3,forecast/mse,False,1.157,base,reference,none,0.518848,,,,7,35.1329,30.3655,,method_comparison
+PSM-forecast,3,forecast/mse,False,1.157,joint,reference,shared configuration,0.302186,,,,7,-21.2963,-18.4065,,method_comparison
+PSM-forecast,3,forecast/mse,False,1.157,specialists,reference,mean of per-segment models,0.436511,,,,7,13.6884,11.8309,,method_comparison
+PSM-forecast,3,forecast/mse,False,1.157,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.392485,,,,7,2.2219,1.9204,,method_comparison
+PSM-forecast,3,forecast/mse,False,1.157,sequential,candidate,final step,0.383954,,,1,7,0.0,0.0,,method_comparison
+PSM-forecast,3,forecast/mse,False,1.157,window_val,candidate,W selected on validation,0.413191,,,6,7,7.6147,6.5814,,method_comparison
+PSM-forecast,3,forecast/mse,False,1.157,window_oracle,reference,W selected on TEST,0.361129,,,,7,-5.9447,-5.138,,method_comparison
+PSM-forecast,3,forecast/mse,False,1.157,ta,candidate,val-selected alpha,0.39513994256655377,0.006826375572394126,3,2,7,2.9134,2.518,,merge_baselines
+PSM-forecast,3,forecast/mse,False,1.157,dare,candidate,val-selected alpha,0.40411463379859924,0.003919621135926564,3,4,7,5.2508,4.5383,,merge_baselines
+PSM-forecast,3,forecast/mse,False,1.157,ties,candidate,val-selected alpha,0.431921790043513,0.0028555138547491812,3,7,7,12.4931,10.7978,,merge_baselines
+PSM-forecast,3,forecast/mse,False,1.157,iso_c,candidate,val-selected alpha,0.3976229429244995,0.01687329659067802,3,3,7,3.56,3.077,,merge_baselines
+PSM-forecast,3,forecast/mse,False,1.157,tsv,candidate,val-selected alpha,0.4076262911160787,0.0006581182885692962,3,5,7,6.1654,5.3288,,merge_baselines
+PSM-forecast,5,forecast/mse,False,1.157,base,reference,none,0.512621,,,,7,27.0246,23.3575,,method_comparison
+PSM-forecast,5,forecast/mse,False,1.157,joint,reference,shared configuration,0.302186,,,,7,-25.12,-21.7113,,method_comparison
+PSM-forecast,5,forecast/mse,False,1.157,specialists,reference,mean of per-segment models,0.476112,,,,7,17.9779,15.5384,,method_comparison
+PSM-forecast,5,forecast/mse,False,1.157,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.40356,,,,7,-0.0001,-0.0001,,method_comparison
+PSM-forecast,5,forecast/mse,False,1.157,sequential,candidate,final step,0.441867,,,6,7,9.4922,8.2041,,method_comparison
+PSM-forecast,5,forecast/mse,False,1.157,window_val,candidate,W selected on validation,0.413191,,,4,7,2.3864,2.0626,,method_comparison
+PSM-forecast,5,forecast/mse,False,1.157,window_oracle,reference,W selected on TEST,0.361129,,,,7,-10.5142,-9.0875,,method_comparison
+PSM-forecast,5,forecast/mse,False,1.157,ta,candidate,val-selected alpha,0.4035602807998657,0.0055963159565728254,3,1,7,0.0,0.0,,merge_baselines
+PSM-forecast,5,forecast/mse,False,1.157,dare,candidate,val-selected alpha,0.4073295096556346,0.008280594303210525,3,3,7,0.934,0.8073,,merge_baselines
+PSM-forecast,5,forecast/mse,False,1.157,ties,candidate,val-selected alpha,0.449421763420105,0.01100838843169513,3,7,7,11.3642,9.8221,,merge_baselines
+PSM-forecast,5,forecast/mse,False,1.157,iso_c,candidate,val-selected alpha,0.4062180519104004,0.015014648917920235,3,2,7,0.6586,0.5692,,merge_baselines
+PSM-forecast,5,forecast/mse,False,1.157,tsv,candidate,val-selected alpha,0.41692517201105755,0.012604255213870968,3,5,7,3.3117,2.8624,,merge_baselines
+SWaT,2,window_auroc,True,0.087,base,reference,none,0.799784,,,,6,0.5743,6.6012,,method_comparison
+SWaT,2,window_auroc,True,0.087,joint,reference,shared configuration,0.80784,,,,6,-0.4272,-4.9101,,method_comparison
+SWaT,2,window_auroc,True,0.087,specialists,reference,mean of per-segment models,0.800542,,,,6,0.4801,5.5181,,method_comparison
+SWaT,2,window_auroc,True,0.087,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.8044,,,,6,0.0005,0.0053,,method_comparison
+SWaT,2,window_auroc,True,0.087,sequential,candidate,final step,0.802682,,,4,6,0.214,2.4602,,method_comparison
+SWaT,2,window_auroc,True,0.087,window_oracle,reference,W selected on TEST,0.802318,,,,6,0.2593,2.9803,,method_comparison
+SWaT,2,window_auroc,True,0.087,ta,candidate,distance-matched to TA at alpha = 1.0,0.8044037359742656,0.0009751602501558741,3,1,6,0.0,0.0,,merge_baselines
+SWaT,2,window_auroc,True,0.087,dare,candidate,distance-matched to TA at alpha = 1.0,0.8025966664146166,0.0008901209180574425,3,5,6,0.2246,2.5822,,merge_baselines
+SWaT,2,window_auroc,True,0.087,ties,candidate,distance-matched to TA at alpha = 1.0,0.8032263926746257,0.0016086869470562104,3,2,6,0.1464,1.6823,,merge_baselines
+SWaT,2,window_auroc,True,0.087,iso_c,candidate,distance-matched to TA at alpha = 1.0,0.7998093994802226,0.0015272457200903881,3,6,6,0.5711,6.5649,,merge_baselines
+SWaT,2,window_auroc,True,0.087,tsv,candidate,distance-matched to TA at alpha = 1.0,0.8027172345548239,0.0007328623950030213,3,3,6,0.2097,2.4099,,merge_baselines
+SWaT,3,window_auroc,True,0.087,base,reference,none,0.799224,,,,7,0.561,6.4486,,method_comparison
+SWaT,3,window_auroc,True,0.087,joint,reference,shared configuration,0.80784,,,,7,-0.511,-5.8732,,method_comparison
+SWaT,3,window_auroc,True,0.087,specialists,reference,mean of per-segment models,0.799732,,,,7,0.4978,5.7222,,method_comparison
+SWaT,3,window_auroc,True,0.087,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.803736,,,,7,-0.0003,-0.004,,method_comparison
+SWaT,3,window_auroc,True,0.087,sequential,candidate,final step,0.80369,,,2,7,0.0054,0.0618,,method_comparison
+SWaT,3,window_auroc,True,0.087,window_oracle,reference,W selected on TEST,0.802318,,,,7,0.1761,2.0239,,method_comparison
+SWaT,3,window_auroc,True,0.087,ta,candidate,distance-matched to TA at alpha = 1.0,0.8037332039978456,0.0013410170609257689,3,1,7,0.0,0.0,,merge_baselines
+SWaT,3,window_auroc,True,0.087,dare,candidate,distance-matched to TA at alpha = 1.0,0.8030926433249602,0.0011378866865455377,3,3,7,0.0797,0.9161,,merge_baselines
+SWaT,3,window_auroc,True,0.087,ties,candidate,distance-matched to TA at alpha = 1.0,0.8023581618218842,0.0020048116000364324,3,4,7,0.1711,1.9665,,merge_baselines
+SWaT,3,window_auroc,True,0.087,iso_c,candidate,distance-matched to TA at alpha = 1.0,0.7990222510826448,0.0008708113363759074,3,7,7,0.5861,6.7372,,merge_baselines
+SWaT,3,window_auroc,True,0.087,tsv,candidate,distance-matched to TA at alpha = 1.0,0.8018302144567442,0.0007661508965904193,3,5,7,0.2368,2.7215,,merge_baselines
+SWaT,3,window_auroc,True,0.087,adaptive_lambda,candidate,"final step, B = 64 (defect; AD not re-run)",0.8001874372979197,0.0013150444068578213,3,6,7,0.4412,5.0708,0.8036903324744409,adaptive_lambda
+SWaT,5,window_auroc,True,0.087,base,reference,none,0.799036,,,,6,0.7228,8.308,,method_comparison
+SWaT,5,window_auroc,True,0.087,joint,reference,shared configuration,0.80784,,,,6,-0.3711,-4.2651,,method_comparison
+SWaT,5,window_auroc,True,0.087,specialists,reference,mean of per-segment models,0.799356,,,,6,0.683,7.851,,method_comparison
+SWaT,5,window_auroc,True,0.087,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.804853,,,,6,0.0001,0.0007,,method_comparison
+SWaT,5,window_auroc,True,0.087,sequential,candidate,final step,0.803422,,,3,6,0.1779,2.0443,,method_comparison
+SWaT,5,window_auroc,True,0.087,window_oracle,reference,W selected on TEST,0.802318,,,,6,0.315,3.6209,,method_comparison
+SWaT,5,window_auroc,True,0.087,ta,candidate,distance-matched to TA at alpha = 1.0,0.8048534669707029,0.001882676180828389,3,1,6,0.0,0.0,,merge_baselines
+SWaT,5,window_auroc,True,0.087,dare,candidate,distance-matched to TA at alpha = 1.0,0.8043180525428638,0.0017575325010273381,3,2,6,0.0665,0.7646,,merge_baselines
+SWaT,5,window_auroc,True,0.087,ties,candidate,distance-matched to TA at alpha = 1.0,0.8017470008295807,0.0017077011801543364,3,5,6,0.386,4.4364,,merge_baselines
+SWaT,5,window_auroc,True,0.087,iso_c,candidate,distance-matched to TA at alpha = 1.0,0.7988707176771971,0.0011909416031182169,3,6,6,0.7433,8.5441,,merge_baselines
+SWaT,5,window_auroc,True,0.087,tsv,candidate,distance-matched to TA at alpha = 1.0,0.80277677023118,0.002559525530821832,3,4,6,0.258,2.9658,,merge_baselines
+SWaT-forecast,2,forecast/mse,False,84.232,base,reference,none,19.956665,,,,7,547.1767,6.4961,,method_comparison
+SWaT-forecast,2,forecast/mse,False,84.232,joint,reference,shared configuration,12.491002,,,,7,305.072,3.6218,,method_comparison
+SWaT-forecast,2,forecast/mse,False,84.232,specialists,reference,mean of per-segment models,14.742666,,,,7,378.0914,4.4887,,method_comparison
+SWaT-forecast,2,forecast/mse,False,84.232,merge_ta_published,reference,val-selected alpha (§1.26 grid),14.858959,,,,7,381.8627,4.5335,,method_comparison
+SWaT-forecast,2,forecast/mse,False,84.232,sequential,candidate,final step,3.309501,,,2,7,7.3241,0.087,,method_comparison
+SWaT-forecast,2,forecast/mse,False,84.232,window_val,candidate,W selected on validation,3.08365,,,1,7,0.0,0.0,,method_comparison
+SWaT-forecast,2,forecast/mse,False,84.232,window_oracle,reference,W selected on TEST,2.892129,,,,7,-6.2109,-0.0737,,method_comparison
+SWaT-forecast,2,forecast/mse,False,84.232,ta,candidate,val-selected alpha,14.864910443623861,18.061554303037326,3,3,7,382.0557,4.5358,,merge_baselines
+SWaT-forecast,2,forecast/mse,False,84.232,dare,candidate,val-selected alpha,15.35641860961914,18.515309620657913,3,4,7,397.9949,4.725,,merge_baselines
+SWaT-forecast,2,forecast/mse,False,84.232,ties,candidate,val-selected alpha,17.542219241460163,21.58511332487445,3,7,7,468.8784,5.5665,,merge_baselines
+SWaT-forecast,2,forecast/mse,False,84.232,iso_c,candidate,val-selected alpha,15.688417593638102,19.905664703214207,3,5,7,408.7613,4.8528,,merge_baselines
+SWaT-forecast,2,forecast/mse,False,84.232,tsv,candidate,val-selected alpha,17.05914568901062,21.041406922590557,3,6,7,453.2128,5.3805,,merge_baselines
+SWaT-forecast,3,forecast/mse,False,84.232,base,reference,none,6.249477,,,,7,102.6649,1.2188,,method_comparison
+SWaT-forecast,3,forecast/mse,False,84.232,joint,reference,shared configuration,12.491002,,,,7,305.072,3.6218,,method_comparison
+SWaT-forecast,3,forecast/mse,False,84.232,specialists,reference,mean of per-segment models,4.613425,,,,7,49.6092,0.589,,method_comparison
+SWaT-forecast,3,forecast/mse,False,84.232,merge_ta_published,reference,val-selected alpha (§1.26 grid),4.760369,,,,7,54.3745,0.6455,,method_comparison
+SWaT-forecast,3,forecast/mse,False,84.232,sequential,candidate,final step,3.965431,,,2,7,28.5954,0.3395,,method_comparison
+SWaT-forecast,3,forecast/mse,False,84.232,window_val,candidate,W selected on validation,3.08365,,,1,7,0.0,0.0,,method_comparison
+SWaT-forecast,3,forecast/mse,False,84.232,window_oracle,reference,W selected on TEST,2.892129,,,,7,-6.2109,-0.0737,,method_comparison
+SWaT-forecast,3,forecast/mse,False,84.232,ta,candidate,val-selected alpha,4.74668025970459,3.2383167712136887,3,7,7,53.9306,0.6403,,merge_baselines
+SWaT-forecast,3,forecast/mse,False,84.232,dare,candidate,val-selected alpha,4.704156080881755,3.2025186614825656,3,6,7,52.5516,0.6239,,merge_baselines
+SWaT-forecast,3,forecast/mse,False,84.232,ties,candidate,val-selected alpha,4.694290240605672,3.3036132633371835,3,5,7,52.2316,0.6201,,merge_baselines
+SWaT-forecast,3,forecast/mse,False,84.232,iso_c,candidate,val-selected alpha,4.4727474848429365,2.7656655964242,3,3,7,45.0472,0.5348,,merge_baselines
+SWaT-forecast,3,forecast/mse,False,84.232,tsv,candidate,val-selected alpha,4.676638126373291,3.018995312614484,3,4,7,51.6592,0.6133,,merge_baselines
+SWaT-forecast,5,forecast/mse,False,84.232,base,reference,none,6.450763,,,,7,109.1925,1.2963,,method_comparison
+SWaT-forecast,5,forecast/mse,False,84.232,joint,reference,shared configuration,12.491002,,,,7,305.072,3.6218,,method_comparison
+SWaT-forecast,5,forecast/mse,False,84.232,specialists,reference,mean of per-segment models,5.076426,,,,7,64.6239,0.7672,,method_comparison
+SWaT-forecast,5,forecast/mse,False,84.232,merge_ta_published,reference,val-selected alpha (§1.26 grid),5.244547,,,,7,70.0759,0.8319,,method_comparison
+SWaT-forecast,5,forecast/mse,False,84.232,sequential,candidate,final step,4.02288,,,2,7,30.4584,0.3616,,method_comparison
+SWaT-forecast,5,forecast/mse,False,84.232,window_val,candidate,W selected on validation,3.08365,,,1,7,0.0,0.0,,method_comparison
+SWaT-forecast,5,forecast/mse,False,84.232,window_oracle,reference,W selected on TEST,2.892129,,,,7,-6.2109,-0.0737,,method_comparison
+SWaT-forecast,5,forecast/mse,False,84.232,ta,candidate,val-selected alpha,4.920468886693318,3.128853549440977,3,5,7,59.5664,0.7072,,merge_baselines
+SWaT-forecast,5,forecast/mse,False,84.232,dare,candidate,val-selected alpha,4.821657657623291,2.8882949961119926,3,4,7,56.362,0.6691,,merge_baselines
+SWaT-forecast,5,forecast/mse,False,84.232,ties,candidate,val-selected alpha,5.006436824798584,3.253080208275109,3,7,7,62.3542,0.7403,,merge_baselines
+SWaT-forecast,5,forecast/mse,False,84.232,iso_c,candidate,val-selected alpha,4.614987293879191,2.350717895982771,3,3,7,49.6599,0.5896,,merge_baselines
+SWaT-forecast,5,forecast/mse,False,84.232,tsv,candidate,val-selected alpha,4.988196055094401,3.121568637891474,3,6,7,61.7627,0.7332,,merge_baselines
+exchange,2,forecast/mse,False,5.734,base,reference,none,0.747419,,,,7,239.9584,41.8483,,method_comparison
+exchange,2,forecast/mse,False,5.734,joint,reference,shared configuration,0.395655,,,,7,79.961,13.9451,,method_comparison
+exchange,2,forecast/mse,False,5.734,specialists,reference,mean of per-segment models,0.446237,,,,7,102.9679,17.9574,,method_comparison
+exchange,2,forecast/mse,False,5.734,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.255416,,,,7,16.1742,2.8208,,method_comparison
+exchange,2,forecast/mse,False,5.734,sequential,candidate,final step,0.219856,,,1,7,0.0,0.0,,method_comparison
+exchange,2,forecast/mse,False,5.734,window_val,candidate,W selected on validation,0.394855,,,7,7,79.5971,13.8816,,method_comparison
+exchange,2,forecast/mse,False,5.734,window_oracle,reference,W selected on TEST,0.205271,,,,7,-6.6339,-1.1569,,method_comparison
+exchange,2,forecast/mse,False,5.734,ta,candidate,val-selected alpha,0.25541646281878155,0.02056716666656315,3,3,7,16.1744,2.8208,,merge_baselines
+exchange,2,forecast/mse,False,5.734,dare,candidate,val-selected alpha,0.2684945712486903,0.024512654562721725,3,4,7,22.1229,3.8582,,merge_baselines
+exchange,2,forecast/mse,False,5.734,ties,candidate,val-selected alpha,0.3176249563694,0.05249904806281902,3,6,7,44.4695,7.7554,,merge_baselines
+exchange,2,forecast/mse,False,5.734,iso_c,candidate,val-selected alpha,0.29810285568237305,0.050050255554706526,3,5,7,35.59,6.2068,,merge_baselines
+exchange,2,forecast/mse,False,5.734,tsv,candidate,val-selected alpha,0.24295702079931894,0.018817616853982692,3,2,7,10.5073,1.8325,,merge_baselines
+exchange,3,forecast/mse,False,5.734,base,reference,none,0.710927,,,,8,127.415,22.221,,method_comparison
+exchange,3,forecast/mse,False,5.734,joint,reference,shared configuration,0.395655,,,,8,26.5642,4.6327,,method_comparison
+exchange,3,forecast/mse,False,5.734,specialists,reference,mean of per-segment models,0.55521,,,,8,77.6034,13.5339,,method_comparison
+exchange,3,forecast/mse,False,5.734,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.362579,,,,8,15.9836,2.7875,,method_comparison
+exchange,3,forecast/mse,False,5.734,sequential,candidate,final step,0.358589,,,6,8,14.7073,2.5649,,method_comparison
+exchange,3,forecast/mse,False,5.734,window_val,candidate,W selected on validation,0.394855,,,8,8,26.3082,4.5881,,method_comparison
+exchange,3,forecast/mse,False,5.734,window_oracle,reference,W selected on TEST,0.205271,,,,8,-34.3369,-5.9883,,method_comparison
+exchange,3,forecast/mse,False,5.734,ta,candidate,val-selected alpha,0.3418278098106384,0.05521202248371348,3,5,8,9.3456,1.6299,,merge_baselines
+exchange,3,forecast/mse,False,5.734,dare,candidate,val-selected alpha,0.34160049756368,0.057001547004490345,3,4,8,9.2729,1.6172,,merge_baselines
+exchange,3,forecast/mse,False,5.734,ties,candidate,val-selected alpha,0.31261222064495087,0.08527370364030594,3,1,8,0.0,0.0,,merge_baselines
+exchange,3,forecast/mse,False,5.734,iso_c,candidate,val-selected alpha,0.3604290584723155,0.04279623640810903,3,7,8,15.2959,2.6676,,merge_baselines
+exchange,3,forecast/mse,False,5.734,tsv,candidate,val-selected alpha,0.317706157763799,0.03856631844305538,3,2,8,1.6295,0.2842,,merge_baselines
+exchange,3,forecast/mse,False,5.734,adaptive_lambda,candidate,"final step, B = 1 (corrected)",0.32349730531374615,0.007183555126645231,3,3,8,3.482,0.6073,0.35858941078186035,adaptive_lambda
+exchange,5,forecast/mse,False,5.734,base,reference,none,0.701322,,,,7,144.1185,25.134,,method_comparison
+exchange,5,forecast/mse,False,5.734,joint,reference,shared configuration,0.395655,,,,7,37.7209,6.5785,,method_comparison
+exchange,5,forecast/mse,False,5.734,specialists,reference,mean of per-segment models,0.580996,,,,7,102.235,17.8296,,method_comparison
+exchange,5,forecast/mse,False,5.734,merge_ta_published,reference,val-selected alpha (§1.26 grid),0.327055,,,,7,13.8424,2.4141,,method_comparison
+exchange,5,forecast/mse,False,5.734,sequential,candidate,final step,0.531076,,,7,7,84.8587,14.7992,,method_comparison
+exchange,5,forecast/mse,False,5.734,window_val,candidate,W selected on validation,0.394855,,,6,7,37.4424,6.5299,,method_comparison
+exchange,5,forecast/mse,False,5.734,window_oracle,reference,W selected on TEST,0.205271,,,,7,-28.5486,-4.9788,,method_comparison
+exchange,5,forecast/mse,False,5.734,ta,candidate,val-selected alpha,0.3270547091960907,0.028187781087035044,3,3,7,13.8423,2.4141,,merge_baselines
+exchange,5,forecast/mse,False,5.734,dare,candidate,val-selected alpha,0.328273872534434,0.02883063777507389,3,4,7,14.2667,2.4881,,merge_baselines
+exchange,5,forecast/mse,False,5.734,ties,candidate,val-selected alpha,0.29779984056949615,0.06697941836623225,3,2,7,3.6592,0.6382,,merge_baselines
+exchange,5,forecast/mse,False,5.734,iso_c,candidate,val-selected alpha,0.3383558690547943,0.026535095523646187,3,5,7,17.776,3.1001,,merge_baselines
+exchange,5,forecast/mse,False,5.734,tsv,candidate,val-selected alpha,0.2872875432173411,0.017160479904504426,3,1,7,0.0,0.0,,merge_baselines

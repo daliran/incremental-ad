@@ -12,8 +12,14 @@
     1.0,
     1.5,
     2.0,
-    3.0
+    3.0,
+    5.0,
+    8.0,
+    12.0
   ],
+  "ties_density": null,
+  "dare_drop_rate": null,
+  "variant": "default",
   "committed_alpha": 0.25,
   "committed_alpha_source": "merge_scale/selected",
   "delta_norm": 2.849963,
@@ -22,16 +28,17 @@
   "distance_matched_to_ta_alpha": null,
   "dare_seed": null,
   "seed": 123,
+  "eval_seed": 124,
   "n_shards": 3,
   "metrics": {
-    "val/forecast/mse": 0.5946739315986633,
-    "val/forecast/rmse": 0.7711510433103643,
-    "val/forecast/mae": 0.49163904786109924,
-    "test/forecast/mse": 0.7742100954055786,
-    "test/forecast/rmse": 0.8798920930464023,
+    "val/forecast/mse": 0.5946738719940186,
+    "val/forecast/rmse": 0.7711510046638198,
+    "val/forecast/mae": 0.491639107465744,
+    "test/forecast/mse": 0.7742100358009338,
+    "test/forecast/rmse": 0.8798920591759729,
     "test/forecast/mae": 0.6496680378913879
   },
   "schema": 1,
-  "code_fingerprint": "c8e36acbc366e167",
-  "completed_at": "2026-09-23T20:36:37"
+  "code_fingerprint": "fc37dd8b24ae7071",
+  "completed_at": "2026-09-25T20:12:15"
 }

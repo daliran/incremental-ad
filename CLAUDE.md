@@ -70,7 +70,7 @@ Research codebase for **incremental anomaly detection on multivariate time serie
   and stays off the login node. Everything else is pure CSV aggregation and reproduces the
   archived outputs byte-for-byte — **and that is now checked rather than asserted**:
   `scripts/check_archive_reproduces.py` diffs a fresh run against the archive file by file and
-  the regeneration script runs it at the end. It reports **22 of the 37 CSVs the checker reads
+  the regeneration script runs it at the end. It reports **27 of the 42 CSVs the checker reads
   as regenerated and 15 as carried** — the carried ones (geometry, novelty, alignment,
   concentration, oracle_router, outcomes, window_selection, remerge/fisher_sweep) need a GPU and
   their generators are **not exercised by the default path**, which the check prints every time.
@@ -144,11 +144,11 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
 
 **No merging experiment is added unless it maps to a row in
 `results_archive/audit/claims_register.csv` whose `status` is not `supported`.** Re-measuring a
-settled claim is not a result, and the chapter is closed: 37 merging claims, 27 settled, 3
+settled claim is not a result, and the chapter is closed: 40 merging claims, 30 settled, 3
 hypothesis, 7 refuted, with `scripts/build_claims_register.py` as the script of record
-(`--self-test` proves its downgrade rule can fire). The register file itself now holds **46**
-rows — `C35`–`C42` are strategy 6 (§1.39), which is not a merging experiment and does not move
-this tally; the register counts what the *document* claims, not what the chapter contains.
+(`--self-test` proves its downgrade rule can fire). The register file itself now holds **50**
+rows — `C35`–`C42` are strategy 6 (§1.39), `C44` a project-wide scope row and `C50` the
+cross-family comparison (§1.41); none is a merging claim, so none moves this tally; the register counts what the *document* claims, not what the chapter contains.
 
 **No merging experiment is open, and none should be added.** The three that were are closed:
 `C22` by §1.36's P2 (with magnitude held fixed, Fisher weighting contributes nothing and at larger

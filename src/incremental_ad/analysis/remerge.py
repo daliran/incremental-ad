@@ -108,7 +108,19 @@ def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source
     builder = DELTAS[rule]
     # DARE's mask is seeded by the TRAINING seed, so the three seeds of a configuration draw
     # three independent masks and the mask's own variance lands in the reported seed spread.
-    delta = builder(taus, seed=int(seed or 0)) if rule == "dare" else builder(taus)
+    # The two rules with a hyperparameter of their own. Left at the reference's defaults unless
+    # asked; a non-default value renames the tag (below), so a sensitivity sweep can never be
+    # read as the default rule's result.
+    kwargs = {}
+    if rule == "dare":
+        kwargs = {"seed": int(seed or 0)}
+        if args.dare_drop_rate is not None:
+            kwargs["drop_rate"] = args.dare_drop_rate
+    elif rule == "ties" and args.ties_density is not None:
+        kwargs = {"density": args.ties_density}
+    delta = builder(taus, **kwargs)
+    variant = ("" if not ({"drop_rate", "density"} & set(kwargs))
+               else f"-p{args.dare_drop_rate:g}" if rule == "dare" else f"-k{args.ties_density:g}")
 
     def norm(state) -> float:
         return float(torch.sqrt(sum((v.to(torch.float64) ** 2).sum() for v in state.values())))
@@ -122,10 +134,10 @@ def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source
              rule, delta_norm, ta_norm, delta_norm / ta_norm if ta_norm else float("nan"),
              len(args.alpha_grid))
 
-    points = [(value, f"{rule}_a{value:.2f}") for value in args.alpha_grid]
+    points = [(value, f"{rule}{variant}_a{value:.2f}") for value in args.alpha_grid]
     if args.distance_match_alpha is not None:
         matched = args.distance_match_alpha * ta_norm / delta_norm
-        points.append((matched, f"{rule}_dm"))
+        points.append((matched, f"{rule}{variant}_dm"))
         log.info("[%s] distance-matched to TA at alpha=%.2f: alpha=%.6f travels %.6f",
                  rule, args.distance_match_alpha, matched, matched * delta_norm)
 
@@ -138,6 +150,9 @@ def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source
         payload = {
             "source_run": str(run), "merge_rule": f"baseline:{rule}",
             "baseline_rule": rule, "alpha": value, "alpha_grid": list(args.alpha_grid),
+            "ties_density": kwargs.get("density") if rule == "ties" else None,
+            "dare_drop_rate": kwargs.get("drop_rate") if rule == "dare" else None,
+            "variant": variant.lstrip("-") or "default",
             "committed_alpha": alpha, "committed_alpha_source": alpha_source,
             "delta_norm": round(delta_norm, 6), "ta_sum_norm": round(ta_norm, 6),
             "distance_from_base": round(value * delta_norm, 6),
@@ -209,6 +224,12 @@ def main() -> None:
                              "rules put Delta on different scales, so a shared alpha compares "
                              "magnitude and direction at once, and a shared DISTANCE isolates "
                              "direction.")
+    parser.add_argument("--ties_density", type=float, default=None,
+                        help="--baseline_rule ties only: fraction of each matrix kept (default "
+                             "0.2, the reference's). A non-default value renames the tag.")
+    parser.add_argument("--dare_drop_rate", type=float, default=None,
+                        help="--baseline_rule dare only: drop probability (default 0.7, the "
+                             "reference's). A non-default value renames the tag.")
     parser.add_argument("--test_only", action="store_true",
                         help="--baseline_rule only: skip the merged-val pass. For AD, where val "
                              "selection is refused (§1.12) and the protocol reads a fixed alpha, "
@@ -229,10 +250,16 @@ def main() -> None:
             ("--merge_scale", args.merge_scale is not None)) if set_]
         if clashes:
             parser.error(f"--baseline_rule does not use {', '.join(clashes)}")
+        if args.ties_density is not None and args.baseline_rule != "ties":
+            parser.error("--ties_density only applies with --baseline_rule ties")
+        if args.dare_drop_rate is not None and args.baseline_rule != "dare":
+            parser.error("--dare_drop_rate only applies with --baseline_rule dare")
     else:
         stray = [flag for flag, set_ in (
             ("--distance_match_alpha", args.distance_match_alpha is not None),
-            ("--test_only", args.test_only)) if set_]
+            ("--test_only", args.test_only),
+            ("--ties_density", args.ties_density is not None),
+            ("--dare_drop_rate", args.dare_drop_rate is not None)) if set_]
         if stray:
             parser.error(f"{', '.join(stray)} only apply with --baseline_rule")
 

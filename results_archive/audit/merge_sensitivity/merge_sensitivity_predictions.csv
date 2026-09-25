@@ -1,0 +1,3 @@
+prediction,statement,observed,outcome
+P5,"TIES delta vs TA falls monotonically in density on every dataset, and density 1.0 ties TA on >= 3 of 5",monotone on 3 of 5; k=1.0 ties on 0 of 5,refuted
+P6,"DARE ties TA at p = 0.3 and 0.5 on >= 4 of 5, and is worse at p = 0.9 on >= 2",ties at both low rates on 5 of 5; worse at 0.9 on 3,confirmed

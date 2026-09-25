@@ -579,14 +579,16 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**46 claims: 32 supported, 5 hypothesis, 9 refuted.** The rule downgraded
+**50 claims: 36 supported, 5 hypothesis, 9 refuted.** The rule downgraded
 **3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
 now marked as a hypothesis in place.
 
-⚠️ **37 of the 46 are merging claims; `C35`–`C42` and `C44` are not.** `C43` restates finished results in GRR; `C45`–`C46` are the supervisor's merge rules (§1.40), added at the user's request under the freeze's scope note. `C44` is a project-wide scope row (§0.1c). The merging chapter's tally — the
-one CLAUDE.md's freeze quotes — is **unchanged at 34: 24 supported, 3 hypothesis, 7 refuted**.
+⚠️ **40 of the 50 are merging claims; `C35`–`C42`, `C44` and `C50` are not.** `C43` restates finished results in GRR; `C45`–`C49` are the supervisor's merge rules (§1.40, §1.40b), added at the user's request under the freeze's scope note. `C44` is a project-wide scope row (§0.1c), and `C50` compares every family at once (§1.41). The task-arithmetic chapter
+proper — the 40 without `C43` and `C45`–`C49` — is **34: 25 supported, 2 hypothesis (`C03`, `C23`),
+7 refuted**; it read 24/3/7 until `C31` was settled (§1.36). CLAUDE.md's freeze quotes all 40
+merging rows: 30 supported, 3 hypothesis, 7 refuted.
 Strategy 6 (§1.39) is a sequential method, and its rows are counted here because this register
 covers the *document*, not because the freeze moved.
 
@@ -637,8 +639,8 @@ called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** ca
 | Window retraining (W periods of retained history) | **full** | W = 1/2/3 on four forecasting datasets, plus honest validation-based budget selection. | Merging is worth 2-4 periods of history, dataset-dependent (C04). |
 | DARE (drop and rescale, on task arithmetic) | **full** | The supervisor's implementation, seeded (it was not). Drops only from matrices, as he wrote it; the official code masks every parameter. | Ties task arithmetic on 15 of 21 configurations - unbiased by construction (C45). |
 | TIES-Merging | **full** | The supervisor's implementation with its 1/n matrix-scale defect fixed. Trims each matrix to its own top 20% (the official code trims the flattened model). | Worst on ETT forecasting (+121% to +179% MSE); wins only on exchange_rate and PSM (C45, C46). |
-| Iso-C (isotropic merging) | **full** | The supervisor's implementation with its mean-instead-of-sum defect fixed (the official code multiplies back by n before the SVD). | Worst mean rank of the four; six cells chose alpha at the grid's top and are provisional (C45). |
-| TSV-Merge (task singular vectors) | **full** | The supervisor's implementation matched the official code exactly; a rank < n guard added. | Second-best rule; wins exchange_rate n=3,5 (C45, C46). |
+| Iso-C (isotropic merging) | **full** | The supervisor's implementation with its mean-instead-of-sum defect fixed (the official code multiplies back by n before the SVD). | Worst mean rank of the four, including after its α grid was widened on the six cells that hit the top (C45). |
+| TSV-Merge (task singular vectors) | **full** | The supervisor's implementation matched the official code exactly; a rank < n guard added. | Second-best rule; wins exchange_rate n=3,5 (C45, C46). At its test-optimal α it beats TA's on all three PSM configurations, an upper bound only (C47). |
 | Routing / regime indicator | **partial** | A per-window ORACLE router only; no buildable router exists, and it cannot be computed on AD from these runs at all (C17). | Routing's advantage is real in the weakest possible sense - as an upper bound (C16). |
 
 #### The freeze
@@ -5362,7 +5364,8 @@ grid α ∈ {0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0} and treated identicall
 broadly**
 
 > **Provenance.** `analysis/merge_baselines_report.py` → `merge_baselines/merge_baselines{,_per_seed,
-> _summary}.csv`, over `merge_baselines_runs/` (2,952 results, 72 runs × 5 rules, every one
+> _summary}.csv`, over `merge_baselines_runs/` (2,952 results at registration, 72 runs × 5 rules — 3,006 after
+> §1.40b's Iso-C grid extension added 54 — every one
 > provenance-stamped). 143/143 jobs completed, 0 failures, and every job first rebuilt its run's
 > stored merge bitwise.
 
@@ -5377,16 +5380,16 @@ On AD, TA is the stored merge exactly (α = 1.0) and matches the published value
 | ETTh1 | 2 | `forecast/mse` | 0.4597 | +0.38% = | +34.15% ▼ | +7.63% = | −0.64% = | 8.759% |
 | ETTh1 | 3 | `forecast/mse` | 0.4997 | −0.14% = | +34.60% ▼ | +7.80% = | −0.43% = | 8.759% |
 | ETTh1 | 5 | `forecast/mse` | 0.4517 | −0.00% = | +25.00% ▼ | +15.38% ▼ | +6.16% = | 8.759% |
-| ETTh2 | 2 | `forecast/mse` | 0.2571 | +1.43% = | +135.88% ▼ | +15.64% ▼ᵉ | +18.88% ▼ | 6.741% |
-| ETTh2 | 3 | `forecast/mse` | 0.1929 | +1.62% = | +121.26% ▼ | +33.79% ▼ᵉ | +16.16% ▼ | 6.741% |
+| ETTh2 | 2 | `forecast/mse` | 0.2571 | +1.43% = | +135.88% ▼ | +15.64% ▼ | +18.88% ▼ | 6.741% |
+| ETTh2 | 3 | `forecast/mse` | 0.1929 | +1.62% = | +121.26% ▼ | +33.79% ▼ | +16.16% ▼ | 6.741% |
 | ETTh2 | 5 | `forecast/mse` | 0.2234 | +0.12% = | +24.70% ▼ | +23.75% ▼ | +13.38% ▼ | 6.741% |
 | ETTm2 | 2 | `forecast/mse` | 0.1455 | +22.12% ▼ | +179.42% ▼ | +74.19% ▼ | −2.97% = | 14.107% |
 | ETTm2 | 3 | `forecast/mse` | 0.1144 | +8.97% = | +142.85% ▼ | +61.16% ▼ | +24.02% ▼ | 14.107% |
 | ETTm2 | 5 | `forecast/mse` | 0.1190 | +2.21% = | +144.88% ▼ | +67.86% ▼ | +47.05% ▼ | 14.107% |
-| exchange | 2 | `forecast/mse` | 0.2554 | +5.12% = | +24.36% ▼ | +42.14% ▼ᵉ | −4.88% = | 5.734% |
-| exchange | 3 | `forecast/mse` | 0.3418 | −0.07% = | −8.55% ▲ᵇ | +14.37% ▼ᵉ | −7.06% ▲ᵇ | 5.734% |
-| exchange | 5 | `forecast/mse` | 0.3271 | +0.37% = | −8.94% ▲ | +3.46% =ᵉ | −12.16% ▲ | 5.734% |
-| PSM-forecast | 2 | `forecast/mse` | 0.3654 | +5.87% ▼ | +15.96% ▼ | +4.67% ▼ᵉ | +6.00% ▼ | 1.157% |
+| exchange | 2 | `forecast/mse` | 0.2554 | +5.12% = | +24.36% ▼ | +16.71% ▼ | −4.88% = | 5.734% |
+| exchange | 3 | `forecast/mse` | 0.3418 | −0.07% = | −8.55% ▲ᵇ | +5.44% = | −7.06% ▲ᵇ | 5.734% |
+| exchange | 5 | `forecast/mse` | 0.3271 | +0.37% = | −8.94% ▲ | +3.46% = | −12.16% ▲ | 5.734% |
+| PSM-forecast | 2 | `forecast/mse` | 0.3654 | +5.87% ▼ | +15.96% ▼ | +4.67% ▼ | +6.00% ▼ | 1.157% |
 | PSM-forecast | 3 | `forecast/mse` | 0.3951 | +2.27% ▼ | +9.31% ▼ | +0.63% = | +3.16% ▼ | 1.157% |
 | PSM-forecast | 5 | `forecast/mse` | 0.4036 | +0.93% = | +11.36% ▼ | +0.66% = | +3.31% ▼ | 1.157% |
 | PSM | 2 | `window_auroc` | 0.8041 | −0.53% ▼ | −0.47% ▼ | −2.42% ▼ | −0.48% ▼ | 0.068% |
@@ -5399,7 +5402,8 @@ On AD, TA is the stored merge exactly (α = 1.0) and matches the published value
 Each cell is the rule's change against TA: ▲ better, = tie, ▼ worse, judged against the floor.
 MSE is lower-is-better and AUROC higher-is-better, so a *negative* MSE change and a *positive*
 AUROC change are both wins. Forecasting at val-selected α; AD at the distance-matched α (§1.38).
-ᵉ α selected on the grid's upper edge (see below). ᵇ borderline (< 1.5× the floor).
+ᵇ borderline (< 1.5× the floor). No selected α sits on its grid's edge: Iso-C's six former
+edge cells were re-run on a wider grid (§1.40b).
 SWaT-forecast (floor 84.2%) ties everything and is left out of every count, as in §1.36.
 
 | rule | better | tie | worse | mean rank (of 5) |
@@ -5407,8 +5411,8 @@ SWaT-forecast (floor 84.2%) ties everything and is left out of every count, as i
 | **task arithmetic** | — | — | — | **1.71** |
 | DARE | 1 | 15 | 5 | 2.52 |
 | TSV | 2 | 5 | 14 | 2.81 |
-| TIES | 4 | 0 | 17 | 3.86 |
-| Iso-C | 0 | 5 | 16 | 4.10 |
+| TIES | 4 | 0 | 17 | 3.90 |
+| Iso-C | 0 | 6 | 15 | 4.05 |
 
 Counts over the 21 configurations without SWaT-forecast. Rank is on seeds common to all five
 rules, so no rule is ranked on a different seed sample from another.
@@ -5417,7 +5421,8 @@ rules, so no rule is ranked on a different seed sample from another.
 than 4 of 21 configurations. **DARE is the only one that does not cost**: it ties on 15, as
 expected of a rule whose expectation *is* task arithmetic. The other three lose on most
 configurations, and TIES loses catastrophically on the ETT datasets (+121% to +179% MSE on
-ETTh2/ETTm2) — trimming 80% of each matrix discards most of what the fine-tunes learned.
+ETTh2/ETTm2). Trimming 80% of each matrix is about half of that: with no trimming at all TIES
+still loses 21–45% on ETT, so sign election and the disjoint mean cost the rest (§1.40b, `C48`).
 
 **Every win outside AD is on exchange_rate** — TIES at n = 3 and 5, TSV at n = 3 and 5, both
 rules that *discard* part of every task vector. That is the same dataset where OPCM's projection
@@ -5431,10 +5436,13 @@ paired seed spread of 31.4% against a 8.55% margin — inside its own spread. TS
 solid one: −12.16% at 2.1× the floor with a paired spread of 3.85%. On **AD**, TIES wins PSM
 n = 3 and 5 (+0.43%, +0.41%) and DARE wins PSM n = 5 (+0.70%); every rule loses SWaT at n = 2.
 
-⚠️ **Iso-C's six edge cells are provisional.** On ETTh2 n = 2, 3, exchange n = 2, 3, 5 and
-PSM-forecast n = 2, Iso-C's validation picked α = 3.0 — the grid's top — so its optimum may lie
-beyond it and those six verdicts could improve with a wider grid. It loses or ties on all six at
-3.0, so an extension could move its rank, not make it the best rule.
+**Iso-C's edge cells, resolved (§1.40b).** On six cells Iso-C's validation first picked α = 3.0,
+the grid's top. Re-run on the same grid extended by {5, 8, 12}, four of them keep 3.0 or lower —
+validation turns back up past it, so the edge was the optimum, not a truncation. The other two
+(exchange n = 2, 3) move to α = 5, interior on the new grid. exchange n = 3 goes from worse to
+**tie** (+14.37% → +5.44%), exchange n = 2 stays worse (+42.14% → +16.71%). Iso-C's tally moves
+from 0/5/16 to 0/6/15 and its rank from 4.10 to 4.05 — still the worst of the four. TIES's rank
+moves from 3.86 to 3.90 because Iso-C now ranks above it on exchange n = 3.
 
 **Predictions (registered before the sweep):**
 
@@ -5443,8 +5451,185 @@ beyond it and those six verdicts could improve with a wider grid. It loses or ti
 - **P2 — half right.** TIES does lose the most on forecasting (13 of 15 worse). TSV does not:
   it is the second-best rule. The worst by rank is Iso-C.
 - **P3 — confirmed.** DARE ties on 15 of 21.
-- **P4 — refuted.** Iso-C was predicted to rank best of the four; it ranks **worst** (4.10), six
-  of its cells pending a wider grid.
+- **P4 — refuted.** Iso-C was predicted to rank best of the four; it ranks **worst** (4.05), and
+  the wider grid on its six edge cells did not change that (§1.40b).
+
+**The AD upper bound — each rule at its own best α.** AD has no validation selection (§1.12), so
+the table above reads every rule at the distance-matched α. That answers "same magnitude, which
+direction is better?". It cannot tell a rule with a worse direction from one read at the wrong
+α. The grid already holds the answer. Each rule's **test-optimal** α, against TA's test-optimal
+α, paired on the same seeds and judged against the same floor, is an upper bound: not
+deployable, because test picks α, but it bounds what any selection rule could recover.
+
+> **Provenance.** `merge_baselines_report.py` → `merge_baselines.csv` columns
+> `oracle_value`, `oracle_ta_value`, `oracle_delta_pct`, `oracle_verdict`, `oracle_at_edge`.
+> Summary rows `upper bound: test-optimal alpha vs TA's (AD)`. No new runs.
+
+| dataset | n | TA at its best α | DARE | TIES | Iso-C | TSV | floor |
+|---|---|---|---|---|---|---|---|
+| SWaT | 2 | 0.8048 | +0.05% = | −0.14% ▼ᵉ | −0.52% ▼ᵉ | −0.05% = | 0.087% |
+| SWaT | 3 | 0.8055 | −0.02% = | −0.28% ▼ᵉ | −0.72% ▼ᵉ | −0.06% =ᵉ | 0.087% |
+| SWaT | 5 | 0.8082 | +0.03% = | −0.70% ▼ᵉ | −1.04% ▼ᵉ | −0.31% ▼ᵉ | 0.087% |
+| PSM | 2 | 0.8041 | +0.02% = | −0.29% ▼ | −1.68% ▼ᵉ | **+0.18% ▲** | 0.068% |
+| PSM | 3 | 0.8005 | +0.04% = | +0.47% ▲ | −1.50% ▼ᵉ | **+0.25% ▲** | 0.068% |
+| PSM | 5 | 0.7969 | +0.06% =ᵉ | +0.23% ▲ | −1.37% ▼ᵉ | **+0.78% ▲** | 0.068% |
+
+ᵉ at least one seed's best α is on the edge of the AD grid (0.5 – 5). At the top edge, the rule
+could do better beyond α = 5, so a ▼ there holds **for α ≤ 5 only**. TA's own best α is interior
+on every cell (0.5–3).
+
+| rule | better | tie | worse | mean change |
+|---|---|---|---|---|
+| DARE | 0 | 6 | 0 | +0.03% |
+| TIES | 2 | 0 | 4 | −0.12% |
+| Iso-C | 0 | 0 | 6 | −1.14% |
+| **TSV** | **3** | 2 | 1 | **+0.13%** |
+
+**On PSM, TSV has the better direction.** At its best α it beats TA at its best α on all three
+PSM configurations. Its best α (2–3) is interior on every seed, so these three wins are not
+grid-truncated. Under the distance-matched protocol the same rule loses all three. The protocol
+does not measure TSV's direction on PSM: matching TA's distance puts TSV away from where it works
+best. **On SWaT no rule beats TA at any α tested.** Iso-C loses on every AD cell even at its best
+α, though all six are at the grid's top and are scoped to α ≤ 5.
+
+⚠️ **Read this as a ceiling, not a result.** No label-free rule is known to find these α on AD
+(§1.12 is why the headline protocol exists). The upper bound says what TSV *could* give on PSM,
+not what a deployment would get. It is registered as `C47`, scoped to PSM and to test-optimal α.
+It does not change `C45`, which is a claim about one deployable protocol.
+
+#### 1.40b Follow-ups — Iso-C's grid edge, and TIES/DARE at other settings (registration)
+
+> **Provenance.** `scripts/generate_merge_followups.py` → `remerge.py --baseline_rule`.
+> Training-free, forecasting only, registered 2026-09-25 before any run.
+
+**Iso-C's six edge cells.** On ETTh2 n = 2, 3, exchange n = 2, 3, 5 and PSM-forecast n = 2 Iso-C's
+validation picked α = 3.0, the top of §1.40's grid. Those 18 runs are re-merged for Iso-C only on
+the same grid extended by {5, 8, 12}. The other rules selected inside the grid on every cell and
+are not re-run. §1.40's Iso-C verdicts on those six cells are provisional until this lands.
+
+**TIES and DARE at other settings.** §1.40 used the reference's defaults — TIES keeps 20% of each
+matrix, DARE drops 70% — so "TIES is catastrophic on ETT" is so far a claim *at 20% kept*. On the
+five forecasting datasets at n = 3 (SWaT-forecast excluded as ever), three seeds, same grid and
+same validation selection: TIES at density {0.1, 0.5, 1.0} and DARE at drop rate {0.3, 0.5, 0.9}.
+
+⚠️ **Predictions, registered before the runs:**
+
+- **P5.** TIES's loss against TA **shrinks monotonically as density rises**, and at density 1.0 —
+  no trimming, sign election and disjoint mean only — it **ties TA on at least 3 of 5** datasets.
+  If so, §1.40's catastrophe is the trimming, not the sign election: the shards' task vectors are
+  aligned enough that few signs conflict.
+- **P6.** DARE **ties TA at drop 0.3 and 0.5** on at least 4 of 5 datasets, and **loses at 0.9**
+  on at least 2 — the mask noise grows as 1/(1 − p).
+
+**Results — trimming is half of TIES's loss, and DARE is flat up to p = 0.5**
+
+> **Provenance.** `analysis/merge_sensitivity_report.py` → `merge_sensitivity/merge_sensitivity
+> {,_predictions}.csv`, over `merge_sensitivity_runs/` (810 results: 15 runs × 6 settings × 9 α).
+> The default rows (k = 0.2, p = 0.7) are §1.40's grid, read, not re-run. 35/35 jobs completed.
+> Iso-C: 18 runs re-merged on the extended grid into `merge_baselines_runs/` (now 3,006 results).
+
+**Iso-C.** Resolved in §1.40. Four of the six cells keep α ≤ 3 on the wider grid, and two
+(exchange n = 2, 3) move to α = 5. Iso-C stays worst (rank 4.05). No selected α of any rule now
+sits on its grid's edge.
+
+**TIES, change against TA** (`forecast/mse`, n = 3, val-selected α; \* = the reference default):
+
+| dataset | k = 0.1 | k = 0.2\* | k = 0.5 | k = 1.0 | floor |
+|---|---|---|---|---|---|
+| ETTh1 | +41.42% ▼ | +34.60% ▼ | +21.12% ▼ | +21.24% ▼ | 8.759% |
+| ETTh2 | +164.67% ▼ | +121.26% ▼ | +23.30% ▼ | +21.77% ▼ | 6.741% |
+| ETTm2 | +183.42% ▼ | +142.85% ▼ | +66.54% ▼ | +44.71% ▼ | 14.107% |
+| exchange | −0.66% = | −8.55% ▲ | −10.70% ▲ | −8.52% ▲ | 5.734% |
+| PSM-forecast | +16.26% ▼ | +9.31% ▼ | +4.62% ▼ | +4.62% ▼ | 1.157% |
+
+**DARE, change against TA:**
+
+| dataset | p = 0.3 | p = 0.5 | p = 0.7\* | p = 0.9 | floor |
+|---|---|---|---|---|---|
+| ETTh1 | −0.06% = | −0.21% = | −0.14% = | +0.61% = | 8.759% |
+| ETTh2 | −0.42% = | −0.02% = | +1.62% = | +20.94% ▼ | 6.741% |
+| ETTm2 | −1.36% = | +1.18% = | +8.97% = | +56.70% ▼ | 14.107% |
+| exchange | −0.44% = | −0.68% = | −0.07% = | +2.62% = | 5.734% |
+| PSM-forecast | +0.38% = | +0.87% = | +2.27% ▼ | +7.58% ▼ | 1.157% |
+
+- **P5 — refuted.** The loss does fall with density on ETT, from +121–183% at k = 0.2 to
+  +21–45% at k = 1.0, but it is monotone on only 3 of 5 datasets. At k = 1.0, with no trimming,
+  TIES **still loses on 4 of 5** and ties on none. Trimming is roughly half the ETT damage.
+  What remains is sign election and the disjoint mean: dropping every entry that disagrees
+  with the elected sign still costs 21–45% on ETT and 4.6% on PSM-forecast. So §1.40's
+  "trimming 80% discards most of what the fine-tunes learned" was an incomplete explanation.
+  Trimming is one of two costs.
+- **P6 — confirmed.** DARE ties TA at p = 0.3 and 0.5 on all 5 datasets, and loses at p = 0.9 on
+  3 (ETTh2, ETTm2, PSM-forecast). The reference's default of p = 0.7 already loses on
+  PSM-forecast (1.96× floor), where p ≤ 0.5 ties. DARE's tie with TA in §1.40 is therefore robust
+  to the drop rate, below the rate where the rescaling noise dominates. It does not become a win
+  at any setting.
+- **exchange_rate is still the only dataset where TIES wins,** at any density, and k = 0.5 is
+  the most convincing reading: −10.70% at 1.87× the floor with a paired spread of 6.0%,
+  against §1.40's borderline −8.55% with a spread of 31.4%. That strengthens `C46`'s
+  observation. It does not test its mechanism, because it adds no dataset.
+
+⚠️ **Scope.** Forecasting at n = 3 only. AD was not swept, because its protocol reads a
+distance-matched α and would need a separate matching per setting. These are the reference's
+per-matrix TIES and matrices-only DARE (§1.40); the settings change, not the variants.
+
+### 1.41 Every strategy and every merge rule in one table
+
+> **Provenance.** `analysis/global_comparison_report.py` → `global_comparison/global_comparison
+> {,_summary}.csv`. It is a pure join of three tables that are each the script of record for
+> their own section: §1.26b (`methods_windowval`), §1.40 (`merge_baselines`) and §1.39
+> (`adaptive_lambda_test`). It recomputes nothing, and every row names its `source`. No new runs.
+
+Until now the three families were compared only within themselves: strategies against each other
+(§1.26), merge rules against TA (§1.40), adaptive λ against its own chain (§1.39). This section
+ranks them together within each configuration.
+
+⚠️ **What makes the ranking fair, and where it is not:**
+- **TA is ranked from §1.40's grid,** the one the four rules were selected on, not from §1.26's.
+  Both are validation-selected, on different α grids. Ranking DARE against a TA chosen from another
+  grid would let a grid difference pose as a rule difference: on ETTh2 n = 3, DARE beats the
+  published TA (0.1961 vs 0.2153) but not TA on its own grid (0.1929). The published value stays
+  in the CSV as `merge_ta_published`, unranked. On AD the two are the same model.
+- **The window strategy is `window_val`** (W picked on validation, §1.26b), not the test-picked
+  oracle, which stays in the CSV as an unranked reference. AD has no `window_val`, because AD has
+  no validation selection.
+- **On AD the merge rules are read at the distance-matched α** (§1.40). Adaptive λ on AD uses the
+  B = 64 estimator, since AD was never re-run at B = 1 (§1.39). It is paired in §1.39 against its
+  own chain, whose value the CSV carries as `adaptive_paired_plain`. Here it is ranked against the
+  published `sequential`.
+- **Ranks order means; they are not verdicts.** Each section's floor-scaled decision rule is what
+  its claims rest on. The CSV carries every entry's gap to the cell's best in floor units.
+
+| method | configurations | best on | mean normalised rank | mean gap to best |
+|---|---|---|---|---|
+| **task arithmetic** | 21 | **8** | **0.247** | 9.55% |
+| sequential | 21 | 5 | 0.354 | 11.29% |
+| DARE | 21 | 1 | 0.403 | 12.72% |
+| window (val-selected W) | 15 | 4 | 0.475 | 20.76% |
+| TSV | 21 | 1 | 0.497 | 15.27% |
+| adaptive λ | 10 | 0 | 0.667 | 44.89% |
+| TIES | 21 | 2 | 0.698 | 60.25% |
+| Iso-C | 21 | 0 | 0.739 | 29.44% |
+
+The 21 configurations exclude SWaT-forecast (floor 84%), as in §1.40. The normalised rank is
+(rank − 1) / (entrants − 1), so 0 means best, 1 means worst, and methods present on different
+numbers of cells stay comparable. Window and adaptive λ are absent where they were not run.
+
+**No strategy is best on most configurations.** Task arithmetic has the best mean normalised rank
+and is best on 8 of 21, the most of any method. Sequential is best on 5 and the window on 4, all
+four on forecasting. Every other rule is best on at most 2. Where each wins follows the
+per-dataset pattern the earlier sections found:
+- **TA:** SWaT n = 2, 3, 5, PSM n = 2, PSM-forecast n = 2, 5, and ETTh2 n = 3, 5.
+- **Sequential:** ETTm2 n = 2, 3, ETTh2 n = 2, exchange_rate n = 2 and PSM-forecast n = 3.
+- **Window:** ETTh1 at every n, and ETTm2 n = 5.
+- **Removal rules, only on exchange_rate** (`C46`): TIES at n = 3, TSV at n = 5.
+- **Remaining PSM cells:** TIES at n = 3, DARE at n = 5.
+
+⚠️ **About half of the orderings are inside the noise.** Of the 21 margins between the best
+entry and the runner-up, 11 exceed the dataset's floor and 10 do not. On AD, the floor is
+§1.9's base-model floor, which §1.39 showed is quieter than these runs' own seed spread. So "best
+on" is a count of means, not of decisive wins, and it is quoted here only as that. `C50` records
+the claim at exactly that strength.
 
 ## 2. Exact configurations
 

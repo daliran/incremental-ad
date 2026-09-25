@@ -7,10 +7,18 @@ tsv,distance-matched to TA at alpha = 1.0,6,0,0,6,,-0.3157381742113892
 ta,val-selected alpha,15,0,0,0,,0.0
 dare,val-selected alpha,15,0,12,3,,-3.4132444190710127
 ties,val-selected alpha,15,2,0,13,,-59.0832399317205
-iso_c,val-selected alpha,15,0,5,10,,-24.874630682552713
+iso_c,val-selected alpha,15,0,6,9,,-22.58391168179629
 tsv,val-selected alpha,15,2,5,8,,-7.333531247061052
 ta,all,21,0,0,0,1.7142857142857142,
 dare,all,21,1,15,5,2.5238095238095237,
-ties,all,21,4,0,17,3.857142857142857,
-iso_c,all,21,0,5,16,4.095238095238095,
+ties,all,21,4,0,17,3.9047619047619047,
+iso_c,all,21,0,6,15,4.0476190476190474,
 tsv,all,21,2,5,14,2.8095238095238093,
+dare,upper bound: test-optimal alpha vs TA's (AD),6,0,6,0,,0.029133466299016086
+ties,upper bound: test-optimal alpha vs TA's (AD),6,2,0,4,,-0.11841946655101704
+iso_c,upper bound: test-optimal alpha vs TA's (AD),6,0,0,6,,-1.1382920339747489
+tsv,upper bound: test-optimal alpha vs TA's (AD),6,3,2,1,,0.13155324135984356
+dare,upper bound: test-optimal alpha vs TA's (forecasting),15,0,11,4,,-3.7252145642496406
+ties,upper bound: test-optimal alpha vs TA's (forecasting),15,2,0,13,,-52.01171470523538
+iso_c,upper bound: test-optimal alpha vs TA's (forecasting),15,3,7,5,,-11.888525879891118
+tsv,upper bound: test-optimal alpha vs TA's (forecasting),15,1,8,6,,-6.504110473749643

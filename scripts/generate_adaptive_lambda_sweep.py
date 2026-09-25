@@ -60,9 +60,11 @@ TIERS = {
     # forecasting's ran to thousands. That is an inference, not a measurement; AD stays published
     # at B = 128 with a note, and a B-sweep on PSM n=3 would settle it if it ever matters.
     #
-    # N = 512, matching the acceptance runs. At B = 1 that agrees with N = 8192 to 1.4% on
-    # ETTm2 n=3 seed 7 at t=1, where the two chains are identical by construction -- so the
-    # sample count is not carrying anything here, exactly as `E[F_hat]`'s independence of K says.
+    # N = 512, matching the acceptance runs. ⚠️ An earlier comment here said this agrees with
+    # N = 8192 "to 1.4%" and that the sample count carries nothing. That was one seed.
+    # `fisher_scaling_report --steps` measures all three at t = 1, where both chains hold the
+    # same model: +1.5%, +4.9%, +6.5% (λ* higher at N = 512, every seed). E[F_hat] is
+    # independent of N, but λ* is a ratio of two estimates, and N does move it (§1.39).
     3: ("became", ["--pipeline_fisher_batch_size", "1", "--pipeline_fisher_batches", "512"],
         FORECAST, "fisherfix"),
     # Tier 2 restricted to the ONE cell where the method wins (§1.39, C38/C40). Three

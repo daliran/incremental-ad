@@ -23,6 +23,13 @@ is the artifact — no model of the noise is needed to size it.
 identical curvature everywhere. `excess_over_floor` is the quantity to read; the raw ratio is
 carried beside it because the raw ratio is what the run logs.
 
+**The sample count, checked (`--steps`).** The B-sweep holds N = 8192; the published B = 1 runs
+use N = 512 (512 batches of 1). E[F_hat] does not depend on N, but λ* is a RATIO of two
+estimates, so N can still move it. `fisher_sample_agreement.csv` compares the two at t = 1 —
+the only step where both chains hold the same model (each fine-tunes the same base on the same
+first period with the same seed; later steps diverge because the B-sweep follows the B = 128
+chain). `d_norm` is emitted from both sides so "the same model" is checked, not assumed.
+
 Pure CSV aggregation: safe on a login node, no checkpoints, no GPU.
 """
 
@@ -42,6 +49,9 @@ SCALING_FIELDS = ["dataset", "n_segments", "seed", "step", "n_points",
                   "flat_terms_expected",
                   "num_at_bmin", "num_at_bmax", "lambda_term_at_bmin", "lambda_term_at_bmax",
                   "b_min", "b_max"]
+AGREEMENT_FIELDS = ["dataset", "n_segments", "seed", "step", "batch_size", "samples_run",
+                    "samples_sweep", "lambda_run", "lambda_sweep", "delta_pct", "d_norm_run",
+                    "d_norm_sweep", "d_norm_rel_diff"]
 DECOMP_FIELDS = ["dataset", "n_segments", "seed", "step", "b_published", "b_corrected",
                  "lambda_published", "lambda_corrected", "one_over_t",
                  "suppression_total", "suppression_estimator", "suppression_residual",
@@ -116,6 +126,8 @@ def main() -> None:
     parser.add_argument("--n_segments", type=int, default=3)
     parser.add_argument("--b_published", type=int, default=128,
                         help="the Fisher batch size the runs under analysis actually used")
+    parser.add_argument("--steps", type=Path,
+                        help="adaptive_lambda_steps.csv; adds the N = 512 vs N = 8192 check")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--self-test", action="store_true", dest="self_test")
     args = parser.parse_args()
@@ -227,17 +239,52 @@ def main() -> None:
         log.info("  seed %-4d t=%d: %8.1fx -> %6.1fx", row["seed"], row["step"],
                  row["excess_over_floor_published"], row["excess_over_floor_corrected"])
 
+    agreement_rows = sample_agreement(rows, args.steps, args.dataset, args.n_segments) \
+        if args.steps else []
+    for row in agreement_rows:
+        log.info("[samples] seed %-4s t=1  lambda N=%s %.4f vs N=%s %.4f  (%+.2f%%; d_norm "
+                 "rel diff %.1e)", row["seed"], row["samples_run"], row["lambda_run"],
+                 row["samples_sweep"], row["lambda_sweep"], row["delta_pct"],
+                 row["d_norm_rel_diff"])
+
     if args.out:
         args.out.mkdir(parents=True, exist_ok=True)
-        for name, fields, out_rows in (("fisher_scaling_exponents.csv", SCALING_FIELDS,
-                                        scaling_rows),
-                                       ("fisher_scaling_decomposition.csv", DECOMP_FIELDS,
-                                        decomp_rows)):
+        outputs = [("fisher_scaling_exponents.csv", SCALING_FIELDS, scaling_rows),
+                   ("fisher_scaling_decomposition.csv", DECOMP_FIELDS, decomp_rows)]
+        if agreement_rows:
+            outputs.append(("fisher_sample_agreement.csv", AGREEMENT_FIELDS, agreement_rows))
+        for name, fields, out_rows in outputs:
             with (args.out / name).open("w", newline="", encoding="utf-8") as fh:
                 writer = csv.DictWriter(fh, fieldnames=fields)
                 writer.writeheader()
                 writer.writerows(out_rows)
             log.info("wrote %s (%d row(s))", args.out / name, len(out_rows))
+
+
+def sample_agreement(rows: list[dict], steps_path: Path, dataset: str,
+                     n_segments: int) -> list[dict]:
+    """λ* at B = 1 from the published runs (N = their own) against the sweep's (N = 8192), t = 1."""
+    with steps_path.open(encoding="utf-8") as fh:
+        steps = {r["seed"]: r for r in csv.DictReader(fh)
+                 if r["dataset"] == dataset and r["n_segments"] == str(n_segments)
+                 and r["lambda_source"] == "became" and r["fisher_batch_size"] == "1"
+                 and r["step"] == "1"}
+    out = []
+    for row in rows:
+        if row["step"] != "1" or row["batch_size"] != "1":
+            continue
+        seed = row["experiment"].rsplit("_s", 1)[-1]
+        run = steps.get(seed)
+        if run is None:
+            continue
+        a, b = float(run["lambda_star"]), float(row["implied_lambda"])
+        da, db = float(run["d_norm"]), float(row["d_norm"])
+        out.append({"dataset": dataset, "n_segments": n_segments, "seed": seed, "step": 1,
+                    "batch_size": 1, "samples_run": run["fisher_samples"],
+                    "samples_sweep": row["samples"], "lambda_run": a, "lambda_sweep": b,
+                    "delta_pct": 100.0 * (a - b) / b, "d_norm_run": da, "d_norm_sweep": db,
+                    "d_norm_rel_diff": abs(da - db) / db})
+    return sorted(out, key=lambda r: int(r["seed"]))
 
 
 def _self_test() -> None:

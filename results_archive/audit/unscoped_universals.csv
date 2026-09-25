@@ -48,9 +48,10 @@ EXPERIMENTS.md,4668,rescale was a near no-op (distance ratio 0.96–1.15). On fo
 EXPERIMENTS.md,4682,"⚠️ **This is not the paper's method and is never called it** (`C26`). It is *""the paper's"
 EXPERIMENTS.md,4698,"board, the distance confound was never load-bearing, and §1.37's conclusion widens rather than"
 EXPERIMENTS.md,4790,"⚠️ **This is not BECAME, and must never be called that.** The published method (Li et al.,"
-EXPERIMENTS.md,4812,never mentions gradient projection. Appendix C.3 / Table 11 is the paper's **own** without-GP
-EXPERIMENTS.md,4819,"initialization, discarded at Algorithm 1 line 1 and never seen again. **Our θ₀ — the base model —"
-EXPERIMENTS.md,5240,that ratio is **below 1 in all 78 cells**: the Fisher is always larger at the merged point.
-EXPERIMENTS.md,5569,"observation. It does not test its mechanism, because it adds no dataset."
-EXPERIMENTS.md,5596,"B = 64 estimator, since AD was never re-run at B = 1 (§1.39). It is paired in §1.39 against its"
-EXPERIMENTS.md,6465,"normalisation — and the test split is transformed with the training scaler, never fit on. But"
+EXPERIMENTS.md,4810,"finding, but that measurement was never run. So nothing in §1.39 says how the full two-stage"
+EXPERIMENTS.md,4816,never mentions gradient projection. Appendix C.3 / Table 11 is the paper's **own** without-GP
+EXPERIMENTS.md,4823,"initialization, discarded at Algorithm 1 line 1 and never seen again. **Our θ₀ — the base model —"
+EXPERIMENTS.md,5255,that ratio is **below 1 in all 78 cells**: the Fisher is always larger at the merged point.
+EXPERIMENTS.md,5585,"observation. It does not test its mechanism, because it adds no dataset."
+EXPERIMENTS.md,5612,"B = 64 estimator, since AD was never re-run at B = 1 (§1.39). It is paired in §1.39 against its"
+EXPERIMENTS.md,6481,"normalisation — and the test split is transformed with the training scaler, never fit on. But"

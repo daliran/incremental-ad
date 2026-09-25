@@ -1419,6 +1419,14 @@ CHECKS += [
     for label, method in _GC_LABEL.items() for column, index, tol in _GC_COLS
 ]
 
+# §1.39's provenance: λ* at N = 512 against N = 8192 at t = 1, every seed, bound in seed order.
+CHECKS += [
+    (f"§1.39 Fisher N=512 vs 8192 seed {seed}",
+     r"`fisher_sample_agreement\.csv`\): \*\*" + r"\+[\d.]+%, " * i + r"\+([\d.]+)%",
+     "fisher_scaling/fisher_sample_agreement.csv", {"seed": seed}, "delta_pct", 0.006)
+    for i, seed in enumerate(("7", "42", "123"))
+]
+
 # §0.1c — joint-reference sensitivity. Every number is bound; the "first on 1 of 27" count is
 # checked too, because it is the whole of the argument that the configuration was not
 # test-tuned, and a wrong count there would overstate the reassurance.
@@ -1649,6 +1657,12 @@ CHECKS += [
 # A hit is a failure unless the line also carries one of the allowed markers, which is how the
 # row that *records* the retraction is distinguished from a row that still asserts it.
 STALE_CLAIM_TEXT = [
+    ("C36", r"(?:agrees with|agreement with) N = 8192 to 1\.4%|sample count is not carrying anything",
+     "the N = 512 vs 8192 check was one seed; all three give +1.5% to +6.5% (§1.39 provenance)",
+     ("corrected", "earlier", "was one seed")),
+    ("C35", r"diagnose_activation_overlap",
+     "that script was never written; gradient projection was not built and not measured (§1.39)",
+     ("never written",)),
     ("C20", r"cost (?:grows|scales) with (?:the )?(?:accumulated-subspace )?overlap",
      "C20 is refuted and replaced by C31 — the predictor is headroom, not rho",
      ("refuted", "Refuted", "REFUTED", "replaced", "Replaced", "does not")),
@@ -2591,8 +2605,12 @@ def main() -> None:
 
     # Every prose document, not just the checked one: a retracted sentence is as damaging in
     # THEORY.md or the plan as in EXPERIMENTS.md, and those files carry no numeric checks at all.
+    # The two code files are included because each once carried a retracted statement in a
+    # comment or docstring (the 1.4% Fisher agreement; a measurement script that never existed).
     stale = check_stale_claim_text([args.doc, Path("THEORY.md"), Path("EXECUTION_PLAN.md"),
-                                    Path("CLAUDE.md")])
+                                    Path("CLAUDE.md"),
+                                    Path("src/incremental_ad/framework/merging/became.py"),
+                                    Path("scripts/generate_adaptive_lambda_sweep.py")])
     if stale:
         print(f"  -> {stale} line(s) assert a claim in wording the register has narrowed")
         drift += stale

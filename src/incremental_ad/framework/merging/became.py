@@ -26,8 +26,11 @@ this module serves *merging*, where every shard is fine-tuned from the frozen th
 there is no sequential trajectory to project along; and (2) it is expected to *saturate* on
 consecutive windows of one series, because the periods share input channels and most of
 their activation subspace, so the projection would remove nearly the whole gradient. That
-second reason is measurable rather than asserted — `scripts/diagnose_activation_overlap.py`
-measures it — and until it is measured it is a hypothesis.
+second reason is **a hypothesis, and it was not measured**: no activation-overlap or
+retained-gradient measurement exists in this repository. An earlier version of this docstring
+cited a `scripts/diagnose_activation_overlap.py` that was never written. Gradient projection
+was not built and not measured (EXPERIMENTS.md §1.39); nothing here should be read as evidence
+that it would saturate.
 
 This is therefore *BECAME's coefficient applied to this project's merges*, not a
 reimplementation of BECAME, and it must not be described as one.

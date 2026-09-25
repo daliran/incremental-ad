@@ -243,7 +243,8 @@ python -m incremental_ad.analysis.adaptive_lambda_report --runs_root "$RUNS" \
 # carried from the archive and this step only aggregates them.
 python -m incremental_ad.analysis.fisher_scaling_report --self-test
 python -m incremental_ad.analysis.fisher_scaling_report \
-    --scaling_root "$(carried fisher_scaling_sweep)" --out "$OUT/fisher_scaling" \
+    --scaling_root "$(carried fisher_scaling_sweep)" \
+    --steps "$OUT/adaptive_lambda/adaptive_lambda_steps.csv" --out "$OUT/fisher_scaling" \
     || echo "  fisher_scaling skipped (no B-sweep outputs)"
 
 echo "== global comparison (every strategy and merge rule, one table) =="

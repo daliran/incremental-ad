@@ -4804,8 +4804,12 @@ own paper reports, and it disagrees with the test metric on two cells (ETTm2 n =
 exchange_rate n = 3). The ordering is declared here so the strategy table and this section cannot
 be read as contradicting each other. The
 merging-frame rows `C21`/`C22`/`C24` are rescoped, not withdrawn: they concern the coefficient
-in the merging frame and are the reason this was implemented in the paper's own frame. Gradient projection is a
-separate, later question (`P5`), gated on a measurement rather than assumed.
+in the merging frame and are the reason this was implemented in the paper's own frame.
+⚠️ **Gradient projection was not built and not measured.** P5 below registered what a measurement
+would have to show (activation overlap, retained gradient fraction) for skipping it to be a
+finding, but that measurement was never run. So nothing in §1.39 says how the full two-stage
+method would behave here. The only basis for the omission is the paper's own without-projection
+ablation (next paragraph), which licenses the variant but does not predict its result.
 
 **The paper supports the no-projection variant; it is not a simplification invented here.**
 Lemma 3.1 is stated with θ\*_{t−1} as the left endpoint and the derivation of λ\* (Eqs. 10–20)
@@ -4875,6 +4879,15 @@ The tallies below are reported as counts either way, so nothing here depends on 
 > `analysis/adaptive_lambda_report.py` → `adaptive_lambda_{acc,per_seed,steps,distance}.csv`.
 > The B-sweep is `scripts/diagnose_fisher_batch_scaling.py` → `analysis/fisher_scaling_report.py`
 > → `fisher_scaling_{exponents,decomposition}.csv`. 54 runs, 0 failures.
+> **Fisher sample count.** The B = 1 runs use **N = 512** samples (512 batches of 1); the AD
+> runs at B = 64 use N = 4096 (64 × 64); the B-sweep holds N = 8192. Check at t = 1 on ETTm2
+> n = 3, where both chains hold the same model (`d_norm` identical on seeds 42 and 123, within
+> 1.6e-4 on seed 7), λ\* at N = 512 vs N = 8192 (`fisher_scaling_report --steps` →
+> `fisher_sample_agreement.csv`): **+1.54%, +4.93%, +6.47%**. It is higher at N = 512 on every
+> seed. ⚠️ A figure of "1.4%" cited earlier in code was one seed, and is corrected here.
+> E[F̂] does not depend on N, but λ\* is a ratio of two estimates, so N does move it — by up to
+> 6.5% at t = 1. That is small beside the 6–24× estimator effect of §1.39b. Its effect on the
+> test-metric verdicts was **not measured**: the runs were not repeated at N = 8192.
 
 ⚠️ **Read the two columns as different things.** The **corrected** column (B = 1) is the
 result. The **published** column (B = 128) is *the estimator defect, measured* — it is the
@@ -5010,7 +5023,9 @@ rescoping of `C21`/`C22`/`C24` to the merging frame stands on its own.
 
 **P3 and P5 — not run.** P3 needs the fixed-λ = 1/t control (Tier 2, held). P5 is the projection
 variant, which §1.39b's result makes a question about a method that already loses by 10–30×
-its floor on seven of eight configs.
+its floor on seven of eight configs. **P5 stays unevaluated**: no activation-overlap or
+retained-gradient measurement exists. "Gradient projection would saturate on consecutive
+windows" is a hypothesis this repository has not tested, not a reason it has established.
 
 #### 1.39c P3 on one cell — is it the coefficient, or just the braking?
 

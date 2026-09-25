@@ -741,8 +741,10 @@ plain task arithmetic with a pre-declared α (→ §3.5).
 
 Derives its merging coefficient rather than tuning it, which **sidesteps §3.4 entirely**: if α
 cannot be selected honestly on AD, a method that computes it from the vectors is not a
-refinement but the only way to run AD honestly. Skip the gradient-projection first stage
-(class-incremental machinery; does not transfer). Log λ\* per step alongside ρ, and check it
+refinement but the only way to run AD honestly. Skip the gradient-projection first stage.
+⚠️ The reason once given here, "class-incremental machinery; does not transfer", was wrong: GPM
+projects against previous tasks' activation subspace and needs no label space. It was simply
+**not built and not measured** (EXPERIMENTS.md §1.39). Log λ\* per step alongside ρ, and check it
 against the measured α\* ≈ 1/n — a derivation that reproduces the empirical rule would be
 strong corroboration for both.
 

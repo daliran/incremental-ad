@@ -1718,7 +1718,8 @@ the section wins. None is quoted below for that reason.
   datasets (P5 refuted, `C48`). DARE is flat up to a 0.5 drop rate and breaks at 0.9 (P6
   confirmed, `C49`).
 - **§1.41:** strategies, merge rules and adaptive λ ranked together. No method is best on most
-  configurations, and TA has the best mean rank. Only about half of the orderings clear the
+  configurations; among methods that do not retain the full history, TA has the best mean rank
+  (joint training, a reference, beats the best of them on 12 of 21). Only about half of the orderings clear the
   floor (`C50`).
 
 **Open, deliberately not run:**

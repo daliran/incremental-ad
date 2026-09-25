@@ -1413,6 +1413,17 @@ _GC_LABEL = {"task arithmetic": "ta", "sequential": "sequential", "DARE": "dare"
 _GC_COLS = (("n_cells", 0, 0.0001), ("n_best", 1, 0.0001), ("mean_normalised_rank", 2, 0.0006),
             ("mean_gap_to_best_pct", 3, 0.006))
 CHECKS += [
+    ("§1.41 joint better than best", r"reference, not ranked\* \| \d+ \| \*better than the best "
+     r"ranked method on (\d+)\*", "global_comparison/global_comparison_summary.csv",
+     {"method": "joint"}, "n_better_than_best", 0.0001),
+    ("§1.41 joint mean gap", r"reference, not ranked\* \|[^|]+\|[^|]+\|[^|]+\| ([+−-][\d.]+)%",
+     "global_comparison/global_comparison_summary.csv", {"method": "joint"},
+     "mean_gap_to_best_pct", 0.006),
+    ("§1.41 joint prose count", r"beats the best of them on (\d+) of 21",
+     "global_comparison/global_comparison_summary.csv", {"method": "joint"},
+     "n_better_than_best", 0.0001),
+]
+CHECKS += [
     (f"§1.41 {label} {column}",
      rf"\| {_B}{re.escape(label)}{_B} \| " + r"[^|]+\| " * index + rf"{_B}([\d.]+)",
      "global_comparison/global_comparison_summary.csv", {"method": method}, column, tol)
@@ -1657,6 +1668,13 @@ CHECKS += [
 # A hit is a failure unless the line also carries one of the allowed markers, which is how the
 # row that *records* the retraction is distinguished from a row that still asserts it.
 STALE_CLAIM_TEXT = [
+    ("C39", r"AD (?:is|stays) published at B = 128",
+     "the AD runs used B = 64 (their loader batch size); 128 is the forecasting value",
+     ("earlier version",)),
+    ("C50", r"best mean normalised rank|(?:TA|task arithmetic) has the best mean rank\b(?! of the)",
+     "joint training is excluded from §1.41's ranking; the rank claim is scoped to methods that "
+     "do not retain the full history",
+     ("full history", "not ranked")),
     ("C36", r"(?:agrees with|agreement with) N = 8192 to 1\.4%|sample count is not carrying anything",
      "the N = 512 vs 8192 check was one seed; all three give +1.5% to +6.5% (§1.39 provenance)",
      ("corrected", "earlier", "was one seed")),

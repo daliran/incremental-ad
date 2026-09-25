@@ -58,7 +58,7 @@ TIERS = {
     # large enough that sigma^2/B plausibly dominates g^2 at the merged points too, so numerator
     # and denominator scale together -- which is why AD's Lambda/F sat at 0.1-11x while
     # forecasting's ran to thousands. That is an inference, not a measurement; AD stays published
-    # at B = 128 with a note, and a B-sweep on PSM n=3 would settle it if it ever matters.
+    # at B = 64 (its loader batch size; unset flag) with a note, and a B-sweep on PSM n=3 would settle it if it ever matters.
     #
     # N = 512, matching the acceptance runs. ⚠️ An earlier comment here said this agrees with
     # N = 8192 "to 1.4%" and that the sample count carries nothing. That was one seed.

@@ -1,9 +1,10 @@
-method,n_cells,n_best,mean_rank,mean_normalised_rank,mean_gap_to_best_pct,cells
-ta,21,8,2.5714,0.2474,9.5482,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
-sequential,21,5,3.1429,0.354,11.2897,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
-dare,21,1,3.4762,0.4032,12.7181,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
-window_val,15,4,4.0667,0.4746,20.7609,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 exchange/2 exchange/3 exchange/5
-tsv,21,1,4.0476,0.4975,15.2653,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
-adaptive_lambda,10,0,5.5,0.6667,44.8938,ETTh1/3 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/3 SWaT/3 exchange/3
-ties,21,2,5.4286,0.6975,60.2521,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
-iso_c,21,0,5.5238,0.7392,29.4403,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
+method,role,n_cells,n_best,n_better_than_best,mean_rank,mean_normalised_rank,mean_gap_to_best_pct,cells
+ta,candidate,21,8,,2.5714,0.2474,9.5482,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
+sequential,candidate,21,5,,3.1429,0.354,11.2897,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
+dare,candidate,21,1,,3.4762,0.4032,12.7181,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
+window_val,candidate,15,4,,4.0667,0.4746,20.7609,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 exchange/2 exchange/3 exchange/5
+tsv,candidate,21,1,,4.0476,0.4975,15.2653,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
+adaptive_lambda,candidate,10,0,,5.5,0.6667,44.8938,ETTh1/3 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/3 SWaT/3 exchange/3
+ties,candidate,21,2,,5.4286,0.6975,60.2521,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
+iso_c,candidate,21,0,,5.5238,0.7392,29.4403,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5
+joint,"reference, not ranked",21,,12,,,-3.795,ETTh1/2 ETTh1/3 ETTh1/5 ETTh2/2 ETTh2/3 ETTh2/5 ETTm2/2 ETTm2/3 ETTm2/5 PSM/2 PSM/3 PSM/5 PSM-forecast/2 PSM-forecast/3 PSM-forecast/5 SWaT/2 SWaT/3 SWaT/5 exchange/2 exchange/3 exchange/5

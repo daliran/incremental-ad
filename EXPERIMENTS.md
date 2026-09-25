@@ -4875,7 +4875,7 @@ The tallies below are reported as counts either way, so nothing here depends on 
 
 
 > **Provenance of the numbers below.** `scripts/generate_adaptive_lambda_sweep.py --tier 1`
-> (30 runs, B = 128) and `--tier 3` (24 runs, forecasting, B = 1) →
+> (30 runs: B = 128 on forecasting, B = 64 on AD) and `--tier 3` (24 runs, forecasting, B = 1) →
 > `analysis/adaptive_lambda_report.py` → `adaptive_lambda_{acc,per_seed,steps,distance}.csv`.
 > The B-sweep is `scripts/diagnose_fisher_batch_scaling.py` → `analysis/fisher_scaling_report.py`
 > → `fisher_scaling_{exponents,decomposition}.csv`. 54 runs, 0 failures.
@@ -4890,15 +4890,17 @@ The tallies below are reported as counts either way, so nothing here depends on 
 > test-metric verdicts was **not measured**: the runs were not repeated at N = 8192.
 
 ⚠️ **Read the two columns as different things.** The **corrected** column (B = 1) is the
-result. The **published** column (B = 128) is *the estimator defect, measured* — it is the
-evidence for §1.39b and is **not** a second set of results. Quoting a B = 128 cell as a finding
+result. The **published** column (B = 128 on forecasting, **B = 64 on AD**) is *the estimator defect,
+measured* — it is the evidence for §1.39b and is **not** a second set of results. The published
+runs left `--pipeline_fisher_batch_size` unset, so it fell back to each dataset's loader batch
+size: 128 for forecasting, 64 for PSM and SWaT. Quoting a published-column cell as a finding
 about the method is the error this labelling exists to prevent, the same discipline the
 withdrawn-claims rows carry.
 
 **P1 — REFUTED.** ACC (loss-shaped, lower is better) against the paired plain chain — paired by
 the source run's own `pipeline_baseline_checkpoint`, so the only difference is the pullback.
 
-| dataset | n | *defect: B = 128* | **corrected: B = 1** | floor | ratio | verdict |
+| dataset | n | *defect: B = 128 (AD: B = 64)* | **corrected: B = 1** | floor | ratio | verdict |
 |---|---|---|---|---|---|---|
 | ETTh1 | 3 | +49.09% | **+12.51%** | 8.76% | 1.43× | worse **(borderline)** |
 | ETTh2 | 2 | +100.69% | +86.04% | 6.74% | 12.76× | worse |
@@ -4941,7 +4943,7 @@ produce and was sitting in the finished runs.
 ⚠️ The evaluation runs **after** the pullback, so the model scored is θ\*_t — the chain's model.
 Scoring θ̂_t instead would compare a different model against the control.
 
-| dataset | n | metric | *defect: B = 128* | **corrected: B = 1** | floor | ratio | own spread | verdict |
+| dataset | n | metric | *defect: B = 128 (AD: B = 64)* | **corrected: B = 1** | floor | ratio | own spread | verdict |
 |---|---|---|---|---|---|---|---|---|
 | ETTh1 | 3 | `forecast/mse` | +47.80% | **+15.71%** | 8.759% | 1.79× | 3.93% | worse |
 | ETTh2 | 2 | `forecast/mse` | +157.35% | **+141.45%** | 6.741% | 20.98× | 72.22% | worse |
@@ -5287,7 +5289,9 @@ results (`E08`, `E18`, §1.31, §1.36): `_shard_fishers` evaluates every Fisher 
 denominator and cancels. That is the same algebra the t = 1 control demonstrates. The chain
 breaks only from t = 2, when Λ starts carrying merged-point terms that are not suppressed.
 
-**AD is published at B = 128, by decision.** On AD the bias is expected to largely self-cancel:
+**AD is published at B = 64, by decision** — its loader batch size, which the unset
+`--pipeline_fisher_batch_size` fell back to. An earlier version of this paragraph said B = 128,
+the forecasting value; the archived AD rows carry `fisher_batch_size = 64`. On AD the bias is expected to largely self-cancel:
 random masking makes σ² large enough that σ²/B plausibly dominates g² at the merged points too,
 so numerator and denominator scale together — which is consistent with AD's Λ/F sitting at
 0.1–11× where forecasting's ran to thousands. ⚠️ **That is an inference, not a measurement.** A
@@ -5614,6 +5618,9 @@ ranks them together within each configuration.
   published `sequential`.
 - **Ranks order means; they are not verdicts.** Each section's floor-scaled decision rule is what
   its claims rest on. The CSV carries every entry's gap to the cell's best in floor units.
+- **Joint training is a reference, not a ranked method.** It retains the full history, which is
+  exactly what every ranked method is built to avoid, so the ranking is **among methods that do
+  not retain the full history**. Its row is kept in the table so that scope is visible.
 
 | method | configurations | best on | mean normalised rank | mean gap to best |
 |---|---|---|---|---|
@@ -5625,13 +5632,19 @@ ranks them together within each configuration.
 | adaptive λ | 10 | 0 | 0.667 | 44.89% |
 | TIES | 21 | 2 | 0.698 | 60.25% |
 | Iso-C | 21 | 0 | 0.739 | 29.44% |
+| *joint training — reference, not ranked* | 21 | *better than the best ranked method on 12* | — | −3.79% |
 
 The 21 configurations exclude SWaT-forecast (floor 84%), as in §1.40. The normalised rank is
 (rank − 1) / (entrants − 1), so 0 means best, 1 means worst, and methods present on different
 numbers of cells stay comparable. Window and adaptive λ are absent where they were not run.
 
-**No strategy is best on most configurations.** Task arithmetic has the best mean normalised rank
-and is best on 8 of 21, the most of any method. Sequential is best on 5 and the window on 4, all
+**No strategy is best on most configurations.**
+Among methods that do not retain the full history, task arithmetic has the best mean normalised rank
+and is best on 8 of 21, the most of any of them.
+Joint training, which does retain it, beats the best of them on 12 of 21 (mean gap −3.79%): on
+ETTh2, ETTm2, PSM-forecast and SWaT at every n. It loses to the best of them on ETTh1, PSM and
+exchange_rate at every n — on exchange_rate by 27–80%, where old data hurts (§1.24), and on
+PSM n = 5 by 0.01%, inside the floor. Sequential is best on 5 and the window on 4, all
 four on forecasting. Every other rule is best on at most 2. Where each wins follows the
 per-dataset pattern the earlier sections found:
 - **TA:** SWaT n = 2, 3, 5, PSM n = 2, PSM-forecast n = 2, 5, and ETTh2 n = 3, 5.

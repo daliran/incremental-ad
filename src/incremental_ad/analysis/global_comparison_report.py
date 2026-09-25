@@ -60,8 +60,8 @@ ADAPTIVE_BATCH = {"forecast": "1", "ad": "64"}
 FIELDS = ["dataset", "n", "metric", "higher_is_better", "floor_pct", "method", "role",
           "selection", "value", "sd", "n_seeds", "rank", "n_ranked", "gap_to_best_pct",
           "gap_over_floor", "adaptive_paired_plain", "source"]
-SUMMARY_FIELDS = ["method", "n_cells", "n_best", "mean_rank", "mean_normalised_rank",
-                  "mean_gap_to_best_pct", "cells"]
+SUMMARY_FIELDS = ["method", "role", "n_cells", "n_best", "n_better_than_best", "mean_rank",
+                  "mean_normalised_rank", "mean_gap_to_best_pct", "cells"]
 
 
 def higher_is_better(metric: str) -> bool:
@@ -163,14 +163,27 @@ def summarise(rows: list[dict]) -> list[dict]:
     for method, items in by_method.items():
         k = len(items)
         summary.append({
-            "method": method, "n_cells": k,
+            "method": method, "role": "candidate", "n_cells": k, "n_better_than_best": "",
             "n_best": sum(1 for r in items if r["rank"] == 1),
             "mean_rank": round(sum(r["rank"] for r in items) / k, 4),
             "mean_normalised_rank": round(sum((r["rank"] - 1) / max(r["n_ranked"] - 1, 1)
                                               for r in items) / k, 4),
             "mean_gap_to_best_pct": round(sum(r["gap_to_best_pct"] for r in items) / k, 4),
             "cells": " ".join(f"{r['dataset']}/{r['n']}" for r in items)})
-    return sorted(summary, key=lambda r: r["mean_normalised_rank"])
+    summary.sort(key=lambda r: r["mean_normalised_rank"])
+    # Joint training is a REFERENCE, never ranked: it retains the full history, which is the
+    # thing every candidate is trying to avoid. Its row is emitted so the scope of the ranking is
+    # visible in the table itself — how often it beats the best candidate is what "task
+    # arithmetic has the best mean rank" leaves out.
+    joint = [r for r in rows if r["method"] == "joint" and r["dataset"] not in EXCLUDED_FROM_SUMMARY]
+    if joint:
+        summary.append({
+            "method": "joint", "role": "reference, not ranked", "n_cells": len(joint),
+            "n_best": "", "n_better_than_best": sum(r["gap_to_best_pct"] < 0 for r in joint),
+            "mean_rank": "", "mean_normalised_rank": "",
+            "mean_gap_to_best_pct": round(sum(r["gap_to_best_pct"] for r in joint) / len(joint), 4),
+            "cells": " ".join(f"{r['dataset']}/{r['n']}" for r in joint)})
+    return summary
 
 
 def write(path: Path, fields: list[str], rows: list[dict]) -> None:
@@ -195,6 +208,11 @@ def main() -> None:
         raise SystemExit("no cells built — refusing to write an empty table")
     summary = summarise(rows)
     for row in summary:
+        if row["role"] != "candidate":
+            log.info("  %-16s cells %2d  (%s) better than the best candidate on %d, mean gap "
+                     "%.2f%%", row["method"], row["n_cells"], row["role"],
+                     row["n_better_than_best"], row["mean_gap_to_best_pct"])
+            continue
         log.info("  %-16s cells %2d  best %2d  mean normalised rank %.3f  mean gap %.2f%%",
                  row["method"], row["n_cells"], row["n_best"], row["mean_normalised_rank"],
                  row["mean_gap_to_best_pct"])

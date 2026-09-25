@@ -485,8 +485,8 @@ CLAIMS: list[tuple] = [
      "+20.94%, ETTm2 +56.70%, PSM-forecast +7.58%). The reference default p=0.7 already loses "
      "on PSM-forecast (+2.27%, 1.96x floor) where p<=0.5 ties. It is never better at any setting. "
      "n=3, 3 seeds, forecasting only, DARE on matrices only as the reference applies it."),
-    ("C50", "No update strategy or merge rule is best on most configurations; task arithmetic "
-     "has the best mean rank across all of them",
+    ("C50", "No update strategy or merge rule is best on most configurations; among methods that "
+     "do not retain the full history, task arithmetic has the best mean rank",
      "1.41", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast,PSM,SWaT", 7, "mixed", "measurement",
      "no", "supported",
      "A join of §1.26b, §1.40 and §1.39 with nothing recomputed. Over 21 configurations "
@@ -494,7 +494,10 @@ CLAIMS: list[tuple] = [
      "DARE 1, TSV 1, Iso-C 0, adaptive lambda 0; mean normalised rank TA 0.247, next sequential "
      "0.354. TA is ranked from §1.40's grid, the one the four rules were selected on. STRENGTH: "
      "counts of means, not of decisive wins - only 11 of 21 best-vs-runner-up margins clear the "
-     "floor. The window strategy has no AD entry and adaptive lambda covers 10 configurations."),
+     "floor. The window strategy has no AD entry and adaptive lambda covers 10 configurations. "
+     "SCOPE: joint training is a reference, not ranked - it retains the full history every ranked "
+     "method avoids - and it beats the best ranked method on 12 of 21 (mean gap -3.79%), so the "
+     "rank claim holds only among methods that do not retain the full history."),
     ("C39", "Adaptive-lambda does not improve anomaly detection",
      "1.39", "PSM,SWaT", 2, "mixed", "measurement", "yes", "supported",
      "Measured on window_auroc, which HAS a published floor on both datasets - not on "

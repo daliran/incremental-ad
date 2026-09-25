@@ -1,0 +1,37 @@
+{
+  "source_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/segsweep_etth1_merge_n2/79870",
+  "merge_rule": "baseline:dare",
+  "baseline_rule": "dare",
+  "alpha": 0.3,
+  "alpha_grid": [
+    0.1,
+    0.2,
+    0.3,
+    0.5,
+    0.7,
+    1.0,
+    1.5,
+    2.0,
+    3.0
+  ],
+  "committed_alpha": 0.5,
+  "committed_alpha_source": "merge_scale/selected",
+  "delta_norm": 5.189236,
+  "ta_sum_norm": 3.119796,
+  "distance_from_base": 1.556771,
+  "distance_matched_to_ta_alpha": null,
+  "dare_seed": 123,
+  "seed": 123,
+  "n_shards": 2,
+  "metrics": {
+    "val/forecast/mse": 0.36444464325904846,
+    "val/forecast/rmse": 0.603692507207973,
+    "val/forecast/mae": 0.42325159907341003,
+    "test/forecast/mse": 0.4928463101387024,
+    "test/forecast/rmse": 0.7020301347796278,
+    "test/forecast/mae": 0.49918287992477417
+  },
+  "schema": 1,
+  "code_fingerprint": "c8e36acbc366e167",
+  "completed_at": "2026-09-23T20:30:14"
+}

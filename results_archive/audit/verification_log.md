@@ -31,13 +31,13 @@ current run covers far more:
 
 | status | runs |
 |---|---|
-| `bitwise` | 412 |
-| `skipped_became` | 6 |
+| `bitwise` | 454 |
+| `skipped_became` | 21 |
 
-**412/412 reproduce bitwise.**
+**454/454 reproduce bitwise** (re-run 2026-09-25; max abs difference 0.0 on every tensor). Up from 412 because the strategy-6 and §1.40 run groups now exist.
 
-α was read from `merge_scale/selected` for **153** runs and
-from `config.json` for 265. That split is the point of the check's
+α was read from `merge_scale/selected` for **183** runs and
+from `config.json` for 271. That split is the point of the check's
 ordering rule: with validation selection on, `config.json` records the value that was *asked
 for* while the checkpoint was built at the one that *won*, and reading the config first once
 produced 12 spurious mismatches — exactly the selecting runs.
@@ -47,3 +47,27 @@ stored with the run, so the merge cannot be rebuilt from checkpoints alone. Repo
 rather than counted as passing — a check that was not performed must not read as a pass.
 
 Full per-run detail: `results_archive/audit/merge_reproduction.csv`.
+
+## Unit gates and the full verifier pass — 2026-09-25
+
+`scripts/verify_core.py` (new): **64/64 gates pass** — splitting, windowing, metrics against
+sklearn and hand-worked cases, the trainer's checkpoint restore and L2-SP exclusion, seeded
+evaluation, results storage, and the forecasting **future-leakage test**: poisoning the horizon
+of a window leaves the prediction bit-identical, with and without instance norm.
+
+`scripts/verify_merge_baselines.py` (new): **49/49** — the supervisor's four merge rules as
+ported equal his reference (`other/`, imported read-only) except by exactly the four documented
+defects, each of which is also reproduced on the reference.
+
+Every pre-existing verifier and self-test was re-run in one job (SLURM 116616), all exit 0:
+`verify_adaptive_lambda`, `verify_merge_rules`, `verify_train_only`, `verify_checkpoints`
+(**3,921/3,921** checkpoints verified, 0 missing, 0 mismatched), `verify_mask_span`,
+`verify_merge_reproduction` (above), and the `--self-test` of every analysis script, the claims
+register and the table checker.
+
+**Evaluation-seed fix (`remerge.py`).** Re-merges now score at the run's own `eval_seed`
+(seed + 1), as the pipeline does. Before the fix the same model scored 0.0026% (SWaT) and 0.018%
+(PSM) AUROC away from its stored value; after it, a PSM re-merge reproduces the stored score to
+~1e-9 (`window_auroc` 0.8028227483 stored, 0.8028227477 re-merged; `pa_f1` identical). All 54 AD
+re-merge rows published before the fix were re-read with both arms at one seed: **0 verdicts
+changed**, largest delta shift 0.006 percentage points.

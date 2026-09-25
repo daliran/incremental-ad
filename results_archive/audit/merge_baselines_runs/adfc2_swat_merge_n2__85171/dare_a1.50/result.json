@@ -1,0 +1,37 @@
+{
+  "source_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_swat_merge_n2/85171",
+  "merge_rule": "baseline:dare",
+  "baseline_rule": "dare",
+  "alpha": 1.5,
+  "alpha_grid": [
+    0.1,
+    0.2,
+    0.3,
+    0.5,
+    0.7,
+    1.0,
+    1.5,
+    2.0,
+    3.0
+  ],
+  "committed_alpha": 0.55,
+  "committed_alpha_source": "merge_scale/selected",
+  "delta_norm": 20.494762,
+  "ta_sum_norm": 11.977946,
+  "distance_from_base": 30.742143,
+  "distance_matched_to_ta_alpha": null,
+  "dare_seed": 7,
+  "seed": 7,
+  "n_shards": 2,
+  "metrics": {
+    "val/forecast/mse": 0.18216733634471893,
+    "val/forecast/rmse": 0.4268106563157941,
+    "val/forecast/mae": 0.2337045520544052,
+    "test/forecast/mse": 3.242703437805176,
+    "test/forecast/rmse": 1.8007507983630537,
+    "test/forecast/mae": 0.6535181999206543
+  },
+  "schema": 1,
+  "code_fingerprint": "c8e36acbc366e167",
+  "completed_at": "2026-09-23T21:09:17"
+}

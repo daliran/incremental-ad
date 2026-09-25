@@ -433,6 +433,29 @@ CLAIMS: list[tuple] = [
      "have chosen the better joint configuration either. Separately: the trials of record rank "
      "first on 1 of 27 grid criteria, so there is no sign the configurations were test-tuned - "
      "but the criterion actually used is unrecorded."),
+    ("C45", "Of the supervisor's four merge rules, none beats task arithmetic under one protocol; "
+     "task arithmetic has the best mean rank",
+     "1.40", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast,PSM,SWaT", 7, "yes", "measurement",
+     "yes", "supported",
+     "72 runs x 5 rules (TA included), one alpha grid, alpha selected on validation for "
+     "forecasting and distance-matched to TA for AD; 2,952 results, 143/143 jobs. Over the 21 "
+     "configurations without SWaT-forecast: TA mean rank 1.71; DARE 1 better / 15 tie / 5 worse "
+     "(rank 2.52); TSV 2/5/14 (2.81); TIES 4/0/17 (3.86); Iso-C 0/5/16 (4.10). No rule beats TA "
+     "on more than 4 of 21. The falsification test was registered first (P1: no rule beats TA "
+     "on more than 3) and narrowly failed for TIES, which is why the claim reads 'best overall', "
+     "not 'never beaten'. SCOPE: the supervisor's variants with four defects fixed (§1.40), TIES "
+     "trimmed per matrix and DARE on matrices only as he wrote them; Iso-C's six upper-edge cells "
+     "(alpha = 3.0 selected) are provisional and could move its rank. The TA column is TA "
+     "re-selected on this grid, which is coarser than its own runs' - by design."),
+    ("C46", "Removing part of each task vector helps only where old data hurts",
+     "1.40", "exchange_rate", 1, "n/a", "mechanism", "no", "hypothesis",
+     "Every forecasting win of the supervisor's rules is on exchange_rate - TIES at n=3,5 and TSV "
+     "at n=3,5, both of which discard part of every task vector - which is also where OPCM's "
+     "projection won (C32) and where old data actively hurts (§1.24). Three removal operators "
+     "winning on the one dataset where less history helps is a pattern worth stating, but ONE "
+     "dataset cannot separate it from anything else particular to exchange_rate, and no test "
+     "that could break it has been run. Two of the four wins are weak: TIES at n=3 is borderline "
+     "and inside its own paired seed spread (31.4% against an 8.55% margin)."),
     ("C39", "Adaptive-lambda does not improve anomaly detection",
      "1.39", "PSM,SWaT", 2, "mixed", "measurement", "yes", "supported",
      "Measured on window_auroc, which HAS a published floor on both datasets - not on "
@@ -475,7 +498,7 @@ CLAIMS: list[tuple] = [
 # The professor's method list: what was asked for, and what actually exists.
 METHODS: list[tuple] = [
     ("Task arithmetic (plain sum at alpha)", "full",
-     "The project's baseline throughout; merge is bitwise reproducible from checkpoints (412/412).",
+     "The project's baseline throughout; merge is bitwise reproducible from checkpoints (454/454).",
      "alpha* ~ 1/n in the deployment parameterisation; merging within 1.0-1.1x of specialists on "
      "SWaT/PSM/ETTh1 but 1.5-2.1x on ETTh2/exchange_rate (C01)."),
     ("OPCM - residual against flattened predecessors", "partial",
@@ -527,6 +550,21 @@ METHODS: list[tuple] = [
     ("Window retraining (W periods of retained history)", "full",
      "W = 1/2/3 on four forecasting datasets, plus honest validation-based budget selection.",
      "Merging is worth 2-4 periods of history, dataset-dependent (C04)."),
+    ("DARE (drop and rescale, on task arithmetic)", "full",
+     "The supervisor's implementation, seeded (it was not). Drops only from matrices, as he "
+     "wrote it; the official code masks every parameter.",
+     "Ties task arithmetic on 15 of 21 configurations - unbiased by construction (C45)."),
+    ("TIES-Merging", "full",
+     "The supervisor's implementation with its 1/n matrix-scale defect fixed. Trims each matrix "
+     "to its own top 20% (the official code trims the flattened model).",
+     "Worst on ETT forecasting (+121% to +179% MSE); wins only on exchange_rate and PSM (C45, C46)."),
+    ("Iso-C (isotropic merging)", "full",
+     "The supervisor's implementation with its mean-instead-of-sum defect fixed (the official "
+     "code multiplies back by n before the SVD).",
+     "Worst mean rank of the four; six cells chose alpha at the grid's top and are provisional (C45)."),
+    ("TSV-Merge (task singular vectors)", "full",
+     "The supervisor's implementation matched the official code exactly; a rank < n guard added.",
+     "Second-best rule; wins exchange_rate n=3,5 (C45, C46)."),
     ("Routing / regime indicator", "partial",
      "A per-window ORACLE router only; no buildable router exists, and it cannot be computed on "
      "AD from these runs at all (C17).",

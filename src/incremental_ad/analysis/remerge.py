@@ -53,6 +53,23 @@ def committed_alpha(run: Path, args: dict) -> tuple[float, str]:
     return float(args.get("pipeline_merge_scale", 1.0)), "config.json"
 
 
+def eval_seed_of(run_args: dict) -> int | None:
+    """The evaluation seed the PIPELINE scored this run with — `framework/experiment.py`'s rule.
+
+    ⚠️ Until 2026-09-25 this script scored with the TRAINING seed, not this one. On forecasting
+    that is inert (scoring is deterministic); on AD, scoring averages random masks, so every AD
+    comparison of a re-merge against the run's STORED merge (§1.35, §1.36 P1, §1.37 P4) put its
+    two arms under different mask draws. Measured on 18 AD runs the same model moves by at most
+    0.0026% AUROC on SWaT and 0.018% on PSM — below both floors — and re-reading all 54 affected
+    rows at one seed changed no verdict (`attach_matched_seed`). Fixed so it cannot recur: a
+    re-merge and the stored merge are now scored under the same masks by construction.
+    """
+    if run_args.get("eval_seed") is not None:
+        return int(run_args["eval_seed"])
+    seed = run_args.get("seed")
+    return None if seed is None else int(seed) + 1
+
+
 def evaluate(model, dataset, configurator, runner, seed,
              test_only: bool = False) -> dict[str, float]:
     """Merged-val and test metrics for whatever `model` currently holds."""
@@ -86,6 +103,7 @@ def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source
     from incremental_ad.framework.merging.task_vectors import apply_task_vectors
 
     seed = run_args.get("seed")
+    scoring_seed = eval_seed_of(run_args)
     rule = args.baseline_rule
     builder = DELTAS[rule]
     # DARE's mask is seeded by the TRAINING seed, so the three seeds of a configuration draw
@@ -96,7 +114,10 @@ def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source
         return float(torch.sqrt(sum((v.to(torch.float64) ** 2).sum() for v in state.values())))
 
     delta_norm = norm(delta)
-    ta_norm = norm(DELTAS["ta"](taus))
+    ta_norm = delta_norm if rule == "ta" else norm(DELTAS["ta"](taus))
+    if delta_norm == 0.0:
+        raise SystemExit(f"{rule}: the merged delta is exactly zero — nothing to evaluate, and "
+                         f"a distance match would divide by zero")
     log.info("[%s] ||Delta||=%.4f  ||sum tau||=%.4f  ratio %.4f  — %d alphas",
              rule, delta_norm, ta_norm, delta_norm / ta_norm if ta_norm else float("nan"),
              len(args.alpha_grid))
@@ -110,7 +131,8 @@ def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source
 
     for value, tag in points:
         model.load_state_dict(apply_task_vectors(base_state, [delta], value))
-        metrics = evaluate(model, dataset, configurator, runner, seed, args.test_only)
+        metrics = evaluate(model, dataset, configurator, runner, scoring_seed,
+                           args.test_only)
         out_dir = args.out / f"{run.parent.name}__{run.name}" / tag
         out_dir.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -122,7 +144,8 @@ def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source
             "distance_matched_to_ta_alpha": (args.distance_match_alpha
                                              if tag.endswith("_dm") else None),
             "dare_seed": int(seed or 0) if rule == "dare" else None,
-            "seed": seed, "n_shards": len(taus), "metrics": metrics,
+            "seed": seed, "eval_seed": scoring_seed, "n_shards": len(taus),
+            "metrics": metrics,
         }
         log.info("[%s] alpha=%.2f  %s", rule, value,
                  {k: round(v, 5) for k, v in metrics.items()
@@ -195,6 +218,23 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    # Each of these used to be accepted and silently ignored — e.g. `--baseline_rule ties
+    # --reverse_order` ran forward order and wrote to the usual tags.
+    if args.baseline_rule is not None:
+        clashes = [flag for flag, set_ in (
+            ("--merge_rule", args.merge_rule != "sum"),
+            ("--coefficient_source", args.coefficient_source != "scale"),
+            ("--reverse_order", args.reverse_order),
+            ("--tag", args.tag is not None),
+            ("--merge_scale", args.merge_scale is not None)) if set_]
+        if clashes:
+            parser.error(f"--baseline_rule does not use {', '.join(clashes)}")
+    else:
+        stray = [flag for flag, set_ in (
+            ("--distance_match_alpha", args.distance_match_alpha is not None),
+            ("--test_only", args.test_only)) if set_]
+        if stray:
+            parser.error(f"{', '.join(stray)} only apply with --baseline_rule")
 
     import torch
 
@@ -404,17 +444,8 @@ def main() -> None:
     model.load_state_dict(merged)
 
     # --- evaluate ------------------------------------------------------------------------------
-    metrics: dict[str, float] = {}
-    for split, loader_fn in (("val", dataset.get_merged_val_eval_dataset),
-                             ("test", dataset.get_test_dataset)):
-        evaluator = (configurator.create_val_evaluator() if split == "val"
-                     else configurator.create_test_evaluator())
-        try:
-            scored = runner.run(model, evaluator, loader_fn(), seed=run_args.get("seed"))
-        except Exception as exc:                                    # noqa: BLE001
-            log.warning("  %s evaluation failed: %s", split, exc)
-            continue
-        metrics.update({f"{split}/{k}": v for k, v in scored.items()})
+    # One evaluation path for both modes, so the published re-merges and §1.40 cannot drift apart.
+    metrics = evaluate(model, dataset, configurator, runner, eval_seed_of(run_args))
 
     tag = args.tag or (f"{args.merge_rule}_{args.coefficient_source}"
                        f"_fb{args.fisher_batches}_fs{args.fisher_seed}")
@@ -431,7 +462,8 @@ def main() -> None:
         "implied_alpha_times_n": (round(opcm_info["implied_alpha_times_n"], 6) if opcm_info
                                   else round(sum(c for _d, c in weights), 6)),
         **{f"opcm_{k}": round(v, 6) for k, v in opcm_info.items()},
-        "seed": run_args.get("seed"), "n_shards": len(taus), "metrics": metrics,
+        "seed": run_args.get("seed"), "eval_seed": eval_seed_of(run_args),
+        "n_shards": len(taus), "metrics": metrics,
     }
     if lambdas:
         # For a rescaled run the realised per-vector weights are the fold's coefficients, not the

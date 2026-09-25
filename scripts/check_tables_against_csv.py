@@ -1307,6 +1307,50 @@ CHECKS += [_test_check(d, n, m, 1, "delta_pct", "corrected")
 CHECKS += [_test_check(d, n, m, b, "margin_ratio", "ratio") for d, n, m, b in _TEST_ROWS]
 CHECKS += [_test_check(d, n, m, b, "own_spread_pct", "own_spread") for d, n, m, b in _TEST_ROWS]
 
+# §1.40's results table: every rule's change against TA in every configuration, and TA's own
+# value. The regex steps over the cells it is not checking, so a cell cannot be satisfied by its
+# neighbour — the four rule columns hold numbers of similar size and sign.
+_MB_ROWS = [(d, n, m) for d, m in (("ETTh1", "forecast/mse"), ("ETTh2", "forecast/mse"),
+                                    ("ETTm2", "forecast/mse"), ("exchange", "forecast/mse"),
+                                    ("PSM-forecast", "forecast/mse"), ("PSM", "window_auroc"),
+                                    ("SWaT", "window_auroc"))
+            for n in (2, 3, 5)]
+_MB_RULES = ("dare", "ties", "iso_c", "tsv")
+
+
+def _mb_check(dataset, n, metric, index):
+    row = rf"\| {re.escape(dataset)} \| {n} \| `{re.escape(metric)}` \| [\d.]+ \| "
+    skip = r"[^|]+\| " * index
+    rule = _MB_RULES[index]
+    return (f"§1.40 {dataset} n={n} {rule}", row + skip + r"([+−-][\d.]+)%",
+            "merge_baselines/merge_baselines.csv",
+            {"dataset": dataset, "n_segments": str(n), "rule": rule}, "delta_pct", 0.006)
+
+
+CHECKS += [_mb_check(d, n, m, i) for d, n, m in _MB_ROWS for i in range(4)]
+CHECKS += [
+    (f"§1.40 {d} n={n} TA", rf"\| {re.escape(d)} \| {n} \| `{re.escape(m)}` \| ([\d.]+) \|",
+     "merge_baselines/merge_baselines.csv", {"dataset": d, "n_segments": str(n), "rule": "ta"},
+     "value", 0.00006)
+    for d, n, m in _MB_ROWS
+]
+_MB_LABEL = {"DARE": "dare", "TSV": "tsv", "TIES": "ties", "Iso-C": "iso_c"}
+CHECKS += [
+    (f"§1.40 summary {label} {column}",
+     rf"\| {re.escape(label)} \| (\d+) \| (?:\d+) \| (?:\d+) \|" if column == "better" else
+     rf"\| {re.escape(label)} \| \d+ \| (\d+) \|" if column == "tie" else
+     rf"\| {re.escape(label)} \| \d+ \| \d+ \| (\d+) \|" if column == "worse" else
+     rf"\| {re.escape(label)} \| \d+ \| \d+ \| \d+ \| ([\d.]+) \|",
+     "merge_baselines/merge_baselines_summary.csv", {"rule": rule, "protocol": "all"},
+     column, 0.006)
+    for label, rule in _MB_LABEL.items()
+    for column in ("better", "tie", "worse", "mean_rank")
+] + [
+    ("§1.40 summary TA mean_rank", r"\| \*\*task arithmetic\*\* \|(?:[^|]*\|){3} \*\*([\d.]+)\*\*",
+     "merge_baselines/merge_baselines_summary.csv", {"rule": "ta", "protocol": "all"},
+     "mean_rank", 0.006),
+]
+
 # §0.1c — joint-reference sensitivity. Every number is bound; the "first on 1 of 27" count is
 # checked too, because it is the whole of the argument that the configuration was not
 # test-tuned, and a wrong count there would overstate the reassurance.

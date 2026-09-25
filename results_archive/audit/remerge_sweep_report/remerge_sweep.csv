@@ -35,18 +35,18 @@ exchange,3,forecast/mse,opcm,scale,0.7,3,5.73,0.1293,0.362579,0.065738,0.311308,
 exchange,5,forecast/mse,opcm,scale,0.3,3,5.73,0.1362,0.327055,0.028188,0.342028,0.023452,4.578,tie (inside floor),,0.3,segsweep_exchange_merge_n5,,,,
 exchange,5,forecast/mse,opcm,scale,0.5,3,5.73,0.1362,0.327055,0.028188,0.352235,0.021954,7.699,worse,,0.3,segsweep_exchange_merge_n5,,,,
 exchange,5,forecast/mse,opcm,scale,0.7,3,5.73,0.1362,0.327055,0.028188,0.378554,0.023791,15.746,worse,,0.3,segsweep_exchange_merge_n5,,,,
-SWaT,2,window_auroc,sum,became,,3,0.087,0.5923,0.8044,0.000985,0.800581,0.00115,0.475,worse,1.0,1.0,segsweep_swat_merge_n2,,,,
-SWaT,2,window_auroc,opcm,scale,0.5,3,0.087,0.5923,0.8044,0.000985,0.802587,0.001108,0.225,worse,,1.0,segsweep_swat_merge_n2,,,,
-SWaT,3,window_auroc,sum,became,,3,0.087,0.6007,0.803736,0.001344,0.799686,0.000557,0.504,worse,1.0,1.0,noisefloor_swat,,,,
-SWaT,3,window_auroc,opcm,scale,0.5,3,0.087,0.6007,0.803736,0.001344,0.802302,0.000824,0.178,worse,,1.0,noisefloor_swat,,,,
-SWaT,5,window_auroc,sum,became,,3,0.087,0.6102,0.804853,0.001889,0.799225,0.001504,0.699,worse,1.0,1.0,segsweep_swat_merge_n5,,,,
-SWaT,5,window_auroc,opcm,scale,0.5,3,0.087,0.6102,0.804853,0.001889,0.803202,0.00214,0.205,worse,,1.0,segsweep_swat_merge_n5,,,,
-PSM,2,window_auroc,sum,became,,3,0.068,0.1462,0.804109,0.000691,0.796971,0.001343,0.888,worse,1.0,1.0,segsweep_psm_merge_n2,,,,
-PSM,2,window_auroc,opcm,scale,0.5,3,0.068,0.1462,0.804109,0.000691,0.803068,0.000962,0.129,worse,,1.0,segsweep_psm_merge_n2,,,,
-PSM,3,window_auroc,sum,became,,3,0.068,0.2155,0.80046,0.002054,0.792437,0.001016,1.002,worse,1.0,1.0,noisefloor_psm,,,,
-PSM,3,window_auroc,opcm,scale,0.5,3,0.068,0.2155,0.80046,0.002054,0.800346,0.003116,0.014,tie (inside floor),,1.0,noisefloor_psm,,,,
-PSM,5,window_auroc,sum,became,,3,0.068,0.2142,0.794416,0.004909,0.785737,0.002294,1.093,worse,1.0,1.0,segsweep_psm_merge_n5,,,,
-PSM,5,window_auroc,opcm,scale,0.5,3,0.068,0.2142,0.794416,0.004909,0.798294,0.004403,-0.488,better,,1.0,segsweep_psm_merge_n5,,,,
+SWaT,2,window_auroc,sum,became,,3,0.087,0.5923,0.8044,0.000985,0.800581,0.00115,0.475,worse,1.0,1.0,segsweep_swat_merge_n2,0.804404,0.475,worse,False
+SWaT,2,window_auroc,opcm,scale,0.5,3,0.087,0.5923,0.8044,0.000985,0.802587,0.001108,0.225,worse,,1.0,segsweep_swat_merge_n2,0.804404,0.226,worse,False
+SWaT,3,window_auroc,sum,became,,3,0.087,0.6007,0.803736,0.001344,0.799686,0.000557,0.504,worse,1.0,1.0,noisefloor_swat,0.803733,0.504,worse,False
+SWaT,3,window_auroc,opcm,scale,0.5,3,0.087,0.6007,0.803736,0.001344,0.802302,0.000824,0.178,worse,,1.0,noisefloor_swat,0.803733,0.178,worse,False
+SWaT,5,window_auroc,sum,became,,3,0.087,0.6102,0.804853,0.001889,0.799225,0.001504,0.699,worse,1.0,1.0,segsweep_swat_merge_n5,0.804853,0.699,worse,False
+SWaT,5,window_auroc,opcm,scale,0.5,3,0.087,0.6102,0.804853,0.001889,0.803202,0.00214,0.205,worse,,1.0,segsweep_swat_merge_n5,0.804853,0.205,worse,False
+PSM,2,window_auroc,sum,became,,3,0.068,0.1462,0.804109,0.000691,0.796971,0.001343,0.888,worse,1.0,1.0,segsweep_psm_merge_n2,0.804125,0.89,worse,False
+PSM,2,window_auroc,opcm,scale,0.5,3,0.068,0.1462,0.804109,0.000691,0.803068,0.000962,0.129,worse,,1.0,segsweep_psm_merge_n2,0.804125,0.131,worse,False
+PSM,3,window_auroc,sum,became,,3,0.068,0.2155,0.80046,0.002054,0.792437,0.001016,1.002,worse,1.0,1.0,noisefloor_psm,0.800452,1.001,worse,False
+PSM,3,window_auroc,opcm,scale,0.5,3,0.068,0.2155,0.80046,0.002054,0.800346,0.003116,0.014,tie (inside floor),,1.0,noisefloor_psm,0.800452,0.013,tie (inside floor),False
+PSM,5,window_auroc,sum,became,,3,0.068,0.2142,0.794416,0.004909,0.785737,0.002294,1.093,worse,1.0,1.0,segsweep_psm_merge_n5,0.794371,1.087,worse,False
+PSM,5,window_auroc,opcm,scale,0.5,3,0.068,0.2142,0.794416,0.004909,0.798294,0.004403,-0.488,better,,1.0,segsweep_psm_merge_n5,0.794371,-0.494,better,False
 PSM-forecast,2,forecast/mse,opcm,scale,0.5,3,1.157,,0.362958,0.039069,0.374695,0.029741,3.234,worse,,0.55,adfc2_psm_merge_n2,,,,
 PSM-forecast,3,forecast/mse,opcm,scale,0.5,3,1.157,0.0343,0.392485,0.010808,0.402825,0.011344,2.634,worse,,0.3,adfc2_psm_merge_n3,,,,
 PSM-forecast,5,forecast/mse,opcm,scale,0.5,3,1.157,,0.40356,0.005596,0.407445,0.00136,0.963,tie (inside floor),,0.2,adfc2_psm_merge_n5,,,,

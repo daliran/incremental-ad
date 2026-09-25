@@ -2,17 +2,17 @@
 
 `results_archive/` holds the *evidence* (CSVs, `config.json`, every `result.json`) and deliberately excludes `*.pt`: they are gigabytes and reproducible from the configs. But re-merging, geometry, Fisher and any BECAME resampling need the weights, and `$WORK` is scratch. This is the record that makes an off-cluster copy verifiable.
 
-**Scope.** 181 experiment groups that own checkpoints — every experiment named by any file in `analysis_specs/` or globbed by `regenerate_analysis.sh`, plus the `opcm2_`/`window_`/`origin_`/`basefrac_`/`selalpha_`/`n1_`/`aeft_`/`adfc2_` families. Derived, not listed, so a new spec entry cannot leave its checkpoints unbacked. **3921 files, 12.5 GB.**
+**Scope.** 283 experiment groups that own checkpoints — every experiment named by any file in `analysis_specs/` or globbed by `regenerate_analysis.sh`, plus the `opcm2_`/`window_`/`origin_`/`basefrac_`/`selalpha_`/`n1_`/`aeft_`/`adfc2_` families. Derived, not listed, so a new spec entry cannot leave its checkpoints unbacked. **4557 files, 14.4 GB.**
 
 ## Copying
 
 ```bash
 # from the cluster, one group per line so a partial copy is resumable
 rsync -av --info=progress2 \
-  /work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_psm_joint \
-  /work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_psm_joint_oldmask \
-  /work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_psm_merge_n2 \
-  ...  # all 181 groups, listed below
+  /work/tesi_ddellacasaventurelli01/incremental-ad/runs/adaptive_became_etth1_n3_s123 \
+  /work/tesi_ddellacasaventurelli01/incremental-ad/runs/adaptive_became_etth1_n3_s42 \
+  /work/tesi_ddellacasaventurelli01/incremental-ad/runs/adaptive_became_etth1_n3_s7 \
+  ...  # all 283 groups, listed below
   <destination>/incremental-ad-checkpoints/
 ```
 
@@ -39,6 +39,36 @@ EOF
 
 | experiment | checkpoints | size |
 |---|---|---|
+| `adaptive_became_etth1_n3_s123` | 6 | 0.02 GB |
+| `adaptive_became_etth1_n3_s42` | 6 | 0.02 GB |
+| `adaptive_became_etth1_n3_s7` | 6 | 0.02 GB |
+| `adaptive_became_etth2_n2_s123` | 4 | 0.01 GB |
+| `adaptive_became_etth2_n2_s42` | 4 | 0.01 GB |
+| `adaptive_became_etth2_n2_s7` | 4 | 0.01 GB |
+| `adaptive_became_etth2_n3_s123` | 6 | 0.02 GB |
+| `adaptive_became_etth2_n3_s42` | 6 | 0.02 GB |
+| `adaptive_became_etth2_n3_s7` | 6 | 0.02 GB |
+| `adaptive_became_etth2_n5_s123` | 10 | 0.03 GB |
+| `adaptive_became_etth2_n5_s42` | 10 | 0.03 GB |
+| `adaptive_became_etth2_n5_s7` | 10 | 0.03 GB |
+| `adaptive_became_ettm2_n2_s123` | 4 | 0.01 GB |
+| `adaptive_became_ettm2_n2_s42` | 4 | 0.01 GB |
+| `adaptive_became_ettm2_n2_s7` | 4 | 0.01 GB |
+| `adaptive_became_ettm2_n3_s123` | 6 | 0.02 GB |
+| `adaptive_became_ettm2_n3_s42` | 6 | 0.02 GB |
+| `adaptive_became_ettm2_n3_s7` | 6 | 0.02 GB |
+| `adaptive_became_ettm2_n5_s123` | 10 | 0.03 GB |
+| `adaptive_became_ettm2_n5_s42` | 10 | 0.03 GB |
+| `adaptive_became_ettm2_n5_s7` | 10 | 0.03 GB |
+| `adaptive_became_exchange_n3_s123` | 6 | 0.02 GB |
+| `adaptive_became_exchange_n3_s42` | 6 | 0.02 GB |
+| `adaptive_became_exchange_n3_s7` | 6 | 0.02 GB |
+| `adaptive_became_psm_n3_s123` | 6 | 0.02 GB |
+| `adaptive_became_psm_n3_s42` | 6 | 0.02 GB |
+| `adaptive_became_psm_n3_s7` | 6 | 0.02 GB |
+| `adaptive_became_swat_n3_s123` | 6 | 0.05 GB |
+| `adaptive_became_swat_n3_s42` | 6 | 0.05 GB |
+| `adaptive_became_swat_n3_s7` | 6 | 0.05 GB |
 | `adfc2_psm_joint` | 6 | 0.02 GB |
 | `adfc2_psm_joint_oldmask` | 6 | 0.02 GB |
 | `adfc2_psm_merge_n2` | 21 | 0.06 GB |
@@ -124,6 +154,75 @@ EOF
 | `exch_continual` | 24 | 0.07 GB |
 | `exch_gate_standard` | 6 | 0.02 GB |
 | `exch_incremental` | 27 | 0.08 GB |
+| `fisherfix_etth1_n3_s123` | 6 | 0.02 GB |
+| `fisherfix_etth1_n3_s42` | 6 | 0.02 GB |
+| `fisherfix_etth1_n3_s7` | 6 | 0.02 GB |
+| `fisherfix_etth2_n2_s123` | 4 | 0.01 GB |
+| `fisherfix_etth2_n2_s42` | 4 | 0.01 GB |
+| `fisherfix_etth2_n2_s7` | 4 | 0.01 GB |
+| `fisherfix_etth2_n3_s123` | 6 | 0.02 GB |
+| `fisherfix_etth2_n3_s42` | 6 | 0.02 GB |
+| `fisherfix_etth2_n3_s7` | 6 | 0.02 GB |
+| `fisherfix_etth2_n5_s123` | 10 | 0.03 GB |
+| `fisherfix_etth2_n5_s42` | 10 | 0.03 GB |
+| `fisherfix_etth2_n5_s7` | 10 | 0.03 GB |
+| `fisherfix_ettm2_n2_s123` | 4 | 0.01 GB |
+| `fisherfix_ettm2_n2_s42` | 4 | 0.01 GB |
+| `fisherfix_ettm2_n2_s7` | 4 | 0.01 GB |
+| `fisherfix_ettm2_n3_s123` | 6 | 0.02 GB |
+| `fisherfix_ettm2_n3_s42` | 6 | 0.02 GB |
+| `fisherfix_ettm2_n3_s7` | 6 | 0.02 GB |
+| `fisherfix_ettm2_n5_s123` | 10 | 0.03 GB |
+| `fisherfix_ettm2_n5_s42` | 10 | 0.03 GB |
+| `fisherfix_ettm2_n5_s7` | 10 | 0.03 GB |
+| `fisherfix_exchange_n3_s123` | 6 | 0.02 GB |
+| `fisherfix_exchange_n3_s42` | 6 | 0.02 GB |
+| `fisherfix_exchange_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_010_etth2_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_010_etth2_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_010_etth2_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_010_ettm2_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_010_ettm2_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_010_ettm2_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_010_exchange_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_010_exchange_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_010_exchange_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_030_etth2_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_030_etth2_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_030_etth2_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_030_ettm2_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_030_ettm2_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_030_ettm2_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_030_exchange_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_030_exchange_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_030_exchange_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_050_etth2_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_050_etth2_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_050_etth2_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_050_ettm2_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_050_ettm2_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_050_ettm2_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_050_exchange_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_050_exchange_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_050_exchange_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_070_etth2_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_070_etth2_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_070_etth2_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_070_ettm2_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_070_ettm2_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_070_ettm2_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_070_exchange_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_070_exchange_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_070_exchange_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_090_etth2_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_090_etth2_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_090_etth2_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_090_ettm2_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_090_ettm2_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_090_ettm2_n3_s7` | 6 | 0.02 GB |
+| `lamgrid_090_exchange_n3_s123` | 6 | 0.02 GB |
+| `lamgrid_090_exchange_n3_s42` | 6 | 0.02 GB |
+| `lamgrid_090_exchange_n3_s7` | 6 | 0.02 GB |
 | `n1_etth1` | 15 | 0.04 GB |
 | `n1_exchange` | 15 | 0.04 GB |
 | `n1_psm` | 15 | 0.04 GB |
@@ -134,6 +233,9 @@ EOF
 | `noisefloor_std_psm` | 6 | 0.02 GB |
 | `noisefloor_std_swat` | 6 | 0.05 GB |
 | `noisefloor_swat` | 27 | 0.21 GB |
+| `onet_exchange_n3_s123` | 6 | 0.02 GB |
+| `onet_exchange_n3_s42` | 6 | 0.02 GB |
+| `onet_exchange_n3_s7` | 6 | 0.02 GB |
 | `opcm2_psm_opcm_became` | 27 | 0.08 GB |
 | `opcm2_psm_opcm_became_n2` | 21 | 0.06 GB |
 | `opcm2_psm_opcm_became_n5` | 39 | 0.11 GB |
@@ -221,4 +323,4 @@ EOF
 | `window_swat_W2` | 15 | 0.12 GB |
 | `window_swat_W3` | 15 | 0.12 GB |
 
-Per-file sizes and SHA-256 are in `results_archive/checkpoints.csv` (3921 rows) — kept as CSV rather than inlined here because a 3921-row table in Markdown is not readable and not greppable.
+Per-file sizes and SHA-256 are in `results_archive/checkpoints.csv` (4557 rows) — kept as CSV rather than inlined here because a 4557-row table in Markdown is not readable and not greppable.

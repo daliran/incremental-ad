@@ -101,6 +101,9 @@ def permutation_p(xs: list[float], ys: list[float]) -> tuple[float, int]:
     return extreme / total, total
 
 
+NOT_A_MEASUREMENT = ("gate_", "fullfisher_")
+
+
 def load_headroom(audit: Path, of_record: Path | None) -> dict[tuple[str, str], list[float]]:
     """(dataset label, n) -> every headroom value the archive holds for that cell."""
     rows = list(csv.DictReader((audit / "derived.csv").open(encoding="utf-8")))
@@ -113,6 +116,11 @@ def load_headroom(audit: Path, of_record: Path | None) -> dict[tuple[str, str], 
         if not row.get("headroom_pct") or not row.get("n_segments"):
             continue
         if wanted is not None and row["experiment"] not in wanted:
+            continue
+        # `gate_` runs are fixtures, and `fullfisher_` is a robustness re-run of the `fisherfix_`
+        # chains on the SAME bases (§1.39). "Every experiment" means every distinct measurement;
+        # counting those rows would re-weight exchange_rate n=3 toward three bases already in.
+        if row["experiment"].startswith(NOT_A_MEASUREMENT):
             continue
         out[(LABELS.get(row["dataset"], row["dataset"]), row["n_segments"])].append(
             float(row["headroom_pct"]))

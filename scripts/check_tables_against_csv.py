@@ -1236,7 +1236,7 @@ def _p1_check(dataset: str, n: int, batch_size: int):
             rf"\| {dataset} \| {n} \| " + skip + number,
             "adaptive_lambda/adaptive_lambda_acc.csv",
             {"dataset": dataset, "n_segments": str(n), "metric": "forecast/mse",
-             "lambda_source": "became", "fisher_batch_size": str(batch_size)},
+             "lambda_source": "became", "fisher_samples_source": "flags", "fisher_batch_size": str(batch_size)},
             "acc_delta_pct", 0.02)
 
 
@@ -1248,7 +1248,7 @@ CHECKS += [
     ("§1.39 ETTh1 n=3 margin ratio", r"\| ([\d.]+)× \| worse \*\*\(borderline\)\*\*",
      "adaptive_lambda/adaptive_lambda_acc.csv",
      {"dataset": "ETTh1", "n_segments": "3", "metric": "forecast/mse",
-      "lambda_source": "became", "fisher_batch_size": "1"}, "margin_ratio", 0.01),
+      "lambda_source": "became", "fisher_samples_source": "flags", "fisher_batch_size": "1"}, "margin_ratio", 0.01),
     # Slope, not r: slope ~1 is the claim ("correctly scaled"), r^2 = 0.34 is the caveat beside
     # it. Both are checked so neither can drift into the other's sentence.
     ("§1.39b asymmetry slope", r"\*\*slope = \+([\d.]+)\*\*",
@@ -1289,7 +1289,7 @@ def _test_check(dataset, n, metric, batch_size, field, group):
     return (f"§1.39 {dataset} n={n} {metric} test {group}", pattern,
             "adaptive_lambda/adaptive_lambda_test.csv",
             {"dataset": dataset, "n_segments": str(n), "metric": metric,
-             "lambda_source": "became", "fisher_batch_size": str(batch_size)},
+             "lambda_source": "became", "fisher_samples_source": "flags", "fisher_batch_size": str(batch_size)},
             field, 0.02)
 
 
@@ -1438,6 +1438,22 @@ CHECKS += [
     for i, seed in enumerate(("7", "42", "123"))
 ]
 
+# §1.39's full-pass robustness row: bound to the RECORDED-count cell, never the published one.
+_FULL = {"dataset": "exchange_rate", "n_segments": "3", "metric": "forecast/mse",
+         "lambda_source": "became", "fisher_batch_size": "1", "fisher_samples_source": "recorded"}
+CHECKS += [
+    ("§1.39 full-pass exchange value", r"\| \*\*full pass\*\* \| \*\*([\d.]+)\*\*",
+     "adaptive_lambda/adaptive_lambda_test.csv", _FULL, "adaptive", 0.00006),
+    ("§1.39 full-pass exchange delta", r"\| \*\*full pass\*\* \|[^|]+\| \*\*([+−-][\d.]+)%\*\*",
+     "adaptive_lambda/adaptive_lambda_test.csv", _FULL, "delta_pct", 0.006),
+    ("§1.39 full-pass exchange ratio",
+     r"\| \*\*full pass\*\* \|[^|]+\|[^|]+\|[^|]+\| \*\*([\d.]+)×\*\*",
+     "adaptive_lambda/adaptive_lambda_test.csv", _FULL, "margin_ratio", 0.006),
+    ("§1.39 full-pass exchange spread",
+     r"\| \*\*full pass\*\* \|[^|]+\|[^|]+\|[^|]+\|[^|]+\| ([\d.]+)%",
+     "adaptive_lambda/adaptive_lambda_test.csv", _FULL, "own_spread_pct", 0.006),
+]
+
 # §0.1c — joint-reference sensitivity. Every number is bound; the "first on 1 of 27" count is
 # checked too, because it is the whole of the argument that the configuration was not
 # test-tuned, and a wrong count there would overstate the reassurance.
@@ -1557,12 +1573,12 @@ CHECKS += [
      r"\| adaptive, corrected \(B = 1\) \| derived \| \*\*([+−-][\d.]+)%\*\*",
      "adaptive_lambda/adaptive_lambda_test.csv",
      {"dataset": "exchange_rate", "n_segments": "3", "metric": "forecast/mse",
-      "lambda_source": "became", "fisher_batch_size": "1"}, "delta_pct", 0.02),
+      "lambda_source": "became", "fisher_samples_source": "flags", "fisher_batch_size": "1"}, "delta_pct", 0.02),
     ("§1.39c adaptive defect delta",
      r"\| adaptive, defect \(B = 128\) \| derived \| ([+−-][\d.]+)%",
      "adaptive_lambda/adaptive_lambda_test.csv",
      {"dataset": "exchange_rate", "n_segments": "3", "metric": "forecast/mse",
-      "lambda_source": "became", "fisher_batch_size": "128"}, "delta_pct", 0.02),
+      "lambda_source": "became", "fisher_samples_source": "flags", "fisher_batch_size": "128"}, "delta_pct", 0.02),
     ("§1.39c fixed one_over_t delta",
      r"\| \*\*fixed λ = 1/t\*\* \| imposed \| \*\*([+−-][\d.]+)%\*\*",
      "adaptive_lambda/adaptive_lambda_test.csv",
@@ -1575,7 +1591,7 @@ CHECKS += [
     (f"§1.39c lambda t={t}",
      rf"\| {t} \| ([\d.]+) \| [\d.]+ \| [\d.]+ \|",
      "adaptive_lambda/adaptive_lambda_steps.csv",
-     {"dataset": "exchange_rate", "n_segments": "3", "lambda_source": "became",
+     {"dataset": "exchange_rate", "n_segments": "3", "lambda_source": "became", "fisher_samples_source": "flags",
       "fisher_batch_size": "1", "step": str(t)}, "lambda_star", 0.0001)
     for t in (1, 2, 3)
 ]
@@ -1583,7 +1599,7 @@ CHECKS += [
     (f"§1.39c lambda ratio t={t}",
      rf"\| {t} \| [\d.]+ \| [\d.]+ \| ([\d.]+) \|",
      "adaptive_lambda/adaptive_lambda_steps.csv",
-     {"dataset": "exchange_rate", "n_segments": "3", "lambda_source": "became",
+     {"dataset": "exchange_rate", "n_segments": "3", "lambda_source": "became", "fisher_samples_source": "flags",
       "fisher_batch_size": "1", "step": str(t)}, "lambda_over_one_over_t", 0.01)
     for t in (1, 2, 3)
 ]
@@ -1668,6 +1684,10 @@ CHECKS += [
 # A hit is a failure unless the line also carries one of the allowed markers, which is how the
 # row that *records* the retraction is distinguished from a row that still asserts it.
 STALE_CLAIM_TEXT = [
+    ("C37", r"below 1 in all 78",
+     "74 of 78 asymmetry cells are below 1 (max 1.014), not all 78", ("74 of 78",)),
+    ("C21", r"1 in all\s+54 runs",
+     "P4's ratio is <= 1 in 53 of 54 runs (max 1.0015)", ("53 of",)),
     ("C39", r"AD (?:is|stays) published at B = 128",
      "the AD runs used B = 64 (their loader batch size); 128 is the forecasting value",
      ("earlier version",)),

@@ -71,6 +71,7 @@ def diagonal_fisher(
     loader,
     device,
     max_batches: int | None = None,
+    counts: dict | None = None,
 ) -> dict[str, Tensor]:
     """Mean squared gradient of the training loss, per parameter, over `loader`.
 
@@ -83,6 +84,11 @@ def diagonal_fisher(
     `max_batches` bounds the cost: the Fisher is an expectation, and a few hundred batches
     estimate it well enough for a ratio of two quadratic forms. Batches are taken in loader
     order, so pass a shuffled loader if the shard is not homogeneous.
+
+    `counts`, if given, is filled with the batches and SAMPLES actually used. The sample count
+    cannot be read off the flags: a short shard ends the loader before `max_batches`, and a last
+    partial batch holds fewer than `batch_size` samples. Callers that report a sample count
+    should report this one.
     """
     from incremental_ad.framework.core.device import move_to_device
 
@@ -92,7 +98,7 @@ def diagonal_fisher(
         if parameter.requires_grad
     }
     model.eval()          # no dropout: the Fisher should describe the deployed function
-    batches = 0
+    batches = samples = 0
     for batch in loader:
         if max_batches is not None and batches >= max_batches:
             break
@@ -105,15 +111,31 @@ def diagonal_fisher(
             if parameter.grad is not None and name in fisher:
                 fisher[name] += (parameter.grad.detach().double() ** 2).cpu()
         batches += 1
+        samples += _batch_len(batch)
     model.zero_grad(set_to_none=True)
 
     if batches == 0:
         raise ValueError("diagonal_fisher got an empty loader — cannot estimate a Fisher")
     for name in fisher:
         fisher[name] /= batches
-    log.info("[fisher] estimated over %d batch(es); mean diagonal %.3e",
-             batches, float(torch.cat([v.reshape(-1) for v in fisher.values()]).mean()))
+    log.info("[fisher] estimated over %d batch(es), %d sample(s); mean diagonal %.3e",
+             batches, samples, float(torch.cat([v.reshape(-1) for v in fisher.values()]).mean()))
+    if counts is not None:
+        counts.update({"batches": batches, "samples": samples})
     return fisher
+
+
+def _batch_len(batch) -> int:
+    """Leading dimension of the first tensor in a (possibly nested) batch."""
+    if isinstance(batch, Tensor):
+        return int(batch.shape[0])
+    if isinstance(batch, dict):
+        batch = list(batch.values())
+    for item in batch:
+        found = _batch_len(item) if isinstance(item, (Tensor, list, tuple, dict)) else None
+        if found:
+            return found
+    raise ValueError("cannot infer the sample count of a batch with no tensor in it")
 
 
 def became_lambda(

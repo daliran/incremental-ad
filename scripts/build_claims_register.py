@@ -347,9 +347,11 @@ CLAIMS: list[tuple] = [
      "estimator, final step: 6 worse, 1 tie (ETTm2 n=5, 0.86x its floor), 1 BETTER - "
      "exchange_rate n=3 at -9.79%, 1.71x its floor, with all three seeds improving (-9.08, "
      "-2.10, -17.18%) though the middle seed is itself inside the floor. At B=128 that same cell "
-     "was a tie (+5.65%), so the estimator defect was HIDING the one win. Consistent with §1.24: "
-     "exchange_rate is the dataset where old data actively hurts, so a rule that pulls the chain "
-     "back toward theta_0 has the least to destroy. ACC and this metric DISAGREE on two cells "
+     "was a tie (+5.65%), so the estimator defect was HIDING the one win. ROBUST TO THE SAMPLE COUNT "
+     "(§1.39, 2026-09-25): with a full-pass Fisher (712 samples/period, recorded) it is -10.79% at "
+     "1.88x its floor, all three seeds improving, lambda* moving <= 6.2% at every step. No mechanism is "
+     "claimed for the win: the recency reading is untested (C23 inconclusive) and C40's scarcity "
+     "reading is refuted. ACC and this metric DISAGREE on two cells "
      "and both are reported (C35)."),
     ("C40", "Adaptive-lambda's exchange_rate win is scarcity (braking as regularisation), not "
      "recency",
@@ -454,7 +456,9 @@ CLAIMS: list[tuple] = [
      "An UPPER BOUND, not a deployable result: AD has no validation selection (§1.12), so the "
      "alpha is picked on test for every rule, TA included, paired on the same seeds. TSV vs TA "
      "at their best alphas: PSM n=2 +0.18%, n=3 +0.25%, n=5 +0.78% against a 0.068% floor, every "
-     "TSV best alpha interior (2-3) so not grid-truncated. Under the distance-matched protocol "
+     "TSV best alpha interior (2-3) so not grid-truncated on TSV's side; TA's best alpha is at the "
+     "grid's 0.5 bottom edge on two PSM n=5 seeds, so that cell is an upper bound over alpha >= 0.5 "
+     "only. Under the distance-matched protocol "
      "the same rule loses all three - the protocol reads TSV away from its best alpha. SWaT: "
      "DARE ties on all 3, every other rule is worse or ties. Tally over 6 AD cells: DARE 0/6/0, "
      "TIES 2/0/4, Iso-C 0/0/6, TSV 3/2/1. SCOPE: AD grid 0.5-5; Iso-C and several TIES/TSV "
@@ -498,6 +502,39 @@ CLAIMS: list[tuple] = [
      "SCOPE: joint training is a reference, not ranked - it retains the full history every ranked "
      "method avoids - and it beats the best ranked method on 12 of 21 (mean gap -3.79%), so the "
      "rank claim holds only among methods that do not retain the full history."),
+    ("C51", "On SWaT, choosing alpha on a >=10% labelled calibration prefix recovers at least half "
+     "of the oracle gain for task arithmetic",
+     "1.42", "SWaT", 1, "n/a", "measurement", "no", "hypothesis",
+     "REGISTERED 2026-09-25, NOT YET RUN. P1 of §1.42: recovered fraction (selected - base) / "
+     "(oracle - base) on seed means, pooled over SWaT n=2,3,5, at every c in {10,20,30}%."),
+    ("C52", "The oracle gain recovered by calibration rises with the calibration fraction and "
+     "levels off",
+     "1.42", "SWaT,PSM", 2, "n/a", "measurement", "no", "hypothesis",
+     "REGISTERED 2026-09-25, NOT YET RUN. P2 of §1.42: TA, pooled over six configurations; rises "
+     "5->10->20% and the 20->30% rise is smaller than the 5->10% rise."),
+    ("C53", "At a calibrated alpha the five merge rules rank as they do at the distance-matched "
+     "alpha",
+     "1.42", "SWaT,PSM", 2, "n/a", "measurement", "no", "hypothesis",
+     "REGISTERED 2026-09-25, NOT YET RUN. P3 of §1.42: Spearman rho >= 0.8 between the calibrated "
+     "and §1.40 distance-matched orderings on at least 4 of 6 configurations, at every c >= 10%."),
+    ("C54", "The prequential ranking of merge, chain and newest specialist agrees with the "
+     "final-test-block ranking",
+     "1.43", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "n/a", "measurement", "no",
+     "hypothesis",
+     "REGISTERED 2026-09-25, NOT YET RUN. P1 of §1.43: >= 2 of 3 pairwise orderings agree in >= 8 "
+     "of 15 configurations; prequential ranking by mean rank over k."),
+    ("C55", "Where the prequential and final-test rankings disagree, the chain does better "
+     "prequentially",
+     "1.43", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "n/a", "measurement", "no",
+     "hypothesis",
+     "REGISTERED 2026-09-25, NOT YET RUN. P2 of §1.43, over disagreeing pairwise orderings that "
+     "involve the chain."),
+    ("C56", "SMD or ETTh2-injected offers AD headroom that PSM and SWaT do not",
+     "1.44", "PSM,SWaT", 2, "n/a", "measurement", "no", "hypothesis",
+     "REGISTERED 2026-09-25, NOT YET RUN. Screen at seed 42: headroom = (AUROC_joint - AUROC_base) "
+     "/ (1 - AUROC_base). Calibration under this definition: PSM 10.92%, SWaT 4.41% - the "
+     "registered 10% threshold would pass PSM itself, so it is held pending the author's decision. "
+     "ETTh2-injected is a controlled test, not a benchmark; SMD is 28 machines concatenated."),
     ("C39", "Adaptive-lambda does not improve anomaly detection",
      "1.39", "PSM,SWaT", 2, "mixed", "measurement", "yes", "supported",
      "Measured on window_auroc, which HAS a published floor on both datasets - not on "
@@ -526,7 +563,7 @@ CLAIMS: list[tuple] = [
     ("C37", "The residual suppression left after correcting the estimator is Eq. 20's "
      "at-a-minimum asymmetry",
      "1.39b", "ETTh1,ETTh2,ETTm2,exchange_rate", 4, "n/a", "mechanism", "no", "supported",
-     "d^T F_t(theta_hat_t) d / d^T F_t(theta*_t) d is below 1 in all 78 cells - the Fisher is "
+     "d^T F_t(theta_hat_t) d / d^T F_t(theta*_t) d is below 1 in 74 of 78 cells (max 1.014) - the Fisher is "
      "always larger at the merged point - and regressing log(Lambda/F / t) on log(1/asymmetry) "
      "over the 54 cells at t>1 gives slope +0.972, i.e. correctly SCALED. But r = 0.585, so "
      "r^2 = 0.342 and two thirds of the per-cell variation is unaccounted for: the asymmetry "

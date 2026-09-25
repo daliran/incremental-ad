@@ -118,7 +118,11 @@ def build(method_rows, baseline_rows, adaptive_rows) -> list[dict]:
 
     for row in adaptive_rows:
         family = "forecast" if row["metric"].startswith("forecast/") else "ad"
-        if row["lambda_source"] != "became" or row["fisher_batch_size"] != ADAPTIVE_BATCH[family]:
+        # The estimator of record only: flag-derived N (the published runs). The full-pass
+        # robustness re-run (§1.39, `fisher_samples_source = recorded`) is reported in §1.39,
+        # never as a second strategy-6 entry here.
+        if (row["lambda_source"] != "became" or row["fisher_batch_size"] != ADAPTIVE_BATCH[family]
+                or row.get("fisher_samples_source", "flags") != "flags"):
             continue
         c = cell(row["dataset"], row["n_segments"], row["metric"], _f(row["floor_pct"]))
         estimator = "B = 1 (corrected)" if family == "forecast" else "B = 64 (defect; AD not re-run)"

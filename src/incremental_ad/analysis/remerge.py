@@ -71,20 +71,49 @@ def eval_seed_of(run_args: dict) -> int | None:
 
 
 def evaluate(model, dataset, configurator, runner, seed,
-             test_only: bool = False) -> dict[str, float]:
-    """Merged-val and test metrics for whatever `model` currently holds."""
+             test_only: bool = False, calibration: list[float] | None = None) -> dict[str, float]:
+    """Merged-val and test metrics for whatever `model` currently holds.
+
+    `calibration` (AD only, §1.42): also split the test recording in time at each fraction and
+    report window AUROC on each part, from the SAME per-window scores the test metrics use.
+    """
     metrics: dict[str, float] = {}
     splits = [("val", dataset.get_merged_val_eval_dataset), ("test", dataset.get_test_dataset)]
     for split, loader_fn in (splits[1:] if test_only else splits):
         evaluator = (configurator.create_val_evaluator() if split == "val"
                      else configurator.create_test_evaluator())
+        data = loader_fn()
         try:
-            scored = runner.run(model, evaluator, loader_fn(), seed=seed)
+            scored = runner.run(model, evaluator, data, seed=seed)
         except Exception as exc:                                    # noqa: BLE001
             log.warning("  %s evaluation failed: %s", split, exc)
             continue
         metrics.update({f"{split}/{k}": v for k, v in scored.items()})
+        if split == "test" and calibration:
+            metrics.update(_calibration_metrics(evaluator, data, scored, calibration))
     return metrics
+
+
+def _calibration_metrics(evaluator, data, scored, fractions) -> dict[str, float]:
+    import numpy as np
+
+    from incremental_ad.analysis.calibration_split import split
+
+    debug = evaluator.debug_data()
+    if debug is None or getattr(data, "labels", None) is None:
+        raise SystemExit("--calibration_split needs a labelled AD test set and an evaluator "
+                         "that keeps its per-window scores")
+    scores, window_labels, _ = debug
+    labels = data.labels
+    labels = labels.numpy() if hasattr(labels, "numpy") else np.asarray(labels)
+    out = split(scores, window_labels, labels, data.window_len, data.stride, fractions)
+    # The split's AUROC on the WHOLE set must be the published number, or the parts are not
+    # subsets of the published metric.
+    full = split(scores, window_labels, labels, data.window_len, data.stride, [0.0])
+    whole = full["c00/eval_window_auroc"]
+    assert abs(whole - scored["window_auroc"]) < 1e-9, (
+        f"split AUROC on the full set {whole} != evaluator window_auroc {scored['window_auroc']}")
+    return {f"test_split/{k}": v for k, v in out.items()}
 
 
 def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source,
@@ -144,7 +173,7 @@ def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source
     for value, tag in points:
         model.load_state_dict(apply_task_vectors(base_state, [delta], value))
         metrics = evaluate(model, dataset, configurator, runner, scoring_seed,
-                           args.test_only)
+                           args.test_only, args.calibration_split)
         out_dir = args.out / f"{run.parent.name}__{run.name}" / tag
         out_dir.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -160,6 +189,7 @@ def run_baseline_grid(args, run, run_args, base_state, taus, alpha, alpha_source
                                              if tag.endswith("_dm") else None),
             "dare_seed": int(seed or 0) if rule == "dare" else None,
             "seed": seed, "eval_seed": scoring_seed, "n_shards": len(taus),
+            "calibration_split": args.calibration_split,
             "metrics": metrics,
         }
         log.info("[%s] alpha=%.2f  %s", rule, value,
@@ -230,6 +260,9 @@ def main() -> None:
     parser.add_argument("--dare_drop_rate", type=float, default=None,
                         help="--baseline_rule dare only: drop probability (default 0.7, the "
                              "reference's). A non-default value renames the tag.")
+    parser.add_argument("--calibration_split", type=float, nargs="+", default=None,
+                        help="AD, with --baseline_rule: fractions c of the test recording used "
+                             "for calibration (§1.42); window AUROC is reported on each part")
     parser.add_argument("--test_only", action="store_true",
                         help="--baseline_rule only: skip the merged-val pass. For AD, where val "
                              "selection is refused (§1.12) and the protocol reads a fixed alpha, "
@@ -259,7 +292,8 @@ def main() -> None:
             ("--distance_match_alpha", args.distance_match_alpha is not None),
             ("--test_only", args.test_only),
             ("--ties_density", args.ties_density is not None),
-            ("--dare_drop_rate", args.dare_drop_rate is not None)) if set_]
+            ("--dare_drop_rate", args.dare_drop_rate is not None),
+            ("--calibration_split", args.calibration_split is not None)) if set_]
         if stray:
             parser.error(f"{', '.join(stray)} only apply with --baseline_rule")
 

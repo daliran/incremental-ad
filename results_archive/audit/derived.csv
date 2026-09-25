@@ -149,9 +149,13 @@ fixshard_etth1_n5,EtthForecastDataset,forecast/mse,5,3,1.128165,0.41857,"('noise
 fixshard_exchange_n2,ExchangeRateForecastDataset,forecast/mse,2,3,0.816603,0.395655,"('exch_gate_standard', 0)",0.269799,17.85,51.55,0.4833,1.299,1.3679,3,0.408361,1.667,2.5,3.75
 fixshard_exchange_n3,ExchangeRateForecastDataset,forecast/mse,3,3,0.770362,0.395655,"('exch_gate_standard', 0)",0.274552,9.452,48.64,0.4167,1.3232,1.3184,3,0.428663,1.667,2.5,3.75
 fixshard_exchange_n5,ExchangeRateForecastDataset,forecast/mse,5,3,1.544642,0.395655,"('exch_gate_standard', 0)",0.709903,6.16,74.39,0.3167,0.7265,0.7224,3,0.751354,1.667,2.5,3.75
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,forecast/mse,3,1,0.647655,0.394,"('origin_exchange_joint_f10', 0)",,,39.17,,,,0,0.315264,1.5,2.5,3.75
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,forecast/mse,3,1,0.706194,0.394,"('origin_exchange_joint_f10', 0)",,,44.21,,,,0,0.325979,1.5,2.5,3.75
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,forecast/mse,3,1,0.728524,0.394,"('origin_exchange_joint_f10', 0)",,,45.92,,,,0,0.318496,1.5,2.5,3.75
 gate_adaptive_became,Etth2ForecastDataset,forecast/mse,2,1,0.897076,,,,,,,,,0,0.745863,0.6,2.3,3.45
 gate_adaptive_fixed1,Etth2ForecastDataset,forecast/mse,2,1,0.897076,,,,,,,,,0,0.264174,0.6,2.3,3.45
 gate_adaptive_none,Etth2ForecastDataset,forecast/mse,2,1,0.897076,,,,,,,,,0,0.264174,0.6,2.3,3.45
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,forecast/mse,3,1,0.706194,0.394,"('origin_exchange_joint_f10', 0)",,,44.21,,,,0,0.330832,1.5,2.5,3.75
 l2sp_clean_lam0p0,EtthForecastDataset,forecast/mse,3,3,0.704718,0.41857,"('noisefloor_std_etth', 0)",0.48852,5.637,40.6,0.3,0.7555,0.7528,3,0.440105,0.9,2.3,3.45
 l2sp_clean_lam1em2,EtthForecastDataset,forecast/mse,3,3,0.746425,0.41857,"('noisefloor_std_etth', 0)",0.501907,5.966,43.92,0.3333,0.7458,0.7424,3,0.454064,0.9,2.3,3.45
 l2sp_clean_lam1em3,EtthForecastDataset,forecast/mse,3,3,0.727902,0.41857,"('noisefloor_std_etth', 0)",0.484317,7.271,42.5,0.3,0.7875,0.7872,3,0.446494,0.9,2.3,3.45

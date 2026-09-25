@@ -42,6 +42,7 @@ CARRIED = {
     "novelty", "alignment", "subblocks", "mask_span", "window_selection", "remerge",
     "remerge_sweep", "remerge_closeout_runs", "geometry_gap", "geometry_aeft",
     "fisher_scaling_sweep", "subblocks_origin", "merge_baselines_runs", "merge_sensitivity_runs",
+    "merge_calibration_runs", "prequential_runs",
     "grid_search",
 }
 # Individual files with no generator in the regeneration script, each produced by a separate
@@ -53,6 +54,10 @@ CARRIED_FILES = {
     "outcomes.csv": "analysis/novelty_report.py outcomes (checkpoint reader)",
     "verification_log.md": "written by hand from the verification runs",
 }
+# Files INSIDE a carried directory that the regeneration script rebuilds from it — compared, not
+# counted as carried. Both had no generator until 2026-09-25.
+REGENERATED_INSIDE_CARRIED = {"oracle_router/oracle_router_summary.csv",
+                              "remerge/fisher_sweep_summary.csv"}
 # Files whose content legitimately changes on every run.
 VOLATILE = {"unscoped_universals.csv"}
 
@@ -96,7 +101,7 @@ def main() -> None:
     reproduced, differ, missing, carried, volatile = [], [], [], [], []
     for rel in sorted(archived):
         top = rel.split("/")[0]
-        if top in CARRIED or rel in CARRIED_FILES:
+        if (top in CARRIED or rel in CARRIED_FILES) and rel not in REGENERATED_INSIDE_CARRIED:
             carried.append(rel)
             continue
         if Path(rel).name in VOLATILE:

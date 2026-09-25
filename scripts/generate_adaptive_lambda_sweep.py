@@ -75,13 +75,20 @@ TIERS = {
     # The rest of Tier 2 stays unspent -- every other cell loses by 3-30x its floor, and a
     # control on a settled loss is not a result.
     4: ("one_over_t", [], {("exchange", "3")}, "onet"),
-    # Tier 3: the fixed-lambda grid that tests C41 (§1.39d, registered 2026-09-21 BEFORE this).
+    # Tier 5: the fixed-lambda grid that tests C41 (§1.39d, registered 2026-09-21 BEFORE this).
     # Three configurations, chosen so the register's >=3-datasets rule can settle the claim
     # rather than hold it at hypothesis: the one cell where the method wins, one clear loser,
     # and ETTm2 because §1.28 already names it exchange_rate's discriminating comparison.
     # No Fisher is computed on the `fixed` path, so the estimator question does not arise.
     5: ("fixed", FIXED_GRID,
         {("exchange", "3"), ("ETTh2", "3"), ("ETTm2", "3")}, "lamgrid"),
+    # Full-pass Fisher on the ONE forecasting cell C38 calls a win (§1.39, registered
+    # 2026-09-25 before the runs). B = 1 and `--pipeline_fisher_batches 0`: every training window
+    # of the period, once -- the exact empirical Fisher, no sampling. exchange_rate's periods have
+    # under 1,000 windows, so the N = 8192 of the ETTm2 B-sweep is not reachable here; a full pass
+    # is the largest N there is. The pipeline records the samples actually used (item A).
+    6: ("became", ["--pipeline_fisher_batch_size", "1", "--pipeline_fisher_batches", "0"],
+        {("exchange", "3")}, "fullfisher"),
 }
 SKIP = {"experiment", "run_id", "runs_root"}
 

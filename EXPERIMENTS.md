@@ -579,16 +579,16 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**50 claims: 36 supported, 5 hypothesis, 9 refuted.** The rule downgraded
+**56 claims: 36 supported, 11 hypothesis, 9 refuted.** The rule downgraded
 **3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
 now marked as a hypothesis in place.
 
-⚠️ **40 of the 50 are merging claims; `C35`–`C42`, `C44` and `C50` are not.** `C43` restates finished results in GRR; `C45`–`C49` are the supervisor's merge rules (§1.40, §1.40b), added at the user's request under the freeze's scope note. `C44` is a project-wide scope row (§0.1c), and `C50` compares every family at once (§1.41). The task-arithmetic chapter
-proper — the 40 without `C43` and `C45`–`C49` — is **34: 25 supported, 2 hypothesis (`C03`, `C23`),
-7 refuted**; it read 24/3/7 until `C31` was settled (§1.36). CLAUDE.md's freeze quotes all 40
-merging rows: 30 supported, 3 hypothesis, 7 refuted.
+⚠️ **43 of the 56 are merging claims; `C35`–`C42`, `C44`, `C50` and `C54`–`C56` are not.** `C43` restates finished results in GRR; `C45`–`C49` are the supervisor's merge rules (§1.40, §1.40b), `C51`–`C53` AD α selection on a calibration prefix (§1.42), added at the user's request under the freeze's scope note. `C44` is a project-wide scope row (§0.1c), and `C50` compares every family at once (§1.41). The task-arithmetic chapter
+proper — the 43 without `C43`, `C45`–`C49` and `C51`–`C53` — is **34: 25 supported, 2 hypothesis (`C03`, `C23`),
+7 refuted**; it read 24/3/7 until `C31` was settled (§1.36). CLAUDE.md's freeze quotes all 43
+merging rows: 30 supported, 6 hypothesis, 7 refuted.
 Strategy 6 (§1.39) is a sequential method, and its rows are counted here because this register
 covers the *document*, not because the freeze moved.
 
@@ -600,6 +600,12 @@ covers the *document*, not because the freeze moved.
 | `C23` | OPCM helps on exchange_rate at n<=3 because it acts as a recency filter | 1.35, 1.36 | exchange_rate | §1.35 asserts it as a finding - 'OPCM is not a merge improvement; it is a recency filter, and it pays exactly where recency pays' - on ONE dataset with no test that could have broken it. |
 | `C36` | `diagonal_fisher`'s batch-mean gradient suppresses λ\* by 6–24× at every step past the first | 1.39b | ETTm2 | The algebra is exact and the differential exponent is measured with a negative control, but the B-sweep was run on **one** dataset. The *consequence* is broader — all eight forecasting configurations were re-run at B = 1 and every one improved — yet the mechanism itself rests on ETTm2 n = 3. |
 | `C46` | Removing part of each task vector helps only where old data hurts | 1.40 | exchange_rate | Every forecasting win of TIES and TSV is on exchange_rate, as was OPCM's (`C32`) — three removal operators, one dataset. One dataset cannot separate the pattern from anything else particular to it, and two of the four wins are weak. |
+| `C51` | On SWaT, a ≥10% labelled calibration prefix recovers at least half of the oracle gain for task arithmetic | 1.42 | SWaT | Registered 2026-09-25, before the runs; not yet measured. |
+| `C52` | The oracle gain recovered by calibration rises with the calibration fraction and levels off | 1.42 | SWaT, PSM | Registered 2026-09-25, before the runs; not yet measured. |
+| `C53` | At a calibrated α the five merge rules rank as they do at the distance-matched α | 1.42 | SWaT, PSM | Registered 2026-09-25, before the runs; not yet measured. |
+| `C54` | The prequential ranking of merge, chain and newest specialist agrees with the final-test-block ranking | 1.43 | five forecasting datasets | Registered 2026-09-25, before the runs; not yet measured. |
+| `C55` | Where the prequential and final-test rankings disagree, the chain does better prequentially | 1.43 | five forecasting datasets | Registered 2026-09-25, before the runs; not yet measured. |
+| `C56` | SMD or ETTh2-injected offers AD headroom that PSM and SWaT do not | 1.44 | PSM, SWaT (calibration) | Registered 2026-09-25; the screen is not yet run and its threshold awaits the author's decision. |
 | `C37` | The residual left after correcting the estimator is Eq. 20's at-a-minimum asymmetry | 1.39b | ETTh1,ETTh2,ETTm2,exchange_rate | Slope +0.972 says it is correctly *scaled*, but r² = 0.342 leaves two thirds of the per-cell variation unexplained, and **no test has been run that could have overturned it**. |
 
 #### Claims this file records as refuted
@@ -649,7 +655,7 @@ called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** ca
 `claims_register.csv` whose status is not `supported`** — i.e. unless there is a stated open
 question it answers. Recorded in CLAUDE.md. **The merging chapter is now closed.** `C22` was answered by §1.36's P2, and `C34` refuted on AD
 by §1.37's P4 and on forecasting by §1.38's P5 — the latter run because P4's own control was wrong
-on the forecasting half, which §1.37 recorded rather than hid. What remains open (`C03`, `C23`, `C31`) are
+on the forecasting half, which §1.37 recorded rather than hid. What remains open (`C03`, `C23`) are
 rows no *further merging run* can settle: `C03`'s geometry and `C03`/`C31`'s mechanisms need
 different measurements entirely, and `C23`'s falsification test has already been run and came back
 inconclusive. **No further merging experiments.**
@@ -5001,7 +5007,7 @@ measures stated.
 **P2 — REFUTED, and refuted backwards.** λ\*_t ≈ 1/t was predicted on ETTh1/ETTm2 and departure
 on exchange_rate. At the corrected estimator:
 
-| dataset | n | λ/(1/t) at t=1 | λ/(1/t) at t≥2 | Λ/F ÷ t at t≥2 | F(θ̂_t)/F(θ\*_t) at t≥2 |
+| dataset | n | λ/(1/t) at t=1 | λ/(1/t) at t≥2 | Λ/F ÷ t at t≥2 | F(θ\*_t)/F(θ̂_t) at t≥2 |
 |---|---|---|---|---|---|
 | ETTh1 | 3 | 1.16 | 0.60–1.68 | 0.4–1.9× | 1.1–2.1× |
 | ETTh2 | 2 | 1.87 | 0.12–0.77 | 1.4–12.3× | 8.7–12.1× |
@@ -5017,8 +5023,9 @@ registered. So the Fisher does **not** rediscover §1.18's α\*·n regularity fr
 two routes disagree about which datasets are regular, which is the §1.18 situation again and is
 reported as such rather than resolved by preference.
 
-**P4 — REFUTED.** `‖θ\*_T − θ₀‖ / mean_i ‖θ̂_i − θ₀‖` was predicted **> 1**. It is **≤ 1 in all
-54 runs** (0.089–1.001 overall; 0.115–0.909 at the corrected estimator). The chain **converges**
+**P4 — REFUTED.** `‖θ\*_T − θ₀‖ / mean_i ‖θ̂_i − θ₀‖` was predicted **> 1**. It is **≤ 1 in 53 of
+54 runs** (0.089–1.0015 overall — the one above 1 is an AD run at B = 64, by 0.15%; 0.115–0.909
+at the corrected estimator). The chain **converges**
 rather than compounding: each pullback gives back more than the next fine-tune travels. `C21`'s
 structural blocker is therefore not the reason this frame behaves differently, and the
 rescoping of `C21`/`C22`/`C24` to the merging frame stands on its own.
@@ -5092,7 +5099,7 @@ observation, not a mechanism: `C40` is refuted as stated, and no replacement cla
 beyond what this table shows.
 #### 1.39d The interior-optimum hypothesis — registered 2026-09-21, before the grid
 
-⚠️ **Registered before any Tier 3 run, from evidence already in hand.** §1.39c produced three
+⚠️ **Registered before any fixed-λ grid run (`--tier 5`), from evidence already in hand.** §1.39c produced three
 points on one cell, and they have a shape. This section states what that shape would mean, and
 the prediction that would break it, *before* the measurement that tests it.
 
@@ -5254,7 +5261,8 @@ further 2.8–63.7× is real.** Reported as a range, not a point: seed 123's res
 `F_t(θ\*_t)` for Algorithm 1 line 9 and discarded the quadratic form; it now emits
 `dᵀF_t(θ\*_t)d` — same task, same data, same d, only the evaluation point moves. Across the 24
 corrected runs — **ETTh1, ETTh2, ETTm2 and exchange_rate**, eight configurations, three seeds —
-that ratio is **below 1 in all 78 cells**: the Fisher is always larger at the merged point.
+that ratio is **below 1 in 74 of 78 cells** (maximum 1.014): the Fisher is almost always larger
+at the merged point.
 Fitting
 `log(Λ/F ÷ t)` on `log(1/asymmetry)` over the **54 cells at t > 1** gives **slope = +0.972**,
 at **r = +0.585**.
@@ -5298,6 +5306,40 @@ so numerator and denominator scale together — which is consistent with AD's Λ
 B-sweep on PSM n = 3 would settle it; it was not run because AD's verdict does not turn on it —
 that verdict is `C39`, measured on `window_auroc` against a published floor, and it is negative
 at the batch size AD was actually run at.
+
+**Robustness of `C38`'s one win to the Fisher sample count — registered 2026-09-25, before the
+runs.** exchange_rate n = 3 at B = 1 wins by −9.79%, 1.71× its floor, with N = 512 samples per
+Fisher. On ETTm2, λ\* moved by up to 6.5% between N = 512 and N = 8192 at t = 1 (provenance
+above). exchange_rate's periods have fewer than 1,000 training windows, so N = 8192 cannot be
+reached. The re-run instead uses a **full pass**: every window once (`--pipeline_fisher_batches 0`,
+`generate_adaptive_lambda_sweep.py --tier 6`), 3 seeds, the same paired plain chains. The
+pipeline records the samples each estimate actually used.
+
+⚠️ **Prediction:** the win survives. The verdict stays **better** (margin above the 5.734%
+floor), and λ\* moves by less than 10% at every step. **If the margin falls inside the floor,
+`C38` is restated as a tie on every dataset.**
+
+**Result — the win survives, and slightly strengthens. Prediction confirmed.**
+
+> **Provenance.** `--tier 6`, 3 runs, 0 failures, plus one `gate_` smoke run that the report
+> excludes. `adaptive_lambda_report.py` → `adaptive_lambda_test.csv` / `adaptive_lambda_steps.csv`,
+> rows with `fisher_samples_source = recorded`. Each full-pass Fisher used **712 samples per
+> period and 2,230 for the base's seed Fisher**, as recorded by the pipeline. The published
+> N = 512 therefore covered 72% of each period and 23% of the base.
+
+| Fisher | exchange_rate n = 3, test MSE | vs its plain chain | floor | ratio | own spread | verdict |
+|---|---|---|---|---|---|---|
+| N = 512 (published) | 0.3235 | −9.79% | 5.734% | 1.71× | 4.91% | better |
+| **full pass** | **0.3199** | **−10.79%** | 5.734% | **1.88×** | 4.83% | **better** |
+
+- **All three seeds still improve:** −4.46%, −9.87%, −17.20%, against −2.10%, −9.08%, −17.18% at
+  N = 512 (seeds 7, 42, 123).
+- **λ\* moved by at most 6.2% at any step** (range −4.4% to +6.2% over 9 seed-steps), inside the
+  registered 10%.
+- **`C38` stands as written.** Its one forecasting win does not depend on the Fisher sample
+  count. The published N = 512 row stays the row of record; the full pass is reported beside it
+  as a robustness check, never as a second strategy-6 entry (§1.41 reads the flag-derived rows
+  only).
 
 **Why this outlives the experiment.** The defect applies to any EWC-style diagonal Fisher built
 from batch-mean gradients, which is a common shape in published code. The correction is one
@@ -5495,7 +5537,9 @@ deployable, because test picks α, but it bounds what any selection rule could r
 
 ᵉ at least one seed's best α is on the edge of the AD grid (0.5 – 5). At the top edge, the rule
 could do better beyond α = 5, so a ▼ there holds **for α ≤ 5 only**. TA's own best α is interior
-on every cell (0.5–3).
+on 5 of 6 cells. ⚠️ On **PSM n = 5** two of its three seeds peak at α = 0.5, the grid's
+**bottom** edge (0.5, 0.5, 1), so TA might do better below 0.5. That cell's TSV-over-TA margin
+(+0.78%) is therefore an upper bound over α ≥ 0.5 only.
 
 | rule | better | tie | worse | mean change |
 |---|---|---|---|---|
@@ -5505,8 +5549,9 @@ on every cell (0.5–3).
 | **TSV** | **3** | 2 | 1 | **+0.13%** |
 
 **On PSM, TSV has the better direction.** At its best α it beats TA at its best α on all three
-PSM configurations. Its best α (2–3) is interior on every seed, so these three wins are not
-grid-truncated. Under the distance-matched protocol the same rule loses all three. The protocol
+PSM configurations. Its best α (2–3) is interior on every seed, so TSV's side is not
+grid-truncated. TA's side is, on PSM n = 5 only (best α at the 0.5 bottom edge on two seeds, see
+above), so that one of the three wins is scoped to α ≥ 0.5. Under the distance-matched protocol the same rule loses all three. The protocol
 does not measure TSV's direction on PSM: matching TA's distance puts TSV away from where it works
 best. **On SWaT no rule beats TA at any α tested.** Iso-C loses on every AD cell even at its best
 α, though all six are at the grid's top and are scoped to α ≤ 5.
@@ -5571,7 +5616,7 @@ sits on its grid's edge.
 | exchange | −0.44% = | −0.68% = | −0.07% = | +2.62% = | 5.734% |
 | PSM-forecast | +0.38% = | +0.87% = | +2.27% ▼ | +7.58% ▼ | 1.157% |
 
-- **P5 — refuted.** The loss does fall with density on ETT, from +121–183% at k = 0.2 to
+- **P5 — refuted.** The loss does fall with density on ETT, from +121–143% at k = 0.2 on ETTh2/ETTm2 to
   +21–45% at k = 1.0, but it is monotone on only 3 of 5 datasets. At k = 1.0, with no trimming,
   TIES **still loses on 4 of 5** and ties on none. Trimming is roughly half the ETT damage.
   What remains is sign election and the disjoint mean: dropping every entry that disagrees
@@ -5658,6 +5703,162 @@ entry and the runner-up, 11 exceed the dataset's floor and 10 do not. On AD, the
 §1.9's base-model floor, which §1.39 showed is quieter than these runs' own seed spread. So "best
 on" is a count of means, not of decisive wins, and it is quoted here only as that. `C50` records
 the claim at exactly that strength.
+
+### 1.42 AD: choosing α on a small labelled calibration set (registration)
+
+> **Provenance.** `scripts/generate_evaluation_jobs.py` → `remerge.py --calibration_split` →
+> `analysis/calibration_report.py`. Training-free: 90 re-merges (18 AD runs × 5 rules) of the
+> existing checkpoints. `C51`–`C53`. **Registered 2026-09-25, before any run.**
+
+**The question.** §1.12 showed that validation reconstruction cannot pick α on AD. A deployment
+could label a short stretch of its own stream instead. How much does that recover, and how much
+labelled data does it take?
+
+**Scope:** SWaT and PSM, n = 2, 3, 5, three seeds each (six configurations), five rules.
+
+**Protocol, fixed before the runs:**
+- **Split.** Each labelled test recording is cut in time. The calibration part is the first
+  c ∈ {5, 10, 20, 30}% and the evaluation part is the rest. A cut that lands inside an anomaly
+  segment moves to that segment's nearer boundary, and the requested and actual positions are
+  both reported. A window belongs to a part only if it lies wholly inside it. Windows straddling
+  the cut are dropped and counted. Every c reports windows, anomalous windows and events per part.
+- **Metric.** Window AUROC, computed from the same per-window scores as the published test metric.
+  The job asserts that the split code, applied to the whole set, reproduces the published
+  `window_auroc` to 1e-9.
+- **Candidates.** For each rule: §1.40's AD grid {0.5, 1, 2, 3, 5} plus α = 0, the base model,
+  so that "do not merge" is always an option and the oracle can never fall below the base.
+- **Selectors, all scored on the evaluation part:**
+  - *calibrated*: the candidate with the best calibration-part AUROC (ties to the smaller α);
+  - *validation*: the best merged-val reconstruction (§1.12's rule);
+  - *committed*: α = 1, TA's stored merge;
+  - *distance-matched*: §1.40's `_dm` point, for the four other rules;
+  - *oracle*: the best evaluation-part AUROC, the upper bound.
+- **Recovered fraction** = (selected − base) ÷ (oracle − base), on seed means. It is undefined,
+  and reported as such, when the oracle gain is inside the evaluation part's own floor.
+- **Own floor.** The evaluation part is smaller than the full test set, so its floor is its own
+  seed spread: the sd over seeds of the base model's evaluation-part AUROC, as a percentage of its
+  mean, per (dataset, n, c). It is stated beside the published floor.
+- **Ranking.** Per configuration and per c, the five rules ordered by evaluation-part AUROC at
+  their calibrated α, compared with §1.40's distance-matched ordering by Spearman ρ.
+
+⚠️ **Predictions, registered before the runs:**
+- **P1.** For TA, at every c ≥ 10%, the recovered fraction pooled over SWaT's three
+  configurations is **≥ 0.5**. Validation selection is expected near **0.02**.
+- **P2.** TA's recovered fraction, pooled over all six configurations, rises from 5% to 10% to
+  20%. The rise from 20% to 30% is smaller than the rise from 5% to 10%.
+- **P3.** At every c ≥ 10%, the calibrated ranking matches §1.40's distance-matched ranking
+  (ρ ≥ 0.8) on **at least 4 of the 6** configurations.
+
+**Results**
+
+_Pending — registered before the runs._
+
+### 1.43 Forecasting: prequential evaluation (registration)
+
+> **Provenance.** `scripts/generate_evaluation_jobs.py` → `analysis/prequential.py` →
+> `analysis/prequential_report.py`. Training-free: 54 scoring jobs over existing checkpoints.
+> `C54`–`C55`. **Registered 2026-09-25, before any run.**
+
+**The question.** §1.26 ranks the strategies on one final test block. A deployed stream is scored
+continuously: update on period k, predict period k + 1. Does that ranking survive?
+
+**Scope:** ETTh1, ETTh2, ETTm2, exchange_rate and PSM-forecast at n = 2, 3, 5, three seeds (15
+configurations), plus SWaT-forecast, which is scored but left out of every count.
+
+**Scorable without training**, after the update at fine-tune period k (k = 0 … n − 2), each
+scored on period k + 1's held-out validation slice, which none of them has seen:
+- **merge**: task arithmetic over the first k + 1 task vectors. α is picked by the pipeline's
+  rule, restricted to the data that exists at that point: the minimum `forecast/mse` on the
+  union of the base's and periods 0…k's validation slices, over §1.40's grid. The committed α
+  would use data from later periods.
+- **chain**: the sequential chain after step k.
+- **specialist**: the newest specialist, θ₀ + τ_k.
+
+**Not scorable, and not approximated:**
+- **Joint training**: its only model is trained on every period at once, so no model exists
+  "after period k".
+- **The window strategy**: only the final model per budget W exists.
+
+**Self-checks:**
+- The chain score recomputed by the job must equal the chain run's own recorded value to 1e-5,
+  which binds "period k + 1" to the pipeline's own slice.
+- At k = n − 1, the prefix union must have the size of the pipeline's merged-val union.
+
+**Aggregation, fixed now.** Periods differ in scale (exchange_rate's period MSEs span about 10×),
+so the prequential ranking is by **mean rank over k**; mean MSE is reported beside it. It is
+compared with the final-test ranking of the same three models on §1.26's test block (`merged`,
+`continual_{n−1}` and `finetune_{n−1}` test MSE). With three methods, "agree on 2 of 3" is
+counted over the **three pairwise orderings**. At n = 2 there is a single k, and chain and
+specialist are the same kind of model (one fine-tune from θ₀), so those cells are reported but
+say little.
+
+⚠️ **Predictions, registered before the runs** (15 configurations; SWaT-forecast excluded as
+everywhere):
+- **P1.** The two rankings agree on **at least 2 of the 3** pairwise orderings in **at least 8
+  of 15** configurations.
+- **P2.** Among the pairwise orderings that disagree and involve the chain, the chain ranks
+  **higher prequentially** than on the final test block in the majority.
+
+**Results**
+
+_Pending — registered before the runs._
+
+### 1.44 AD headroom screen — SMD and ETTh2-injected (registration)
+
+> **Provenance.** `project/datasets/ad_screen.py` (`Smd`, `Etth2Injected`, both subclasses of PSM's
+> loader, so windowing and splits are PSM's code path) → `scripts/generate_ad_screen.py` (4 runs,
+> **launched by hand**) → `analysis/ad_screen_report.py`. `C56`. **Registered 2026-09-25, before
+> any run.**
+
+**Why.** Both AD datasets are saturated: a base model trained on half the data is already close
+to joint training, so merging has nothing to recover on AD (§0.1b). A candidate is worth a full
+sweep only if it has headroom.
+
+**Candidates.**
+- **(1) SMD**, from `thuml/Time-Series-Library` (`SMD/*.npy`). ⚠️ That file is the 28 machines
+  concatenated, so a period can span a machine boundary and its drift is partly machine identity.
+- **(2) ETTh2-injected**, ETTh2 with anomalies injected into its test portion only. ⚠️ **A
+  controlled test, not a benchmark**, everywhere it is reported.
+
+**Injection protocol, fixed before any run** (`ad_screen.INJECTION`):
+- ETTh2's first 80% is training data (as in the forecasting runs); the last 20% (3,484 points) is
+  test. It is standardised with the training statistics, and injection happens after scaling, so
+  magnitudes are in training-sd units.
+- Event types are drawn uniformly from {spike, level shift, local pattern change}:
+  - **spike**: 1–3 points, ±U(4, 6) sd added;
+  - **level shift**: 12–48 points, ±U(1.5, 3) sd added;
+  - **pattern change**: 24–72 points, values reversed in time, so the level is preserved and the
+    shape altered.
+- Each event affects 1–3 of the 7 channels, chosen uniformly.
+- Events never overlap. They are at least 100 points apart and from either end. Events are added
+  until ≥ 10% of test points are anomalous. Every point of an event is labelled 1.
+- One fixed seed, **20260925**. Checked before any run: it yields **15 events (6 pattern changes,
+  5 spikes, 4 level shifts), 11.02% of test points**, is deterministic, and changes no point
+  outside an event.
+
+**Screen.** Seed 42. The base model is the incremental pipeline with `baseline_fraction 0.5` and
+no fine-tune periods; joint is the standard pipeline at 1.0. Both use PSM's recorded
+configuration verbatim, differing only in dataset, seed and experiment name. The report gives
+window AUROC, **headroom = (AUROC_joint − AUROC_base) ÷ (1 − AUROC_base)**, and the drift screen's
+3-way and 5-way drift on the training portion. Drift before any run: SMD 0.208 / 0.308;
+ETTh2-injected 0.659 / 0.753, which is ETTh2's own because injection touches only the test part.
+
+**Decision rule, as specified:** a full three-seed sweep only if headroom ≥ 10%; otherwise the
+screen is recorded as a negative result and the work stops.
+
+⚠️ **Calibration check, run before the screen, and it matters.** Under this headroom definition,
+the two existing AD datasets at seed 42 (same script, same blocks) score:
+- **PSM: 10.92%** (base 0.7747, joint 0.7993; other seeds and base sources give 0.770–0.781
+  against 0.799–0.801, all ≈ 11%);
+- **SWaT: 4.41%** (0.8004 vs 0.8092).
+
+The "PSM 3.4%, SWaT 1.1%" the rule was set against are §0.1b's column, which uses a different,
+relative definition. **At 10% under this definition, PSM itself would pass**, so the threshold
+does not separate a candidate from the saturated case it is meant to exclude. The threshold is
+**held pending the author's decision before launch**, and whatever is chosen will be recorded
+here before any screen run.
+
+**Result:** _pending — the four runs are launched by hand._
 
 ## 2. Exact configurations
 

@@ -92,6 +92,8 @@ class ContinualFineTuningPipeline(Pipeline):
         self.fixed_lambda = fixed_lambda
         self.one_over_t_counts_base = one_over_t_counts_base
         self.fisher_batches = fisher_batches
+        # 0 = every window once. `diagonal_fisher` reads None as "no cap".
+        self._max_batches = fisher_batches if fisher_batches > 0 else None
         self.fisher_batch_size = fisher_batch_size
         self.lambda_seed_from_base = lambda_seed_from_base
         self.lambda_fisher_weighting = lambda_fisher_weighting
@@ -141,7 +143,9 @@ class ContinualFineTuningPipeline(Pipeline):
         )
         parser.add_argument(
             f"--{p}_fisher_batches", type=int, default=64,
-            help="batches per diagonal-Fisher estimate; matches the merging pipeline.",
+            help="batches per diagonal-Fisher estimate; matches the merging pipeline. 0 means "
+            "a full pass over the period's training windows. The samples actually used are "
+            "recorded per estimate in adaptive_lambdas.csv, whatever this is set to.",
         )
         parser.add_argument(
             f"--{p}_fisher_batch_size", type=int, default=None,
@@ -260,6 +264,8 @@ class ContinualFineTuningPipeline(Pipeline):
         task_index = step + 1 if self.one_over_t_counts_base else step
         one_over_t = 1.0 / task_index
         numerator = denominator = star_numerator = float("nan")
+        hat_counts: dict = {}
+        star_counts: dict = {}
 
         if self.lambda_source == "fixed":
             lam = self.fixed_lambda
@@ -269,7 +275,7 @@ class ContinualFineTuningPipeline(Pipeline):
             loader = self.runner.loader_config.make_loader(
                 segment.train, shuffle=True, batch_size=self.fisher_batch_size)
             fisher_hat = diagonal_fisher(model, loader, self.runner.device,
-                                         max_batches=self.fisher_batches)
+                                         max_batches=self._max_batches, counts=hat_counts)
             # Eq. 20 with Lambda_{t-1} passed as a one-element list; identical arithmetic to
             # passing every earlier Fisher, asserted in verify_adaptive_lambda.py.
             previous = [precision] if precision is not None else []
@@ -291,7 +297,7 @@ class ContinualFineTuningPipeline(Pipeline):
             loader = self.runner.loader_config.make_loader(
                 segment.train, shuffle=True, batch_size=self.fisher_batch_size)
             fisher_star = diagonal_fisher(model, loader, self.runner.device,
-                                          max_batches=self.fisher_batches)
+                                          max_batches=self._max_batches, counts=star_counts)
             weight = float(len(segment.train)) if self.lambda_fisher_weighting == "data" else 1.0
             # d^T F_t(theta*_t) d, the SAME quadratic form the numerator uses, on the same task,
             # the same data and the same d -- only the evaluation point differs. Its ratio to
@@ -334,6 +340,10 @@ class ContinualFineTuningPipeline(Pipeline):
             "fisher_num": numerator,
             "fisher_den": denominator,
             "fisher_star_num": star_numerator,
+            # Samples ACTUALLY used by each Fisher estimate (blank on the imposed-lambda paths).
+            "fisher_hat_samples": hat_counts.get("samples", ""),
+            "fisher_star_samples": star_counts.get("samples", ""),
+            "fisher_seed_samples": self._seed_samples,
             "merged_dist_from_base": _distance(merged, self._theta_zero),
             "unconstrained_dist_from_base": _distance(unconstrained, self._theta_zero),
         }
@@ -443,6 +453,7 @@ class ContinualFineTuningPipeline(Pipeline):
         accumulator = baseline_state if self.lambda_source != "none" else None
         self._theta_zero = baseline_state      # fixed reference for the distance columns
         precision = None
+        self._seed_samples = ""      # set below when Lambda_0 is seeded from the base
         lambda_rows: list[dict] = []
         unconstrained_matrix: dict[int, dict[str, dict[str, float]]] = {}
         if self.lambda_source == "became" and self.lambda_seed_from_base:
@@ -455,12 +466,14 @@ class ContinualFineTuningPipeline(Pipeline):
             log.info("[adaptive] seeding Lambda_0 from the base model's Fisher")
             weight = (float(len(base_segment.train))
                       if self.lambda_fisher_weighting == "data" else 1.0)
+            seed_counts: dict = {}
             precision = accumulate_precision(
                 None,
                 diagonal_fisher(model, loader, self.runner.device,
-                                max_batches=self.fisher_batches),
+                                max_batches=self._max_batches, counts=seed_counts),
                 weight,
             )
+            self._seed_samples = seed_counts["samples"]
 
         # --- Sequential chain: each step continues from the previous model ---
         for index, segment in enumerate(segments):
@@ -590,7 +603,8 @@ class ContinualFineTuningPipeline(Pipeline):
         fields = ["step", "lambda_star", "one_over_t", "d_norm", "step_norm",
                   "fisher_num", "fisher_den",
                   "merged_dist_from_base", "unconstrained_dist_from_base",
-                  "fisher_star_num"]
+                  "fisher_star_num", "fisher_hat_samples", "fisher_star_samples",
+                  "fisher_seed_samples"]
         path = step_dir / "adaptive_lambdas.csv"
         with path.open("w", newline="", encoding="utf-8") as fh:
             writer = csv.DictWriter(fh, fieldnames=fields)

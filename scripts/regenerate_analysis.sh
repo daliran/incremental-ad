@@ -121,6 +121,31 @@ if [ "${WITH_GEOMETRY:-0}" = "1" ]; then
         --geometry "$OUT/geometry/geometry_summary.csv" \
         --scale "$OUT/scale_forecast/scale_summary.csv" "$OUT/scale_ad/scale_summary.csv" \
         --spec analysis_specs/alignment_spec.csv --out "$OUT/alignment"
+    # Per-step novelty over the n=3 geometry of record (§1.9/§1.11's groups), one dir per dataset.
+    python -m incremental_ad.analysis.novelty_report steps "$OUT"/geometry/noisefloor_etth/* \
+        --out "$OUT/novelty/ETTh1"
+    python -m incremental_ad.analysis.novelty_report steps "$OUT"/geometry/exch_incremental/* \
+        --out "$OUT/novelty/Exchange"
+    python -m incremental_ad.analysis.novelty_report steps "$OUT"/geometry/noisefloor_psm/* \
+        --out "$OUT/novelty/PSM"
+    python -m incremental_ad.analysis.novelty_report steps "$OUT"/geometry/noisefloor_swat/* \
+        --out "$OUT/novelty/SWaT"
+    python -m incremental_ad.analysis.novelty_report outcomes --runs_root "$RUNS" \
+        --geometry_root "$OUT/geometry" --spec analysis_specs/rho_indicator_spec.csv \
+        --out "$OUT/outcomes.csv"
+    # Error concentration over each forecasting dataset's floor experiment (floor_spec.csv).
+    for pair in ETTh1:noisefloor_etth ETTh2:etth2_gate_base ETTm2:ettm2_gate_base \
+                exchange:n1_exchange; do
+        python -m incremental_ad.analysis.error_concentration \
+            --run_dirs "$RUNS/${pair#*:}"/* --label "${pair%%:*}" --out "$OUT/concentration"
+    done
+    # Per-window oracle router (§1.16b): every run the archive holds a per-run file for. The
+    # summary is rebuilt from these after the carry step, like on the CPU path.
+    for f in "$CARRY"/oracle_router/oracle_router_*_[0-9]*.csv; do
+        stem="$(basename "$f" .csv)"; stem="${stem#oracle_router_}"
+        python -m incremental_ad.analysis.oracle_router \
+            --run_dir "$RUNS/${stem%_*}/${stem##*_}" --out "$OUT/oracle_router"
+    done
 else
     echo "  skipped (set WITH_GEOMETRY=1 on a compute node to regenerate)"
 fi
@@ -230,6 +255,20 @@ python -m incremental_ad.analysis.merge_sensitivity_report --runs_root "$RUNS" \
     --baselines_dir "$(carried merge_baselines_runs)" --floors "$OUT/floors.csv" \
     --out "$OUT/merge_sensitivity" || echo "  merge_sensitivity skipped (no variant outputs)"
 
+echo "== AD alpha chosen on a labelled calibration prefix (§1.42) =="
+# Aggregation over `remerge.py --calibration_split` outputs, GPU-produced and archived as
+# `merge_calibration_runs`; read through `carried`, like every other per-run tree.
+python -m incremental_ad.analysis.calibration_report \
+    --calibration_dir "$(carried merge_calibration_runs)" \
+    --merge_baselines "$OUT/merge_baselines/merge_baselines.csv" --floors "$OUT/floors.csv" \
+    --out "$OUT/calibration" || echo "  calibration skipped (no calibration outputs)"
+
+echo "== prequential evaluation of the forecasting strategies (§1.43) =="
+python -m incremental_ad.analysis.prequential_report \
+    --prequential_dir "$(carried prequential_runs)" --runs_root "$RUNS" \
+    --floors "$OUT/floors.csv" --out "$OUT/prequential" \
+    || echo "  prequential skipped (no prequential outputs)"
+
 echo "== adaptive-lambda sequential fine-tuning (§1.39) =="
 # Strategy 6, not a merging experiment (CLAUDE.md scope note). Pure aggregation over finished
 # runs. Cells are keyed on the Fisher estimator's batch size as well as the configuration, so a
@@ -273,7 +312,8 @@ echo "== carrying forward GPU-only outputs (not regenerated here) =="
 for sub in oracle_router concentration novelty_swat selection_probe drift \
            geometry novelty alignment subblocks mask_span window_selection remerge \
            remerge_sweep remerge_closeout remerge_closeout_runs geometry_gap geometry_aeft \
-           fisher_scaling_sweep merge_baselines_runs merge_sensitivity_runs grid_search; do
+           fisher_scaling_sweep merge_baselines_runs merge_sensitivity_runs grid_search \
+           merge_calibration_runs prequential_runs; do
     if [ -d "$CARRY/$sub" ] && [ ! -d "$OUT/$sub" ]; then
         cp -r "$CARRY/$sub" "$OUT/$sub"
         echo "  carried $sub from results_archive (regenerate with a GPU job if its runs changed)"
@@ -287,6 +327,18 @@ for path in "$CARRY"/*; do
     cp -r "$path" "$OUT/$name"
     echo "  ⚠️  carried $name with no generator in this script — add one or drop it"
 done
+
+echo "== summaries of carried per-run trees (pure aggregation, regenerated) =="
+# The per-run oracle-router CSVs and the Fisher-sample re-merges are GPU-produced and carried,
+# but the two summaries the document quotes are CPU aggregations over them. Until 2026-09-25
+# neither summary had a generator in the repository; both are rebuilt here, AFTER the carry step,
+# over whatever per-run tree is now in "$OUT" (fresh on a GPU run, carried otherwise), and the
+# guard compares them rather than counting them as carried.
+rm -f "$OUT/oracle_router/oracle_router_summary.csv" "$OUT/remerge/fisher_sweep_summary.csv"
+python -m incremental_ad.analysis.oracle_router_report --per_run_dir "$OUT/oracle_router" \
+    --out "$OUT/oracle_router/oracle_router_summary.csv"
+python -m incremental_ad.analysis.fisher_sweep_report --remerge_dir "$OUT/remerge" \
+    --out "$OUT/remerge/fisher_sweep_summary.csv"
 
 echo
 echo "== does this run reproduce the archive? =="

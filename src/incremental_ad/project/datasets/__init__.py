@@ -11,3 +11,4 @@ from .test_forecast import TestForecastDataset
 from .test_imputation import TestImputationDataset
 from incremental_ad.project.datasets.psm_forecast import PsmForecastDataset  # noqa: F401
 from incremental_ad.project.datasets.swat_forecast import SwatForecastDataset  # noqa: F401
+from incremental_ad.project.datasets.ad_screen import Etth2Injected, Smd  # noqa: F401

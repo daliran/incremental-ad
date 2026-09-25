@@ -2734,6 +2734,42 @@ fixshard_exchange_n5,ExchangeRateForecastDataset,IncrementalTaskArithmeticPipeli
 fixshard_exchange_n5,ExchangeRateForecastDataset,IncrementalTaskArithmeticPipeline,5,,merged/val,forecast/mse,3,7 42 123,0.271055,0.015786,5.824
 fixshard_exchange_n5,ExchangeRateForecastDataset,IncrementalTaskArithmeticPipeline,5,,merged/val,forecast/rmse,3,7 42 123,0.520484,0.015085,2.898
 fixshard_exchange_n5,ExchangeRateForecastDataset,IncrementalTaskArithmeticPipeline,5,,merged/val,merge_scale/selected,3,7 42 123,0.316667,0.028868,9.116
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mae,1,123,0.644218,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mse,1,123,0.647655,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/rmse,1,123,0.80477,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mae,1,123,0.618835,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mse,1,123,0.577027,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/rmse,1,123,0.759623,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mae,1,123,0.596826,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mse,1,123,0.538007,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/rmse,1,123,0.733489,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mae,1,123,0.477112,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mse,1,123,0.315264,0.0,0.0
+fullfisher_exchange_n3_s123,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/rmse,1,123,0.561483,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mae,1,42,0.679087,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mse,1,42,0.706194,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/rmse,1,42,0.840354,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mae,1,42,0.654674,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mse,1,42,0.640354,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/rmse,1,42,0.800221,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mae,1,42,0.622777,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mse,1,42,0.579951,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/rmse,1,42,0.761545,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mae,1,42,0.482565,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mse,1,42,0.325979,0.0,0.0
+fullfisher_exchange_n3_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/rmse,1,42,0.570945,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mae,1,7,0.699647,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mse,1,7,0.728524,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/rmse,1,7,0.853536,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mae,1,7,0.685032,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mse,1,7,0.68829,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/rmse,1,7,0.829633,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mae,1,7,0.631895,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mse,1,7,0.583959,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/rmse,1,7,0.764172,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mae,1,7,0.481033,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mse,1,7,0.318496,0.0,0.0
+fullfisher_exchange_n3_s7,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/rmse,1,7,0.564355,0.0,0.0
 gate_adaptive_became,Etth2ForecastDataset,ContinualFineTuningPipeline,2,,baseline/test,forecast/mae,1,123,0.706315,0.0,0.0
 gate_adaptive_became,Etth2ForecastDataset,ContinualFineTuningPipeline,2,,baseline/test,forecast/mse,1,123,0.897076,0.0,0.0
 gate_adaptive_became,Etth2ForecastDataset,ContinualFineTuningPipeline,2,,baseline/test,forecast/rmse,1,123,0.947141,0.0,0.0
@@ -2761,6 +2797,18 @@ gate_adaptive_none,Etth2ForecastDataset,ContinualFineTuningPipeline,2,,continual
 gate_adaptive_none,Etth2ForecastDataset,ContinualFineTuningPipeline,2,,continual_1/test,forecast/mae,1,123,0.395063,0.0,0.0
 gate_adaptive_none,Etth2ForecastDataset,ContinualFineTuningPipeline,2,,continual_1/test,forecast/mse,1,123,0.264174,0.0,0.0
 gate_adaptive_none,Etth2ForecastDataset,ContinualFineTuningPipeline,2,,continual_1/test,forecast/rmse,1,123,0.513978,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mae,1,42,0.679087,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/mse,1,42,0.706194,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,baseline/test,forecast/rmse,1,42,0.840354,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mae,1,42,0.648439,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/mse,1,42,0.631339,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_0/test,forecast/rmse,1,42,0.794568,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mae,1,42,0.619442,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/mse,1,42,0.573842,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_1/test,forecast/rmse,1,42,0.757524,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mae,1,42,0.486165,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/mse,1,42,0.330832,0.0,0.0
+gate_fullfisher_smoke_s42,ExchangeRateForecastDataset,ContinualFineTuningPipeline,3,,continual_2/test,forecast/rmse,1,42,0.57518,0.0,0.0
 l2sp_clean_lam0p0,EtthForecastDataset,IncrementalTaskArithmeticPipeline,3,,baseline/test,forecast/mae,3,7 42 123,0.600834,0.023283,3.875
 l2sp_clean_lam0p0,EtthForecastDataset,IncrementalTaskArithmeticPipeline,3,,baseline/test,forecast/mse,3,7 42 123,0.704718,0.039727,5.637
 l2sp_clean_lam0p0,EtthForecastDataset,IncrementalTaskArithmeticPipeline,3,,baseline/test,forecast/rmse,3,7 42 123,0.839253,0.023642,2.817

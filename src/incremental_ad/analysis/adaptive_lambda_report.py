@@ -70,22 +70,25 @@ ACC_FIELDS = ["dataset", "n_segments", "metric"] + ESTIMATOR_FIELDS + ["n_seeds"
               "acc_adaptive", "acc_adaptive_sd", "acc_plain", "acc_plain_sd",
               "acc_delta_pct", "margin_ratio", "borderline", "verdict",
               "own_spread_pct", "margin_over_own_spread",
-              "bwt_adaptive", "bwt_plain", "base_slice_adaptive", "base_slice_plain"]
+              "bwt_adaptive", "bwt_plain", "base_slice_adaptive", "base_slice_plain",
+              "fisher_samples_source"]
 SEED_FIELDS = ["dataset", "n_segments", "seed", "metric"] + ESTIMATOR_FIELDS + [
                "adaptive_run", "plain_run",
                "acc_adaptive", "acc_plain", "bwt_adaptive", "bwt_plain",
-               "base_slice_adaptive", "base_slice_plain"]
+               "base_slice_adaptive", "base_slice_plain", "fisher_samples_source"]
 STEP_FIELDS = ["dataset", "n_segments", "seed"] + ESTIMATOR_FIELDS + [
                "step", "lambda_star", "one_over_t",
                "lambda_over_one_over_t", "fisher_num", "fisher_den", "lambda_term",
                "lambda_over_fisher", "floor_is_t",
                "fisher_star_num", "asymmetry_hat_over_star", "d_norm", "step_norm",
-               "merged_dist_from_base", "unconstrained_dist_from_base"]
+               "merged_dist_from_base", "unconstrained_dist_from_base",
+               "fisher_samples_source", "fisher_hat_samples", "fisher_star_samples",
+               "fisher_seed_samples"]
 TEST_FIELDS = ["dataset", "n_segments", "metric", "higher_is_better"] + ESTIMATOR_FIELDS + [
     "n_seeds", "floor_pct", "final_step",
     "adaptive", "adaptive_sd", "plain", "plain_sd",
     "delta_pct", "margin_ratio", "borderline", "verdict",
-    "own_spread_pct", "margin_over_own_spread"]
+    "own_spread_pct", "margin_over_own_spread", "fisher_samples_source"]
 CURVE_FIELDS = ["dataset", "n_segments", "metric", "n_points", "n_seeds", "floor_pct",
                 "lambdas", "values", "best_lambda", "best_value", "value_at_lambda_1",
                 "interior_gain_pct", "interior_gain_over_floor", "borderline", "shape",
@@ -101,7 +104,7 @@ def higher_is_better(metric: str) -> bool:
     return any(k in metric.lower() for k in HIGHER_IS_BETTER)
 DIST_FIELDS = ["dataset", "n_segments", "seed"] + ESTIMATOR_FIELDS + [
                "n_steps", "chain_dist_from_base",
-               "mean_unconstrained_dist", "ratio_p4"]
+               "mean_unconstrained_dist", "ratio_p4", "fisher_samples_source"]
 
 
 def _label(dataset: str) -> str:
@@ -172,12 +175,16 @@ def estimator(config: dict) -> dict:
         # No Fisher is computed on the imposed-lambda paths, so a batch size would be a number
         # with no referent. Written as 0 rather than left blank: a blank reads as missing data.
         return {"lambda_source": source, "fixed_lambda": fixed, "fisher_batch_size": 0,
-                "fisher_batches": 0, "fisher_samples": 0}
+                "fisher_batches": 0, "fisher_samples": 0, "fisher_samples_source": "n/a"}
     batch_size = config.get("pipeline_fisher_batch_size") or config["loader_batch_size"]
     batches = config["pipeline_fisher_batches"]
     return {"lambda_source": source, "fixed_lambda": fixed,
             "fisher_batch_size": int(batch_size), "fisher_batches": int(batches),
-            "fisher_samples": int(batch_size) * int(batches)}
+            "fisher_samples": int(batch_size) * int(batches),
+            # INFERRED from the flags, and labelled so. Runs whose pipeline recorded the count
+            # it actually used are relabelled "recorded" in main(), where their per-estimate
+            # counts are read; old rows are never backfilled.
+            "fisher_samples_source": "flags"}
 
 
 def curve_shape(lambdas: list[float], values: list[float], boundary: float,
@@ -325,6 +332,13 @@ def main() -> None:
         n_segments = int(config["dataset_n_finetune_segments"])
         seed = int(config["seed"])
         estimator_id = estimator(config)
+        with (run / "continual_summary" / "adaptive_lambdas.csv").open(encoding="utf-8") as fh:
+            recorded = [r.get("fisher_hat_samples", "") for r in csv.DictReader(fh)]
+        if estimator_id["lambda_source"] == "became" and recorded and all(recorded):
+            # The counts differ per estimate (base seed vs each period), so there is no one
+            # cell-level number; the step table carries them. Blank, never the flag product.
+            estimator_id = {**estimator_id, "fisher_samples": "",
+                            "fisher_samples_source": "recorded"}
 
         control = control_run(config)
         if control is None or not (control / "config.json").is_file():
@@ -411,6 +425,9 @@ def main() -> None:
                 "d_norm": float(step["d_norm"]), "step_norm": float(step["step_norm"]),
                 "merged_dist_from_base": float(step["merged_dist_from_base"]),
                 "unconstrained_dist_from_base": float(step["unconstrained_dist_from_base"]),
+                "fisher_hat_samples": step.get("fisher_hat_samples", ""),
+                "fisher_star_samples": step.get("fisher_star_samples", ""),
+                "fisher_seed_samples": step.get("fisher_seed_samples", ""),
             })
         unconstrained = [float(s["unconstrained_dist_from_base"]) for s in steps]
         chain = float(steps[-1]["merged_dist_from_base"])
@@ -427,9 +444,9 @@ def main() -> None:
     for row in seed_rows:
         grouped[(row["dataset"], row["n_segments"], row["metric"], row["lambda_source"],
                  str(row["fixed_lambda"]), row["fisher_batch_size"],
-                 row["fisher_batches"])].append(row)
+                 row["fisher_batches"], row["fisher_samples_source"])].append(row)
     acc_rows = []
-    for (dataset, n_segments, metric, source, fixed, batch_size, batches), rows in sorted(
+    for (dataset, n_segments, metric, source, fixed, batch_size, batches, n_source), rows in sorted(
             grouped.items()):
         adaptive = [r["acc_adaptive"] for r in rows]
         plain = [r["acc_plain"] for r in rows]
@@ -445,7 +462,9 @@ def main() -> None:
             "dataset": dataset, "n_segments": n_segments, "metric": metric,
             "lambda_source": source, "fixed_lambda": rows[0]["fixed_lambda"],
             "fisher_batch_size": batch_size,
-            "fisher_batches": batches, "fisher_samples": batch_size * batches,
+            "fisher_batches": batches,
+            "fisher_samples": batch_size * batches if n_source != "recorded" else "",
+            "fisher_samples_source": n_source,
             "n_seeds": len(rows), "floor_pct": floor if floor is not None else "",
             "acc_adaptive": st.fmean(adaptive),
             "acc_adaptive_sd": st.stdev(adaptive) if len(adaptive) > 1 else "",
@@ -472,9 +491,9 @@ def main() -> None:
     for row in test_seed_rows:
         test_grouped[(row["dataset"], row["n_segments"], row["metric"], row["lambda_source"],
                       str(row["fixed_lambda"]), row["fisher_batch_size"],
-                      row["fisher_batches"])].append(row)
+                      row["fisher_batches"], row["fisher_samples_source"])].append(row)
     test_rows = []
-    for (dataset, n_segments, metric, source, fixed, batch_size, batches), rows in sorted(
+    for (dataset, n_segments, metric, source, fixed, batch_size, batches, n_source), rows in sorted(
             test_grouped.items()):
         adaptive = [r["adaptive"] for r in rows]
         plain = [r["plain"] for r in rows]
@@ -489,7 +508,9 @@ def main() -> None:
             "dataset": dataset, "n_segments": n_segments, "metric": metric,
             "higher_is_better": up, "lambda_source": source,
             "fixed_lambda": rows[0]["fixed_lambda"], "fisher_batch_size": batch_size,
-            "fisher_batches": batches, "fisher_samples": batch_size * batches,
+            "fisher_batches": batches,
+            "fisher_samples": batch_size * batches if n_source != "recorded" else "",
+            "fisher_samples_source": n_source,
             "n_seeds": len(rows), "floor_pct": floor if floor is not None else "",
             "final_step": rows[0]["final_step"],
             "adaptive": st.fmean(adaptive),
@@ -551,9 +572,13 @@ def main() -> None:
     # base shard, so it carries no merged-point term for the asymmetry to be about. Pooling it
     # in inflates the slope from 0.97 to 1.82 — a cell that cannot speak to the hypothesis
     # driving the number that tests it.
+    # Estimator-of-record rows only. The full-pass robustness re-run (§1.39, recorded sample
+    # counts) re-estimates the SAME exchange_rate chains; pooling it in would count those three
+    # configurations twice and moved the published slope from 0.97 to 1.10 when it first landed.
+    of_record = [r for r in step_rows if r.get("fisher_samples_source") != "recorded"]
     pairs = [(math.log(1.0 / float(r["asymmetry_hat_over_star"])),
               math.log(float(r["lambda_over_fisher"]) / r["step"]))
-             for r in step_rows
+             for r in of_record
              if r["step"] > 1 and r["asymmetry_hat_over_star"] not in ("", None)
              and r["lambda_over_fisher"] not in ("", None)
              and float(r["lambda_over_fisher"]) > 0]
@@ -575,7 +600,8 @@ def main() -> None:
     # theta_0 -- and including it hides the collapse that happens afterwards.
     derived = defaultdict(list)
     for row in step_rows:
-        if row["lambda_source"] == "became" and row["fisher_batch_size"] == 1 and row["step"] > 1:
+        if (row["lambda_source"] == "became" and row["fisher_batch_size"] == 1 and row["step"] > 1
+                and row.get("fisher_samples_source") != "recorded"):
             derived[(row["dataset"], row["n_segments"], "forecast/mse")].append(
                 row["lambda_star"])
     for key, points in sorted(by_config.items()):
@@ -627,7 +653,7 @@ def main() -> None:
         everything, slope_all, n_all = log_fit(
             pairs + [(math.log(1.0 / float(r["asymmetry_hat_over_star"])),
                       math.log(float(r["lambda_over_fisher"]) / r["step"]))
-                     for r in step_rows
+                     for r in of_record
                      if r["step"] == 1 and r["asymmetry_hat_over_star"] not in ("", None)
                      and r["lambda_over_fisher"] not in ("", None)
                      and float(r["lambda_over_fisher"]) > 0])
@@ -702,7 +728,7 @@ def _self_test() -> None:
     assert estimator({"pipeline_lambda_source": "became", "pipeline_fisher_batches": 64,
                       "loader_batch_size": 128}) == {
         "lambda_source": "became", "fixed_lambda": "", "fisher_batch_size": 128,
-        "fisher_batches": 64, "fisher_samples": 8192}, \
+        "fisher_batches": 64, "fisher_samples": 8192, "fisher_samples_source": "flags"}, \
         "a run predating --pipeline_fisher_batch_size used the loader's batch size"
     assert estimator({"pipeline_lambda_source": "became", "pipeline_fisher_batch_size": 1,
                       "pipeline_fisher_batches": 512,
@@ -712,7 +738,8 @@ def _self_test() -> None:
     imposed = estimator({"pipeline_lambda_source": "one_over_t", "pipeline_fisher_batches": 64,
                          "loader_batch_size": 128})
     assert imposed == {"lambda_source": "one_over_t", "fixed_lambda": "", "fisher_batch_size": 0,
-                       "fisher_batches": 0, "fisher_samples": 0}, imposed
+                       "fisher_batches": 0, "fisher_samples": 0,
+                       "fisher_samples_source": "n/a"}, imposed
     # Two points of a fixed-lambda grid must not be the same cell, or the curve collapses.
     grid = [estimator({"pipeline_lambda_source": "fixed", "pipeline_fixed_lambda": lam,
                        "loader_batch_size": 128}) for lam in (0.1, 0.9)]

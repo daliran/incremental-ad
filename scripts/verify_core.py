@@ -377,12 +377,39 @@ def test_storage() -> None:
          f"{len(unlisted)} unlisted, e.g. {unlisted[:3]}")
 
 
+def test_fisher_counts() -> None:
+    """The Fisher's sample count is COUNTED, not inferred from the flags (§1.39, item A)."""
+    print("\nFISHER SAMPLE COUNT")
+    from incremental_ad.framework.merging.became import diagonal_fisher
+
+    class Tiny(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lin = torch.nn.Linear(3, 1)
+
+        def compute_loss(self, batch):
+            x, y = batch
+            return ((self.lin(x) - y) ** 2).mean()
+
+    data = torch.utils.data.TensorDataset(torch.randn(10, 3), torch.randn(10, 1))
+    for batch_size, cap, expected, why in (
+            (1, None, 10, "full pass at B = 1"),
+            (4, None, 10, "partial last batch counts its real size"),
+            (4, 2, 8, "cap stops the pass"),
+            (1, 512, 10, "a cap above the shard size records the shard, not the flags")):
+        counts: dict = {}
+        diagonal_fisher(Tiny(), torch.utils.data.DataLoader(data, batch_size=batch_size), "cpu",
+                        max_batches=cap, counts=counts)
+        gate(f"fisher counts: {why}", counts["samples"] == expected,
+             f"recorded {counts['samples']}, expected {expected}")
+
+
 def main() -> None:
     import os
     os.environ.setdefault("TQDM_DISABLE", "1")
     torch.set_num_threads(4)
     for test in (test_splitting, test_windows, test_metrics, test_model, test_runner,
-                 test_trainer, test_merging, test_storage):
+                 test_trainer, test_merging, test_storage, test_fisher_counts):
         try:
             test()
         except Exception as exc:                                    # noqa: BLE001

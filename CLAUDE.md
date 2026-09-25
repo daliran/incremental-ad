@@ -144,11 +144,11 @@ python -c "import incremental_ad.project.datasets, incremental_ad.project.models
 
 **No merging experiment is added unless it maps to a row in
 `results_archive/audit/claims_register.csv` whose `status` is not `supported`.** Re-measuring a
-settled claim is not a result, and the chapter is closed: 40 merging claims, 30 settled, 3
+settled claim is not a result, and the chapter is closed: 43 merging claims, 30 settled, 6
 hypothesis, 7 refuted, with `scripts/build_claims_register.py` as the script of record
-(`--self-test` proves its downgrade rule can fire). The register file itself now holds **50**
-rows — `C35`–`C42` are strategy 6 (§1.39), `C44` a project-wide scope row and `C50` the
-cross-family comparison (§1.41); none is a merging claim, so none moves this tally; the register counts what the *document* claims, not what the chapter contains.
+(`--self-test` proves its downgrade rule can fire). The register file itself now holds **56**
+rows — `C35`–`C42` are strategy 6 (§1.39), `C44` a project-wide scope row, `C50` the
+cross-family comparison (§1.41) and `C54`–`C56` the §1.43/§1.44 registrations; none is a merging claim, so none moves this tally; the register counts what the *document* claims, not what the chapter contains.
 
 **No merging experiment is open, and none should be added.** The three that were are closed:
 `C22` by §1.36's P2 (with magnitude held fixed, Fisher weighting contributes nothing and at larger

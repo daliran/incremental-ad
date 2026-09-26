@@ -152,7 +152,8 @@ class ContinualFineTuningPipeline(Pipeline):
             help="batch size for Fisher estimation only; None keeps the training batch size, "
             "which is today's behaviour and what every published number used. Set 1 for the "
             "empirical Fisher: `diagonal_fisher` squares the gradient of a BATCH-MEAN loss, "
-            "which at a converged minimum is minibatch noise scaling as 1/sqrt(B), so lambda's "
+            "so E[F_hat] = g^2 + sigma^2/B: at a converged minimum (g ~ 0) it is minibatch noise "
+            "scaling as sigma^2/B, so lambda's "
             "numerator is suppressed by a dataloader property rather than by the model. Note "
             "that --fisher_batches counts BATCHES, so lowering this lowers the sample count "
             "unless you raise that too.",

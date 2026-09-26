@@ -579,7 +579,7 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**56 claims: 36 supported, 11 hypothesis, 9 refuted.** The rule downgraded
+**56 claims: 36 supported, 6 hypothesis, 14 refuted.** The rule downgraded
 **3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
@@ -588,7 +588,7 @@ now marked as a hypothesis in place.
 ⚠️ **43 of the 56 are merging claims; `C35`–`C42`, `C44`, `C50` and `C54`–`C56` are not.** `C43` restates finished results in GRR; `C45`–`C49` are the supervisor's merge rules (§1.40, §1.40b), `C51`–`C53` AD α selection on a calibration prefix (§1.42), added at the user's request under the freeze's scope note. `C44` is a project-wide scope row (§0.1c), and `C50` compares every family at once (§1.41). The task-arithmetic chapter
 proper — the 43 without `C43`, `C45`–`C49` and `C51`–`C53` — is **34: 25 supported, 2 hypothesis (`C03`, `C23`),
 7 refuted**; it read 24/3/7 until `C31` was settled (§1.36). CLAUDE.md's freeze quotes all 43
-merging rows: 30 supported, 6 hypothesis, 7 refuted.
+merging rows: 30 supported, 3 hypothesis, 10 refuted.
 Strategy 6 (§1.39) is a sequential method, and its rows are counted here because this register
 covers the *document*, not because the freeze moved.
 
@@ -600,11 +600,11 @@ covers the *document*, not because the freeze moved.
 | `C23` | OPCM helps on exchange_rate at n<=3 because it acts as a recency filter | 1.35, 1.36 | exchange_rate | §1.35 asserts it as a finding - 'OPCM is not a merge improvement; it is a recency filter, and it pays exactly where recency pays' - on ONE dataset with no test that could have broken it. |
 | `C36` | `diagonal_fisher`'s batch-mean gradient suppresses λ\* by 6–24× at every step past the first | 1.39b | ETTm2 | The algebra is exact and the differential exponent is measured with a negative control, but the B-sweep was run on **one** dataset. The *consequence* is broader — all eight forecasting configurations were re-run at B = 1 and every one improved — yet the mechanism itself rests on ETTm2 n = 3. |
 | `C46` | Removing part of each task vector helps only where old data hurts | 1.40 | exchange_rate | Every forecasting win of TIES and TSV is on exchange_rate, as was OPCM's (`C32`) — three removal operators, one dataset. One dataset cannot separate the pattern from anything else particular to it, and two of the four wins are weak. |
-| `C51` | On SWaT, a ≥10% labelled calibration prefix recovers at least half of the oracle gain for task arithmetic | 1.42 | SWaT | Registered 2026-09-25, before the runs; not yet measured. |
-| `C52` | The oracle gain recovered by calibration rises with the calibration fraction and levels off | 1.42 | SWaT, PSM | Registered 2026-09-25, before the runs; not yet measured. |
-| `C53` | At a calibrated α the five merge rules rank as they do at the distance-matched α | 1.42 | SWaT, PSM | Registered 2026-09-25, before the runs; not yet measured. |
-| `C54` | The prequential ranking of merge, chain and newest specialist agrees with the final-test-block ranking | 1.43 | five forecasting datasets | Registered 2026-09-25, before the runs; not yet measured. |
-| `C55` | Where the prequential and final-test rankings disagree, the chain does better prequentially | 1.43 | five forecasting datasets | Registered 2026-09-25, before the runs; not yet measured. |
+| `C51` | On SWaT, a ≥10% labelled calibration prefix recovers at least half of the oracle gain for task arithmetic | 1.42 | SWaT | **Refuted** by §1.42's P1: pooled SWaT recovery 0.265 / −0.109 / 0.092 at 10 / 20 / 30%. |
+| `C52` | The oracle gain recovered by calibration rises with the calibration fraction and levels off | 1.42 | SWaT, PSM | **Refuted** by §1.42's P2: 0.862, 0.487, −0.006, 0.827 at 5–30%; not monotone. |
+| `C53` | At a calibrated α the five merge rules rank as they do at the distance-matched α | 1.42 | SWaT, PSM | **Refuted** by §1.42's P3: ρ ≥ 0.8 on 0, 0 and 1 of 6 configurations at 10, 20, 30%. |
+| `C54` | The prequential ranking of merge, chain and newest specialist agrees with the final-test-block ranking | 1.43 | five forecasting datasets | **Refuted** by §1.43's P1: 7 of 15 configurations, against ≥ 8. |
+| `C55` | Where the prequential and final-test rankings disagree, the chain does better prequentially | 1.43 | five forecasting datasets | **Refuted**, in the opposite direction: the chain moves up in 3 of 15 disagreeing pairs. |
 | `C56` | SMD or ETTh2-injected offers AD headroom that PSM and SWaT do not | 1.44 | PSM, SWaT (calibration) | Registered 2026-09-25; the screen is not yet run and its threshold awaits the author's decision. |
 | `C37` | The residual left after correcting the estimator is Eq. 20's at-a-minimum asymmetry | 1.39b | ETTh1,ETTh2,ETTm2,exchange_rate | Slope +0.972 says it is correctly *scaled*, but r² = 0.342 leaves two thirds of the per-cell variation unexplained, and **no test has been run that could have overturned it**. |
 
@@ -5749,9 +5749,77 @@ labelled data does it take?
 - **P3.** At every c ≥ 10%, the calibrated ranking matches §1.40's distance-matched ranking
   (ρ ≥ 0.8) on **at least 4 of the 6** configurations.
 
-**Results**
+**Results — all three predictions REFUTED. A small labelled prefix is not a reliable α selector,
+and on PSM the validation rule it was meant to replace does better.**
 
-_Pending — registered before the runs._
+> **Provenance.** 90/90 jobs, 540 results (`merge_calibration_runs/`), `calibration_report.py` →
+> `calibration/calibration{,_split,_ranking,_predictions}.csv`. Checked against published values:
+> - The base at α = 0 reproduces every run's own `baseline/test` window AUROC to ≤ 8e-9.
+> - TA at α = 1 on the full test set is within 4.5e-5 AUROC (0.006%, a tenth of the floor) of
+>   §1.40's TA column.
+> - The split code, applied to the whole set, reproduced the published AUROC to 1e-9 in every job.
+
+**The splits.**
+- **SWaT** (35 events): the first 5% and the first 10% hold the **same 8 events**, so going from
+  5% to 10% adds only normal data; 20% holds 9 events and 30% holds 17.
+- **PSM** (72 events): 5, 12, 22 and 23 events at 5, 10, 20 and 30%. At 30% the cut landed inside
+  an anomaly and moved **+500 points** to its end.
+- Every split drops the 99 windows that straddle the cut.
+
+**Recovered fraction of the oracle gain, task arithmetic** (seed means; "—" where the oracle gain
+is inside the evaluation part's own floor, which is how §1.42 defines it):
+
+| dataset | n | oracle gain c = 5 / 10 / 20 / 30% | own floor | calibrated recovers c = 5 / 10 / 20 / 30% | validation recovers c = 5 / 10 / 20 / 30% |
+|---|---|---|---|---|---|
+| SWaT | 2 | 0.42% / 0.19% / 0.03% / 0.03% | 0.09–0.10% | 0.53 / −0.32 / — / — | 0.30 / 0.34 / — / — |
+| SWaT | 3 | 0.57% / 0.35% / 0.24% / 0.21% | 0.04–0.06% | 0.85 / 0.62 / 0.36 / 0.60 | 0.00 / 0.00 / 0.00 / 0.00 |
+| SWaT | 5 | 0.73% / 0.54% / 0.53% / 0.45% | 0.14–0.19% | 0.50 / 0.24 / 0.07 / 0.41 | 0.00 / 0.00 / 0.00 / 0.00 |
+| PSM | 2 | 4.42% / 5.33% / 6.54% / 1.55% | 0.36–0.52% | 0.81 / 0.44 / 0.00 / 1.00 | 0.72 / 0.65 / 0.62 / 1.00 |
+| PSM | 3 | 3.55% / 4.12% / 4.95% / 1.63% | 0.11–0.76% | 1.00 / 0.75 / 0.00 / 0.94 | 0.83 / 0.75 / 0.73 / 1.00 |
+| PSM | 5 | 2.85% / 3.47% / 4.45% / 1.80% | 0.47–0.82% | 0.92 / 0.33 / 0.00 / 0.88 | 0.93 / 0.82 / 0.77 / 0.88 |
+
+The published floors are 0.087% (SWaT) and 0.068% (PSM). **The evaluation parts' own floors are
+up to 12× larger on PSM**, as §1.42 anticipated. That matters for every PSM verdict below.
+
+- **P1 — refuted.** Pooled over SWaT's three configurations, calibration recovers **0.622 at 5%,
+  but 0.265 at 10%, −0.109 at 20% and 0.092 at 30%**, against ≥ 0.5 at every c ≥ 10%. The
+  validation rule recovers 0.072 / 0.060 / 0.005 / −0.037, in line with the ~2% expected. On
+  SWaT's n = 3 and n = 5 it picks α = 0 on every seed, i.e. it declines to merge. The gain to
+  recover on SWaT is itself small: 0.03–0.73%, i.e. 0.3–10× the evaluation part's own floor, and
+  inside it on n = 2 at 20% and 30%.
+- **P2 — refuted.** TA pooled over all six configurations: **0.862, 0.487, −0.006, 0.827** at 5,
+  10, 20, 30%. The recovered fraction does not rise with c. It falls to zero at 20% because, on
+  all three PSM configurations and every seed, the calibration part at 20% prefers the **base**
+  (α = 0), which recovers nothing.
+- **P3 — refuted.** The calibrated ranking of the five rules matches §1.40's distance-matched
+  ranking (Spearman ρ ≥ 0.8) on **0 of 6 configurations at 10%, 0 of 6 at 20% and 1 of 6 at 30%**
+  (SWaT n = 5). Many of the calibrated orderings are separated by less than the own floor, so ρ
+  ranks noise as well as signal. The one steady pattern: TSV is the calibrated best on 14 of 24
+  (configuration, c) cells, consistent with `C47`'s AD upper bound.
+
+**Calibrated against the other selectors**, all rules, counted against the own floor
+(better / tie / worse, 30 rule-configurations per c):
+
+| c | vs validation | vs distance-matched |
+|---|---|---|
+| 5% | 19 / 7 / 4 | 5 / 19 / 6 |
+| 10% | 5 / 13 / 12 | 2 / 12 / 16 |
+| 20% | 3 / 10 / 17 | 2 / 10 / 18 |
+| 30% | 5 / 22 / 3 | 5 / 23 / 2 |
+
+**What this says.** A labelled prefix is not a dependable α selector here. It beats validation
+selection only at 5%, which on SWaT is the same 8 events as 10%. At 10–20% it is worse more often
+than better, and at 30% it mostly ties. **The split is by dataset:**
+- On **SWaT** calibration beats validation (25 better / 26 tie / 9 worse over all c), because
+  validation there refuses to merge.
+- On **PSM** it loses (7 / 26 / 27), because validation's steady α = 0.5 already recovers
+  0.62–1.00 of a large gain.
+
+§1.12's conclusion that validation reconstruction cannot pick α on AD is therefore
+**scoped by this measurement rather than overturned**: it holds on SWaT, where the gain is small,
+and on PSM validation selection recovers most of the oracle gain on the evaluation part. The
+early prefix is simply a poor sample of each recording's anomalies. The first 20% of PSM ranks
+the base above every merge that the rest of the recording rewards.
 
 ### 1.43 Forecasting: prequential evaluation (registration)
 
@@ -5799,9 +5867,64 @@ everywhere):
 - **P2.** Among the pairwise orderings that disagree and involve the chain, the chain ranks
   **higher prequentially** than on the final test block in the majority.
 
-**Results**
+**Results — both predictions REFUTED. The ranking depends on how it is scored, and the chain,
+which wins the final test block, is the method prequential scoring demotes.**
 
-_Pending — registered before the runs._
+> **Provenance.** 54 jobs (6 re-run after the pairing check refused them: the ETTh1 and
+> exchange_rate n = 3 chain runs predate `dataset_series_fraction` and recorded no value; its
+> default, 1.0, is exactly what the merge runs recorded). `prequential_runs/`, 54 results;
+> `prequential_report.py` → `prequential/prequential{,_predictions}.csv`. In every job the chain
+> rescored by the script matched the chain run's own recorded value at every k (tolerance 1e-5).
+
+"<" reads "lower MSE than". The prequential order is by mean rank over k; the final order is
+§1.26's test block. "decisive" counts the pairwise gaps, out of 3, that exceed the dataset's floor.
+
+| dataset | n | prequential order | final-test order | pairwise agreement | decisive pairs: preq / final |
+|---|---|---|---|---|---|
+| ETTh1 | 2 | merge < specialist < chain | chain < specialist < merge | 0/3 | 0 / 2 |
+| ETTh1 | 3 | merge < chain < specialist | chain < specialist < merge | 1/3 | 0 / 3 |
+| ETTh1 | 5 | merge < specialist < chain | chain < merge < specialist | 1/3 | 2 / 0 |
+| ETTh2 | 2 | merge < specialist < chain | chain < merge < specialist | 1/3 | 3 / 3 |
+| ETTh2 | 3 | merge < chain < specialist | chain < merge < specialist | 2/3 | 3 / 3 |
+| ETTh2 | 5 | chain < specialist < merge | chain < merge < specialist | 2/3 | 2 / 3 |
+| ETTm2 | 2 | merge < specialist < chain | chain < specialist < merge | 0/3 | 2 / 2 |
+| ETTm2 | 3 | chain < merge < specialist | chain < merge < specialist | 3/3 | 2 / 3 |
+| ETTm2 | 5 | specialist < chain < merge | merge < specialist < chain | 1/3 | 1 / 2 |
+| PSM-forecast | 2 | merge < specialist < chain | merge < chain < specialist | 2/3 | 2 / 3 |
+| PSM-forecast | 3 | merge < chain < specialist | chain < merge < specialist | 2/3 | 2 / 3 |
+| PSM-forecast | 5 | specialist < chain < merge | merge < specialist < chain | 1/3 | 3 / 3 |
+| SWaT-forecast | 2 | specialist < merge < chain | chain < merge < specialist | 0/3 | 0 / 2 |
+| SWaT-forecast | 3 | specialist < merge < chain | specialist < chain < merge | 2/3 | 0 / 0 |
+| SWaT-forecast | 5 | chain < specialist < merge | specialist < chain < merge | 2/3 | 0 / 0 |
+| exchange | 2 | chain < merge < specialist | chain < specialist < merge | 2/3 | 2 / 2 |
+| exchange | 3 | chain < specialist < merge | chain < merge < specialist | 2/3 | 1 / 2 |
+| exchange | 5 | chain < specialist < merge | merge < chain < specialist | 1/3 | 3 / 3 |
+
+- **P1 — refuted.** At least 2 of 3 pairwise orderings agree in **7 of 15** configurations,
+  against the registered ≥ 8. Two configurations agree on nothing (ETTh1 n = 2, ETTm2 n = 2), and
+  only one agrees completely (ETTm2 n = 3).
+- **P2 — refuted, and in the opposite direction.** Of the 15 disagreeing pairwise orderings
+  that involve the chain, the chain ranks higher prequentially in only **3**. The chain ranks
+  first on the final test block in **11 of 15** configurations, but prequentially in **5**
+  (ETTh2 n = 5, ETTm2 n = 3 and exchange_rate at every n). **The merge ranks first
+  prequentially in 8 of 15**: ETTh1 at every n, ETTh2 n = 2, 3, ETTm2 n = 2 and PSM-forecast
+  n = 2, 3.
+
+**What this says.** §1.26's ranking is a statement about one test block, and it does not transfer
+to scoring the next period. The merge's selected α is 0.2–1 on almost every step: it stays close
+to θ₀. Whether that is why it scores better on the next period is not tested here, and no
+mechanism is claimed. exchange_rate is the one
+dataset where the chain wins under both scorings.
+
+⚠️ **Caveats, measured:**
+- **The chain runs use their own θ₀.** They load their own base, a separately trained model with
+  the same configuration and seed (`shared_base = False` in every result), not the merge runs'.
+  On the same test block the two bases differ by a median 4.8% and at most 15.6% outside
+  SWaT-forecast, and by up to 84% on SWaT-forecast. That is seed-level spread of the kind the floors measure, so it applies equally
+  to §1.26.
+- **Small targets.** Each period's validation slice is small (104 windows on exchange_rate
+  n = 5), which is why the counts, not the orderings, carry the result.
+- **n = 2 has a single k**, and there chain and specialist are both one fine-tune from θ₀.
 
 ### 1.44 AD headroom screen — SMD and ETTh2-injected (registration)
 

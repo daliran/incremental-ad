@@ -1,0 +1,25 @@
+dataset,n_segments,c,calibrated_order,distance_matched_order,spearman_rho,matches
+PSM,2,c05,tsv > ta > dare > iso_c > ties,ta > ties > tsv > dare > iso_c,0.2,False
+PSM,2,c10,dare > ta > tsv > iso_c > ties,ta > ties > tsv > dare > iso_c,0.0,False
+PSM,2,c20,tsv > iso_c > ties > ta > dare,ta > ties > tsv > dare > iso_c,-0.2,False
+PSM,2,c30,iso_c > dare > ta > tsv > ties,ta > ties > tsv > dare > iso_c,-0.7,False
+PSM,3,c05,tsv > dare > ta > iso_c > ties,ties > dare > ta > tsv > iso_c,-0.3,False
+PSM,3,c10,dare > ta > iso_c > ties > tsv,ties > dare > ta > tsv > iso_c,0.2,False
+PSM,3,c20,tsv > ties > iso_c > ta > dare,ties > dare > ta > tsv > iso_c,-0.2,False
+PSM,3,c30,iso_c > tsv > ta > dare > ties,ties > dare > ta > tsv > iso_c,-1.0,False
+PSM,5,c05,tsv > dare > ta > iso_c > ties,dare > ties > ta > tsv > iso_c,0.0,False
+PSM,5,c10,tsv > ties > iso_c > ta > dare,dare > ties > ta > tsv > iso_c,-0.5,False
+PSM,5,c20,tsv > iso_c > ties > ta > dare,dare > ties > ta > tsv > iso_c,-0.8,False
+PSM,5,c30,iso_c > dare > ta > tsv > ties,dare > ties > ta > tsv > iso_c,-0.3,False
+SWaT,2,c05,tsv > ties > dare > ta > iso_c,ta > ties > tsv > dare > iso_c,0.3,False
+SWaT,2,c10,ties > tsv > iso_c > dare > ta,ta > ties > tsv > dare > iso_c,-0.1,False
+SWaT,2,c20,iso_c > dare > tsv > ties > ta,ta > ties > tsv > dare > iso_c,-1.0,False
+SWaT,2,c30,iso_c > ties > tsv > dare > ta,ta > ties > tsv > dare > iso_c,-0.6,False
+SWaT,3,c05,tsv > dare > ta > ties > iso_c,ta > dare > ties > tsv > iso_c,0.3,False
+SWaT,3,c10,tsv > dare > ta > ties > iso_c,ta > dare > ties > tsv > iso_c,0.3,False
+SWaT,3,c20,tsv > ta > ties > dare > iso_c,ta > dare > ties > tsv > iso_c,0.3,False
+SWaT,3,c30,ta > tsv > ties > dare > iso_c,ta > dare > ties > tsv > iso_c,0.6,False
+SWaT,5,c05,tsv > ta > dare > ties > iso_c,ta > dare > tsv > ties > iso_c,0.7,False
+SWaT,5,c10,tsv > ta > dare > ties > iso_c,ta > dare > tsv > ties > iso_c,0.7,False
+SWaT,5,c20,tsv > dare > ta > ties > iso_c,ta > dare > tsv > ties > iso_c,0.6,False
+SWaT,5,c30,dare > ta > ties > tsv > iso_c,ta > dare > tsv > ties > iso_c,0.8,True

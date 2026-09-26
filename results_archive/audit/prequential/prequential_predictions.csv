@@ -1,0 +1,3 @@
+prediction,statement,observed,outcome
+P1,>= 2 of 3 pairwise orderings agree in >= 8 of 15 configurations,7 of 15,refuted
+P2,"among disagreeing pairwise orderings involving the chain, the chain ranks higher prequentially in the majority",3 of 15,refuted

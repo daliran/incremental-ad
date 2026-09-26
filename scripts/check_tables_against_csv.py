@@ -1454,6 +1454,40 @@ CHECKS += [
      "adaptive_lambda/adaptive_lambda_test.csv", _FULL, "own_spread_pct", 0.006),
 ]
 
+# §1.42's recovery table: every (dataset, n, c) cell of the three quantity columns. A "—" cell is
+# the protocol's "undefined" and is not bound; the CSV's blank there is checked by the section's
+# structural check below.
+_CAL_C = ("c05", "c10", "c20", "c30")
+_CAL_COLS = ((0, "oracle", "oracle_gain_pct", r"([+−-]?[\d.]+)%"),
+             (2, "calibrated", "recovered_fraction", r"([+−-]?[\d.]+)"),
+             (3, "validation", "recovered_fraction", r"([+−-]?[\d.]+)"))
+
+
+def _cal_check(dataset, n, col, j, selector, field, cell):
+    row = rf"\| {dataset} \| {n} \| " + r"[^|]+\| " * col
+    inner = r"(?:[^/|]+/ )" * j
+    return (f"§1.42 {dataset} n={n} {selector} {field} {_CAL_C[j]}", row + inner + cell,
+            "calibration/calibration.csv",
+            {"dataset": dataset, "n_segments": str(n), "c": _CAL_C[j], "rule": "ta",
+             "selector": selector}, field, 0.006)
+
+
+# The four "—" cells (SWaT n=2 at 20/30%, both recovery columns) are the protocol's "undefined";
+# the structural check binds them to the CSV's blank instead.
+_CAL_UNDEFINED = {("SWaT", 2, 2), ("SWaT", 2, 3)}
+CHECKS += [_cal_check(d, n, col, j, sel, field, cell)
+           for d in ("SWaT", "PSM") for n in (2, 3, 5)
+           for col, sel, field, cell in _CAL_COLS for j in range(4)
+           if not (col > 0 and (d, n, j) in _CAL_UNDEFINED)]
+
+# §1.43: the pairwise-agreement column, per configuration.
+CHECKS += [
+    (f"§1.43 {d} n={n} agreement", rf"\| {re.escape(d)} \| {n} \| [^|]+\| [^|]+\| (\d)/3 \|",
+     "prequential/prequential.csv", {"dataset": d, "n": str(n)}, "pairs_agree", 0.0001)
+    for d in ("ETTh1", "ETTh2", "ETTm2", "PSM-forecast", "SWaT-forecast", "exchange")
+    for n in (2, 3, 5)
+]
+
 # §0.1c — joint-reference sensitivity. Every number is bound; the "first on 1 of 27" count is
 # checked too, because it is the whole of the argument that the configuration was not
 # test-tuned, and a wrong count there would overstate the reassurance.
@@ -1761,6 +1795,70 @@ def check_global_margin_count(text: str, audit: Path) -> int:
     print(f"  {'ok  ' if ok else 'FAIL'}      document {match.group(2)} of {match.group(1)}, "
           f"CSV {decisive} of {len(runners)}")
     return 0 if ok else 1
+
+
+def check_evaluation_sections(text: str, audit: Path) -> int:
+    """§1.42/§1.43: text cells and registered-prediction verdicts against their CSVs.
+
+    The numeric checks bind numbers; these bind what numbers cannot — an ordering written as
+    text, a verdict count, a blank "undefined" cell, and whether each registered prediction is
+    reported with the outcome its predictions CSV records.
+    """
+    print("\nEVALUATION SECTIONS — §1.42/§1.43 text cells and prediction verdicts vs their CSVs:")
+    problems = 0
+
+    def fail(msg):
+        nonlocal problems
+        problems += 1
+        print(f"  FAIL      {msg}")
+
+    for section, rel in (("§1.42", "calibration/calibration_predictions.csv"),
+                         ("§1.43", "prequential/prequential_predictions.csv")):
+        path = audit / rel
+        if not path.is_file():
+            print(f"  SKIP      no {rel}")
+            continue
+        body = section_slice(text, section)
+        for row in csv.DictReader(path.open(encoding="utf-8")):
+            want = row["outcome"].upper()
+            if not re.search(rf"\*\*{row['prediction']} — {want}", body, re.I):
+                fail(f"{section} {row['prediction']} is not reported as {want}")
+    path = audit / "prequential" / "prequential.csv"
+    if path.is_file():
+        body = section_slice(text, "§1.43")
+        for row in csv.DictReader(path.open(encoding="utf-8")):
+            cells = (f"| {row['dataset']} | {row['n']} | {row['preq_order']} | "
+                     f"{row['final_order']} | {row['pairs_agree']}/3 | "
+                     f"{row['preq_decisive_pairs']} / {row['final_decisive_pairs']} |")
+            if cells not in body:
+                fail(f"§1.43 row {row['dataset']} n={row['n']} does not match prequential.csv")
+    path = audit / "calibration" / "calibration.csv"
+    if path.is_file():
+        rows = list(csv.DictReader(path.open(encoding="utf-8")))
+        body = section_slice(text, "§1.42")
+        for c, label in zip(_CAL_C, ("5%", "10%", "20%", "30%")):
+            cal = [r for r in rows if r["c"] == c and r["selector"] == "calibrated"]
+            counts = []
+            for field in ("vs_validation", "vs_distance_matched"):
+                counts.append(" / ".join(str(sum(r[field] == v for r in cal))
+                                         for v in ("better", "tie", "worse")))
+            cells = f"| {label} | {counts[0]} | {counts[1]} |"
+            if cells not in body:
+                fail(f"§1.42 verdict-count row {label} does not match calibration.csv ({cells})")
+        # Both directions: a blank ("undefined") CSV cell must read "—", and a "—" must be blank.
+        for r in rows:
+            if r["rule"] != "ta" or r["selector"] not in ("calibrated", "validation"):
+                continue
+            column = 5 if r["selector"] == "calibrated" else 6
+            row = re.search(rf"\| {r['dataset']} \| {r['n_segments']} \|[^\n]*", body)
+            j = _CAL_C.index(r["c"])
+            cell = row.group(0).split("|")[column].split("/")[j].strip() if row else None
+            if (r["recovered_fraction"] == "") != (cell == "—"):
+                fail(f"§1.42 {r['dataset']} n={r['n_segments']} {r['c']} {r['selector']}: CSV "
+                     f"{r['recovered_fraction'] or 'undefined'!r}, document {cell!r}")
+    if not problems:
+        print("  ok        every row, count, blank and verdict matches")
+    return problems
 
 
 def check_stale_claim_text(paths: list[Path]) -> int:
@@ -2638,6 +2736,9 @@ def main() -> None:
     if count:
         drift += count
     count = check_global_margin_count(text, args.audit_dir)
+    if count:
+        drift += count
+    count = check_evaluation_sections(text, args.audit_dir)
     if count:
         drift += count
 

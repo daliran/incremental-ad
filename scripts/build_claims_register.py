@@ -504,31 +504,38 @@ CLAIMS: list[tuple] = [
      "rank claim holds only among methods that do not retain the full history."),
     ("C51", "On SWaT, choosing alpha on a >=10% labelled calibration prefix recovers at least half "
      "of the oracle gain for task arithmetic",
-     "1.42", "SWaT", 1, "n/a", "measurement", "no", "hypothesis",
-     "REGISTERED 2026-09-25, NOT YET RUN. P1 of §1.42: recovered fraction (selected - base) / "
-     "(oracle - base) on seed means, pooled over SWaT n=2,3,5, at every c in {10,20,30}%."),
+     "1.42", "SWaT", 1, "yes", "measurement", "yes", "refuted",
+     "P1 of §1.42, registered before the runs, REFUTED: pooled over SWaT n=2,3,5 calibration "
+     "recovers 0.622 at 5% but 0.265 / -0.109 / 0.092 at 10 / 20 / 30%. Validation recovers "
+     "0.072 / 0.060 / 0.005 / -0.037 (it picks alpha=0 on n=3,5). SWaT's oracle gain is itself "
+     "0.03-0.73%. 90 jobs, 540 results; base reproduces baseline/test to <= 8e-9."),
     ("C52", "The oracle gain recovered by calibration rises with the calibration fraction and "
      "levels off",
-     "1.42", "SWaT,PSM", 2, "n/a", "measurement", "no", "hypothesis",
-     "REGISTERED 2026-09-25, NOT YET RUN. P2 of §1.42: TA, pooled over six configurations; rises "
-     "5->10->20% and the 20->30% rise is smaller than the 5->10% rise."),
+     "1.42", "SWaT,PSM", 2, "yes", "measurement", "yes", "refuted",
+     "P2 of §1.42 REFUTED: TA pooled over six configurations recovers 0.862 / 0.487 / -0.006 / "
+     "0.827 at 5 / 10 / 20 / 30%. It falls to zero at 20% because on all three PSM "
+     "configurations and every seed the 20% prefix prefers the base (alpha=0)."),
     ("C53", "At a calibrated alpha the five merge rules rank as they do at the distance-matched "
      "alpha",
-     "1.42", "SWaT,PSM", 2, "n/a", "measurement", "no", "hypothesis",
-     "REGISTERED 2026-09-25, NOT YET RUN. P3 of §1.42: Spearman rho >= 0.8 between the calibrated "
-     "and §1.40 distance-matched orderings on at least 4 of 6 configurations, at every c >= 10%."),
+     "1.42", "SWaT,PSM", 2, "yes", "measurement", "yes", "refuted",
+     "P3 of §1.42 REFUTED: rho >= 0.8 on 0 of 6 configurations at 10%, 0 of 6 at 20%, 1 of 6 "
+     "at 30%. Many calibrated orderings are inside the evaluation part's own floor (up to 12x "
+     "the published one on PSM), so rho ranks noise as well as signal."),
     ("C54", "The prequential ranking of merge, chain and newest specialist agrees with the "
      "final-test-block ranking",
-     "1.43", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "n/a", "measurement", "no",
-     "hypothesis",
-     "REGISTERED 2026-09-25, NOT YET RUN. P1 of §1.43: >= 2 of 3 pairwise orderings agree in >= 8 "
-     "of 15 configurations; prequential ranking by mean rank over k."),
+     "1.43", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "yes", "measurement", "yes",
+     "refuted",
+     "P1 of §1.43 REFUTED: >= 2 of 3 pairwise orderings agree in 7 of 15 configurations "
+     "(registered >= 8); two agree on nothing, one completely. 54 jobs, chain rescoring matched "
+     "each chain run's own record at every k."),
     ("C55", "Where the prequential and final-test rankings disagree, the chain does better "
      "prequentially",
-     "1.43", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "n/a", "measurement", "no",
-     "hypothesis",
-     "REGISTERED 2026-09-25, NOT YET RUN. P2 of §1.43, over disagreeing pairwise orderings that "
-     "involve the chain."),
+     "1.43", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "yes", "measurement", "yes",
+     "refuted",
+     "P2 of §1.43 REFUTED, and in the opposite direction: of 15 disagreeing pairwise orderings "
+     "involving the chain it ranks higher prequentially in 3. The chain is first on the final "
+     "test block in 11 of 15 configurations but prequentially in 5; the merge is first "
+     "prequentially in 8. No mechanism is claimed."),
     ("C56", "SMD or ETTh2-injected offers AD headroom that PSM and SWaT do not",
      "1.44", "PSM,SWaT", 2, "n/a", "measurement", "no", "hypothesis",
      "REGISTERED 2026-09-25, NOT YET RUN. Screen at seed 42: headroom = (AUROC_joint - AUROC_base) "

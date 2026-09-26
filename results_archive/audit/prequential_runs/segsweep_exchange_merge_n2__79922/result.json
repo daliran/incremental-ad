@@ -1,0 +1,89 @@
+{
+  "source_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/segsweep_exchange_merge_n2/79922",
+  "chain_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/segsweep_exchange_seq_n2/79936",
+  "n_shards": 2,
+  "seed": 123,
+  "eval_seed": 124,
+  "metric": "forecast/mse",
+  "alpha_grid": [
+    0.1,
+    0.2,
+    0.3,
+    0.5,
+    0.7,
+    1.0,
+    1.5,
+    2.0,
+    3.0
+  ],
+  "shared_base": false,
+  "not_scored": {
+    "joint": "no model exists after period k (trained once on all periods)",
+    "window": "only the final model per budget W exists"
+  },
+  "steps": [
+    {
+      "k": 0,
+      "target_period": 1,
+      "n_target_windows": 332,
+      "n_union_windows": 1043,
+      "base": 1.735325574874878,
+      "specialist": 1.3328173160552979,
+      "chain": 1.142382264137268,
+      "chain_csv": 1.142382264137268,
+      "merge": 1.3328173160552979,
+      "merge_alpha": 1.0,
+      "merge_curve": [
+        {
+          "alpha": 0.1,
+          "union_mse": 0.21878479421138763,
+          "target_mse": 1.6812223196029663
+        },
+        {
+          "alpha": 0.2,
+          "union_mse": 0.19378265738487244,
+          "target_mse": 1.6296323537826538
+        },
+        {
+          "alpha": 0.3,
+          "union_mse": 0.17136873304843903,
+          "target_mse": 1.5808860063552856
+        },
+        {
+          "alpha": 0.5,
+          "union_mse": 0.13485488295555115,
+          "target_mse": 1.4927358627319336
+        },
+        {
+          "alpha": 0.7,
+          "union_mse": 0.10984018445014954,
+          "target_mse": 1.4180691242218018
+        },
+        {
+          "alpha": 1.0,
+          "union_mse": 0.0924220159649849,
+          "target_mse": 1.3328173160552979
+        },
+        {
+          "alpha": 1.5,
+          "union_mse": 0.0966501384973526,
+          "target_mse": 1.2668826580047607
+        },
+        {
+          "alpha": 2.0,
+          "union_mse": 0.12314741313457489,
+          "target_mse": 1.2899760007858276
+        },
+        {
+          "alpha": 3.0,
+          "union_mse": 0.21468134224414825,
+          "target_mse": 1.507289171218872
+        }
+      ]
+    }
+  ],
+  "metrics": {},
+  "schema": 1,
+  "code_fingerprint": "2ada9e5b9ebfc59b",
+  "completed_at": "2026-09-25T23:06:23"
+}

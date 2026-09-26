@@ -1,0 +1,4 @@
+prediction,statement,observed,outcome
+P1,"TA, SWaT pooled: calibrated recovers >= 0.5 of the oracle gain at every c >= 10%","calibrated c05=0.622, c10=0.265, c20=-0.109, c30=0.092 | validation c05=0.072, c10=0.060, c20=0.005, c30=-0.037",refuted
+P2,TA pooled over 6 configurations: rises 5->10->20% and the 20->30% rise is smaller than the 5->10% rise,"c05=0.862, c10=0.487, c20=-0.006, c30=0.827",refuted
+P3,calibrated ranking matches §1.40's distance-matched ranking (rho >= 0.8) on >= 4 of 6 configurations at every c >= 10%,"c10: 0 of 6, c20: 0 of 6, c30: 1 of 6",refuted

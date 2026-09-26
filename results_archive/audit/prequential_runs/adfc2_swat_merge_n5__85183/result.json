@@ -1,0 +1,266 @@
+{
+  "source_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_swat_merge_n5/85183",
+  "chain_run": "/work/tesi_ddellacasaventurelli01/incremental-ad/runs/adfc2_swat_sequential_n5/85186",
+  "n_shards": 5,
+  "seed": 7,
+  "eval_seed": 8,
+  "metric": "forecast/mse",
+  "alpha_grid": [
+    0.1,
+    0.2,
+    0.3,
+    0.5,
+    0.7,
+    1.0,
+    1.5,
+    2.0,
+    3.0
+  ],
+  "shared_base": false,
+  "not_scored": {
+    "joint": "no model exists after period k (trained once on all periods)",
+    "window": "only the final model per budget W exists"
+  },
+  "steps": [
+    {
+      "k": 0,
+      "target_period": 1,
+      "n_target_windows": 7306,
+      "n_union_windows": 44312,
+      "base": 0.08658317476511002,
+      "specialist": 0.028739437460899353,
+      "chain": 0.02838224731385708,
+      "chain_csv": 0.02838224731385708,
+      "merge": 0.03972772881388664,
+      "merge_alpha": 0.5,
+      "merge_curve": [
+        {
+          "alpha": 0.1,
+          "union_mse": 0.018715566024184227,
+          "target_mse": 0.07193143665790558
+        },
+        {
+          "alpha": 0.2,
+          "union_mse": 0.017050234600901604,
+          "target_mse": 0.06010907143354416
+        },
+        {
+          "alpha": 0.3,
+          "union_mse": 0.01607060432434082,
+          "target_mse": 0.05106944590806961
+        },
+        {
+          "alpha": 0.5,
+          "union_mse": 0.015483658760786057,
+          "target_mse": 0.03972772881388664
+        },
+        {
+          "alpha": 0.7,
+          "union_mse": 0.016057973727583885,
+          "target_mse": 0.03312418982386589
+        },
+        {
+          "alpha": 1.0,
+          "union_mse": 0.01907411403954029,
+          "target_mse": 0.028739437460899353
+        },
+        {
+          "alpha": 1.5,
+          "union_mse": 0.03201597183942795,
+          "target_mse": 0.03973454609513283
+        },
+        {
+          "alpha": 2.0,
+          "union_mse": 0.06095194071531296,
+          "target_mse": 0.05765863507986069
+        },
+        {
+          "alpha": 3.0,
+          "union_mse": 0.20157183706760406,
+          "target_mse": 0.1508590579032898
+        }
+      ]
+    },
+    {
+      "k": 1,
+      "target_period": 2,
+      "n_target_windows": 7306,
+      "n_union_windows": 51618,
+      "base": 0.04767479747533798,
+      "specialist": 0.029922842979431152,
+      "chain": 0.018117791041731834,
+      "chain_csv": 0.018117791041731834,
+      "merge": 0.02814647927880287,
+      "merge_alpha": 0.5,
+      "merge_curve": [
+        {
+          "alpha": 0.1,
+          "union_mse": 0.02317182905972004,
+          "target_mse": 0.0355658121407032
+        },
+        {
+          "alpha": 0.2,
+          "union_mse": 0.01913807913661003,
+          "target_mse": 0.03025129809975624
+        },
+        {
+          "alpha": 0.3,
+          "union_mse": 0.017163889482617378,
+          "target_mse": 0.028456619009375572
+        },
+        {
+          "alpha": 0.5,
+          "union_mse": 0.01716047152876854,
+          "target_mse": 0.02814647927880287
+        },
+        {
+          "alpha": 0.7,
+          "union_mse": 0.023337841033935547,
+          "target_mse": 0.029146410524845123
+        },
+        {
+          "alpha": 1.0,
+          "union_mse": 0.04577558860182762,
+          "target_mse": 0.036995142698287964
+        },
+        {
+          "alpha": 1.5,
+          "union_mse": 0.13159115612506866,
+          "target_mse": 0.08400077372789383
+        },
+        {
+          "alpha": 2.0,
+          "union_mse": 0.30948376655578613,
+          "target_mse": 0.20239298045635223
+        },
+        {
+          "alpha": 3.0,
+          "union_mse": 1.0865857601165771,
+          "target_mse": 0.9104336500167847
+        }
+      ]
+    },
+    {
+      "k": 2,
+      "target_period": 3,
+      "n_target_windows": 7306,
+      "n_union_windows": 58924,
+      "base": 0.14256107807159424,
+      "specialist": 0.03378734365105629,
+      "chain": 0.03278408199548721,
+      "chain_csv": 0.03278408199548721,
+      "merge": 0.050157900899648666,
+      "merge_alpha": 0.2,
+      "merge_curve": [
+        {
+          "alpha": 0.1,
+          "union_mse": 0.021516481414437294,
+          "target_mse": 0.08205661922693253
+        },
+        {
+          "alpha": 0.2,
+          "union_mse": 0.01798105798661709,
+          "target_mse": 0.050157900899648666
+        },
+        {
+          "alpha": 0.3,
+          "union_mse": 0.017983373254537582,
+          "target_mse": 0.038723524659872055
+        },
+        {
+          "alpha": 0.5,
+          "union_mse": 0.03062145970761776,
+          "target_mse": 0.04202974960207939
+        },
+        {
+          "alpha": 0.7,
+          "union_mse": 0.0651574656367302,
+          "target_mse": 0.06460753828287125
+        },
+        {
+          "alpha": 1.0,
+          "union_mse": 0.1702829748392105,
+          "target_mse": 0.13073506951332092
+        },
+        {
+          "alpha": 1.5,
+          "union_mse": 0.5593746304512024,
+          "target_mse": 0.37000972032546997
+        },
+        {
+          "alpha": 2.0,
+          "union_mse": 1.3586256504058838,
+          "target_mse": 1.0129331350326538
+        },
+        {
+          "alpha": 3.0,
+          "union_mse": 5.316298961639404,
+          "target_mse": 4.778989791870117
+        }
+      ]
+    },
+    {
+      "k": 3,
+      "target_period": 4,
+      "n_target_windows": 7306,
+      "n_union_windows": 66230,
+      "base": 0.1088276132941246,
+      "specialist": 0.049785442650318146,
+      "chain": 0.04400103539228439,
+      "chain_csv": 0.04400103539228439,
+      "merge": 0.0532635822892189,
+      "merge_alpha": 0.2,
+      "merge_curve": [
+        {
+          "alpha": 0.1,
+          "union_mse": 0.023947153240442276,
+          "target_mse": 0.06848093122243881
+        },
+        {
+          "alpha": 0.2,
+          "union_mse": 0.01915670745074749,
+          "target_mse": 0.0532635822892189
+        },
+        {
+          "alpha": 0.3,
+          "union_mse": 0.022681714966893196,
+          "target_mse": 0.04951753839850426
+        },
+        {
+          "alpha": 0.5,
+          "union_mse": 0.06030735373497009,
+          "target_mse": 0.08972896635532379
+        },
+        {
+          "alpha": 0.7,
+          "union_mse": 0.14561448991298676,
+          "target_mse": 0.2122570276260376
+        },
+        {
+          "alpha": 1.0,
+          "union_mse": 0.40532955527305603,
+          "target_mse": 0.5245898962020874
+        },
+        {
+          "alpha": 1.5,
+          "union_mse": 1.3811954259872437,
+          "target_mse": 1.4432713985443115
+        },
+        {
+          "alpha": 2.0,
+          "union_mse": 3.569411516189575,
+          "target_mse": 3.7117626667022705
+        },
+        {
+          "alpha": 3.0,
+          "union_mse": 15.8313627243042,
+          "target_mse": 16.557558059692383
+        }
+      ]
+    }
+  ],
+  "metrics": {},
+  "schema": 1,
+  "code_fingerprint": "2ada9e5b9ebfc59b",
+  "completed_at": "2026-09-25T23:17:58"
+}

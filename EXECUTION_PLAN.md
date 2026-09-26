@@ -1727,6 +1727,24 @@ the section wins. None is quoted below for that reason.
   scoped to α ≤ 5.
 - The TIES/DARE settings on AD, which would need a distance match per setting.
 
+### 2.45 Evaluation gaps closed ✅ — five registered predictions, all refuted; one robustness check held
+
+EXPERIMENTS.md §1.39 (full-pass Fisher), §1.42, §1.43; claims `C51`–`C55` (refuted) and `C38`
+(robust). Every prediction was registered before its runs. The prose carries no numbers — the
+sections are checked, this file is not.
+
+- **§1.39, exchange_rate n = 3 at a full-pass Fisher:** `C38`'s one forecasting win survives
+  and slightly strengthens. The pipeline now records the samples each Fisher estimate actually
+  used (item A); older rows are labelled `flags`, not backfilled.
+- **§1.42, AD α chosen on a labelled calibration prefix:** P1–P3 all refuted. A short labelled
+  prefix is not a dependable α selector here. On PSM, validation selection beats it. §1.12's
+  conclusion is scoped, not overturned.
+- **§1.43, prequential scoring:** P1 and P2 refuted, P2 in the opposite direction. The chain
+  wins the final test block but is demoted prequentially; the merge leads prequentially.
+- **§1.44, AD headroom screen:** code, configurations and the injection protocol are written.
+  **Not run**: the registered 10% threshold would pass PSM itself under its own definition, and
+  the author decides before launch.
+
 ### 3.16 Match distance, not coefficients, when a transform is in the loop ✅
 
 The trap §1.37 fell into, and the reason §1.38 exists. Rescaling a merge so the per-vector

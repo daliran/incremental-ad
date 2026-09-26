@@ -57,5 +57,5 @@ EXPERIMENTS.md,5341,"as a robustness check, never as a second strategy-6 entry (
 EXPERIMENTS.md,5634,"observation. It does not test its mechanism, because it adds no dataset."
 EXPERIMENTS.md,5661,"B = 64 estimator, since AD was never re-run at B = 1 (§1.39). It is paired in §1.39 against its"
 EXPERIMENTS.md,5729,"so that ""do not merge"" is always an option and the oracle can never fall below the base."
-EXPERIMENTS.md,5833,- Events never overlap. They are at least 100 points apart and from either end. Events are added
-EXPERIMENTS.md,6695,"normalisation — and the test split is transformed with the training scaler, never fit on. But"
+EXPERIMENTS.md,5956,- Events never overlap. They are at least 100 points apart and from either end. Events are added
+EXPERIMENTS.md,6818,"normalisation — and the test split is transformed with the training scaler, never fit on. But"

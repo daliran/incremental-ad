@@ -65,7 +65,7 @@ seed until the 16-point merge-scale reruns landed (§1.11).
   it goes 0.0920 → 0.1839 from n = 3 to n = 5 while merging holds; on exchange_rate
   0.220 → 0.362 → 0.531. **Merging overtakes it not by improving but by not collapsing.** §1.24
 - **But continual is not the weaker method — on the dataset with the most headroom it wins
-  outright.** On **ETTh2** (83.8% headroom, the largest measured) sequential fine-tuning beats
+  outright.** On **ETTh2** (83.8% headroom, second only to ETTm2's 86.6%) sequential fine-tuning beats
   merging at **all three** segment counts — 0.2332 / 0.1970 / 0.2495 against merging's
   0.2612 / 0.2153 / 0.2669, i.e. by 12.0% / 9.3% / 7.0%. The "degrades as steps chain" result
   above is ETTm2 and exchange_rate; ETTh2 is the counterweight, and the two together are why
@@ -83,7 +83,7 @@ seed until the 16-point merge-scale reruns landed (§1.11).
   merged at α = 1.0. The task vectors mostly agree, so summing them at full strength
   overshoots. At α\* the damage disappears, and so does the "forgetting" once reported.
 - **In unsupervised AD the merge scale cannot be chosen honestly.** Validation reconstruction
-  and test AUROC disagree about α — SWaT's val optimum is 0.5 while AUROC improves
+  and test AUROC disagree about α — SWaT's validation picks α ≈ 0.2–0.4 (0.25 at n = 3) while AUROC improves
   monotonically to 1.5 — so selecting on validation costs **25–98%** of the achievable GRR on
   AD, against **1–8%** on forecasting. Every AD merge number in this file is oracle-selected.
   §1.12
@@ -618,7 +618,7 @@ by someone repeating it.
 | `C19` | Merging never wins a decisive forecasting configuration | 1.26 | Withdrawn in-place at §1.26: true of that table's 18 cells, false across §1.5b's 48. |
 | `C20` | OPCM's cost grows with the accumulated-subspace overlap rho | 1.35 | Registered as P1 before the sweep and refuted by it: the cost does not order by rho. **Replaced** by `C31` — at threshold 0.3 the predictor is base-to-joint *headroom*: how much there was to lose, not how much was removed (§1.36). |
 | `C24` | lambda* is unstable because the Fisher estimate is noisy | 1.32 | §1.32 ran the falsification test and the estimate saturates at the full pass - the instability is not sampling noise. |
-| `C25` | Attention-exclusive fine-tuning (the testable half of QOMM) helps | 1.33 | Measured on PSM-forecast n=3, three seeds, and did not clear the floor - reported as a negative result. |
+| `C25` | Attention-exclusive fine-tuning (the testable half of QOMM) helps | 1.33 | Measured on PSM-forecast n = 3, three seeds: AEFT is **worse** in all three cells, decisively in two (+4.25%, +3.38%) and at the boundary in the third (+3.53%). |
 | `C26` | The simplified OPCM operator (§1.31, §1.35) is the paper's OPCM | 1.31, 1.35, 1.36 | Never claimed and must never be: `opcm_residual` projects out the span of the flattened predecessors; the paper's operator (Tang et al., NeurIPS 2025, Algorithm 1) projects out the top-alpha singular subspace of the ACCUMULATED MERGED matrix, on both sides, drops the i==j diagonal, and carries a norm-stabilising lambda. |
 | `C41` | Adaptive-λ's premise holds on some configurations and **fails on most** | 1.39d | Registered before its own test and refuted by it: a useful interior point exists on **two of three** swept configurations, including ETTh2 n = 3, which was registered as the monotone loser. The surviving half is re-registered as `C42`. |
 | `C40` | Adaptive-λ's exchange_rate win is scarcity (braking as regularisation), not recency | 1.39, 1.39c | Registered and refuted the same day. Fixed λ = 1/t brakes on the same schedule with no Fisher and does **not** win (+6.86% vs −9.79%). The derived λ *exceeds* 1/t at every period here, so the coefficient wins by braking **less**, not more — the opposite of the regularisation reading, and of the recency one it replaced. |
@@ -641,7 +641,7 @@ called the paper's OPCM (`C26`), and the rescaled-BECAME variant is **never** ca
 | QOMM | **partial** | Only the attention-exclusive fine-tuning half is testable with this backbone; the quadratic-form outer-product machinery is not implemented. | The testable half does not clear the floor (C25, refuted). |
 | AEFT (attention-exclusive fine-tuning) | **full** | Run on PSM-forecast n=3, three seeds, with its own geometry report (`geometry_aeft/`). NOT ETTh1/exchange_rate - that pairing was a bookkeeping error corrected 2026-09-19. | No effect above the floor (C25). |
 | Fisher-weighted averaging (non-sequential) | **not run** | Subsumed by BECAME, which is the sequential Fisher method and was the one asked for. | - |
-| Sequential / continual fine-tuning with L2-SP | **full** | Opt-in in StandardTrainer; the early-stopping confound was found and fixed 2026-08-06. | The recorded rejection of L2-SP is WITHDRAWN, not confirmed - cross-lambda comparison was confounded and must be re-tested before any claim is made (§3.1). |
+| Sequential / continual fine-tuning with L2-SP | **full** | Opt-in in StandardTrainer; the early-stopping confound was found and fixed 2026-08-06. | The earlier rejection is WITHDRAWN, and the clean re-test found no measurable effect: at λ ∈ {1e-3, 1e-2} on ETTh1 n = 3 the sign flips with the normalisation, inside the ±5% spread (§3.1). |
 | Window retraining (W periods of retained history) | **full** | W = 1/2/3 on four forecasting datasets, plus honest validation-based budget selection. | Merging is worth 2-4 periods of history, dataset-dependent (C04). |
 | DARE (drop and rescale, on task arithmetic) | **full** | The supervisor's implementation, seeded (it was not). Drops only from matrices, as he wrote it; the official code masks every parameter. | Ties task arithmetic on 15 of 21 configurations - unbiased by construction (C45). |
 | TIES-Merging | **full** | The supervisor's implementation with its 1/n matrix-scale defect fixed. Trims each matrix to its own top 20% (the official code trims the flattened model). | Worst on ETT forecasting (+121% to +179% MSE); wins only on exchange_rate and PSM (C45, C46). |
@@ -2507,7 +2507,7 @@ from a different transformer station, with **roughly double the drift** (0.753 v
 5-way screen). Every drift-dependent claim in this file had a directional prediction. **Most of
 them failed.**
 
-Base 0.8415, joint 0.1362 — **83.8% headroom**, the largest of any dataset here, against a 6.7%
+Base 0.8415, joint 0.1362 — **83.8% headroom**, the largest at the time (ETTm2, added later, is 86.6%), against a 6.7%
 seed spread. Three seeds throughout.
 
 | | W=1 | W=2 | W=3 | W=5 | joint |

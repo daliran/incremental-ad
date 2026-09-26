@@ -19,7 +19,6 @@ EXPERIMENTS.md,2254,"and 1.5 against floors of 8.2% and 5.3%. The limit was reso
 EXPERIMENTS.md,2298,"If the newest data were always the most relevant, the newest specialist would win every regime"
 EXPERIMENTS.md,2337,**How the split is made.** The base model θ₀ always trains on the first 50% of the training
 EXPERIMENTS.md,2352,"variable. Test set, **3 seeds on every dataset**."
-EXPERIMENTS.md,2510,"Base 0.8415, joint 0.1362 — **83.8% headroom**, the largest of any dataset here, against a 6.7%"
 EXPERIMENTS.md,2623,widest of any dataset here; differences below that are not resolvable. Three seeds throughout.
 EXPERIMENTS.md,2682,"**GRR 0.927, specialisation 0.694** — the highest specialisation of any dataset measured, and"
 EXPERIMENTS.md,2715,That is false whenever α is **selected**: the selection scores the pooled validation union

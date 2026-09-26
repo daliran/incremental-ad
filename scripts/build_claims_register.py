@@ -261,8 +261,9 @@ CLAIMS: list[tuple] = [
      "SCOPE (2026-09-20): this concerns BECAME's COEFFICIENT applied inside this project's merging frame, where every shard is fine-tuned from the frozen theta_0. It is not a verdict on BECAME, which is a continual-learning method whose merge interpolates two endpoints of ONE training trajectory. The method is tested in its own frame as strategy 6, adaptive-lambda sequential fine-tuning (§1.39); this row is the evidence for why that was worth doing, not a result about it."),
     ("C25", "Attention-exclusive fine-tuning (the testable half of QOMM) helps",
      "1.33", "PSM-forecast", 1, "no", "measurement", "yes", "refuted",
-     "Measured on PSM-forecast n=3, three seeds, and did not clear the floor - reported as a "
-     "negative result. §1.33 also refutes QOMM's stated PREMISE: attention-only fine-tuning was "
+     "Measured on PSM-forecast n=3, three seeds: AEFT is WORSE in all three cells, decisively in "
+     "two (OPCM + swept alpha +4.25%, plain sum + BECAME +3.38%) and at the boundary in the third "
+     "(+3.53%) - reported as a negative result. §1.33 also refutes QOMM's stated PREMISE: attention-only fine-tuning was "
      "predicted to make task vectors more orthogonal and does the opposite, raising the "
      "off-diagonal cosine ~35% and nearly doubling rho. (The datasets field read "
      "'ETTh1,exchange_rate' until 2026-09-19; §1.33 never used those.)"),
@@ -635,8 +636,9 @@ METHODS: list[tuple] = [
      "-"),
     ("Sequential / continual fine-tuning with L2-SP", "full",
      "Opt-in in StandardTrainer; the early-stopping confound was found and fixed 2026-08-06.",
-     "The recorded rejection of L2-SP is WITHDRAWN, not confirmed - cross-lambda comparison was "
-     "confounded and must be re-tested before any claim is made (§3.1)."),
+     "The earlier rejection is WITHDRAWN, and the clean re-test found no measurable effect: at "
+     "lambda in {1e-3, 1e-2} on ETTh1 n = 3 the sign flips with the normalisation, inside the "
+     "+-5% spread (§3.1)."),
     ("Window retraining (W periods of retained history)", "full",
      "W = 1/2/3 on four forecasting datasets, plus honest validation-based budget selection.",
      "Merging is worth 2-4 periods of history, dataset-dependent (C04)."),

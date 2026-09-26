@@ -540,7 +540,8 @@ CLAIMS: list[tuple] = [
      "1.44", "PSM,SWaT", 2, "n/a", "measurement", "no", "hypothesis",
      "REGISTERED 2026-09-25, NOT YET RUN. Screen at seed 42: headroom = (AUROC_joint - AUROC_base) "
      "/ (1 - AUROC_base). Calibration under this definition: PSM 10.92%, SWaT 4.41% - the "
-     "registered 10% threshold would pass PSM itself, so it is held pending the author's decision. "
+     "registered 10% threshold would have passed PSM itself, so the author set it at 22% (twice "
+     "PSM's) on 2026-09-26, before any screen run. "
      "ETTh2-injected is a controlled test, not a benchmark; SMD is 28 machines concatenated."),
     ("C39", "Adaptive-lambda does not improve anomaly detection",
      "1.39", "PSM,SWaT", 2, "mixed", "measurement", "yes", "supported",

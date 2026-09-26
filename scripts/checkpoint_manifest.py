@@ -42,7 +42,7 @@ EXTRA_PREFIXES = ("opcm2_", "window_", "origin_", "basefrac_", "selalpha_", "n1_
                   # the adaptive_lambdas.csv they write, not named by any spec, so the derived
                   # scope above never reached them and their checkpoints — which back §1.39's
                   # published numbers — went uninventoried until 2026-09-23.
-                  "adaptive_became_", "fisherfix_", "onet_", "lamgrid_")
+                  "adaptive_became_", "fisherfix_", "onet_", "lamgrid_", "fullfisher_", "adscreen_")
 
 
 def referenced_experiments(spec_dir: Path, regenerate_script: Path) -> set[str]:

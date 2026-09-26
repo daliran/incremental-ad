@@ -101,8 +101,9 @@ class DataLoaderConfig:
         The override exists for Fisher estimation. `diagonal_fisher` squares the gradient of a
         **batch-mean** loss, which is neither the true Fisher nor the empirical one — both of
         those use per-sample gradients. At a converged minimum the batch-mean gradient is
-        minibatch sampling noise whose magnitude scales like 1/sqrt(B), so the estimate is
-        suppressed by an amount that depends on the dataloader rather than the model. At
+        minibatch sampling noise whose magnitude scales like 1/sqrt(B); squared, it gives
+        E[F_hat] = g^2 + sigma^2/B, so the estimate is suppressed as sigma^2/B -- by an amount
+        that depends on the dataloader rather than the model. At
         `batch_size=1` the batch-mean gradient IS the per-sample gradient and the result is the
         empirical Fisher as EWC defines it: observed targets, PSD by construction, and
         non-vanishing at a minimum.

@@ -5981,6 +5981,15 @@ does not separate a candidate from the saturated case it is meant to exclude. Th
 **held pending the author's decision before launch**, and whatever is chosen will be recorded
 here before any screen run.
 
+**Decision, recorded 2026-09-26 before any screen run: keep the registered definition and set
+the threshold at 22%**, twice PSM's calibrated 10.92%. A candidate must clearly beat the dataset
+it would replace. The relative definition of §0.1b was rejected on scale: AUROC is capped at 1,
+so a relative gap penalises a dataset whose base is already good (at base 0.90, 10% relative
+would need joint 0.99), while the fraction of the remaining room does not. 22% is also about
+double PSM's value on every seed and base source (≈ 11%), so a pass cannot be seed noise on a
+PSM-like dataset. **Rule of record: a full three-seed sweep only if headroom ≥ 22%; otherwise the
+screen is a negative result and the work stops.**
+
 **Result:** _pending — the four runs are launched by hand._
 
 ## 2. Exact configurations

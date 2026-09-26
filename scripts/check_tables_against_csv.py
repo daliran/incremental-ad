@@ -1488,6 +1488,17 @@ CHECKS += [
     for n in (2, 3, 5)
 ]
 
+# §1.44's screen table: base, joint and headroom for every row, candidates and references.
+CHECKS += [
+    (f"§1.44 {label} {field}",
+     rf"\| {re.escape(label)}[^|]*\| " + r"[^|]+\| " * index + r"\*{0,2}([\d.]+)%?\*{0,2} \|",
+     "ad_screen/ad_screen.csv", {"dataset": dataset}, field, tol)
+    for label, dataset in (("SMD", "SMD"), ("ETTh2-injected", "ETTh2-injected"),
+                           ("PSM", "PSM"), ("SWaT", "SWaT"))
+    for index, field, tol in ((0, "auroc_base", 0.00006), (1, "auroc_joint", 0.00006),
+                              (2, "headroom_pct100", 0.006))
+]
+
 # §0.1c — joint-reference sensitivity. Every number is bound; the "first on 1 of 27" count is
 # checked too, because it is the whole of the argument that the configuration was not
 # test-tuned, and a wrong count there would overstate the reassurance.

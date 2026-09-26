@@ -62,6 +62,41 @@ REGENERATED_INSIDE_CARRIED = {"oracle_router/oracle_router_summary.csv",
 VOLATILE = {"unscoped_universals.csv"}
 
 
+FLOAT_RTOL = 1e-9     # GPU reductions differ in the last digits between runs (1.7e-13 measured)
+
+
+def numerically_equal(a: Path, b: Path) -> bool:
+    """Same CSV shape and text cells, numbers equal within FLOAT_RTOL. Rows compared in order,
+    then as a sorted multiset (a regeneration may list the same runs in a different order)."""
+    import csv
+    import math
+
+    def rows(path):
+        with path.open(encoding="utf-8", newline="") as fh:
+            return list(csv.reader(fh))
+
+    def same(x, y):
+        if len(x) != len(y):
+            return False
+        for u, v in zip(x, y):
+            if u == v:
+                continue
+            try:
+                fu, fv = float(u), float(v)
+            except ValueError:
+                return False
+            if not math.isclose(fu, fv, rel_tol=FLOAT_RTOL, abs_tol=1e-15):
+                return False
+        return True
+
+    ra, rb = rows(a), rows(b)
+    if len(ra) != len(rb) or (ra and ra[0] != rb[0]):
+        return False
+    if all(same(x, y) for x, y in zip(ra, rb)):
+        return True
+    return all(same(x, y) for x, y in zip(sorted(ra[1:]), sorted(rb[1:])))
+
+
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
 
@@ -95,13 +130,22 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     read_by_checker = checked_relatives(args.checker)
+    # Which carried-type directories the regeneration actually COPIED from the archive. Anything
+    # else under a carried-type directory was produced by this run (a GPU regeneration) and is
+    # compared rather than skipped. Absent marker = the old behaviour (treat all as carried).
+    marker = Path(str(args.fresh).rstrip("/") + ".carried")
+    copied = set(marker.read_text().split()) if marker.is_file() else None
     archived = {p.relative_to(args.archive).as_posix()
                 for p in args.archive.rglob("*") if p.is_file()}
 
-    reproduced, differ, missing, carried, volatile = [], [], [], [], []
+    reproduced, differ, missing, carried, volatile, within_tol = [], [], [], [], [], []
     for rel in sorted(archived):
         top = rel.split("/")[0]
-        if (top in CARRIED or rel in CARRIED_FILES) and rel not in REGENERATED_INSIDE_CARRIED:
+        # Decided by the top-level entry, not the file: a file missing from a directory this run
+        # DID produce is a generator that stopped emitting it -- NOT PRODUCED, never "carried".
+        produced_here = copied is not None and top not in copied and (args.fresh / top).exists()
+        if ((top in CARRIED or rel in CARRIED_FILES) and rel not in REGENERATED_INSIDE_CARRIED
+                and not produced_here):
             carried.append(rel)
             continue
         if Path(rel).name in VOLATILE:
@@ -112,11 +156,15 @@ def main() -> None:
             missing.append(rel)
         elif filecmp.cmp(fresh, args.archive / rel, shallow=False):
             reproduced.append(rel)
+        elif rel.endswith(".csv") and numerically_equal(fresh, args.archive / rel):
+            within_tol.append(rel)
         else:
             differ.append(rel)
 
     log.info("REGENERATION vs ARCHIVE — %d archived file(s)", len(archived))
     log.info("  reproduced byte-for-byte : %d", len(reproduced))
+    log.info("  reproduced within %.0e   : %d  (GPU float noise; same rows, same text)",
+             FLOAT_RTOL, len(within_tol))
     log.info("  carried (declared)       : %d", len(carried))
     log.info("  volatile (declared)      : %d", len(volatile))
     log.info("  DIFFER                   : %d", len(differ))
@@ -160,7 +208,13 @@ def main() -> None:
                     "case this check exists for — every other check in the repo passes on it.",
                     failures)
     else:
-        log.info("\nEvery regenerable archived file reproduces byte-for-byte.")
+        if within_tol:
+            for rel in within_tol:
+                log.info("  WITHIN %.0e %s", FLOAT_RTOL, rel)
+            log.info("\nEvery regenerable archived file reproduces: %d byte-for-byte, %d within "
+                     "%.0e (GPU float noise).", len(reproduced), len(within_tol), FLOAT_RTOL)
+        else:
+            log.info("\nEvery regenerable archived file reproduces byte-for-byte.")
     if args.strict and failures:
         sys.exit(1)
 

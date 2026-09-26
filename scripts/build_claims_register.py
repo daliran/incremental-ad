@@ -479,7 +479,7 @@ CLAIMS: list[tuple] = [
      "Registered P5 (loss falls monotonically in density AND k=1.0 ties TA on >=3 of 5) was "
      "refuted: monotone on 3 of 5, and k=1.0 ties on 0 of 5 - it is worse on ETTh1 +21.24%, "
      "ETTh2 +21.77%, ETTm2 +44.71%, PSM-forecast +4.62%, better on exchange -8.52%. Trimming is "
-     "roughly half the ETT damage (+121-183% at k=0.2). n=3, 3 seeds, forecasting only; the "
+     "roughly half the ETT damage (+121-143% at k=0.2 on ETTh2/ETTm2). n=3, 3 seeds, forecasting only; the "
      "reference's per-matrix TIES. Says nothing about WHY sign election costs - that would be a "
      "mechanism claim, and none is made."),
     ("C49", "DARE ties task arithmetic at every drop rate up to 0.5 and loses at 0.9",
@@ -526,7 +526,8 @@ CLAIMS: list[tuple] = [
      "1.43", "ETTh1,ETTh2,ETTm2,exchange_rate,PSM-forecast", 5, "yes", "measurement", "yes",
      "refuted",
      "P1 of §1.43 REFUTED: >= 2 of 3 pairwise orderings agree in 7 of 15 configurations "
-     "(registered >= 8); two agree on nothing, one completely. 54 jobs, chain rescoring matched "
+     "(registered >= 8); two agree on nothing, none completely; merge=specialist ties at alpha=1 are "
+     "scored as ties. 54 jobs, chain rescoring matched "
      "each chain run's own record at every k."),
     ("C55", "Where the prequential and final-test rankings disagree, the chain does better "
      "prequentially",
@@ -537,8 +538,10 @@ CLAIMS: list[tuple] = [
      "test block in 11 of 15 configurations but prequentially in 5; the merge is first "
      "prequentially in 8. No mechanism is claimed."),
     ("C56", "SMD or ETTh2-injected offers AD headroom that PSM and SWaT do not",
-     "1.44", "PSM,SWaT", 2, "n/a", "measurement", "no", "hypothesis",
-     "REGISTERED 2026-09-25, NOT YET RUN. Screen at seed 42: headroom = (AUROC_joint - AUROC_base) "
+     "1.44", "PSM,SWaT", 2, "yes", "measurement", "yes", "refuted",
+     "SCREEN RUN, NEGATIVE under the rule fixed before the runs: SMD headroom 16.51%, ETTh2-injected "
+     "14.52%, both below the 22% bar (both above PSM's 10.92% and SWaT's 4.41%). Single seed; "
+     "ETTh2-injected had 117/235 training windows under PSM's config. Screen at seed 42: headroom = (AUROC_joint - AUROC_base) "
      "/ (1 - AUROC_base). Calibration under this definition: PSM 10.92%, SWaT 4.41% - the "
      "registered 10% threshold would have passed PSM itself, so the author set it at 22% (twice "
      "PSM's) on 2026-09-26, before any screen run. "

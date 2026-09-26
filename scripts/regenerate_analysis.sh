@@ -110,13 +110,20 @@ echo "== geometry / novelty (checkpoint readers — GPU node) =="
 # node: submit it, then re-run this script to pick the results up. Until then the archived copies
 # are carried forward and reported as carried.
 if [ "${WITH_GEOMETRY:-0}" = "1" ]; then
-    python -m incremental_ad.analysis.geometry_report \
-        "$RUNS"/noisefloor_{etth,psm,swat}/* "$RUNS"/exch_incremental/* \
-        "$RUNS"/{etth2,ettm2}_merge_n{2,3,5}/* \
-        "$RUNS"/segsweep_{etth1,exchange,psm,swat}_merge_n{2,5}/* --out "$OUT/geometry"
+    # Every run the ARCHIVED geometry table holds, read off that table itself. A hand-written
+    # list here once covered 54 of its 220 rows, so a GPU regeneration "passed" while rebuilding
+    # a quarter of the file (2026-09-26) -- the remerge_closeout trap again.
+    mapfile -t GEOMETRY_RUNS < <(python - "$CARRY/geometry/geometry_summary.csv" "$RUNS" <<'PYRUNS'
+import csv, sys
+for r in csv.DictReader(open(sys.argv[1])):
+    print(f"{sys.argv[2]}/{r['experiment_name']}/{r['run_id']}")
+PYRUNS
+)
+    python -m incremental_ad.analysis.geometry_report "${GEOMETRY_RUNS[@]}" --out "$OUT/geometry"
+    # geometry_by_dataset.csv lives in geometry/ in the archive, so it is written there.
     python -m incremental_ad.analysis.novelty_report geometry_table \
         --geometry_root "$OUT/geometry" --spec analysis_specs/geometry_table_spec.csv \
-        --out "$OUT/novelty"
+        --out "$OUT/geometry"
     python -m incremental_ad.analysis.novelty_report alignment \
         --geometry "$OUT/geometry/geometry_summary.csv" \
         --scale "$OUT/scale_forecast/scale_summary.csv" "$OUT/scale_ad/scale_summary.csv" \
@@ -269,6 +276,12 @@ python -m incremental_ad.analysis.prequential_report \
     --floors "$OUT/floors.csv" --out "$OUT/prequential" \
     || echo "  prequential skipped (no prequential outputs)"
 
+echo "== AD headroom screen (§1.44) =="
+# Reads the four screen runs plus PSM/SWaT's own base and joint at seed 42; drift from the
+# drift screen's own function (downloads SMD's training array once, from the HF cache).
+python -m incremental_ad.analysis.ad_screen_report --runs_root "$RUNS" --out "$OUT/ad_screen" \
+    || echo "  ad_screen skipped (no screen runs)"
+
 echo "== adaptive-lambda sequential fine-tuning (§1.39) =="
 # Strategy 6, not a merging experiment (CLAUDE.md scope note). Pure aggregation over finished
 # runs. Cells are keyed on the Fisher estimator's batch size as well as the configuration, so a
@@ -309,6 +322,7 @@ python "$REPO/scripts/build_results_report.py" --archive "$REPO/results_archive"
     --out "$REPO/results_report.html" --commit "$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
 echo "== carrying forward GPU-only outputs (not regenerated here) =="
+rm -f "${OUT}.carried"; touch "${OUT}.carried"
 for sub in oracle_router concentration novelty_swat selection_probe drift \
            geometry novelty alignment subblocks mask_span window_selection remerge \
            remerge_sweep remerge_closeout remerge_closeout_runs geometry_gap geometry_aeft \
@@ -316,6 +330,9 @@ for sub in oracle_router concentration novelty_swat selection_probe drift \
            merge_calibration_runs prequential_runs; do
     if [ -d "$CARRY/$sub" ] && [ ! -d "$OUT/$sub" ]; then
         cp -r "$CARRY/$sub" "$OUT/$sub"
+        # Recorded OUTSIDE the audit tree (so the archiver never copies it): the reproduction
+        # guard compares every carried-type directory this run produced itself.
+        echo "$sub" >> "${OUT}.carried"
         echo "  carried $sub from results_archive (regenerate with a GPU job if its runs changed)"
     fi
 done
@@ -325,6 +342,7 @@ for path in "$CARRY"/*; do
     name="$(basename "$path")"
     [ -e "$OUT/$name" ] && continue
     cp -r "$path" "$OUT/$name"
+    echo "$name" >> "${OUT}.carried"
     echo "  ⚠️  carried $name with no generator in this script — add one or drop it"
 done
 

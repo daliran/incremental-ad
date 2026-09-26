@@ -1741,9 +1741,12 @@ sections are checked, this file is not.
   conclusion is scoped, not overturned.
 - **§1.43, prequential scoring:** P1 and P2 refuted, P2 in the opposite direction. The chain
   wins the final test block but is demoted prequentially; the merge leads prequentially.
-- **§1.44, AD headroom screen:** code, configurations and the injection protocol are written.
-  **Not run**: the registered 10% threshold would pass PSM itself under its own definition, and
-  the author decides before launch.
+- **§1.44, AD headroom screen:** threshold set at 22% (twice PSM's) before any run. Run at one
+  seed and **negative**: both SMD and ETTh2-injected have more headroom than PSM, but neither clears
+  the bar, so no sweep and the AD half stays closed.
+- **F, full GPU regeneration:** every CSV the checker reads regenerates and reproduces the
+  archive. A first pass that "succeeded" was hiding a quarter-built geometry table behind the
+  guard; see `verification_log.md`.
 
 ### 3.16 Match distance, not coefficients, when a transform is in the loop ✅
 

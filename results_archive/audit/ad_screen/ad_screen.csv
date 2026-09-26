@@ -1,0 +1,5 @@
+dataset,base_run,joint_run,auroc_base,auroc_joint,headroom,passes_rule,drift_3way,drift_5way,note
+SMD,adscreen_smd_base/120692,adscreen_smd_joint/120694,0.7370218482483208,0.7804267342432989,0.1651,True,0.208,0.308,28 machines concatenated; periods can span machine boundaries
+ETTh2-injected,adscreen_etth2inj_base/120693,adscreen_etth2inj_joint/120695,0.5902988066650573,0.649772146859396,0.1452,True,0.659,0.753,"controlled test, not a benchmark: synthetic anomalies (§1.44 protocol)"
+PSM,segsweep_psm_merge_n2/79930,noisefloor_std_psm/80678,0.7747120608515732,0.7993165877842565,0.1092,True,,,reference
+SWaT,segsweep_swat_merge_n2/79926,noisefloor_std_swat/80679,0.8003530195080547,0.8091603804438808,0.0441,False,,,reference

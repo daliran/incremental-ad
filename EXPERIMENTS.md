@@ -579,7 +579,7 @@ if nobody stops them. *Measurement* claims are bounded by their own wording. *Sc
 a limit and bound themselves. `status_declared` is what the prose says; `status` is what the rule
 allows; where they differ, **the prose is wrong** and `prose_action` says so.
 
-**56 claims: 36 supported, 6 hypothesis, 14 refuted.** The rule downgraded
+**56 claims: 36 supported, 5 hypothesis, 15 refuted.** The rule downgraded
 **3** claims the prose declared as findings: `C23`, §1.35's recency-filter
 explanation of the exchange_rate OPCM win — one dataset, and no test that could have broken it
 until §1.36's P3; and `C36`/`C37`, §1.39b's two mechanism claims. Each of those paragraphs is
@@ -605,7 +605,7 @@ covers the *document*, not because the freeze moved.
 | `C53` | At a calibrated α the five merge rules rank as they do at the distance-matched α | 1.42 | SWaT, PSM | **Refuted** by §1.42's P3: ρ ≥ 0.8 on 0, 0 and 1 of 6 configurations at 10, 20, 30%. |
 | `C54` | The prequential ranking of merge, chain and newest specialist agrees with the final-test-block ranking | 1.43 | five forecasting datasets | **Refuted** by §1.43's P1: 7 of 15 configurations, against ≥ 8. |
 | `C55` | Where the prequential and final-test rankings disagree, the chain does better prequentially | 1.43 | five forecasting datasets | **Refuted**, in the opposite direction: the chain moves up in 3 of 15 disagreeing pairs. |
-| `C56` | SMD or ETTh2-injected offers AD headroom that PSM and SWaT do not | 1.44 | PSM, SWaT (calibration) | Registered 2026-09-25; the screen is not yet run and its threshold awaits the author's decision. |
+| `C56` | SMD or ETTh2-injected offers AD headroom that PSM and SWaT do not | 1.44 | PSM, SWaT (calibration) | **Refuted** by the screen: SMD 16.51%, ETTh2-injected 14.52%, both below the 22% bar set before the runs. |
 | `C37` | The residual left after correcting the estimator is Eq. 20's at-a-minimum asymmetry | 1.39b | ETTh1,ETTh2,ETTm2,exchange_rate | Slope +0.972 says it is correctly *scaled*, but r² = 0.342 leaves two thirds of the per-cell variation unexplained, and **no test has been run that could have overturned it**. |
 
 #### Claims this file records as refuted
@@ -5876,7 +5876,8 @@ which wins the final test block, is the method prequential scoring demotes.**
 > `prequential_report.py` → `prequential/prequential{,_predictions}.csv`. In every job the chain
 > rescored by the script matched the chain run's own recorded value at every k (tolerance 1e-5).
 
-"<" reads "lower MSE than". The prequential order is by mean rank over k; the final order is
+"<" reads "lower MSE than" and "=" marks a tie. The prequential order is by mean rank over k,
+with equal mean ranks ordered by mean MSE; the final order is
 §1.26's test block. "decisive" counts the pairwise gaps, out of 3, that exceed the dataset's floor.
 
 | dataset | n | prequential order | final-test order | pairwise agreement | decisive pairs: preq / final |
@@ -5888,21 +5889,26 @@ which wins the final test block, is the method prequential scoring demotes.**
 | ETTh2 | 3 | merge < chain < specialist | chain < merge < specialist | 2/3 | 3 / 3 |
 | ETTh2 | 5 | chain < specialist < merge | chain < merge < specialist | 2/3 | 2 / 3 |
 | ETTm2 | 2 | merge < specialist < chain | chain < specialist < merge | 0/3 | 2 / 2 |
-| ETTm2 | 3 | chain < merge < specialist | chain < merge < specialist | 3/3 | 2 / 3 |
+| ETTm2 | 3 | chain < specialist < merge | chain < merge < specialist | 2/3 | 2 / 3 |
 | ETTm2 | 5 | specialist < chain < merge | merge < specialist < chain | 1/3 | 1 / 2 |
 | PSM-forecast | 2 | merge < specialist < chain | merge < chain < specialist | 2/3 | 2 / 3 |
 | PSM-forecast | 3 | merge < chain < specialist | chain < merge < specialist | 2/3 | 2 / 3 |
 | PSM-forecast | 5 | specialist < chain < merge | merge < specialist < chain | 1/3 | 3 / 3 |
-| SWaT-forecast | 2 | specialist < merge < chain | chain < merge < specialist | 0/3 | 0 / 2 |
+| SWaT-forecast | 2 | merge < specialist < chain | chain < merge < specialist | 1/3 | 0 / 2 |
 | SWaT-forecast | 3 | specialist < merge < chain | specialist < chain < merge | 2/3 | 0 / 0 |
 | SWaT-forecast | 5 | chain < specialist < merge | specialist < chain < merge | 2/3 | 0 / 0 |
-| exchange | 2 | chain < merge < specialist | chain < specialist < merge | 2/3 | 2 / 2 |
+| exchange | 2 | chain < merge = specialist | chain < specialist < merge | 2/3 | 2 / 2 |
 | exchange | 3 | chain < specialist < merge | chain < merge < specialist | 2/3 | 1 / 2 |
 | exchange | 5 | chain < specialist < merge | merge < chain < specialist | 1/3 | 3 / 3 |
 
 - **P1 — refuted.** At least 2 of 3 pairwise orderings agree in **7 of 15** configurations,
   against the registered ≥ 8. Two configurations agree on nothing (ETTh1 n = 2, ETTm2 n = 2), and
-  only one agrees completely (ETTm2 n = 3).
+  none agrees completely. ⚠️ **Ties are scored as ties.** At k = 0 with α = 1 the merge is θ₀ +
+  τ₀, i.e. the specialist itself. That happens in 13 of 126 steps, with MSE identical to within 1e-7 (relative).
+  Those steps share one averaged rank, and a pair tied under a scoring counts as neither agreeing
+  nor disagreeing. A first version broke such ties by list order, which favoured the merge. The
+  correction changed two scored rows (exchange_rate n = 2: merge = specialist; ETTm2 n = 3: 3/3 →
+  2/3) and **neither registered count**.
 - **P2 — refuted, and in the opposite direction.** Of the 15 disagreeing pairwise orderings
   that involve the chain, the chain ranks higher prequentially in only **3**. The chain ranks
   first on the final test block in **11 of 15** configurations, but prequentially in **5**
@@ -5990,7 +5996,32 @@ double PSM's value on every seed and base source (≈ 11%), so a pass cannot be 
 PSM-like dataset. **Rule of record: a full three-seed sweep only if headroom ≥ 22%; otherwise the
 screen is a negative result and the work stops.**
 
-**Result:** _pending — the four runs are launched by hand._
+**Result — negative. Neither candidate clears the registered 22%; the screen stops here.**
+
+> **Provenance.** 4 runs at seed 42, 0 failures (`adscreen_{smd,etth2inj}_{base,joint}`);
+> `analysis/ad_screen_report.py` → `ad_screen/ad_screen.csv`. PSM and SWaT are recomputed by the
+> same script at the same seed, from their own base and joint runs.
+
+| dataset | AUROC base | AUROC joint | headroom | ≥ 22%? | drift 3-way / 5-way |
+|---|---|---|---|---|---|
+| SMD | 0.7370 | 0.7804 | **16.51%** | no | 0.208 / 0.308 |
+| ETTh2-injected *(controlled test)* | 0.5903 | 0.6498 | **14.52%** | no | 0.659 / 0.753 |
+| PSM *(reference)* | 0.7747 | 0.7993 | 10.92% | — | 0.465 (3-way, §0.1b) |
+| SWaT *(reference)* | 0.8004 | 0.8092 | 4.41% | — | 0.112 (3-way, §0.1b) |
+
+- **Both candidates have more headroom than PSM** (1.5× and 1.3×) but neither clears the bar set
+  before the runs, so by the rule of record no three-seed sweep is run.
+- **Single seed.** PSM's headroom ranges about 10–12% across seeds and base sources, so neither
+  candidate's margin over PSM is known to be larger than seed spread.
+- **ETTh2-injected trained on very little.** PSM's configuration, used verbatim (stride 50), gives
+  it 117 training windows for the base and 235 for joint, and its base AUROC is only 0.59. The
+  controlled test says as much about the configuration as about the data, and it remains a
+  controlled test, not a benchmark.
+- **SMD** is the 28 machines concatenated, so its drift figure is partly machine identity.
+
+**What this says.** The saturation of this project's AD evaluation is not unique to PSM and SWaT.
+The screened candidates offer more headroom, but not enough, under a threshold fixed in advance,
+to justify reopening the AD half.
 
 ## 2. Exact configurations
 

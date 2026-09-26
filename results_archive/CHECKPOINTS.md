@@ -2,7 +2,7 @@
 
 `results_archive/` holds the *evidence* (CSVs, `config.json`, every `result.json`) and deliberately excludes `*.pt`: they are gigabytes and reproducible from the configs. But re-merging, geometry, Fisher and any BECAME resampling need the weights, and `$WORK` is scratch. This is the record that makes an off-cluster copy verifiable.
 
-**Scope.** 283 experiment groups that own checkpoints — every experiment named by any file in `analysis_specs/` or globbed by `regenerate_analysis.sh`, plus the `opcm2_`/`window_`/`origin_`/`basefrac_`/`selalpha_`/`n1_`/`aeft_`/`adfc2_` families. Derived, not listed, so a new spec entry cannot leave its checkpoints unbacked. **4557 files, 14.4 GB.**
+**Scope.** 290 experiment groups that own checkpoints — every experiment named by any file in `analysis_specs/` or globbed by `regenerate_analysis.sh`, plus the `opcm2_`/`window_`/`origin_`/`basefrac_`/`selalpha_`/`n1_`/`aeft_`/`adfc2_` families. Derived, not listed, so a new spec entry cannot leave its checkpoints unbacked. **4583 files, 14.5 GB.**
 
 ## Copying
 
@@ -12,7 +12,7 @@ rsync -av --info=progress2 \
   /work/tesi_ddellacasaventurelli01/incremental-ad/runs/adaptive_became_etth1_n3_s123 \
   /work/tesi_ddellacasaventurelli01/incremental-ad/runs/adaptive_became_etth1_n3_s42 \
   /work/tesi_ddellacasaventurelli01/incremental-ad/runs/adaptive_became_etth1_n3_s7 \
-  ...  # all 283 groups, listed below
+  ...  # all 290 groups, listed below
   <destination>/incremental-ad-checkpoints/
 ```
 
@@ -117,6 +117,10 @@ EOF
 | `adfc2_swat_window_W2_oldmask` | 15 | 0.05 GB |
 | `adfc2_swat_window_W3` | 15 | 0.05 GB |
 | `adfc2_swat_window_W3_oldmask` | 15 | 0.05 GB |
+| `adscreen_etth2inj_base` | 2 | 0.01 GB |
+| `adscreen_etth2inj_joint` | 2 | 0.01 GB |
+| `adscreen_smd_base` | 2 | 0.01 GB |
+| `adscreen_smd_joint` | 2 | 0.01 GB |
 | `aeft_psm_opcm_scale` | 27 | 0.08 GB |
 | `aeft_psm_sum_became` | 27 | 0.08 GB |
 | `aeft_psm_sum_scale` | 27 | 0.08 GB |
@@ -178,6 +182,9 @@ EOF
 | `fisherfix_exchange_n3_s123` | 6 | 0.02 GB |
 | `fisherfix_exchange_n3_s42` | 6 | 0.02 GB |
 | `fisherfix_exchange_n3_s7` | 6 | 0.02 GB |
+| `fullfisher_exchange_n3_s123` | 6 | 0.02 GB |
+| `fullfisher_exchange_n3_s42` | 6 | 0.02 GB |
+| `fullfisher_exchange_n3_s7` | 6 | 0.02 GB |
 | `lamgrid_010_etth2_n3_s123` | 6 | 0.02 GB |
 | `lamgrid_010_etth2_n3_s42` | 6 | 0.02 GB |
 | `lamgrid_010_etth2_n3_s7` | 6 | 0.02 GB |
@@ -323,4 +330,4 @@ EOF
 | `window_swat_W2` | 15 | 0.12 GB |
 | `window_swat_W3` | 15 | 0.12 GB |
 
-Per-file sizes and SHA-256 are in `results_archive/checkpoints.csv` (4557 rows) — kept as CSV rather than inlined here because a 4557-row table in Markdown is not readable and not greppable.
+Per-file sizes and SHA-256 are in `results_archive/checkpoints.csv` (4583 rows) — kept as CSV rather than inlined here because a 4583-row table in Markdown is not readable and not greppable.

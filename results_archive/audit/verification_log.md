@@ -71,3 +71,64 @@ register and the table checker.
 ~1e-9 (`window_auroc` 0.8028227483 stored, 0.8028227477 re-merged; `pa_f1` identical). All 54 AD
 re-merge rows published before the fix were re-read with both arms at one seed: **0 verdicts
 changed**, largest delta shift 0.006 percentage points.
+
+## Evaluation-gap batch — 2026-09-26
+
+`scripts/verify_core.py`: **68/68 gates pass**. That is the 64 above plus four new
+**Fisher-sample-count** gates: `diagonal_fisher` records the samples it actually used, not the
+product of its flags. A full pass at B = 1, a partial last batch, a batch cap, and a cap larger
+than the shard (512 requested, 10 available → 10 recorded).
+
+`scripts/verify_merge_baselines.py`: **49/49** (unchanged code, re-run).
+`scripts/verify_adaptive_lambda.py`: the 5 locally runnable gates pass, 0 failures. Gates 1 and 3
+run inside the pipeline on the cluster and were last recorded in SLURM 116616.
+`analysis/calibration_split.py` self-test passes. That includes the refusal of a reordered score
+vector, which is what binds the §1.42 split to the evaluator's window order.
+
+**New evaluation code, checked against published values before any result was quoted:**
+- **§1.42 (calibration split):**
+  - The base at α = 0 reproduces every AD run's own `baseline/test` window AUROC to ≤ 8e-9.
+  - Every job asserts that the split, applied to the whole test set, reproduces the published
+    `window_auroc` to 1e-9.
+- **§1.43 (prequential):** every job's rescored chain matched the chain run's own recorded
+  per-period value at every k (tolerance 1e-5).
+- **§1.39 full-pass Fisher:** the recorded sample counts (712 per period, 2,230 base) match the
+  window counts the dataset defines.
+
+**Two summaries that had no generator** now reproduce the archived files byte for byte:
+`oracle_router/oracle_router_summary.csv` (`oracle_router_report.py`) and
+`remerge/fisher_sweep_summary.csv` (`fisher_sweep_report.py`).
+
+`verify_merge_reproduction` and `verify_checkpoints` were not re-run: no merge of record changed.
+
+## Full GPU regeneration (item F) — 2026-09-26
+
+SLURM 120740 (`WITH_GEOMETRY=1`): **every CSV the checker reads is regenerated from the runs and
+reproduces the archive** — 107 files byte for byte, and `geometry/geometry_summary.csv` within a
+relative 1e-9. That last file is GPU float noise: the largest difference is 1.7e-13, with the same
+rows and the same text cells. 0 differ, 0 not produced. Nothing the checker reads is carried any
+more.
+
+**The first attempt (SLURM 120705) "passed" and was wrong.** Checked file by file, it showed
+that the guard skipped every file under a carried-type directory even when the GPU run had
+regenerated it. Behind that were three defects:
+- `geometry_report` was invoked on a hand-written list covering **54 of the archived table's 220
+  runs**. Its 54 rows matched to 1.7e-13; the other 166 were never rebuilt.
+- `geometry_by_dataset.csv` was written to `novelty/`, while the archive keeps it in `geometry/`.
+- As a consequence, `alignment_correlation.csv` came out slightly different (within_r 0.4595
+  against 0.4617), inside the checker's 0.02 tolerance, so no number check could see it.
+
+**Fixed:**
+- The run list is now read from the archived table itself.
+- The output path matches the archive.
+- The regeneration records which directories it copied (`<out>.carried`), and the guard
+  compares everything else, including a file missing from a produced directory, which now counts
+  as NOT PRODUCED.
+- Replayed on the first attempt's output, the fixed guard fails it with exactly those four
+  defects.
+
+**Still carried**, none read by the checker:
+- the GPU re-merge and grid-search per-run trees, which the pipeline reads as inputs;
+- the verification records;
+- five older GPU analyses: `geometry_gap`, `geometry_aeft`, `novelty_swat`, `mask_span`,
+  `subblocks_origin`.

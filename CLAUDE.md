@@ -50,7 +50,7 @@ Research codebase for **incremental anomaly detection on multivariate time serie
   GRR, both published. The checker asserts `run_metrics.csv` is re-derivable from the per-seed
   file, which is what makes "the repo is self-sufficient" checked rather than claimed. Checkpoints
   are still excluded; `results_archive/CHECKPOINTS.md` + `checkpoints.csv` inventory them
-  (4,557 files, 14.4 GB, SHA-256 each; strategy 6 included since 2026-09-25) so an off-cluster copy can be verified.
+  (4,583 files, 14.5 GB, SHA-256 each; strategy 6, the full-pass Fisher re-run and the AD screen included since 2026-09-26; `scripts/verify_checkpoint_copy.py` checks a copy against it) so an off-cluster copy can be verified.
 - **`results_archive/` holds the evidence, in the repo.** `$WORK` is scratch and is not backed up, so the ~3.4 MB of CSVs every published number is checked against is archived under `results_archive/` by `scripts/archive_results.py`. The invariant to preserve: `python scripts/check_tables_against_csv.py --audit_dir results_archive/audit --runs_root results_archive/run_diagnostics --strict` must pass **with no `$WORK` mounted** — that is what makes the documents auditable after the scratch space is purged. It is a *snapshot*: re-run the archiver after anything that changes a published number, or the checker will pass against stale evidence, which is worse than not checking. Checkpoints and `wandb/` are excluded (gigabytes, reproducible from `config.json`), which means the bitwise merge-reproduction check cannot be run from the archive.
 - **One SLURM job per run, and always export `RUNS_ROOT`.** `run_id` is `SLURM_JOB_ID` when set, so several runs looped inside one job share a directory and **overwrite each other silently** — that destroyed 56 of 84 runs once while the job reported "0 failures" (every command really did succeed). `experiment.run` now appends a suffix and warns, but that is a backstop: submit one `sbatch` per run, as `slurm_grid_search/submit.py` does. Unset `RUNS_ROOT` writes `./runs` **inside the repo** (gitignored, but 627 MB on the home filesystem).
 - **`MANIFEST.csv` must cover the whole archive, not the last copy.** `archive_results.py` used
@@ -70,10 +70,15 @@ Research codebase for **incremental anomaly detection on multivariate time serie
   and stays off the login node. Everything else is pure CSV aggregation and reproduces the
   archived outputs byte-for-byte — **and that is now checked rather than asserted**:
   `scripts/check_archive_reproduces.py` diffs a fresh run against the archive file by file and
-  the regeneration script runs it at the end. It reports **27 of the 42 CSVs the checker reads
-  as regenerated and 15 as carried** — the carried ones (geometry, novelty, alignment,
-  concentration, oracle_router, outcomes, window_selection, remerge/fisher_sweep) need a GPU and
-  their generators are **not exercised by the default path**, which the check prints every time.
+  the regeneration script runs it at the end. On the default CPU path it reports the
+  checkpoint readers' CSVs (geometry, novelty, alignment, concentration, oracle_router, outcomes,
+  window_selection) as carried. **With `WITH_GEOMETRY=1` on a GPU node every CSV the checker reads
+  is regenerated and reproduces** — verified 2026-09-26 (SLURM 120740): 107 byte for byte, 1
+  within 1e-9 (GPU float noise). ⚠️ **The guard itself once hid a failure:** it skipped every file
+  under a carried-type directory even when the GPU run had regenerated it, so a run that rebuilt
+  54 of `geometry_summary.csv`'s 220 rows "passed". The regeneration now records what it copied
+  (`<out>.carried`) and the guard compares everything else; a file missing from a produced
+  directory is NOT PRODUCED, never carried.
   ⚠️ **The defect it was built for:** `--remerge_dir` pointed at the directory the closeout
   report *writes* rather than the per-run tree it *reads*, so regeneration produced **24 of
   `remerge_closeout.csv`'s 241 rows** while every one of the 1295 checks passed — because the 24

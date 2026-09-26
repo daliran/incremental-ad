@@ -538,7 +538,7 @@ CLAIMS: list[tuple] = [
      "test block in 11 of 15 configurations but prequentially in 5; the merge is first "
      "prequentially in 8. No mechanism is claimed."),
     ("C56", "SMD or ETTh2-injected offers AD headroom that PSM and SWaT do not",
-     "1.44", "PSM,SWaT", 2, "yes", "measurement", "yes", "refuted",
+     "1.44", "SMD,ETTh2-injected", 2, "yes", "measurement", "yes", "refuted",
      "SCREEN RUN, NEGATIVE under the rule fixed before the runs: SMD headroom 16.51%, ETTh2-injected "
      "14.52%, both below the 22% bar (both above PSM's 10.92% and SWaT's 4.41%). Single seed; "
      "ETTh2-injected had 117/235 training windows under PSM's config. Screen at seed 42: headroom = (AUROC_joint - AUROC_base) "
@@ -759,7 +759,10 @@ def main() -> None:
     # Both levels: §1.27a/b/c are `####` subsections, and a register that only knew about
     # `###` would reject a live reference as dangling.
     sections = set(re.findall(r"^#{3,4} (\d+\.\d+[a-z]?)", text, re.M))
-    known = {row["dataset"] for row in csv.DictReader(args.floors.open())}
+    # Screen-only datasets (§1.44) have no floor: they were measured at one seed and deliberately
+    # not swept. Named here rather than accepted generically, so a typo is still an error.
+    known = ({row["dataset"] for row in csv.DictReader(args.floors.open())}
+             | {"SMD", "ETTh2-injected"})
     problems = []
     for claim in CLAIMS:
         for ref in claim[2].split(","):

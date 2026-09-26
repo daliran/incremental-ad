@@ -111,7 +111,7 @@ more.
 
 **The first attempt (SLURM 120705) "passed" and was wrong.** Checked file by file, it showed
 that the guard skipped every file under a carried-type directory even when the GPU run had
-regenerated it. Behind that were three defects:
+regenerated it. Behind that were three pipeline defects, showing up as four failing files:
 - `geometry_report` was invoked on a hand-written list covering **54 of the archived table's 220
   runs**. Its 54 rows matched to 1.7e-13; the other 166 were never rebuilt.
 - `geometry_by_dataset.csv` was written to `novelty/`, while the archive keeps it in `geometry/`.
@@ -125,7 +125,7 @@ regenerated it. Behind that were three defects:
   compares everything else, including a file missing from a produced directory, which now counts
   as NOT PRODUCED.
 - Replayed on the first attempt's output, the fixed guard fails it with exactly those four
-  defects.
+  files: three that differ and one not produced.
 
 **Still carried**, none read by the checker:
 - the GPU re-merge and grid-search per-run trees, which the pipeline reads as inputs;

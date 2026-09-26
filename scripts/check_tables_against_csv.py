@@ -1867,6 +1867,21 @@ def check_evaluation_sections(text: str, audit: Path) -> int:
             if (r["recovered_fraction"] == "") != (cell == "—"):
                 fail(f"§1.42 {r['dataset']} n={r['n_segments']} {r['c']} {r['selector']}: CSV "
                      f"{r['recovered_fraction'] or 'undefined'!r}, document {cell!r}")
+    # §1.44: the rule-of-record column must say what the CSV's passes_rule says. The CSV once
+    # carried a stale 10% threshold and said True for SMD, ETTh2-injected and PSM while the table
+    # said no -- a boolean no number check can see.
+    path = audit / "ad_screen" / "ad_screen.csv"
+    if path.is_file():
+        body = section_slice(text, "§1.44")
+        for row in csv.DictReader(path.open(encoding="utf-8")):
+            if row["dataset"] not in ("SMD", "ETTh2-injected"):
+                continue
+            want = "yes" if row["passes_rule"] == "True" else "no"
+            found = re.search(rf"\| {re.escape(row['dataset'])}[^|]*\|(?:[^|]*\|){{3}} ([a-z]+) \|",
+                              body)
+            if found is None or found.group(1) != want:
+                fail(f"§1.44 {row['dataset']}: table says "
+                     f"{found.group(1) if found else 'nothing'!r}, ad_screen.csv passes_rule={want}")
     if not problems:
         print("  ok        every row, count, blank and verdict matches")
     return problems
@@ -2082,6 +2097,8 @@ DATASET_PATTERNS = {
     "SWaT": r"\bSWaT\b(?!-forecast)",
     "PSM-forecast": r"\bPSM-forecast\b",
     "SWaT-forecast": r"\bSWaT-forecast\b",
+    "SMD": r"\bSMD\b",
+    "ETTh2-injected": r"\bETTh2-injected\b",
 }
 
 

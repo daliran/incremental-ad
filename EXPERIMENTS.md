@@ -5348,7 +5348,7 @@ this repo, and it was found only because a coefficient came out absurd and the a
 chased rather than tuned away.
 
 
-### 1.40 The supervisor's merge baselines — DARE, TIES, Iso-C, TSV (registration)
+### 1.40 The supervisor's merge baselines — DARE, TIES, Iso-C, TSV (registered before the runs; results below)
 
 > **Provenance.** `framework/merging/interference.py` (port of the supervisor's `other/`, which is
 > left untouched) → `analysis/remerge.py --baseline_rule` → one `result.json` per (run, rule, α).
@@ -5561,7 +5561,7 @@ best. **On SWaT no rule beats TA at any α tested.** Iso-C loses on every AD cel
 not what a deployment would get. It is registered as `C47`, scoped to PSM and to test-optimal α.
 It does not change `C45`, which is a claim about one deployable protocol.
 
-#### 1.40b Follow-ups — Iso-C's grid edge, and TIES/DARE at other settings (registration)
+#### 1.40b Follow-ups — Iso-C's grid edge, and TIES/DARE at other settings (registered before the runs; results below)
 
 > **Provenance.** `scripts/generate_merge_followups.py` → `remerge.py --baseline_rule`.
 > Training-free, forecasting only, registered 2026-09-25 before any run.
@@ -5704,7 +5704,7 @@ entry and the runner-up, 11 exceed the dataset's floor and 10 do not. On AD, the
 on" is a count of means, not of decisive wins, and it is quoted here only as that. `C50` records
 the claim at exactly that strength.
 
-### 1.42 AD: choosing α on a small labelled calibration set (registration)
+### 1.42 AD: choosing α on a small labelled calibration set (registered before the runs; results below)
 
 > **Provenance.** `scripts/generate_evaluation_jobs.py` → `remerge.py --calibration_split` →
 > `analysis/calibration_report.py`. Training-free: 90 re-merges (18 AD runs × 5 rules) of the
@@ -5821,7 +5821,7 @@ and on PSM validation selection recovers most of the oracle gain on the evaluati
 early prefix is simply a poor sample of each recording's anomalies. The first 20% of PSM ranks
 the base above every merge that the rest of the recording rewards.
 
-### 1.43 Forecasting: prequential evaluation (registration)
+### 1.43 Forecasting: prequential evaluation (registered before the runs; results below)
 
 > **Provenance.** `scripts/generate_evaluation_jobs.py` → `analysis/prequential.py` →
 > `analysis/prequential_report.py`. Training-free: 54 scoring jobs over existing checkpoints.
@@ -5908,7 +5908,8 @@ with equal mean ranks ordered by mean MSE; the final order is
   Those steps share one averaged rank, and a pair tied under a scoring counts as neither agreeing
   nor disagreeing. A first version broke such ties by list order, which favoured the merge. The
   correction changed two scored rows (exchange_rate n = 2: merge = specialist; ETTm2 n = 3: 3/3 →
-  2/3) and **neither registered count**.
+  2/3), plus SWaT-forecast n = 2 (0/3 → 1/3), which is outside the counts, and changed **neither
+  registered count**.
 - **P2 — refuted, and in the opposite direction.** Of the 15 disagreeing pairwise orderings
   that involve the chain, the chain ranks higher prequentially in only **3**. The chain ranks
   first on the final test block in **11 of 15** configurations, but prequentially in **5**
@@ -5932,7 +5933,7 @@ dataset where the chain wins under both scorings.
   n = 5), which is why the counts, not the orderings, carry the result.
 - **n = 2 has a single k**, and there chain and specialist are both one fine-tune from θ₀.
 
-### 1.44 AD headroom screen — SMD and ETTh2-injected (registration)
+### 1.44 AD headroom screen — SMD and ETTh2-injected (registered before the runs; results below)
 
 > **Provenance.** `project/datasets/ad_screen.py` (`Smd`, `Etth2Injected`, both subclasses of PSM's
 > loader, so windowing and splits are PSM's code path) → `scripts/generate_ad_screen.py` (4 runs,

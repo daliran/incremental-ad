@@ -7,7 +7,7 @@ PSM's and SWaT's own base and joint at seed 42, and applies the decision rule re
 before any run:
 
     headroom = (AUROC_joint − AUROC_base) / (1 − AUROC_base)      — window AUROC, on test
-    full three-seed sweep only if headroom >= 10 %
+    full three-seed sweep only if headroom >= 22 %   (the registered 10% would have passed PSM)
 
 PSM and SWaT are recomputed here under THIS definition (§0.1b's "headroom" column uses a
 different one), so the threshold is compared like with like. Drift is `drift_screen`'s own 3-way
@@ -23,7 +23,7 @@ import csv
 import json
 from pathlib import Path
 
-RULE_THRESHOLD = 0.10
+RULE_THRESHOLD = 0.22     # §1.44, set 2026-09-26 before any run: twice PSM's calibrated 10.92%
 SEED = 42
 FIELDS = ["dataset", "base_run", "joint_run", "auroc_base", "auroc_joint", "headroom",
           "passes_rule", "drift_3way", "drift_5way", "note"]
